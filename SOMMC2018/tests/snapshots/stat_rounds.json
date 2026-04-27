@@ -1,0 +1,1932 @@
+[
+  {
+    "mp_max": [
+      {
+        "__model__": "Position",
+        "id": 16,
+        "minipoints": 150,
+        "pk": 16,
+        "player_id": 16,
+        "position": 4,
+        "round_nb": 1,
+        "table_nb": 4,
+        "tablepoints": 0.0,
+        "tenant_id": 1
+      }
+    ],
+    "ron_hand_max": [
+      {
+        "__model__": "Hand",
+        "hand_nb": 16,
+        "id": 67,
+        "pk": 67,
+        "pts": 46,
+        "round_nb": 1,
+        "table_nb": 4,
+        "tenant_id": 1,
+        "version": 0,
+        "win_by": 4,
+        "win_from": 1
+      }
+    ],
+    "ron_win_max": [
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00001",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player1",
+          "full_name": "Player1 Lastname",
+          "id": 1,
+          "pk": 1,
+          "rand_id": 1,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 4,
+          "pk": 4,
+          "pts": 4,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00002",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player2",
+          "full_name": "Player2 Lastname",
+          "id": 2,
+          "pk": 2,
+          "rand_id": 2,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 1,
+          "pk": 1,
+          "pts": 1,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00003",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player3",
+          "full_name": "Player3 Lastname",
+          "id": 3,
+          "pk": 3,
+          "rand_id": 3,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 2,
+          "pk": 2,
+          "pts": 2,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00004",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player4",
+          "full_name": "Player4 Lastname",
+          "id": 4,
+          "pk": 4,
+          "rand_id": 4,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 3,
+          "pk": 3,
+          "pts": 3,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00005",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player5",
+          "full_name": "Player5 Lastname",
+          "id": 5,
+          "pk": 5,
+          "rand_id": 5,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 20,
+          "pk": 20,
+          "pts": 13,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00006",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player6",
+          "full_name": "Player6 Lastname",
+          "id": 6,
+          "pk": 6,
+          "rand_id": 6,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 21,
+          "pk": 21,
+          "pts": 14,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00007",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player7",
+          "full_name": "Player7 Lastname",
+          "id": 7,
+          "pk": 7,
+          "rand_id": 7,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 18,
+          "pk": 18,
+          "pts": 11,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00008",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player8",
+          "full_name": "Player8 Lastname",
+          "id": 8,
+          "pk": 8,
+          "rand_id": 8,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 19,
+          "pk": 19,
+          "pts": 12,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00009",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player9",
+          "full_name": "Player9 Lastname",
+          "id": 9,
+          "pk": 9,
+          "rand_id": 9,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 36,
+          "pk": 36,
+          "pts": 22,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00010",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player10",
+          "full_name": "Player10 Lastname",
+          "id": 10,
+          "pk": 10,
+          "rand_id": 10,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 37,
+          "pk": 37,
+          "pts": 23,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00011",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player11",
+          "full_name": "Player11 Lastname",
+          "id": 11,
+          "pk": 11,
+          "rand_id": 11,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 38,
+          "pk": 38,
+          "pts": 24,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00012",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player12",
+          "full_name": "Player12 Lastname",
+          "id": 12,
+          "pk": 12,
+          "rand_id": 12,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 35,
+          "pk": 35,
+          "pts": 21,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00013",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player13",
+          "full_name": "Player13 Lastname",
+          "id": 13,
+          "pk": 13,
+          "rand_id": 13,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 52,
+          "pk": 52,
+          "pts": 31,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00014",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player14",
+          "full_name": "Player14 Lastname",
+          "id": 14,
+          "pk": 14,
+          "rand_id": 14,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 53,
+          "pk": 53,
+          "pts": 32,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00015",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player15",
+          "full_name": "Player15 Lastname",
+          "id": 15,
+          "pk": 15,
+          "rand_id": 15,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 54,
+          "pk": 54,
+          "pts": 33,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00016",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player16",
+          "full_name": "Player16 Lastname",
+          "id": 16,
+          "pk": 16,
+          "rand_id": 16,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 55,
+          "pk": 55,
+          "pts": 34,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      }
+    ],
+    "sd_hand_max": [],
+    "sd_win_max": [],
+    "total_win_max": [
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00001",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player1",
+          "full_name": "Player1 Lastname",
+          "id": 1,
+          "pk": 1,
+          "rand_id": 1,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 4,
+          "pk": 4,
+          "pts": 4,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00002",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player2",
+          "full_name": "Player2 Lastname",
+          "id": 2,
+          "pk": 2,
+          "rand_id": 2,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 1,
+          "pk": 1,
+          "pts": 1,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00003",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player3",
+          "full_name": "Player3 Lastname",
+          "id": 3,
+          "pk": 3,
+          "rand_id": 3,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 2,
+          "pk": 2,
+          "pts": 2,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00004",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player4",
+          "full_name": "Player4 Lastname",
+          "id": 4,
+          "pk": 4,
+          "rand_id": 4,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 3,
+          "pk": 3,
+          "pts": 3,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00005",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player5",
+          "full_name": "Player5 Lastname",
+          "id": 5,
+          "pk": 5,
+          "rand_id": 5,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 20,
+          "pk": 20,
+          "pts": 13,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00006",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player6",
+          "full_name": "Player6 Lastname",
+          "id": 6,
+          "pk": 6,
+          "rand_id": 6,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 21,
+          "pk": 21,
+          "pts": 14,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00007",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player7",
+          "full_name": "Player7 Lastname",
+          "id": 7,
+          "pk": 7,
+          "rand_id": 7,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 18,
+          "pk": 18,
+          "pts": 11,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00008",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player8",
+          "full_name": "Player8 Lastname",
+          "id": 8,
+          "pk": 8,
+          "rand_id": 8,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 19,
+          "pk": 19,
+          "pts": 12,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00009",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player9",
+          "full_name": "Player9 Lastname",
+          "id": 9,
+          "pk": 9,
+          "rand_id": 9,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 36,
+          "pk": 36,
+          "pts": 22,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00010",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player10",
+          "full_name": "Player10 Lastname",
+          "id": 10,
+          "pk": 10,
+          "rand_id": 10,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 37,
+          "pk": 37,
+          "pts": 23,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00011",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player11",
+          "full_name": "Player11 Lastname",
+          "id": 11,
+          "pk": 11,
+          "rand_id": 11,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 38,
+          "pk": 38,
+          "pts": 24,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00012",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player12",
+          "full_name": "Player12 Lastname",
+          "id": 12,
+          "pk": 12,
+          "rand_id": 12,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 35,
+          "pk": 35,
+          "pts": 21,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00013",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player13",
+          "full_name": "Player13 Lastname",
+          "id": 13,
+          "pk": 13,
+          "rand_id": 13,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 52,
+          "pk": 52,
+          "pts": 31,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00014",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player14",
+          "full_name": "Player14 Lastname",
+          "id": 14,
+          "pk": 14,
+          "rand_id": 14,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 53,
+          "pk": 53,
+          "pts": 32,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00015",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player15",
+          "full_name": "Player15 Lastname",
+          "id": 15,
+          "pk": 15,
+          "rand_id": 15,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 54,
+          "pk": 54,
+          "pts": 33,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00016",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player16",
+          "full_name": "Player16 Lastname",
+          "id": 16,
+          "pk": 16,
+          "rand_id": 16,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 55,
+          "pk": 55,
+          "pts": 34,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      }
+    ]
+  },
+  {
+    "mp_max": [
+      {
+        "__model__": "Position",
+        "id": 20,
+        "minipoints": 155,
+        "pk": 20,
+        "player_id": 16,
+        "position": 4,
+        "round_nb": 2,
+        "table_nb": 1,
+        "tablepoints": 0.0,
+        "tenant_id": 1
+      }
+    ],
+    "ron_hand_max": [
+      {
+        "__model__": "Hand",
+        "hand_nb": 16,
+        "id": 135,
+        "pk": 135,
+        "pts": 46,
+        "round_nb": 2,
+        "table_nb": 4,
+        "tenant_id": 1,
+        "version": 0,
+        "win_by": 1,
+        "win_from": 2
+      }
+    ],
+    "ron_win_max": [
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00001",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player1",
+          "full_name": "Player1 Lastname",
+          "id": 1,
+          "pk": 1,
+          "rand_id": 1,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 71,
+          "pk": 71,
+          "pts": 3,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00006",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player6",
+          "full_name": "Player6 Lastname",
+          "id": 6,
+          "pk": 6,
+          "rand_id": 6,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 72,
+          "pk": 72,
+          "pts": 4,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00011",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player11",
+          "full_name": "Player11 Lastname",
+          "id": 11,
+          "pk": 11,
+          "rand_id": 11,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 69,
+          "pk": 69,
+          "pts": 1,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00016",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player16",
+          "full_name": "Player16 Lastname",
+          "id": 16,
+          "pk": 16,
+          "rand_id": 16,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 70,
+          "pk": 70,
+          "pts": 2,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00005",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player5",
+          "full_name": "Player5 Lastname",
+          "id": 5,
+          "pk": 5,
+          "rand_id": 5,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 87,
+          "pk": 87,
+          "pts": 12,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00010",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player10",
+          "full_name": "Player10 Lastname",
+          "id": 10,
+          "pk": 10,
+          "rand_id": 10,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 88,
+          "pk": 88,
+          "pts": 13,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00015",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player15",
+          "full_name": "Player15 Lastname",
+          "id": 15,
+          "pk": 15,
+          "rand_id": 15,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 89,
+          "pk": 89,
+          "pts": 14,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00004",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player4",
+          "full_name": "Player4 Lastname",
+          "id": 4,
+          "pk": 4,
+          "rand_id": 4,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 86,
+          "pk": 86,
+          "pts": 11,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00009",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player9",
+          "full_name": "Player9 Lastname",
+          "id": 9,
+          "pk": 9,
+          "rand_id": 9,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 103,
+          "pk": 103,
+          "pts": 21,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00014",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player14",
+          "full_name": "Player14 Lastname",
+          "id": 14,
+          "pk": 14,
+          "rand_id": 14,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 104,
+          "pk": 104,
+          "pts": 22,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00003",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player3",
+          "full_name": "Player3 Lastname",
+          "id": 3,
+          "pk": 3,
+          "rand_id": 3,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 105,
+          "pk": 105,
+          "pts": 23,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00008",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player8",
+          "full_name": "Player8 Lastname",
+          "id": 8,
+          "pk": 8,
+          "rand_id": 8,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 106,
+          "pk": 106,
+          "pts": 24,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00013",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player13",
+          "full_name": "Player13 Lastname",
+          "id": 13,
+          "pk": 13,
+          "rand_id": 13,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 123,
+          "pk": 123,
+          "pts": 34,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00002",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player2",
+          "full_name": "Player2 Lastname",
+          "id": 2,
+          "pk": 2,
+          "rand_id": 2,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 120,
+          "pk": 120,
+          "pts": 31,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00007",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player7",
+          "full_name": "Player7 Lastname",
+          "id": 7,
+          "pk": 7,
+          "rand_id": 7,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 121,
+          "pk": 121,
+          "pts": 32,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00012",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player12",
+          "full_name": "Player12 Lastname",
+          "id": 12,
+          "pk": 12,
+          "rand_id": 12,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 122,
+          "pk": 122,
+          "pts": 33,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      }
+    ],
+    "sd_hand_max": [],
+    "sd_win_max": [],
+    "total_win_max": [
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00001",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player1",
+          "full_name": "Player1 Lastname",
+          "id": 1,
+          "pk": 1,
+          "rand_id": 1,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 71,
+          "pk": 71,
+          "pts": 3,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00006",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player6",
+          "full_name": "Player6 Lastname",
+          "id": 6,
+          "pk": 6,
+          "rand_id": 6,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 72,
+          "pk": 72,
+          "pts": 4,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00011",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player11",
+          "full_name": "Player11 Lastname",
+          "id": 11,
+          "pk": 11,
+          "rand_id": 11,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 69,
+          "pk": 69,
+          "pts": 1,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00016",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player16",
+          "full_name": "Player16 Lastname",
+          "id": 16,
+          "pk": 16,
+          "rand_id": 16,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 70,
+          "pk": 70,
+          "pts": 2,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00005",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player5",
+          "full_name": "Player5 Lastname",
+          "id": 5,
+          "pk": 5,
+          "rand_id": 5,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 87,
+          "pk": 87,
+          "pts": 12,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00010",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player10",
+          "full_name": "Player10 Lastname",
+          "id": 10,
+          "pk": 10,
+          "rand_id": 10,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 88,
+          "pk": 88,
+          "pts": 13,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00015",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player15",
+          "full_name": "Player15 Lastname",
+          "id": 15,
+          "pk": 15,
+          "rand_id": 15,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 89,
+          "pk": 89,
+          "pts": 14,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00004",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player4",
+          "full_name": "Player4 Lastname",
+          "id": 4,
+          "pk": 4,
+          "rand_id": 4,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 86,
+          "pk": 86,
+          "pts": 11,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00009",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player9",
+          "full_name": "Player9 Lastname",
+          "id": 9,
+          "pk": 9,
+          "rand_id": 9,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 103,
+          "pk": 103,
+          "pts": 21,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00014",
+          "__model__": "Player",
+          "country": "Germany",
+          "email": "",
+          "first_name": "Player14",
+          "full_name": "Player14 Lastname",
+          "id": 14,
+          "pk": 14,
+          "rand_id": 14,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 104,
+          "pk": 104,
+          "pts": 22,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00003",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player3",
+          "full_name": "Player3 Lastname",
+          "id": 3,
+          "pk": 3,
+          "rand_id": 3,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 105,
+          "pk": 105,
+          "pts": 23,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00008",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player8",
+          "full_name": "Player8 Lastname",
+          "id": 8,
+          "pk": 8,
+          "rand_id": 8,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 106,
+          "pk": 106,
+          "pts": 24,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00013",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player13",
+          "full_name": "Player13 Lastname",
+          "id": 13,
+          "pk": 13,
+          "rand_id": 13,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 4,
+          "id": 123,
+          "pk": 123,
+          "pts": 34,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 1,
+          "win_from": 2
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00002",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player2",
+          "full_name": "Player2 Lastname",
+          "id": 2,
+          "pk": 2,
+          "rand_id": 2,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 1,
+          "id": 120,
+          "pk": 120,
+          "pts": 31,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 2,
+          "win_from": 3
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00007",
+          "__model__": "Player",
+          "country": "Sweden",
+          "email": "",
+          "first_name": "Player7",
+          "full_name": "Player7 Lastname",
+          "id": 7,
+          "pk": 7,
+          "rand_id": 7,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 2,
+          "id": 121,
+          "pk": 121,
+          "pts": 32,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 3,
+          "win_from": 4
+        }
+      },
+      {
+        "nb_win": 4,
+        "player": {
+          "EMA_ID": "E00012",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player12",
+          "full_name": "Player12 Lastname",
+          "id": 12,
+          "pk": 12,
+          "rand_id": 12,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pos": {
+          "__model__": "Hand",
+          "hand_nb": 3,
+          "id": 122,
+          "pk": 122,
+          "pts": 33,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tenant_id": 1,
+          "version": 0,
+          "win_by": 4,
+          "win_from": 1
+        }
+      }
+    ]
+  }
+]

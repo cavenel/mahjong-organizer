@@ -1,0 +1,9 @@
+bind = "unix:/run/gunicorn/mahjong.sock"
+umask = 0            # socket 0o666 so the nginx user can connect
+workers = 4          # 2*CPU+1; adjust to your core count
+worker_class = "uvicorn.workers.UvicornWorker"
+timeout = 30
+keepalive = 5
+max_requests = 1000    # recycle workers periodically to avoid memory creep
+max_requests_jitter = 100
+preload_app = True

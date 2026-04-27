@@ -1,0 +1,277 @@
+<h4 class="fw-bold py-3 mb-4">Screen configuration</h4>
+
+<p>
+  Each screen can display different information (scores, game counter, schedule, <i>etc.</i>)
+</p>
+<p>
+  <a type="button" class="button btn btn-primary col-md-2" href="admin?page=display&action=add_screen">
+    <i class="bx bx-plus-circle bx-sm"></i> Add screen
+  </a>
+  <a type="button" class="button btn btn-danger col-md-2" href="/admin?page=display&action=remove_screen">
+    <i class="bx bx-trash bx-sm"></i> Remove screen
+  </a>
+</p>
+
+<div class="row">
+  {% for screen in screens %}
+  <div class="col-md-4">
+    <div class="card mb-4">
+      <h5 class="card-header"><i class="menu-icon tf-icons bx bx-desktop"></i> Screen {{ forloop.counter }}</h5>
+      <div class="card-body">
+        <p>
+          <b><a target="_blank" href="https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}"><i class="menu-icon tf-icons bx bx-link-external"> </i>https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}</a></b>
+        </p>
+        <div class="mb-3">
+          <label for="select-view-{{ screen.id }}" class="form-label">Current output:</label>
+          <select class="form-select select-view" id="select-view-{{ screen.id }}" data-id="{{ screen.id }}">
+            {% for choice in screen_displays %}
+            <option value="{{ choice }}"
+              {% if choice == screen.view %}selected="selected"{% endif %}>
+              {{ choice }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% if screens %}
+<p>
+  <form action="admin?page=display&action=add_mode" method="post">{% csrf_token %}
+    <label class="form-label" for="mode_name">Save screen configuration as a display mode</label>
+    <div class="input-group">
+      <input name="mode_name" type="text" class="form-control" placeholder="Mode name" aria-label="Mode name" aria-describedby="button-addon2">
+      <button class="btn btn-outline-primary" type="submit" id="button-addon2">Save mode</button>
+    </div>
+  </form>
+</p>
+{% endif %}
+
+
+{% if modes %}
+<h4 class="fw-bold py-3 mb-4">Display modes</h4>
+<div class="row" id="icons-container">
+  {% for mode in modes %}
+  <div class="col-md-3">
+    <div class="card icon-card bg-primary text-white cursor-pointer text-center mb-4" onclick="location.href='admin?page=display&set_mode={{ mode.id }}'">
+    <div class="card-body">
+      <div style="float:right;top:-20px;right:-15px;position:relative;" class="btn btn-danger px-1 py-0"><a class="text-white" href="admin?page=display&rm_mode={{ mode.id }}"><i class="bx bx-trash bx-xs"></i></a></div>
+      <p class="icon-name text-capitalize text-truncate mb-0">
+        {{ mode.name }}
+      </p>
+    </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+<p>
+  Display modes can be changed here and from the mobile application.
+</p>
+{% endif %}
+
+
+<h4 class="fw-bold py-3 mb-4">Timer control</h4>
+<div class="row mb-4">
+  <div class="col-md-6">
+    <div class="card">
+      <div class="card-body">
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <div>
+            <div class="text-muted small mb-1">Time remaining</div>
+            <div id="timer-display" class="fw-bold" style="font-size:2rem;font-family:monospace;letter-spacing:2px;">--:--:--</div>
+          </div>
+          <span id="timer-status-badge" class="badge bg-secondary ms-2">—</span>
+        </div>
+        <button id="timer-btn" class="btn btn-primary" onclick="timerAction()">
+          <i class="bx bx-play-circle me-1"></i> <span id="timer-btn-label">Start timer</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var timeStart = 0;
+  var counterMode = 'stopped';
+  var csrf = '{{ csrf_token }}';
+
+  function pad(n) { return String(n).padStart(2, '0'); }
+
+  function getTotalTime() {
+    return parseInt(document.getElementById('variables-total_time').value) || 6900;
+  }
+
+  function updateDisplay() {
+    var now = new Date().getTime();
+    var totalTime = getTotalTime();
+    var remaining = totalTime;
+    if (timeStart > 0) {
+      remaining = Math.max(0, totalTime - Math.floor((now - timeStart) / 1000));
+    }
+    var h = Math.floor(remaining / 3600);
+    var m = Math.floor((remaining % 3600) / 60);
+    var s = remaining % 60;
+    document.getElementById('timer-display').textContent = pad(h) + ':' + pad(m) + ':' + pad(s);
+  }
+
+  function updateButtons() {
+    var now = new Date().getTime();
+    var btn = document.getElementById('timer-btn');
+    var badge = document.getElementById('timer-status-badge');
+    var totalTime = getTotalTime();
+
+    if (timeStart <= 0) {
+      counterMode = 'stopped';
+      btn.className = 'btn btn-success';
+      btn.innerHTML = '<i class="bx bx-play-circle me-1"></i> Start timer';
+      badge.className = 'badge bg-secondary ms-2';
+      badge.textContent = 'Stopped';
+    } else if (now - timeStart < totalTime * 1000) {
+      counterMode = 'running';
+      btn.className = 'btn btn-danger';
+      btn.innerHTML = '<i class="bx bx-reset me-1"></i> Reset timer';
+      badge.className = 'badge bg-success ms-2';
+      badge.textContent = 'Running';
+    } else {
+      counterMode = 'done';
+      btn.className = 'btn btn-warning';
+      btn.innerHTML = '<i class="bx bx-reset me-1"></i> Reset timer';
+      badge.className = 'badge bg-warning ms-2';
+      badge.textContent = 'Done';
+    }
+    updateDisplay();
+  }
+
+  function applyCounter(value) {
+    timeStart = parseInt(value);
+    updateButtons();
+  }
+
+  function fetchStatus() {
+    $.post('counter_start', { csrfmiddlewaretoken: csrf }, function(data) {
+      applyCounter(data);
+    });
+  }
+
+  window.timerAction = function() {
+    if (counterMode === 'stopped') {
+      $.post('counter_start?new_value=-3', { csrfmiddlewaretoken: csrf }, function() {
+        fetchStatus();
+      });
+    } else if (counterMode === 'done') {
+      $.post('counter_start?new_value=0', { csrfmiddlewaretoken: csrf }, function() {
+        fetchStatus();
+      });
+    } else if (counterMode === 'running') {
+      if (confirm('The timer is running. Are you sure you want to reset it?')) {
+        $.post('counter_start?new_value=0', { csrfmiddlewaretoken: csrf }, function() {
+          fetchStatus();
+        });
+      }
+    }
+  };
+
+  // Refresh display immediately when total time input changes.
+  $(document).on('input change', '#variables-total_time', function() {
+    updateButtons();
+  });
+
+  // WebSocket: react to counter changes from any client.
+  (function connectWS() {
+    var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    var subdomain = '{{ variables.tenant.subdomain }}';
+    var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
+    ws.onmessage = function(e) {
+      var msg = JSON.parse(e.data);
+      if (msg.event === 'counter_update') {
+        applyCounter(msg.counter);
+      }
+    };
+    ws.onclose = function() { setTimeout(connectWS, 3000); };
+    ws.onerror = function() { ws.close(); };
+  })();
+
+  fetchStatus();
+  setInterval(updateDisplay, 1000);
+  setInterval(fetchStatus, 30000);
+})();
+</script>
+
+<h4 class="fw-bold py-3 mb-4">Display settings</h4>
+<div class="row" id="icons-container">
+  <div class="col-md-12">
+    <div class="card mb-4">
+    <div class="card-body">
+      <div class="row">
+        <div class="mb-3 col-md-4">
+          <label for="variables-zoom" class="form-label">Screen zoom (1 = 100%)</label>
+          <input id="variables-zoom" class="variable-input form-control" type="number" placeholder="1" value="{{ variables.zoom}}" step="0.05">
+        </div>
+        <div class="mb-3 col-md-4">
+          <label for="variables-score_lines" class="form-label">Number of score lines per screen</label>
+          <input id="variables-score_lines" class="variable-input form-control" type="number" placeholder="20" value="{{ variables.score_lines}}" step="1">
+        </div>
+        <div class="mb-3 col-md-4">
+          <label for="variables-final" class="form-label">Final round - slide number</label>
+          <input id="variables-final" class="variable-input form-control" type="number" placeholder="0" value="{{ final_reveal }}" step="1">
+        </div>
+        <div class="mb-3 col-md-4">
+          <label for="variables-welcome" class="form-label">Counter message</label>
+          <input id="variables-welcome" class="variable-input form-control" type="text" placeholder="Welcome" value="{{ variables.welcome}}">
+        </div>
+        <div class="mb-3 col-md-4">
+          <label for="variables-total_time" class="form-label">Total Time of a round (in seconds)</label>
+          <input id="variables-total_time" class="variable-input form-control" type="number" placeholder="115" value="{{ variables.total_time}}" step="1">
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+
+  $(".variable-input").on('change', function() {
+    var getVariables = $(".variable-input").map(function() {
+      console.log($(this));
+      return $(this)[0].id + "=" + $(this)[0].value + "&";
+    }).get().join("");
+    var url = "/admin?page=display&action=set_variable&" + getVariables;
+    console.log(url)
+    $.ajax({
+      type: "POST",
+      url: url,
+      data:{
+          'csrfmiddlewaretoken': '{{ csrf_token }}',
+      },
+      success: function(data) {
+        console.log("success");
+      }
+    });
+  });
+  $(".select-view").each(function() {
+      var view_id = $(this).attr("data-id");
+      console.log(view_id, $(this));
+      $(this).change(function () {
+          var view= $(this).val();
+          url = "update_screen_view?id=" + view_id + "&view=" + view;
+          data = {
+              'csrfmiddlewaretoken': '{{ csrf_token }}',
+          }
+          $.post(url, data, function() {
+            console.log( "success" );
+          })
+      })
+  })
+</script>
+
+<script>
+
+function change_select(name, value) {
+$("ons-select[data-name='" + name + "']").find("select").val(value);
+$("ons-select[data-name='" + name + "']").find("select").change();   
+}
+
+</script>

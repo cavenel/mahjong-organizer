@@ -1,0 +1,530 @@
+[
+  {
+    "EMA_ID": "E00013",
+    "country": "Japan",
+    "first_name": "Player13",
+    "flag": "jp",
+    "history_pos": [
+      1,
+      1,
+      1,
+      1
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player13 Lastname",
+    "player_id": 13,
+    "pos": 1,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 120,
+        "tp": 4.0
+      },
+      {
+        "mp": 125,
+        "tp": 4.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 245,
+      "tp": 8.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00009",
+    "country": "Japan",
+    "first_name": "Player9",
+    "flag": "jp",
+    "history_pos": [
+      1,
+      1,
+      2,
+      2
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player9 Lastname",
+    "player_id": 9,
+    "pos": 2,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 80,
+        "tp": 4.0
+      },
+      {
+        "mp": 85,
+        "tp": 4.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 165,
+      "tp": 8.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00005",
+    "country": "Japan",
+    "first_name": "Player5",
+    "flag": "jp",
+    "history_pos": [
+      1,
+      1,
+      3,
+      3
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player5 Lastname",
+    "player_id": 5,
+    "pos": 3,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 40,
+        "tp": 4.0
+      },
+      {
+        "mp": 45,
+        "tp": 4.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 85,
+      "tp": 8.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00001",
+    "country": "Sweden",
+    "first_name": "Player1",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      4,
+      4
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player1 Lastname",
+    "player_id": 1,
+    "pos": 4,
+    "pos_se": 1,
+    "scores": [
+      {
+        "mp": 0,
+        "tp": 4.0
+      },
+      {
+        "mp": 5,
+        "tp": 4.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 5,
+      "tp": 8.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00014",
+    "country": "Germany",
+    "first_name": "Player14",
+    "flag": "de",
+    "history_pos": [
+      1,
+      1,
+      5,
+      5
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player14 Lastname",
+    "player_id": 14,
+    "pos": 5,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 130,
+        "tp": 2.0
+      },
+      {
+        "mp": 135,
+        "tp": 2.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 265,
+      "tp": 4.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00010",
+    "country": "Germany",
+    "first_name": "Player10",
+    "flag": "de",
+    "history_pos": [
+      1,
+      1,
+      6,
+      6
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player10 Lastname",
+    "player_id": 10,
+    "pos": 6,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 90,
+        "tp": 2.0
+      },
+      {
+        "mp": 95,
+        "tp": 2.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 185,
+      "tp": 4.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00006",
+    "country": "Germany",
+    "first_name": "Player6",
+    "flag": "de",
+    "history_pos": [
+      1,
+      1,
+      7,
+      7
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player6 Lastname",
+    "player_id": 6,
+    "pos": 7,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 50,
+        "tp": 2.0
+      },
+      {
+        "mp": 55,
+        "tp": 2.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 105,
+      "tp": 4.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00002",
+    "country": "Sweden",
+    "first_name": "Player2",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      8,
+      8
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player2 Lastname",
+    "player_id": 2,
+    "pos": 8,
+    "pos_se": 2,
+    "scores": [
+      {
+        "mp": 10,
+        "tp": 2.0
+      },
+      {
+        "mp": 15,
+        "tp": 2.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 25,
+      "tp": 4.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00015",
+    "country": "Sweden",
+    "first_name": "Player15",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      9,
+      9
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player15 Lastname",
+    "player_id": 15,
+    "pos": 9,
+    "pos_se": 3,
+    "scores": [
+      {
+        "mp": 140,
+        "tp": 1.0
+      },
+      {
+        "mp": 145,
+        "tp": 1.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 285,
+      "tp": 2.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00011",
+    "country": "Sweden",
+    "first_name": "Player11",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      10,
+      10
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player11 Lastname",
+    "player_id": 11,
+    "pos": 10,
+    "pos_se": 4,
+    "scores": [
+      {
+        "mp": 100,
+        "tp": 1.0
+      },
+      {
+        "mp": 105,
+        "tp": 1.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 205,
+      "tp": 2.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00007",
+    "country": "Sweden",
+    "first_name": "Player7",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      11,
+      11
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player7 Lastname",
+    "player_id": 7,
+    "pos": 11,
+    "pos_se": 5,
+    "scores": [
+      {
+        "mp": 60,
+        "tp": 1.0
+      },
+      {
+        "mp": 65,
+        "tp": 1.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 125,
+      "tp": 2.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00003",
+    "country": "Sweden",
+    "first_name": "Player3",
+    "flag": "se",
+    "history_pos": [
+      1,
+      1,
+      12,
+      12
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player3 Lastname",
+    "player_id": 3,
+    "pos": 12,
+    "pos_se": 6,
+    "scores": [
+      {
+        "mp": 20,
+        "tp": 1.0
+      },
+      {
+        "mp": 25,
+        "tp": 1.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 45,
+      "tp": 2.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00016",
+    "country": "France",
+    "first_name": "Player16",
+    "flag": "fr",
+    "history_pos": [
+      1,
+      1,
+      13,
+      13
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player16 Lastname",
+    "player_id": 16,
+    "pos": 13,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 150,
+        "tp": 0.0
+      },
+      {
+        "mp": 155,
+        "tp": 0.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 305,
+      "tp": 0.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00012",
+    "country": "France",
+    "first_name": "Player12",
+    "flag": "fr",
+    "history_pos": [
+      1,
+      1,
+      14,
+      14
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player12 Lastname",
+    "player_id": 12,
+    "pos": 14,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 110,
+        "tp": 0.0
+      },
+      {
+        "mp": 115,
+        "tp": 0.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 225,
+      "tp": 0.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00008",
+    "country": "France",
+    "first_name": "Player8",
+    "flag": "fr",
+    "history_pos": [
+      1,
+      1,
+      15,
+      15
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player8 Lastname",
+    "player_id": 8,
+    "pos": 15,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 70,
+        "tp": 0.0
+      },
+      {
+        "mp": 75,
+        "tp": 0.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 145,
+      "tp": 0.0
+    },
+    "visible": true
+  },
+  {
+    "EMA_ID": "E00004",
+    "country": "France",
+    "first_name": "Player4",
+    "flag": "fr",
+    "history_pos": [
+      1,
+      1,
+      16,
+      16
+    ],
+    "last_name": "LASTNAME",
+    "name": "Player4 Lastname",
+    "player_id": 4,
+    "pos": 16,
+    "pos_se": "",
+    "scores": [
+      {
+        "mp": 30,
+        "tp": 0.0
+      },
+      {
+        "mp": 35,
+        "tp": 0.0
+      }
+    ],
+    "team": "",
+    "total": {
+      "mp": 65,
+      "tp": 0.0
+    },
+    "visible": true
+  }
+]

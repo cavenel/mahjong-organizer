@@ -1,0 +1,148 @@
+<ons-page id="timer_options_display">
+    <ons-toolbar>
+      <div class="left">
+        <ons-back-button>Back</ons-back-button>
+      </div>
+      <div class="center">Timer options</div>
+    </ons-toolbar>
+    <ons-pull-hook data-tpt="timer_options?" class="pull-hook" id="pull-hook-scores" threshold-height="120px">
+      <ons-icon id="pull-hook-scores-icon" size="22px" class="pull-hook-content" icon="fa-arrow-down"></ons-icon>
+    </ons-pull-hook>
+    <p>
+        <center><span id="timer_display"></span></center>
+    </p>
+    <ons-card onclick="set_counter()">
+      <div class="title" id="timer_button_title"></div>
+      <div class="content" id="timer_button_content"></div>
+    </ons-card>
+    
+    <script>
+    var time_start = {{counter}};
+    var counter_mode = "";
+    if (time_start < 0) {
+        time_start = new Date().getTime();
+    }
+    if (window.check_timer_status_interval) {
+        clearInterval(window.check_timer_status_interval);
+    }
+    window.check_timer_status_interval = setInterval(check_timer_status, 10000);
+    check_timer_status ();
+    function check_timer_status () {
+        data = {
+            'csrfmiddlewaretoken': '{{ csrf_token }}',
+        }
+        $.post( "counter_start", data, function( data ) {
+          time_start = parseInt(data);
+          update_buttons();
+        });
+    }
+    function update_buttons() {
+        now = new Date().getTime();
+        
+        if (time_start == 0) {
+            counter_mode = "stopped"
+            $("#timer_button_title").html("Start timer");
+            $("#timer_button_content").html("Click to start timer (after a countdown of 3 seconds).");
+        }
+        else if (time_start < 0 || now - time_start < 2*60*60*1000){
+            counter_mode = "running"
+            $("#timer_button_title").html("Reset timer <i><b>(timmer is running!!)</b></i>");
+            $("#timer_button_content").html("Click to reset timer to zero.");
+        }
+        else {
+            counter_mode = "done"
+            $("#timer_button_title").html("Reset timer");
+            $("#timer_button_content").html("Click to reset timer to zero.");
+        }
+           
+    }
+
+    function set_counter () {
+        if (counter_mode == "stopped") {
+            appNavigator.popPage();
+            data = {
+                'csrfmiddlewaretoken': '{{ csrf_token }}',
+            }
+            $.post("counter_start?new_value=-3", data, function() {
+              console.log( "success" );
+            })
+            ons.notification.alert('The timer has been started.')
+        }
+        else if (counter_mode == "done") {
+            data = {
+                'csrfmiddlewaretoken': '{{ csrf_token }}',
+            }
+            $.post("counter_start?new_value=0", data, function() {
+              console.log( "success" );
+            })
+            ons.notification.alert('The timer has been reset.')
+        }
+        else if (counter_mode == "running") {
+            ons.notification.confirm({
+                message: 'Are you sure you want to reset a running timer? This can not be undone.',
+                buttonLabel:["No", "Yes, I am sure"],
+                callback: function(idx) {
+                    switch (idx) {
+                      case 1:
+                        data = {
+                            'csrfmiddlewaretoken': '{{ csrf_token }}',
+                        }
+                        $.post("counter_start?new_value=0", data, function() {
+                        console.log( "success" );
+                        })
+                        ons.notification.alert('The timer has been reset.')
+                        check_timer_status ();
+                        break;
+                      case 0:
+                        ons.notification.alert({
+                          message: 'Sounds reasonable...',
+                        });
+                        break;
+                    }
+                }
+            });
+            
+        }
+        check_timer_status ();
+        var d = new Date();
+        var t = d.getTime();
+        
+        url = "timer_options?tmp=" + t.toString();
+        //$('#timer_options_display').closest("ons-navigator")[0].replacePage(url, {'animation': "none"});
+    }
+    Number.prototype.pad = function(size) {
+        var s = String(this);
+        while (s.length < (size || 2)) {s = "0" + s;}
+        return s;
+    }
+    function update_timer () {
+        var milliseconds = new Date().getTime();
+        
+        if (time_start == 0 || time_start == -3) {
+            result = 0
+        }
+        else if (milliseconds - time_start >= 2*60*60*1000) {
+            result = 2*60*60
+        }
+        else {
+            result = Math.floor((milliseconds - time_start) / 1000)
+        }
+        
+        hours = Math.floor(result / 60 / 60)
+        result = result - 60 * 60 * hours
+        minutes = Math.floor(result / 60) 
+        result = result - 60 * minutes
+        seconds = result
+        $("#timer_display").text(hours.pad() + ":" + minutes.pad() + ":" + seconds.pad());
+    }
+    if (window.update_timer_interval) {
+        clearInterval(window.update_timer_interval);
+    }
+    window.update_timer_interval = setInterval(update_timer, 1000);
+    update_timer ();
+    
+    setInterval(update_timer, 1000);
+        
+    </script>
+    
+</ons-page>

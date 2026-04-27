@@ -1,0 +1,206 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Round {{ round_nb }} – Table {{ table_nb }}</title>
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <style>
+    .win-self  { background-color: #dbeafe; }
+    .win-ron   { background-color: #dcfce7; }
+    .lose-ron  { background-color: #fee2e2; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- Header -->
+  <header class="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
+    <div class="flex items-center h-12 px-4 gap-3">
+      <button onclick="goBack()"
+              class="text-amber-600 text-sm font-medium shrink-0">‹ Back</button>
+      <span class="flex-1 font-semibold text-gray-800 text-sm text-center">
+        Round {{ round_nb }} – Table {{ table_nb }}
+      </span>
+      <span class="shrink-0 w-12"></span>
+    </div>
+  </header>
+
+  <main class="py-4 px-3 max-w-2xl mx-auto">
+
+    <!-- Hand-by-hand table -->
+    <div class="overflow-x-auto">
+      <table class="w-auto mx-auto text-xs border-collapse rounded-lg overflow-hidden shadow-sm">
+        <thead>
+          <!-- Wind row -->
+          <tr>
+            <th class="px-2 py-1 border border-gray-200 bg-gray-50"></th>
+            {% for score in scores %}
+            <th colspan="2" class="px-2 py-1 border border-gray-200 bg-amber-50 text-amber-700 font-semibold text-center text-xs">
+              {% if forloop.counter == 1 %}East
+              {% elif forloop.counter == 2 %}South
+              {% elif forloop.counter == 3 %}West
+              {% else %}North{% endif %}
+            </th>
+            {% endfor %}
+            <th class="border border-gray-200 bg-gray-50"></th>
+          </tr>
+          <!-- Player name row -->
+          <tr>
+            <th class="px-2 py-2 border border-gray-200 bg-gray-100 text-gray-400 w-7"></th>
+            {% for score in scores %}
+              <th colspan="2"
+                  class="px-2 py-2 border border-gray-200 bg-gray-100 text-gray-800 font-semibold text-center whitespace-nowrap">
+                {% if score %}{{ score.player.first_name }}{% else %}—{% endif %}
+              </th>
+            {% endfor %}
+            <th class="px-2 py-2 border border-gray-200 bg-gray-100 text-gray-400 text-center w-8">pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for wind, hands in hands_per_wind %}
+            <tr>
+              <td colspan="10"
+                  class="px-3 py-1 bg-amber-50 border-y border-amber-100 text-xs font-semibold text-amber-700 uppercase tracking-wider">
+                {{ wind }}
+              </td>
+            </tr>
+            {% for hand in hands %}
+              <tr>
+                <td class="px-2 py-1.5 border border-gray-200 bg-gray-50 text-center font-medium text-gray-500 w-7">
+                  {{ hand.hand_nb }}
+                </td>
+                {% for i in "1234" %}
+                  <td class="px-1 py-1.5 border border-gray-200 border-r-0 text-right text-gray-400 w-10"
+                      id="pts_{{ hand.hand_nb }}_{{ i }}"></td>
+                  <td class="px-1.5 py-1.5 border border-gray-200 text-right font-semibold text-gray-700 w-10"
+                      id="total_{{ hand.hand_nb }}_{{ i }}"></td>
+                {% endfor %}
+                <td class="px-2 py-1.5 border border-gray-200 text-center text-gray-400 w-8"
+                    id="pts_{{ hand.hand_nb }}">{{ hand.pts }}</td>
+                <td style="display:none;" id="by_{{ hand.hand_nb }}">{{ hand.win_by }}</td>
+                <td style="display:none;" id="from_{{ hand.hand_nb }}">{{ hand.win_from }}</td>
+              </tr>
+            {% endfor %}
+          {% endfor %}
+
+          <!-- Totals -->
+          <tr class="border-t-2 border-gray-300">
+            <td class="px-2 py-2 border border-gray-200 bg-gray-50 font-bold text-gray-600 text-center">Σ</td>
+            {% for i in "1234" %}
+              <td colspan="2" class="px-2 py-2 border border-gray-200 text-center font-bold text-sm text-gray-800"
+                  id="total_{{ i }}"></td>
+            {% endfor %}
+            <td class="border border-gray-200 bg-gray-50"></td>
+          </tr>
+          <tr>
+            <td class="px-2 py-2 border border-gray-200 bg-gray-50 font-bold text-amber-700 text-center">TP</td>
+            {% for i in "1234" %}
+              <td colspan="2" class="px-2 py-2 border border-gray-200 text-center font-bold text-sm text-amber-600"
+                  id="tp_{{ i }}"></td>
+            {% endfor %}
+            <td class="border border-gray-200 bg-gray-50"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <script>
+    function goBack() {
+      if (window.history.length <= 1 && window.parent !== window) {
+        window.parent.closeModalFromIframe();
+      } else {
+        history.back();
+      }
+    }
+
+    function el(id) { return document.getElementById(id); }
+    function txt(id) { return el(id) ? el(id).textContent.trim() : ''; }
+    function setTxt(id, val) { if (el(id)) el(id).textContent = val; }
+    function setBg(id, cls) { if (el(id)) el(id).className += ' ' + cls; }
+    function clearBg(id) {
+      ['win-self','win-ron','lose-ron'].forEach(c => el(id) && el(id).classList.remove(c));
+    }
+
+    function sortWithIndices(arr) {
+      return arr.map((v, i) => i).sort((a, b) => arr[a] < arr[b] ? 1 : arr[a] > arr[b] ? -1 : 0);
+    }
+
+    function getTP(minipoints) {
+      const indices = sortWithIndices(minipoints);
+      const tablePoints = [4, 2, 1, 0];
+      const tp = [null, null, null, null];
+      const groups = [], gpPts = [];
+      let prevMp = Infinity;
+
+      for (let i = 0; i < indices.length; i++) {
+        if (minipoints[indices[i]] !== prevMp) {
+          groups.push([]);
+          gpPts.push([]);
+          prevMp = minipoints[indices[i]];
+        }
+        groups[groups.length - 1].push(indices[i]);
+        gpPts[gpPts.length - 1].push(tablePoints[i]);
+      }
+      for (let i = 0; i < groups.length; i++) {
+        const avg = gpPts[i].reduce((a, b) => a + b, 0) / gpPts[i].length;
+        groups[i].forEach(j => tp[j] = avg);
+      }
+      return tp;
+    }
+
+    function updateScores() {
+      const total = [0, 0, 0, 0];
+
+      for (let i = 1; i <= 16; i++) {
+        const pts  = parseInt(txt('pts_' + i));
+        const by   = parseInt(txt('by_' + i));
+        const from = parseInt(txt('from_' + i));
+
+        for (let p = 1; p <= 4; p++) {
+          clearBg('pts_' + i + '_' + p);
+          clearBg('total_' + i + '_' + p);
+        }
+
+        if (isNaN(by) || by < 1 || by > 4 || from > 4) {
+          for (let p = 1; p <= 4; p++) {
+            setTxt('pts_' + i + '_' + p, '');
+            setTxt('total_' + i + '_' + p, total[p - 1]);
+          }
+          continue;
+        }
+
+        const selfDraw = (from === 0 || from === by);
+        for (let p = 1; p <= 4; p++) {
+          let delta;
+          if (selfDraw) {
+            delta = (p === by) ? 3 * (8 + pts) : -(8 + pts);
+          } else {
+            if (p === by)        delta = 3 * 8 + pts;
+            else if (p === from) delta = -(8 + pts);
+            else                 delta = -8;
+          }
+          setTxt('pts_' + i + '_' + p, delta > 0 ? '+' + delta : delta < 0 ? delta : '');
+          total[p - 1] += delta;
+          setTxt('total_' + i + '_' + p, total[p - 1]);
+
+          if (p === by) {
+            setBg('pts_' + i + '_' + p, selfDraw ? 'win-self' : 'win-ron');
+            setBg('total_' + i + '_' + p, selfDraw ? 'win-self' : 'win-ron');
+          } else if (!selfDraw && p === from) {
+            setBg('pts_' + i + '_' + p, 'lose-ron');
+            setBg('total_' + i + '_' + p, 'lose-ron');
+          }
+        }
+      }
+
+      for (let p = 1; p <= 4; p++) setTxt('total_' + p, total[p - 1]);
+      const tp = getTP(total);
+      for (let p = 1; p <= 4; p++) setTxt('tp_' + p, tp[p - 1] !== null ? tp[p - 1].toFixed(2) : '—');
+    }
+
+    updateScores();
+  </script>
+</body>
+</html>

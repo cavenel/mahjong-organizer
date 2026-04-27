@@ -1,0 +1,527 @@
+{% load static %}
+<style>
+:root {
+  --border: #d0d7de;
+  --border-light: #eaecef;
+  --bg-header: #f6f8fa;
+  --text-muted: #8c959f;
+  --text-main: #24292f;
+  --text-sub: #57606a;
+  --blue: #0969da;
+  --green: #1a7f37;
+  --red: #cf222e;
+}
+
+.score-wrap { overflow-x: auto; }
+
+.score-grid {
+  width: auto;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.score-grid thead tr {
+  background: var(--bg-header);
+  border-bottom: 2px solid var(--border);
+}
+.score-grid thead th {
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--text-sub);
+  text-align: left;
+  white-space: nowrap;
+  border-right: 1px solid var(--border-light);
+}
+.score-grid thead th:last-child { border-right: none; }
+
+.score-grid tbody tr { border-bottom: 1px solid var(--border-light); transition: background .1s; }
+.score-grid tbody tr:last-child { border-bottom: none; }
+.score-grid tbody tr:hover { background: var(--bg-header); }
+
+.score-grid td {
+  padding: 5px 8px;
+  vertical-align: middle;
+  border-right: 1px solid var(--border-light);
+}
+.score-grid td:last-child { border-right: none; }
+
+.col-status { width: 12px; padding: 0 6px !important; text-align: center; }
+.col-table  { white-space: nowrap; font-weight: 600; color: var(--text-sub); font-size: 12px; }
+.col-wind   { padding: 3px 3px !important; }
+.col-action { white-space: nowrap; }
+
+.status-pip {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background .2s;
+}
+.pip-ok      { background: var(--green); }
+.pip-err     { background: var(--red); }
+.pip-pending { background: #e6a817; }
+
+.valid-badge { color: #ccc; font-size: 0.8em; margin-left: 4px; }
+.valid-badge.active { color: #28a745; font-weight: bold; }
+
+/* Player cell layout */
+.player-name {
+  padding: 0px 5px;
+  padding-top: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 113px;
+  margin-bottom: 2px;
+}
+.score-inputs {
+  display: flex;
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 3px;
+}
+.score-inputs input {
+  border: none;
+  outline: none;
+  font-size: 17px;
+  padding: 0px 5px;
+  font-size: 13px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--text-main);
+  background: #fff;
+  appearance: textfield;
+  -moz-appearance: textfield;
+  min-width: 0;
+}
+.score-inputs input::-webkit-inner-spin-button,
+.score-inputs input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.score-inputs input:focus { background: #f0f6ff; }
+.score-inputs input.mp-input { flex: 2; width: 60px; border-right: 1px solid var(--border-light); font-size: 18px;}
+.score-inputs input.tp-input { flex: 1; width: 36px; background: var(--bg-header); color: var(--text-sub); }
+
+.col-sum { width: 40px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; padding: 6px 8px !important; vertical-align: bottom !important;}
+.col-sum.sum-ok  { color: var(--green); font-weight: 600; font-size: 14px;}
+.col-sum.sum-err { color: var(--red);   font-weight: 600; font-size: 14px;}
+
+.btn-sheet {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--text-sub);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .1s, color .1s;
+}
+.btn-sheet:hover { background: var(--bg-header); color: var(--text-main); }
+
+.publish-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  margin-bottom: 8px;
+  background: var(--bg-header);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 13px;
+  color: var(--text-sub);
+}
+.publish-bar input[type="checkbox"]:disabled + .publish-label { color: var(--text-muted); }
+.publish-bar .publish-status { margin-left: auto; font-size: 11px; }
+.publish-bar .publish-status.published { color: var(--green); font-weight: 600; }
+.publish-bar .publish-hint { font-size: 11px; color: var(--text-muted); }
+</style>
+
+{# Publish-state flags (computed server-side; JS keeps them in sync via WS). #}
+{% with last_round=variables.nb_rounds %}
+
+<div class="nav-align-top mb-4">
+  <ul class="nav nav-tabs" role="tablist">
+    {% for round_json in scores_json %}
+    <li class="nav-item">
+      <button type="button"
+              class="nav-link {% if forloop.counter == active_round %}active{% endif %}"
+              role="tab" data-bs-toggle="tab"
+              data-bs-target="#rtab-{{ forloop.counter }}">
+        Round {{ forloop.counter }}
+      </button>
+    </li>
+    {% endfor %}
+  </ul>
+
+  <div class="tab-content pt-3">
+    {% for round_json in scores_json %}
+    <div class="tab-pane fade {% if forloop.counter == active_round %}active show{% endif %}"
+         id="rtab-{{ forloop.counter }}" role="tabpanel" data-round-nb="{{ forloop.counter }}">
+      <div class="publish-bar">
+        <label style="display:flex;align-items:center;gap:6px;margin:0;">
+          <input type="checkbox" class="publish-toggle"
+                 data-round-nb="{{ forloop.counter }}"
+                 {% if forloop.counter in published_rounds %}checked{% endif %}
+                 disabled>
+          <span class="publish-label">Publish round {{ forloop.counter }}</span>
+        </label>
+        {% if forloop.counter == last_round %}
+        <span class="publish-hint">(last round: publishing starts the podium reveal at level 0 — use +/– on the display admin page to reveal positions)</span>
+        {% endif %}
+        <span class="publish-status {% if forloop.counter in published_rounds %}published{% endif %}">
+          {% if forloop.counter in published_rounds %}Published{% else %}Not published{% endif %}
+        </span>
+      </div>
+      <div class="score-wrap">
+        <table class="score-grid">
+          <thead>
+            <tr>
+              <th class="col-status"></th>
+              <th class="col-table">Table</th>
+              <th class="col-wind">East</th>
+              <th class="col-wind">South</th>
+              <th class="col-wind">West</th>
+              <th class="col-wind">North</th>
+              <th class="col-sum">Sum</th>
+              {% if variables.rules == "MCR" %}<th class="col-action"></th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for table_json in round_json %}
+            <tr id="table_row_r{{ forloop.parentloop.counter }}_t{{ forloop.counter }}"
+                class="table_row"
+                data-round-nb="{{ forloop.parentloop.counter }}"
+                data-table-nb="{{ forloop.counter }}">
+              <td class="col-status">
+                <span class="status-pip"></span>
+              </td>
+              <td class="col-table">Table {{ forloop.counter }}
+              </td>
+              {% for s in table_json %}
+              <td class="col-wind">
+                <div class="position_div" data-id="{{ s.position.id }}">
+                  <div class="player-name" title="{{ s.position.player.full_name }}">{{ s.position.player.full_name }}</div>
+                  <div class="score-inputs">
+                    <input class="mp-input" type="number" name="minipoints"
+                           value="{{ s.position.minipoints }}" placeholder="MP"
+                           autocomplete="off">
+                    {% if variables.rules == "MCR" %}
+                    <input class="tp-input" type="number" name="tablepoints"
+                           value="{{ s.position.tablepoints }}" placeholder="TP"
+                           readonly tabindex="-1">
+                    {% endif %}
+                  </div>
+                </div>
+              </td>
+              {% endfor %}
+              <td class="col-sum"></td>
+              {% if variables.rules == "MCR" %}
+              <td class="col-action">
+                <button class="btn-sheet show_hands"
+                        data-link="scores_per_hand_{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
+                        tabindex="-1">
+                  Score sheet
+                </button>
+                {% with rn=forloop.parentloop.counter|stringformat:"s" tn=forloop.counter|stringformat:"s" %}{% with vkey=rn|add:"-"|add:tn %}
+                <span class="valid-badge {% if vkey in validated_keys %}active{% endif %}" title="Score sheet validated">✓</span>
+                {% endwith %}{% endwith %}
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endwith %}
+
+<script>
+$("body").on("click", ".show_hands", function() {
+  $("#modalDetails-iframe")[0].src = "";
+  var link = $(this).attr("data-link");
+  setTimeout(function() {
+    $("#modalDetails-iframe")[0].src = link;
+    $("#modalDetails").modal("show");
+  }, 100);
+});
+
+function sortWithIndeces(arr) {
+  var idx = arr.map(function(_, i) { return i; });
+  idx.sort(function(a, b) { return arr[a] < arr[b] ? 1 : arr[a] > arr[b] ? -1 : 0; });
+  return idx;
+}
+
+function get_tp(mp) {
+  var idx = sortWithIndeces(mp), base = [4, 2, 1, 0], tp = [null, null, null, null];
+  var groups = [], pts_groups = [], prev = 1e9;
+  for (var i = 0; i < idx.length; i++) {
+    if (mp[idx[i]] !== prev) { groups.push([]); pts_groups.push([]); prev = mp[idx[i]]; }
+    groups[groups.length-1].push(idx[i]);
+    pts_groups[pts_groups.length-1].push(base[i]);
+  }
+  for (var i = 0; i < groups.length; i++) {
+    var avg = pts_groups[i].reduce(function(a,b){return a+b;},0) / groups[i].length;
+    groups[i].forEach(function(j) { tp[j] = avg; });
+  }
+  return tp;
+}
+
+function setRowBg(row, state, vals) {
+  var cell = row.find(".col-sum").removeClass("sum-ok sum-err");
+  if (state === "ok")  { cell.addClass("sum-ok").text("0"); }
+  if (state === "err") { cell.addClass("sum-err").text(vals !== undefined ? vals.reduce(function(a,b){return a+b;},0) : ""); }
+  if (!state)          { cell.text(""); }
+}
+
+function setPip(row, state) {
+  var pip = row.find(".status-pip").removeClass("pip-ok pip-err pip-pending");
+  if (state === "ok")      pip.addClass("pip-ok");
+  if (state === "err")     pip.addClass("pip-err");
+  if (state === "pending") pip.addClass("pip-pending");
+}
+
+function _scoreState(vals) {
+  return vals.reduce(function(a,b){return a+b;},0) === 0 ? "ok" : "err";
+}
+
+function update_line(row, update_tp) {
+  var inputs = row.find("input[name='minipoints']"), vals = [];
+  for (var i = 0; i < inputs.length; i++) {
+    var v = inputs[i].value;
+    if (v === "") { setRowBg(row, ""); setPip(row, ""); return; }
+    vals.push(parseInt(v));
+  }
+  if (update_tp) {
+    var tp = get_tp(vals);
+    row.find("input[name='tablepoints']").each(function(i) { $(this).val(tp[i] != null ? tp[i] : ""); });
+  }
+  var state = _scoreState(vals);
+  setRowBg(row, state, vals);
+  setPip(row, "ok");
+}
+
+function send_ajax(row) {
+  var positions = [], vals = [];
+  row.find(".position_div").each(function() {
+    var mp = $(this).find("input[name='minipoints']").val();
+    positions.push({
+      id: $(this).attr("data-id"),
+      mp: mp,
+      tp: $(this).find("input[name='tablepoints']").val(),
+    });
+    if (mp !== "") vals.push(parseInt(mp));
+  });
+  var expectedState = (vals.length === positions.length) ? "ok" : "";
+  $.ajax({
+    type: "POST",
+    url: "update_positions_bulk",
+    contentType: "application/json",
+    data: JSON.stringify({ positions: positions }),
+    headers: { "X-CSRFToken": "{{ csrf_token }}" },
+    success: function() { setPip(row, expectedState); },
+    error:   function() { setPip(row, "err"); },
+  });
+}
+
+var timers = {};
+var recentlyEdited = {};  // row id -> timestamp; suppress incoming WS echoes for 3s
+var publishedRounds = new Set({{ published_rounds }});
+
+function rowIsComplete(row) {
+  var ok = true;
+  row.find("input[name='minipoints']").each(function() {
+    if ($(this).val() === "") ok = false;
+  });
+  return ok;
+}
+
+function refreshPublishToggle(roundNb) {
+  var pane = $('.tab-pane[data-round-nb="' + roundNb + '"]');
+  if (!pane.length) return;
+  var rows = pane.find(".table_row");
+  var complete = rows.length > 0 && rows.toArray().every(function(r) { return rowIsComplete($(r)); });
+  var toggle = pane.find(".publish-toggle");
+  var isPub = publishedRounds.has(roundNb);
+  toggle.prop("checked", isPub);
+  toggle.prop("disabled", !complete && !isPub);
+  var status = pane.find(".publish-status");
+  status.toggleClass("published", isPub);
+  status.text(isPub ? "Published" : "Not published");
+}
+
+function refreshAllPublishToggles() {
+  $(".tab-pane[data-round-nb]").each(function() {
+    refreshPublishToggle(parseInt($(this).attr("data-round-nb")));
+  });
+}
+
+$(".table_row").each(function() { update_line($(this), false); });
+refreshAllPublishToggles();
+
+$(document).on("change", "input[name='minipoints']", function() {
+  var row = $(this).closest(".table_row"), rid = row.attr("id");
+  var inputs = row.find("input[name='minipoints']"), vals = [], allFilled = true;
+  for (var i = 0; i < inputs.length; i++) {
+    var v = inputs[i].value;
+    if (v === "") { allFilled = false; break; }
+    vals.push(parseInt(v));
+  }
+  if (allFilled) {
+    var tp = get_tp(vals);
+    row.find("input[name='tablepoints']").each(function(i) { $(this).val(tp[i] != null ? tp[i] : ""); });
+    setRowBg(row, _scoreState(vals), vals);  // instant background
+    setPip(row, "pending");                  // yellow until server confirms
+  } else {
+    setRowBg(row, "");
+    setPip(row, "");
+  }
+  recentlyEdited[rid] = Date.now();
+  clearTimeout(timers[rid]);
+  timers[rid] = setTimeout(function() {
+    send_ajax(row);
+    refreshPublishToggle(parseInt(row.attr("data-round-nb")));
+  }, 2000);
+  refreshPublishToggle(parseInt(row.attr("data-round-nb")));
+});
+
+$(document).on("change", ".publish-toggle", function() {
+  var toggle = $(this);
+  var roundNb = parseInt(toggle.attr("data-round-nb"));
+  var published = toggle.prop("checked");
+  toggle.prop("disabled", true);
+  $.ajax({
+    type: "POST",
+    url: "set_round_published",
+    contentType: "application/json",
+    data: JSON.stringify({ round_nb: roundNb, published: published }),
+    headers: { "X-CSRFToken": "{{ csrf_token }}" },
+    success: function(resp) {
+      publishedRounds = new Set(resp.published_rounds || []);
+      refreshAllPublishToggles();
+    },
+    error: function(xhr) {
+      // Revert on failure.
+      toggle.prop("checked", !published);
+      refreshAllPublishToggles();
+      var msg = "Could not " + (published ? "publish" : "unpublish") + " round " + roundNb;
+      if (xhr.responseJSON && xhr.responseJSON.error) msg += ": " + xhr.responseJSON.error;
+      alert(msg);
+    },
+  });
+});
+
+// --- scorer-to-scorer live sync (WebSocket) ---
+(function() {
+  var subdomain = "{{ subdomain }}";
+  if (!subdomain) return;
+  var proto = (location.protocol === "https:") ? "wss" : "ws";
+  var url = proto + "://" + location.host + "/ws/scorers/" + subdomain + "/";
+  var ws;
+  function connect() {
+    ws = new WebSocket(url);
+    ws.onmessage = function(evt) {
+      var msg;
+      try { msg = JSON.parse(evt.data); } catch (e) { return; }
+      if (msg.round_nb !== undefined && msg.positions) {
+        applyRowSync(msg);
+      } else if (msg.published_rounds) {
+        publishedRounds = new Set(msg.published_rounds);
+        refreshAllPublishToggles();
+      } else if (msg.type === 'scorer.validation') {
+        var vrow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
+        var badge = vrow.find('.valid-badge');
+        if (msg.valid) { badge.addClass('active'); } else { badge.removeClass('active'); }
+      }
+    };
+    ws.onclose = function() { setTimeout(connect, 2000); };
+  }
+  connect();
+
+  function applyRowSync(msg) {
+    var row = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
+    if (!row.length) return;
+    var rid = row.attr("id");
+    // Suppress echoes while the local user is still editing this row.
+    if (recentlyEdited[rid] && Date.now() - recentlyEdited[rid] < 3000) return;
+    var posDivs = row.find(".position_div");
+    var syncVals = [], allFilled = true;
+    msg.positions.forEach(function(p, idx) {
+      var cell = posDivs.eq(idx);
+      if (!cell.length) return;
+      cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
+      cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");
+      if (p.mp == null) { allFilled = false; } else { syncVals.push(p.mp); }
+    });
+    var syncState = allFilled ? _scoreState(syncVals) : "";
+    setRowBg(row, syncState, syncVals);
+    setPip(row, syncState);
+    refreshPublishToggle(parseInt(row.attr("data-round-nb")));
+  }
+})();
+
+function random_fill_score() {
+  $(".table_row").each(function() {
+    var row = $(this);
+    if (!row.closest(".tab-pane").hasClass("active")) return;
+    var inp = row.find("input[name='minipoints']"), sum = 0;
+    for (var i = 0; i < 3; i++) { var v = Math.floor(Math.random()*200)-100; inp[i].value = v; sum += v; }
+    inp[3].value = -sum;
+    update_line(row, true); send_ajax(row);
+  });
+}
+
+function random_fill_score_sheets() {
+  var csrfToken = '{{ csrf_token }}';
+  $(".table_row").each(function() {
+    var row = $(this);
+    if (!row.closest(".tab-pane").hasClass("active")) return;
+    var roundNb = row.attr("data-round-nb");
+    var tableNb = row.attr("data-table-nb");
+    var data = { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb };
+    for (var i = 1; i <= 16; i++) {
+      if (Math.random() < 0.1) {
+        data['pts_' + i] = 0;
+        data['by_' + i]  = 0;
+        data['from_' + i] = 0;
+      } else {
+        data['pts_' + i] = Math.floor(Math.pow(Math.random(), 4) * 103) + 8;
+        data['by_' + i]   = Math.floor(Math.random() * 4) + 1;   // 1..4
+        data['from_' + i] = Math.floor(Math.random() * 4) + 1;   // 1..4
+      }
+    }
+    $.post('create_hand_points', data, function() {
+      $.post('validate_score_sheet',
+        { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb },
+        function() {
+          row.find('.valid-badge').addClass('active');
+        }
+      );
+    });
+  });
+}
+
+function clear_score() {
+  $(".table_row").each(function() {
+    var row = $(this);
+    if (!row.closest(".tab-pane").hasClass("active")) return;
+    row.find("input[name='minipoints']").val("");
+    update_line(row, true); send_ajax(row);
+  });
+}
+</script>

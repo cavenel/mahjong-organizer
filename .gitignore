@@ -1,0 +1,16 @@
+# Credentials — never commit
+certbot/ovh.ini
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+
+# Django
+staticfiles/
+*.sqlite3
+
+# Docker
+*.sock

@@ -1,0 +1,677 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=0.8">
+  <link rel="icon" type="image/png" href="{% static 'images/mcr_logo.png' %}" sizes="192x192">
+  <title>{{ variables.title }}</title>
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .score-link:hover { background-color: rgba(245, 158, 11, 0.08); }
+
+    /* Frozen first two columns in score tables */
+    .col-f1 { position: sticky; left: 0;    z-index: 20; }
+    .col-f2 { position: sticky; left: 3rem; z-index: 20; }   /* 3rem = w-12 */
+    .col-f2 { box-shadow: 2px 0 4px -1px rgba(0,0,0,0.08); }
+    thead .col-f1, thead .col-f2 { background-color: rgb(249 250 251); }  /* gray-50 */
+    tbody tr .col-f1, tbody tr .col-f2 { background-color: #fff; }
+    tbody tr:hover .col-f1, tbody tr:hover .col-f2 { background-color: rgb(255 251 235); } /* solid amber-50 */
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen"
+      x-data="app()"
+      x-cloak
+      data-initial-round="{{ seating.0.round_nb|default:1 }}">
+
+  <!-- ── Top bar ──────────────────────────────────────────────── -->
+  <header class="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
+    <div class="max-w-screen-xl mx-auto px-4 flex items-center h-14 gap-4">
+      <img src="{% static 'images/OEMC-2026-Uppsala_logo.png' %}" class="w-24 shrink-0">
+      <div class="flex-1 min-w-0 hidden sm:block">
+        <div class="font-semibold text-gray-800 truncate text-sm">{{ variables.fullname|default:variables.title }}</div>
+        <div class="text-xs text-gray-500 truncate">{{ variables.period }}</div>
+      </div>
+      <!-- Tab nav (desktop) -->
+      <nav class="hidden md:flex items-center gap-1">
+        <button @click="tab='schedule'"
+                :class="tab==='schedule' ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-gray-600 border-transparent hover:bg-gray-100'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+          Schedule
+        </button>
+        <button @click="tab='scores'"
+                :class="tab==='scores' ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-gray-600 border-transparent hover:bg-gray-100'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+          Scores
+        </button>
+        <button @click="tab='seating'"
+                :class="tab==='seating' ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-gray-600 border-transparent hover:bg-gray-100'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+          Seating
+        </button>
+        <button @click="tab='stats'"
+                :class="tab==='stats' ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-gray-600 border-transparent hover:bg-gray-100'"
+                class="px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors">
+          Stats
+        </button>
+      </nav>
+      <!-- Live indicator -->
+      <div class="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
+        <span x-show="wsConnected" class="text-green-600 text-xs font-medium flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Live
+        </span>
+        <span x-show="!wsConnected" class="text-gray-400 text-xs flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span> Offline
+        </span>
+      </div>
+      <!-- Overflow menu -->
+      <div class="relative shrink-0" x-data="{ open: false }">
+        <button @click="open = !open" @click.stop class="text-gray-500 hover:text-gray-700 px-2 py-1 rounded text-lg leading-none">⋮</button>
+        <div x-show="open" @click.outside="open = false"
+             class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
+          {% if user.is_staff %}
+            <a href="/admin" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">Admin</a>
+            <a href="/?logout=1" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Log out</a>
+          {% else %}
+            <a href="/accounts/login/?next=/" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Login</a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Mobile tab bar (below header) -->
+    <div class="md:hidden flex border-t border-gray-200">
+      <button @click="tab='schedule'"
+              :class="tab==='schedule' ? 'text-amber-600 border-amber-500' : 'text-gray-500 border-transparent'"
+              class="flex-1 py-2 text-xs font-medium border-b-2 transition-colors">Schedule</button>
+      <button @click="tab='scores'"
+              :class="tab==='scores' ? 'text-amber-600 border-amber-500' : 'text-gray-500 border-transparent'"
+              class="flex-1 py-2 text-xs font-medium border-b-2 transition-colors">Scores</button>
+      <button @click="tab='seating'"
+              :class="tab==='seating' ? 'text-amber-600 border-amber-500' : 'text-gray-500 border-transparent'"
+              class="flex-1 py-2 text-xs font-medium border-b-2 transition-colors">Seating</button>
+      <button @click="tab='stats'"
+              :class="tab==='stats' ? 'text-amber-600 border-amber-500' : 'text-gray-500 border-transparent'"
+              class="flex-1 py-2 text-xs font-medium border-b-2 transition-colors">Stats</button>
+    </div>
+  </header>
+
+  <!-- Scores updated banner -->
+  <div x-show="updateAvailable" x-cloak
+       class="fixed top-14 inset-x-0 z-30 flex items-center justify-center py-2 bg-amber-50 border-b border-amber-200">
+    <span class="text-sm text-amber-700 mr-3">New scores available</span>
+    <button @click="window.location.reload()" class="text-sm font-medium text-amber-600 underline">Refresh</button>
+  </div>
+
+  <main class="max-w-screen-xl mx-auto px-4 py-6">
+
+    <!-- ── SCHEDULE ──────────────────────────────────────────── -->
+    <div x-show="tab === 'schedule'">
+      <h2 class="text-base font-bold text-gray-800 uppercase tracking-wider mb-4">Tournament Schedule</h2>
+      {% regroup schedule by day as days_list %}
+      {% for day in days_list %}
+        <div class="mb-6">
+          <div class="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-2 px-1">{{ day.grouper }}</div>
+          <div class="rounded-xl overflow-hidden border border-gray-200 bg-white divide-y divide-gray-100 shadow-sm">
+            {% for item in day.list %}
+              <div class="flex items-center px-4 py-3
+                          {% if 'Round ' in item.name or 'Session ' in item.name %}bg-amber-50{% endif %}">
+                <span class="text-gray-500 text-sm w-20 shrink-0">{{ item.time }}</span>
+                <span class="ml-4 text-sm {% if 'Round ' in item.name or 'Session ' in item.name %}text-amber-700 font-semibold{% else %}text-gray-700{% endif %}">
+                  {{ item.name }}
+                </span>
+              </div>
+            {% endfor %}
+          </div>
+        </div>
+      {% empty %}
+        <p class="text-center text-gray-400 py-12">No schedule available yet.</p>
+      {% endfor %}
+    </div>
+
+    <!-- ── SEATING ───────────────────────────────────────────── -->
+    <div x-show="tab === 'seating'">
+      {% if seating %}
+        {{ seating_json|json_script:"seating-data" }}
+        <div class="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h2 class="text-base font-bold text-gray-800 uppercase tracking-wider">Tournament seating</h2>
+          <div class="inline-flex rounded-full border border-gray-300 bg-white p-0.5 text-xs font-medium">
+            <button @click="seatingMode='round'"
+                    :class="seatingMode==='round' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                    class="px-3 py-1 rounded-full transition-colors">Per round</button>
+            <button @click="seatingMode='player'"
+                    :class="seatingMode==='player' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                    class="px-3 py-1 rounded-full transition-colors">Per player</button>
+          </div>
+        </div>
+
+        <!-- Per-round controls -->
+        <div x-show="seatingMode === 'round'" class="flex flex-wrap gap-2 mb-4">
+          {% for r in seating %}
+            <button @click="activeRound = {{ r.round_nb }}"
+                    :class="activeRound === {{ r.round_nb }}
+                              ? 'bg-amber-500 text-white border-amber-500 shadow-sm'
+                              : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'"
+                    class="px-4 py-1.5 rounded-full border text-sm font-medium transition-colors">
+              Round {{ r.round_nb }}
+            </button>
+          {% endfor %}
+        </div>
+
+        <!-- Per-player controls -->
+        <div x-show="seatingMode === 'player'" class="mb-4">
+          <div class="relative max-w-sm" @click.outside="playerDropdownOpen=false">
+            <input type="text"
+                   x-model="playerSearch"
+                   @focus="playerDropdownOpen=true"
+                   @input="playerDropdownOpen=true"
+                   placeholder="Search player…"
+                   class="w-full px-3 py-1.5 border border-gray-300 rounded-full text-sm focus:outline-none focus:border-amber-500">
+            <ul x-show="playerDropdownOpen && filteredPlayers().length"
+                class="absolute z-20 mt-1 max-h-72 w-full overflow-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+              <template x-for="p in filteredPlayers()" :key="p.id">
+                <li @click="selectedPlayerId=p.id; playerSearch=p.full_name; playerDropdownOpen=false"
+                    class="px-3 py-2 text-sm hover:bg-amber-50 cursor-pointer"
+                    x-text="p.full_name"></li>
+              </template>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Per-round panels -->
+        <template x-if="seatingMode === 'round'">
+          <div>
+            {% for r in seating %}
+              <template x-if="activeRound === {{ r.round_nb }}">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  {% for t in r.tables %}
+                    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                      <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                        <span class="font-semibold text-sm text-amber-600">Table {{ t.table_nb }}</span>
+                        {% if t.has_scores %}
+                          <a href="detailed_scores_{{ r.round_nb }}_{{ t.table_nb }}"
+                             class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
+                        {% endif %}
+                      </div>
+                      <div class="divide-y divide-gray-100 text-sm">
+                        {% for seat in t.seats %}
+                          <div class="flex items-center px-3 py-2 gap-2">
+                            <span class="w-14 text-xs text-gray-400 shrink-0">{{ seat.wind }}</span>
+                            {% if seat.player %}
+                              <a href="details_player_{{ seat.player.id }}"
+                                 class="flex-1 truncate text-gray-800 hover:text-amber-600 transition-colors">{{ seat.player.full_name }}</a>
+                            {% else %}
+                              <span class="flex-1 text-gray-300 italic">—</span>
+                            {% endif %}
+                            {% if seat.mp is not None %}
+                              {% if variables.rules == "MCR" %}
+                                <span class="text-xs font-semibold text-gray-700 tabular-nums shrink-0">{{ seat.tp|floatformat:-2 }}</span>
+                                <span class="text-xs text-gray-400 tabular-nums shrink-0 w-10 text-right">{{ seat.mp }}</span>
+                              {% else %}
+                                <span class="text-xs font-semibold text-gray-700 tabular-nums shrink-0">{{ seat.mp }}</span>
+                              {% endif %}
+                            {% endif %}
+                          </div>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% endfor %}
+                </div>
+              </template>
+            {% endfor %}
+          </div>
+        </template>
+
+        <!-- Per-player panels -->
+        <template x-if="seatingMode === 'player'">
+          <div>
+            <template x-if="!selectedPlayerId">
+              <p class="text-center text-gray-400 py-12">Select a player to view their rounds.</p>
+            </template>
+            <template x-if="selectedPlayerId">
+              <div>
+                <template x-if="playerRounds(selectedPlayerId).length === 0">
+                  <p class="text-center text-gray-400 py-12">No seating found for this player.</p>
+                </template>
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                  <template x-for="entry in playerRounds(selectedPlayerId)" :key="entry.round_nb + '-' + entry.table_nb">
+                    <div class="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
+                      <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+                        <span class="font-semibold text-sm text-amber-600"
+                              x-text="'Round ' + entry.round_nb + ' — Table ' + entry.table_nb"></span>
+                        <template x-if="entry.has_scores">
+                          <a :href="'detailed_scores_' + entry.round_nb + '_' + entry.table_nb"
+                             class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
+                        </template>
+                      </div>
+                      <div class="divide-y divide-gray-100 text-sm">
+                        <template x-for="seat in entry.seats" :key="seat.wind">
+                          <div class="flex items-center px-3 py-2 gap-2"
+                               :class="seat.player && seat.player.id === selectedPlayerId ? 'bg-amber-50/60' : ''">
+                            <span class="w-14 text-xs text-gray-400 shrink-0" x-text="seat.wind"></span>
+                            <template x-if="seat.player">
+                              <a :href="'details_player_' + seat.player.id"
+                                 class="flex-1 truncate text-gray-800 hover:text-amber-600 transition-colors"
+                                 x-text="seat.player.full_name"></a>
+                            </template>
+                            <template x-if="!seat.player">
+                              <span class="flex-1 text-gray-300 italic">—</span>
+                            </template>
+                            {% if variables.rules == "MCR" %}
+                              <template x-if="seat.mp !== null && seat.mp !== undefined">
+                                <span class="flex items-center gap-2 shrink-0">
+                                  <span class="text-xs font-semibold text-gray-700 tabular-nums"
+                                        x-text="(seat.tp == null) ? '' : Number(seat.tp).toFixed(2).replace(/\.?0+$/, '')"></span>
+                                  <span class="text-xs text-gray-400 tabular-nums w-10 text-right" x-text="seat.mp"></span>
+                                </span>
+                              </template>
+                            {% else %}
+                              <template x-if="seat.mp !== null && seat.mp !== undefined">
+                                <span class="text-xs font-semibold text-gray-700 tabular-nums shrink-0" x-text="seat.mp"></span>
+                              </template>
+                            {% endif %}
+                          </div>
+                        </template>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+          </div>
+        </template>
+      {% else %}
+        <p class="text-center text-gray-400 py-12">Seating not yet assigned.</p>
+      {% endif %}
+    </div>
+
+    <!-- ── SCORES ────────────────────────────────────────────── -->
+    <div x-show="tab === 'scores'">
+
+      <!-- Score table -->
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-bold text-gray-800 uppercase tracking-wider">Scores</h2>
+          {% if uses_teams %}
+            <div class="inline-flex rounded-full border border-gray-300 bg-white p-0.5 text-xs font-medium">
+              <button @click="teamView = false"
+                      :class="!teamView ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                      class="px-3 py-1 rounded-full transition-colors">Individual</button>
+              <button @click="teamView = true"
+                      :class="teamView ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-50'"
+                      class="px-3 py-1 rounded-full transition-colors">Teams</button>
+            </div>
+          {% endif %}
+        </div>
+
+        {% if rows %}
+          <!-- Player scores table -->
+          <div x-show="!teamView" class="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
+                  <tr>
+                    <th class="col-f1 px-3 py-3 text-center w-12">Pos</th>
+                    <th class="col-f2 px-3 py-3 text-left min-w-[140px]">Player</th>
+                    <th class="px-3 py-3 text-center w-12">Ctry</th>
+                    <th class="px-3 py-3 text-right w-24 bg-gray-100">Total</th>
+                    {% for r in rounds %}
+                      <th class="px-3 py-3 text-right w-20">R{{ r }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  {% for s in rows %}
+                    {% if s.visible %}
+                      <tr class="hover:bg-amber-50/40 transition-colors">
+                        <td class="col-f1 px-3 py-2 text-center font-bold text-amber-600">{{ s.pos }}</td>
+                        <td class="col-f2 px-3 py-2">
+                          <a href="details_player_{{ s.player_id }}"
+                             class="font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ s.name }}</a>
+                        </td>
+                        <td class="px-3 py-2 text-center">
+                          <img style="zoom:0.5;" src="{% static 'images/blank.png' %}" class="flag flag-{{ s.flag }} inline-block" alt="">
+                        </td>
+                        <td class="px-3 py-2 text-right bg-amber-50/60 border-x border-amber-100">
+                          {% if variables.rules == "MCR" %}
+                            <span class="font-bold text-amber-700">{{ s.total.tp|floatformat:-2 }}</span>
+                            <span class="block text-xs text-gray-400">{{ s.total.mp }}</span>
+                          {% else %}
+                            <span class="font-bold text-amber-700">{{ s.total.mp }}</span>
+                          {% endif %}
+                        </td>
+                        {% for r in s.scores %}
+                          <td class="px-0 py-0 text-right score-link">
+                            {% if r.table_nb %}
+                              <a href="detailed_scores_{{ r.round_nb }}_{{ r.table_nb }}"
+                                 class="block px-3 py-2 text-gray-700 hover:text-amber-600 transition-colors">
+                                {% if variables.rules == "MCR" %}
+                                  <span>{{ r.tp|floatformat:-2 }}</span>
+                                  <span class="block text-xs text-gray-400">{{ r.mp }}</span>
+                                {% else %}
+                                  <span class="font-medium">{{ r.mp }}</span>
+                                {% endif %}
+                              </a>
+                            {% else %}
+                              <span class="block px-3 py-2 text-gray-400">
+                                {% if variables.rules == "MCR" %}
+                                  {{ r.tp|floatformat:-2 }}<span class="block text-xs">{{ r.mp }}</span>
+                                {% else %}
+                                  {{ r.mp }}
+                                {% endif %}
+                              </span>
+                            {% endif %}
+                          </td>
+                        {% endfor %}
+                      </tr>
+                    {% else %}
+                      {% if s.pos <= 10 %}
+                        <tr><td colspan="{{ rounds|length|add:4 }}" class="bg-gray-200/50 py-0.5"></td></tr>
+                      {% endif %}
+                    {% endif %}
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {% if uses_teams %}
+          <!-- Team scores table -->
+          <div x-show="teamView" class="rounded-xl border border-gray-200 overflow-hidden shadow-sm bg-white">
+            <div class="overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider border-b border-gray-200">
+                  <tr>
+                    <th class="col-f1 px-3 py-3 text-center w-12">Pos</th>
+                    <th class="col-f2 px-3 py-3 text-left min-w-[140px]">Team</th>
+                    <th class="px-3 py-3 text-center w-12">Ctry</th>
+                    <th class="px-3 py-3 text-right w-24 bg-gray-100">Total</th>
+                    {% for r in rounds %}
+                      <th class="px-3 py-3 text-right w-20">R{{ r }}</th>
+                    {% endfor %}
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                  {% for tr in team_rows %}
+                    <tr class="hover:bg-amber-50/40 transition-colors">
+                      <td class="col-f1 px-3 py-2 text-center font-bold text-amber-600">{{ tr.pos }}</td>
+                      <td class="col-f2 px-3 py-2">
+                        <a href="details_team_{{ tr.team }}"
+                           class="font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ tr.team }}</a>
+                      </td>
+                      <td class="px-3 py-2 text-center">
+                        {% if tr.flag %}
+                          <img style="zoom:0.5;" src="{% static 'images/blank.png' %}" class="flag flag-{{ tr.flag }} inline-block" alt="">
+                        {% endif %}
+                      </td>
+                      <td class="px-3 py-2 text-right bg-amber-50/60 border-x border-amber-100">
+                        {% if variables.rules == "MCR" %}
+                          <span class="font-bold text-amber-700">{{ tr.total.tp|floatformat:-2 }}</span>
+                          <span class="block text-xs text-gray-400">{{ tr.total.mp }}</span>
+                        {% else %}
+                          <span class="font-bold text-amber-700">{{ tr.total.mp }}</span>
+                        {% endif %}
+                      </td>
+                      {% for sc in tr.scores %}
+                        <td class="px-3 py-2 text-right text-gray-700">
+                          {% if sc.tp is not None %}
+                            {% if variables.rules == "MCR" %}
+                              <span>{{ sc.tp|floatformat:-2 }}</span>
+                              <span class="block text-xs text-gray-400">{{ sc.mp }}</span>
+                            {% else %}
+                              <span class="font-medium">{{ sc.mp }}</span>
+                            {% endif %}
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          {% endif %}
+
+          <div class="text-xs text-gray-400 mt-2 text-right">
+            {{ rows|length }} player{{ rows|length|pluralize }} · {{ max_round }} round{{ max_round|pluralize }}
+          </div>
+
+        {% else %}
+          <p class="text-center text-gray-400 py-12">No scores available yet.</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- ── STATS ─────────────────────────────────────────────── -->
+    <div x-show="tab === 'stats'">
+      {% if stat_rounds %}
+
+      <!-- ── Overall ── -->
+      <h2 class="font-bold text-gray-700 text-base uppercase tracking-wider mb-4">Overall — after {{ stat_rounds|length }} round{{ stat_rounds|length|pluralize }}</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mb-8">
+
+        {% include "SOMMC2018/stats_card.html" with title="Most Self-Draw Wins" items=stat_all.sd_win_max kind="wins" %}
+        {% include "SOMMC2018/stats_card.html" with title="Highest Self-Draw Hand" items=stat_all.sd_hand_max kind="hand" %}
+        {% include "SOMMC2018/stats_card.html" with title="Highest Winning Hand (from others)" items=stat_all.ron_hand_max kind="hand" %}
+        {% include "SOMMC2018/stats_card.html" with title="Most Self-Draws in One Game" items=stat_all.sd_win_max kind="wins" %}
+        {% include "SOMMC2018/stats_card.html" with title="Most Winning from Others in One Game" items=stat_all.ron_win_max kind="wins" %}
+        {% include "SOMMC2018/stats_card.html" with title="Most Winning in One Game" items=stat_all.total_win_max kind="wins" %}
+        {% include "SOMMC2018/stats_card.html" with title="Highest Points in One Game" items=stat_all.mp_max kind="mp" %}
+
+      </div>
+
+      <!-- ── Per round ── -->
+      <h2 class="font-bold text-gray-700 text-base uppercase tracking-wider mb-4">Per Round</h2>
+      <div x-data="{ statRound: {{ stat_rounds|length }} }">
+
+        <!-- Round tabs -->
+        <div class="flex flex-wrap gap-1 mb-5 border-b border-gray-200 pb-1">
+          {% for round in stat_rounds %}
+          <button @click="statRound = {{ forloop.counter }}"
+                  :class="statRound === {{ forloop.counter }}
+                    ? 'bg-amber-500 text-white border-amber-500'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+                  class="px-3 py-1 text-sm font-medium rounded-full border transition-colors">
+            Round {{ forloop.counter }}
+          </button>
+          {% endfor %}
+        </div>
+
+        <!-- Round panels -->
+        {% for round in stat_rounds %}
+        <template x-if="statRound === {{ forloop.counter }}">
+          <div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+
+              {% include "SOMMC2018/stats_card.html" with title="Most Self-Draw Wins" items=round.sd_win_max kind="wins" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Highest Self-Draw Hand" items=round.sd_hand_max kind="hand" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Highest Winning Hand (from others)" items=round.ron_hand_max kind="hand" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Most Self-Draws in One Game" items=round.sd_win_max kind="wins" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Most Winning from Others in One Game" items=round.ron_win_max kind="wins" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Most Winning in One Game" items=round.total_win_max kind="wins" rn=forloop.counter %}
+              {% include "SOMMC2018/stats_card.html" with title="Highest Points in One Game" items=round.mp_max kind="mp" rn=forloop.counter %}
+
+            </div>
+          </div>
+        </template>
+        {% endfor %}
+
+      </div>
+
+      {% else %}
+        <p class="text-center text-gray-400 py-12">No statistics available yet.</p>
+      {% endif %}
+    </div>
+
+  </main>
+
+  <!-- ── Modal ────────────────────────────────────────────────── -->
+  <div x-show="modalUrl !== null"
+       class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6"
+       style="display:none;">
+    <!-- Backdrop -->
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeModal()"></div>
+    <!-- Panel -->
+    <div class="relative z-10 bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl"
+         style="height: 85vh;"
+         @keydown.escape.window="closeModal()">
+      <!-- Modal header -->
+      <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+        <div class="flex items-center gap-2">
+          <template x-if="modalFlag">
+            <img style="zoom:0.7;" src="{% static 'images/blank.png' %}"
+                 :class="'flag flag-' + modalFlag" alt="">
+          </template>
+          <span class="text-sm font-medium text-gray-600" x-text="modalTitle"></span>
+        </div>
+        <button @click="closeModal()"
+                class="text-gray-400 hover:text-gray-700 text-2xl leading-none w-8 h-8 flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors">
+          &times;
+        </button>
+      </div>
+      <!-- iframe -->
+      <iframe x-bind:src="modalUrl"
+              class="flex-1 w-full rounded-b-2xl border-0"
+              @load="onIframeLoad($event)"></iframe>
+    </div>
+  </div>
+
+  <script>
+    function app() {
+      return {
+        tab: (() => { const v = localStorage.getItem('tab'); return ['schedule','scores','seating','stats'].includes(v) ? v : 'scores'; })(),
+        activeRound: parseInt(document.body.dataset.initialRound) || 1,
+        teamView: localStorage.getItem('teamView') === '1',
+        seatingMode: localStorage.getItem('seatingMode') === 'player' ? 'player' : 'round',
+        seatingData: [],
+        allPlayers: [],
+        selectedPlayerId: (() => { const v = localStorage.getItem('seatingPlayerId'); return v ? parseInt(v) : null; })(),
+        playerSearch: '',
+        playerDropdownOpen: false,
+        wsConnected: false,
+        updateAvailable: false,
+        modalUrl: null,
+        modalTitle: '',
+        modalFlag: '',
+        _ws: null,
+        _wsDelay: 1000,
+
+        init() {
+          this.$watch('teamView', v => localStorage.setItem('teamView', v ? '1' : '0'));
+          this.$watch('tab', v => localStorage.setItem('tab', v));
+          this.$watch('seatingMode', v => localStorage.setItem('seatingMode', v));
+          this.$watch('selectedPlayerId', v => {
+            if (v == null) localStorage.removeItem('seatingPlayerId');
+            else localStorage.setItem('seatingPlayerId', String(v));
+          });
+          const seatingEl = document.getElementById('seating-data');
+          if (seatingEl) {
+            try {
+              this.seatingData = JSON.parse(seatingEl.textContent);
+              this.allPlayers = this._buildPlayerIndex(this.seatingData);
+              if (this.selectedPlayerId != null) {
+                const match = this.allPlayers.find(p => p.id === this.selectedPlayerId);
+                if (match) this.playerSearch = match.full_name;
+                else this.selectedPlayerId = null;
+              }
+            } catch (_) {}
+          }
+          this.connectWS();
+          // Intercept internal links via event delegation
+          document.addEventListener('click', (e) => {
+            const a = e.target.closest('a[href]');
+            if (!a) return;
+            const href = a.getAttribute('href');
+            if (href && (href.startsWith('details_player_') || href.startsWith('detailed_scores_') || href.startsWith('details_team_'))) {
+              e.preventDefault();
+              this.openModal(href);
+            }
+          });
+          // Close on Escape
+          document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') this.closeModal();
+          });
+        },
+
+        openModal(href) {
+          this.modalUrl = href;
+          this.modalTitle = '';
+          document.body.style.overflow = 'hidden';
+          window.closeModalFromIframe = () => this.closeModal();
+        },
+
+        closeModal() {
+          this.modalUrl = null;
+          this.modalTitle = '';
+          this.modalFlag = '';
+          document.body.style.overflow = '';
+        },
+
+        onIframeLoad(e) {
+          try {
+            const doc = e.target.contentDocument;
+            this.modalTitle = doc.title || '';
+            const flagMeta = doc.querySelector('meta[name="player-flag"]');
+            this.modalFlag = flagMeta ? flagMeta.content : '';
+          } catch (_) {}
+        },
+
+        _buildPlayerIndex(data) {
+          const map = new Map();
+          (data || []).forEach(r => {
+            (r.tables || []).forEach(t => {
+              (t.seats || []).forEach(s => {
+                if (s.player && s.player.id != null && !map.has(s.player.id)) {
+                  map.set(s.player.id, { id: s.player.id, full_name: s.player.full_name });
+                }
+              });
+            });
+          });
+          return Array.from(map.values()).sort((a, b) =>
+            a.full_name.localeCompare(b.full_name)
+          );
+        },
+
+        filteredPlayers() {
+          const q = (this.playerSearch || '').trim().toLowerCase();
+          if (!q) return this.allPlayers;
+          return this.allPlayers.filter(p => p.full_name.toLowerCase().includes(q));
+        },
+
+        playerRounds(playerId) {
+          if (playerId == null) return [];
+          const out = [];
+          (this.seatingData || []).forEach(r => {
+            (r.tables || []).forEach(t => {
+              if ((t.seats || []).some(s => s.player && s.player.id === playerId)) {
+                out.push({ round_nb: r.round_nb, table_nb: t.table_nb, seats: t.seats, has_scores: t.has_scores });
+              }
+            });
+          });
+          return out;
+        },
+
+        connectWS() {
+          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+          const subdomain = '{{ tenant.subdomain }}';
+          this._ws = new WebSocket(`${proto}://${location.host}/ws/leaderboard/${subdomain}/`);
+          this._ws.onopen = () => { this.wsConnected = true; this._wsDelay = 1000; };
+          this._ws.onmessage = (e) => {
+            const msg = JSON.parse(e.data);
+            if (msg.event === 'leaderboard_update') this.updateAvailable = true;
+          };
+          this._ws.onclose = () => {
+            this.wsConnected = false;
+            setTimeout(() => this.connectWS(), this._wsDelay);
+            this._wsDelay = Math.min(this._wsDelay * 2, 30000);
+          };
+          this._ws.onerror = () => this._ws.close();
+        },
+      };
+    }
+  </script>
+</body>
+</html>

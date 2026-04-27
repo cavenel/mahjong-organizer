@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/pytest SOMMC2018/tests/test_scoring_views.py -v)",
+      "Bash(docker compose *)"
+    ]
+  }
+}

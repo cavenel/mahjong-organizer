@@ -1,0 +1,704 @@
+[
+  [
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 1,
+          "minipoints": 0,
+          "pk": 1,
+          "player_id": 1,
+          "position": 1,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 2,
+          "minipoints": 10,
+          "pk": 2,
+          "player_id": 2,
+          "position": 2,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 3,
+          "minipoints": 20,
+          "pk": 3,
+          "player_id": 3,
+          "position": 3,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 4,
+          "minipoints": 30,
+          "pk": 4,
+          "player_id": 4,
+          "position": 4,
+          "round_nb": 1,
+          "table_nb": 1,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 5,
+          "minipoints": 40,
+          "pk": 5,
+          "player_id": 5,
+          "position": 1,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 6,
+          "minipoints": 50,
+          "pk": 6,
+          "player_id": 6,
+          "position": 2,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 7,
+          "minipoints": 60,
+          "pk": 7,
+          "player_id": 7,
+          "position": 3,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 8,
+          "minipoints": 70,
+          "pk": 8,
+          "player_id": 8,
+          "position": 4,
+          "round_nb": 1,
+          "table_nb": 2,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 9,
+          "minipoints": 80,
+          "pk": 9,
+          "player_id": 9,
+          "position": 1,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 10,
+          "minipoints": 90,
+          "pk": 10,
+          "player_id": 10,
+          "position": 2,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 11,
+          "minipoints": 100,
+          "pk": 11,
+          "player_id": 11,
+          "position": 3,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 12,
+          "minipoints": 110,
+          "pk": 12,
+          "player_id": 12,
+          "position": 4,
+          "round_nb": 1,
+          "table_nb": 3,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 13,
+          "minipoints": 120,
+          "pk": 13,
+          "player_id": 13,
+          "position": 1,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 14,
+          "minipoints": 130,
+          "pk": 14,
+          "player_id": 14,
+          "position": 2,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 15,
+          "minipoints": 140,
+          "pk": 15,
+          "player_id": 15,
+          "position": 3,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 16,
+          "minipoints": 150,
+          "pk": 16,
+          "player_id": 16,
+          "position": 4,
+          "round_nb": 1,
+          "table_nb": 4,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ]
+  ],
+  [
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 17,
+          "minipoints": 5,
+          "pk": 17,
+          "player_id": 1,
+          "position": 1,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 18,
+          "minipoints": 55,
+          "pk": 18,
+          "player_id": 6,
+          "position": 2,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 19,
+          "minipoints": 105,
+          "pk": 19,
+          "player_id": 11,
+          "position": 3,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 20,
+          "minipoints": 155,
+          "pk": 20,
+          "player_id": 16,
+          "position": 4,
+          "round_nb": 2,
+          "table_nb": 1,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 21,
+          "minipoints": 45,
+          "pk": 21,
+          "player_id": 5,
+          "position": 1,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 22,
+          "minipoints": 95,
+          "pk": 22,
+          "player_id": 10,
+          "position": 2,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 23,
+          "minipoints": 145,
+          "pk": 23,
+          "player_id": 15,
+          "position": 3,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 24,
+          "minipoints": 35,
+          "pk": 24,
+          "player_id": 4,
+          "position": 4,
+          "round_nb": 2,
+          "table_nb": 2,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 25,
+          "minipoints": 85,
+          "pk": 25,
+          "player_id": 9,
+          "position": 1,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 26,
+          "minipoints": 135,
+          "pk": 26,
+          "player_id": 14,
+          "position": 2,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 27,
+          "minipoints": 25,
+          "pk": 27,
+          "player_id": 3,
+          "position": 3,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 28,
+          "minipoints": 75,
+          "pk": 28,
+          "player_id": 8,
+          "position": 4,
+          "round_nb": 2,
+          "table_nb": 3,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 29,
+          "minipoints": 125,
+          "pk": 29,
+          "player_id": 13,
+          "position": 1,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tablepoints": 4.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 30,
+          "minipoints": 15,
+          "pk": 30,
+          "player_id": 2,
+          "position": 2,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tablepoints": 2.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 31,
+          "minipoints": 65,
+          "pk": 31,
+          "player_id": 7,
+          "position": 3,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tablepoints": 1.0,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 32,
+          "minipoints": 115,
+          "pk": 32,
+          "player_id": 12,
+          "position": 4,
+          "round_nb": 2,
+          "table_nb": 4,
+          "tablepoints": 0.0,
+          "tenant_id": 1
+        }
+      }
+    ]
+  ],
+  [
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 33,
+          "minipoints": null,
+          "pk": 33,
+          "player_id": 1,
+          "position": 1,
+          "round_nb": 3,
+          "table_nb": 1,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 34,
+          "minipoints": null,
+          "pk": 34,
+          "player_id": 7,
+          "position": 2,
+          "round_nb": 3,
+          "table_nb": 1,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 35,
+          "minipoints": null,
+          "pk": 35,
+          "player_id": 12,
+          "position": 3,
+          "round_nb": 3,
+          "table_nb": 1,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 36,
+          "minipoints": null,
+          "pk": 36,
+          "player_id": 14,
+          "position": 4,
+          "round_nb": 3,
+          "table_nb": 1,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 37,
+          "minipoints": null,
+          "pk": 37,
+          "player_id": 5,
+          "position": 1,
+          "round_nb": 3,
+          "table_nb": 2,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 38,
+          "minipoints": null,
+          "pk": 38,
+          "player_id": 11,
+          "position": 2,
+          "round_nb": 3,
+          "table_nb": 2,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 39,
+          "minipoints": null,
+          "pk": 39,
+          "player_id": 16,
+          "position": 3,
+          "round_nb": 3,
+          "table_nb": 2,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 40,
+          "minipoints": null,
+          "pk": 40,
+          "player_id": 2,
+          "position": 4,
+          "round_nb": 3,
+          "table_nb": 2,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 41,
+          "minipoints": null,
+          "pk": 41,
+          "player_id": 9,
+          "position": 1,
+          "round_nb": 3,
+          "table_nb": 3,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 42,
+          "minipoints": null,
+          "pk": 42,
+          "player_id": 15,
+          "position": 2,
+          "round_nb": 3,
+          "table_nb": 3,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 43,
+          "minipoints": null,
+          "pk": 43,
+          "player_id": 4,
+          "position": 3,
+          "round_nb": 3,
+          "table_nb": 3,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 44,
+          "minipoints": null,
+          "pk": 44,
+          "player_id": 6,
+          "position": 4,
+          "round_nb": 3,
+          "table_nb": 3,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      }
+    ],
+    [
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 45,
+          "minipoints": null,
+          "pk": 45,
+          "player_id": 13,
+          "position": 1,
+          "round_nb": 3,
+          "table_nb": 4,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 46,
+          "minipoints": null,
+          "pk": 46,
+          "player_id": 3,
+          "position": 2,
+          "round_nb": 3,
+          "table_nb": 4,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 47,
+          "minipoints": null,
+          "pk": 47,
+          "player_id": 8,
+          "position": 3,
+          "round_nb": 3,
+          "table_nb": 4,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      },
+      {
+        "position": {
+          "__model__": "Position",
+          "id": 48,
+          "minipoints": null,
+          "pk": 48,
+          "player_id": 10,
+          "position": 4,
+          "round_nb": 3,
+          "table_nb": 4,
+          "tablepoints": null,
+          "tenant_id": 1
+        }
+      }
+    ]
+  ]
+]

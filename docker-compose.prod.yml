@@ -1,0 +1,65 @@
+# Production overlay — run with:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Differences from dev:
+#   - web: prod settings, gunicorn.conf.py, Unix socket (no exposed port)
+#   - nginx: reverse-proxy to socket, serves static files, terminates TLS
+#   - certbot: issues/renews the wildcard cert via DNS-01 challenge
+
+services:
+
+  web:
+    environment:
+      DJANGO_SETTINGS_MODULE: apps.settings.prod
+    # Copy baked staticfiles to the shared volume, then migrate, then serve.
+    command: ["sh", "-c", "cp -r /app/staticfiles/. /static/ && python manage.py migrate --noinput && exec gunicorn -c gunicorn.conf.py apps.asgi:application"]
+    volumes:
+      - gunicorn_sock:/run/gunicorn
+      - static_files:/static
+    ports: []    # nginx handles external traffic; web is not exposed directly
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/mahjong.conf:/etc/nginx/conf.d/default.conf:ro
+      - gunicorn_sock:/run/gunicorn
+      - static_files:/app/staticfiles:ro
+      - letsencrypt:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+      - nginx_cache:/var/cache/nginx/desktop
+    depends_on:
+      - web
+
+  # Certbot — only runs on demand (profiles: certbot), never as a background daemon.
+  #
+  # First-time setup (DNS-01 challenge, wildcard cert):
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  #     --profile certbot run --rm certbot \
+  #     certonly --dns-ovh \
+  #              --dns-ovh-credentials /etc/letsencrypt/ovh.ini \
+  #              -d mahj.ovh -d '*.mahj.ovh' \
+  #              --email <your@email> --agree-tos --no-eff-email
+  #
+  # Renewal (add to host cron, e.g. weekly):
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  #     --profile certbot run --rm certbot renew --quiet
+  #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+  #     exec nginx nginx -s reload
+  certbot:
+    image: certbot/dns-ovh
+    profiles: ["certbot"]
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+      - ./certbot/ovh.ini:/etc/letsencrypt/ovh.ini:ro
+
+volumes:
+  gunicorn_sock:
+  static_files:
+  letsencrypt:
+  certbot_www:
+  nginx_cache:

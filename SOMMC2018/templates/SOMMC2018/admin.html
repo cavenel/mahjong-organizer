@@ -1,0 +1,379 @@
+
+<!DOCTYPE html>
+<html lang="en" class="light-style layout-footer-fixed layout-menu-collapsed" dir="ltr" data-theme="theme-default"
+  data-assets-path="/static/dashboard/" data-template="vertical-menu-template-starter">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+
+  <title>Mahjong Tournament Organizer</title>
+
+  <meta name="description" content="" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/x-icon" href="static/images/mcr_logo.png" />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
+    rel="stylesheet" />
+
+  <!-- Icons. Uncomment required icon fonts -->
+  <link rel="stylesheet" href="/static/dashboard/vendor/fonts/boxicons.css" />
+  <!-- <link rel="stylesheet" href="/static/dashboard/vendor/fonts/fontawesome.css" /> -->
+  <!-- <link rel="stylesheet" href="/static/dashboard/vendor/fonts/flag-icons.css" /> -->
+
+  <!-- Core CSS -->
+  <link rel="stylesheet" href="/static/dashboard/vendor/css/core.css" />
+  <link rel="stylesheet" href="/static/dashboard/vendor/css/theme-default.css" />
+  <link rel="stylesheet" href="/static/dashboard/css/demo.css" />
+
+  <!-- Vendors CSS -->
+  <link rel="stylesheet" href="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
+
+  <!-- Helpers -->
+  <script src="/static/dashboard/vendor/js/helpers.js"></script>
+  <script src="/static/dashboard/vendor/libs/jquery/jquery.js"></script>
+
+  
+  <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
+  <script src="/static/dashboard/js/config.js"></script>
+
+</head>
+
+<body>
+
+<!-- Layout wrapper -->
+<div class="layout-wrapper layout-content-navbar">
+
+  <!-- Layout container -->
+  <div class="layout-container">
+
+    <!-- Menu -->
+    <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
+      <div class="app-brand demo">
+        <a href="/admin" class="app-brand-link">
+          <span class="app-brand-logo demo">
+            <img src="static/images/mcr_logo.png" class="h-auto" width="22" alt="logo">
+          </span>
+          <span class="menu-text fw-bold ms-2">Mahj.OVH</span>
+        </a>
+
+        <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
+          <i class="bx bx-chevron-left bx-sm align-middle"></i>
+        </a>
+      </div>
+
+      <div class="menu-inner-shadow"></div>
+
+      <ul class="menu-inner py-1">
+        <!-- Page -->
+        {% if user.is_staff %}
+        <li class="menu-item {% if page == "welcome" %}active{% endif %}">
+          <a href="admin?page=welcome" class="menu-link">
+            <i class="menu-icon tf-icons bx bx-home-circle"></i>
+            <div data-i18n="Email">Welcome</div>
+          </a>
+        </li>
+          <li class="menu-header small text-uppercase"><span class="menu-header-text">Preparation</span></li>
+          <li class="menu-item {% if page == "import_template" %}active{% endif %}">
+            <a href="admin?page=import_template" class="menu-link">
+              <i class="menu-icon tf-icons bx bx-import"></i>
+              <div data-i18n="Email">Import from template</div>
+            </a>
+          </li>
+
+          <li class="menu-item {% if page == "randomize" %}active{% endif %}">
+            <a href="admin?page=randomize" class="menu-link">
+              <i class="menu-icon tf-icons bx bx-dice-5"></i>
+              <div data-i18n="Email">Randomize players</div>
+            </a>
+          </li>
+          
+          <li class="menu-item">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+              <i class="menu-icon tf-icons bx bx-printer"></i>
+              <div data-i18n="Misc">To print</div>
+            </a>
+            <ul class="menu-sub">
+              <li class="menu-item">
+                <a onclick="print('player_names');" href="#" class="menu-link">
+                  Player names
+                </a>
+              </li>
+              <li class="menu-item">
+                <a  onclick="print('player_cards');" href="#"  class="menu-link">
+                  Player cards
+                </a>
+              </li>
+              <li class="menu-item">
+                <a  onclick="print('table_posters');" href="#"  class="menu-link">
+                  Table positions
+                </a>
+              </li>
+              <li class="menu-item">
+                <a  onclick="print('cross_positions');" href="#"  class="menu-link">
+                  Cross positions
+                </a>
+              </li>
+              <li class="menu-item">
+                <a  onclick="print('print_schedule');" href="#"  class="menu-link">
+                  Schedule
+                </a>
+              </li>
+            </ul>
+          </li>  
+        {% endif %} 
+        <li class="menu-header small text-uppercase"><span class="menu-header-text">During tournament</span></li>
+        {% if user.is_staff or user_is_scorer %}
+        <li class="menu-item {% if page == "scoring" %}active{% endif %}">
+          <a href="admin?page=scoring" class="menu-link">
+            <i class="menu-icon tf-icons bx bx-table"></i>
+            <div data-i18n="Email">Scoring</div>
+          </a>
+        </li>
+        {% endif %}
+        {% if user.is_staff or user_is_display_op %}
+          <li class="menu-item {% if page == "statistics" %}active{% endif %}">
+            <a href="admin?page=statistics" class="menu-link">
+              <i class="menu-icon tf-icons bx bx-stats"></i>
+              <div data-i18n="Email">Statistics</div>
+            </a>
+          </li>
+          <li class="menu-item {% if page == "display" %}active{% endif %}">
+            <a href="admin?page=display" class="menu-link">
+              <i class="menu-icon tf-icons bx bx-desktop"></i>
+              <div data-i18n="Email">Display on screens</div>
+            </a>
+          </li>
+          <li class="menu-item">
+            <a href="javascript:void(0);" class="menu-link menu-toggle">
+              <i class="menu-icon tf-icons bx bx-printer"></i>
+              <div data-i18n="Misc">To print</div>
+            </a>
+            <ul class="menu-sub">
+              <li class="menu-item">
+                <a  onclick="print('print_scores');" href="#"  class="menu-link">
+                  Scores
+                </a>
+              </li>
+            </ul>
+          </li>
+        {% endif %} 
+        {% if user.is_staff %}
+        <li class="menu-header small text-uppercase"><span class="menu-header-text">After tournament</span></li>
+        <li class="menu-item">
+          <a target="_blank" href="EMA_report.xlsx" class="menu-link">
+            <i class="menu-icon tf-icons bx bx-download"></i>
+            <div data-i18n="Email">Generate EMA report</div>
+          </a>
+        </li>
+        {% endif %} 
+        
+      </ul>
+    </aside>
+    <!--/ Menu -->
+
+    <!-- Layout page -->
+    <div class="layout-page">
+
+      <!-- Navbar -->
+      <nav
+        class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
+        id="layout-navbar">
+
+        <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
+          <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
+            <i class="bx bx-menu bx-sm"></i>
+          </a>
+        </div>
+
+        <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
+          MAHJONG TOURNAMENT ORGANIZER
+          <ul class="navbar-nav flex-row align-items-center ms-auto">
+
+            <!-- User -->
+            <li class="nav-item navbar-dropdown dropdown-user dropdown">
+              <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
+                <div class="avatar avatar-online">
+                  <img src="/static/dashboard/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" />
+                </div>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                  <a class="dropdown-item" href="#">
+                    <div class="d-flex">
+                      <div class="flex-shrink-0 me-3">
+                        <div class="avatar avatar-online">
+                          <img src="/static/dashboard/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" />
+                        </div>
+                      </div>
+                      <div class="flex-grow-1">
+                        <span class="fw-semibold d-block">{{ username }}</span>
+                        <small class="text-muted">Admin</small>
+                      </div>
+                    </div>
+                  </a>
+                </li>
+                <li>
+                  <div class="dropdown-divider"></div>
+                </li>
+                <li>
+                  <a class="dropdown-item" target="_blank" href="admin_db">
+                    <i class="bx bx-data me-2"></i>
+                    <span class="align-middle">Database administration</span>
+                  </a>
+                </li>
+                <li>
+                  <div class="dropdown-divider"></div>
+                </li>
+                <li>
+                  <a class="dropdown-item" href="admin?logout=1">
+                    <i class="bx bx-power-off me-2"></i>
+                    <span class="align-middle">Log Out</span>
+                  </a>
+                </li>
+              </ul>
+            </li>
+            <!--/ User -->
+
+          </ul>
+        </div>
+      </nav>
+      <!--/ Navbar -->
+
+      <!-- Content wrapper -->
+      <div class="content-wrapper">
+
+        <!-- Content -->
+        <div class="container-xxl flex-grow-1 container-p-y pb-0">
+          {{ page_content }}
+        </div>
+        <!--/ Content -->
+
+        <!-- Footer -->
+        <footer class="content-footer footer bg-footer-theme">
+          <div
+            class="container-xxl d-flex flex-wrap justify-content-between align-items-center py-2 flex-md-row flex-column">
+
+            <div class="mb-2 mb-md-0">
+              © 2018 – 
+              <script>
+                document.write(new Date().getFullYear());
+              </script>
+              , Christophe Avenel
+            </div>
+          </div>
+        </footer>
+        <!--/ Footer -->
+
+        <!-- Content area backdrop -->
+        <div class="content-backdrop fade"></div>
+      </div>
+      <!--/ Content wrapper -->
+
+    </div>
+    <!-- Layout page -->
+
+  </div>
+  <!-- Layout container -->
+
+  <!-- Overlay -->
+  <div class="layout-overlay layout-menu-toggle"></div>
+
+  <!-- Drag Target Area To SlideIn Menu On Small Screens -->
+  <div class="drag-target"></div>
+  <div class="modal fade" id="modalScrollable" tabindex="-1" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-dialog-scrollable" role="document" style="max-width: 60rem;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title" id="modalScrollableTitle">For printing</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body">
+          <iframe id="modal-iframe" name="modal-iframe" src="" style="width:100%;height:600px;"></iframe>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Close
+          </button>
+          <button type="button" class="btn btn-primary" onclick='window.frames["modal-iframe"].focus();window.frames["modal-iframe"].print();'><i class="bx bx-printer bx-sm"></i>&nbsp;&nbsp;Print</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="modal fade" id="modalDetails" tabindex="-1" aria-modal="true" role="dialog">
+    <div class="modal-dialog modal-dialog-scrollable" role="document" style="max-width: 54rem;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" style="padding:0px">
+          <iframe id="modalDetails-iframe" name="modal-iframe" src="" style="width:100%;height:600px;"></iframe>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<!--/ Layout wrapper -->
+
+  <!-- Core JS -->
+  <!-- build:js assets/vendor/js/core.js -->
+  <script src="/static/dashboard/vendor/libs/popper/popper.js"></script>
+  <script src="/static/dashboard/vendor/js/bootstrap.js"></script>
+  <script src="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
+  <script src="/static/dashboard/vendor/js/menu.js"></script>
+  <!-- endbuild -->
+
+  <!-- Main JS -->
+  <script src="/static/dashboard/js/main.js"></script>
+  <script>
+    function print(page) {
+      $("#modal-iframe")[0].src = ""
+      setTimeout(function() {
+      $("#modal-iframe")[0].src = page
+      $("#modalScrollable").modal('show');
+      },100)
+    }
+  </script>
+</body>
+
+</html>
+<!--
+  <ul>
+    <form method="post" enctype="multipart/form-data" action="upload_from_template">
+      {% csrf_token %}
+      <input type="file" name="myfile" accept=".xslx, .ods, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
+      <button type="submit">Update from Excel template</button>
+      (<a href="static/MahjongTemplate.xlsx">Download template here</a>)
+    </form>
+
+    <li>
+    <a target="_blank" href="player_names">Player names</a>
+    </li>
+
+    <li>
+    <a target="_blank" href="player_cards">See player cards</a>
+    </li>
+
+    <li>
+    <a target="_blank" href="table_posters">See table posters</a>
+    </li>
+
+    <li>
+    <a target="_blank" href="cross_positions">Cross positions</a>
+    </li>
+
+    <li>
+    <a target="_blank" href="display">Display</a>
+    </li>
+  </ul>
+  -->

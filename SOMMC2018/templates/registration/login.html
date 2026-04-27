@@ -1,0 +1,115 @@
+{% load static %}
+{% if "admin" in request.GET.next %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
+  <title>EMA Tournament Organizer</title>
+  <link rel="icon" type="image/x-icon" href="static/images/mcr_logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/dashboard/vendor/fonts/boxicons.css" />
+  <link rel="stylesheet" href="/static/dashboard/vendor/css/core.css" />
+  <link rel="stylesheet" href="/static/dashboard/vendor/css/theme-default.css" />
+  <link rel="stylesheet" href="/static/dashboard/css/demo.css" />
+  <link rel="stylesheet" href="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
+  <script src="/static/dashboard/vendor/js/helpers.js"></script>
+  <script src="/static/dashboard/vendor/libs/jquery/jquery.js"></script>
+  <script src="/static/dashboard/js/config.js"></script>
+</head>
+<body>
+<section class="vh-100">
+  <div class="container py-5 h-100">
+    <div class="row d-flex justify-content-center align-items-center h-100">
+      <div class="col col-xl-10">
+        <div class="card" style="border-radius: 1rem;">
+          <div class="row g-0">
+            <div class="col-md-6 col-lg-5 d-none d-md-block">
+              <img src="/static/images/mahjong.jpg" alt="login form" class="img-fluid" style="border-radius: 1rem 0 0 1rem;" />
+            </div>
+            <div class="col-md-6 col-lg-7 d-flex align-items-center">
+              <div class="card-body p-4 p-lg-5 text-black">
+                <form method="post" action="/accounts/login/?next={{ next }}" style="padding-left:10px;padding-right:10px;">
+                  <div class="d-flex align-items-center mb-3 pb-1">
+                    <span class="h2 fw-bold mb-0">Mahjong Tournament Organizer</span>
+                  </div>
+                  <h5 class="fw-normal mb-3 pb-3" style="letter-spacing: 1px;">Sign into your account</h5>
+                  {% csrf_token %}
+                  <div class="form-outline mb-4">{{ form.as_p }}</div>
+                  <div class="pt-1 mb-4">
+                    <button class="btn btn-dark btn-lg btn-block" type="submit">Login</button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</body>
+</html>
+
+{% else %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login</title>
+  <link rel="icon" type="image/png" href="{% static 'images/mcr_logo.png' %}" sizes="192x192">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center px-4">
+  <div class="w-full max-w-sm">
+
+    <!-- Logo + title -->
+    <div class="text-center mb-8">
+      <img src="{% static 'images/mcr_logo.png' %}" class="w-14 h-14 mx-auto mb-3">
+      <h1 class="text-xl font-bold text-gray-800">Mahjong Tournament</h1>
+      <p class="text-sm text-gray-500 mt-1">Sign in to your account</p>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white rounded-2xl border border-gray-200 shadow-sm px-8 py-8">
+      {% if form.errors %}
+        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+          Invalid username or password.
+        </div>
+      {% endif %}
+
+      <form method="post" action="/accounts/login/?next={{ next }}">
+        {% csrf_token %}
+        <div class="space-y-4">
+          <div>
+            <label for="id_username" class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+            <input type="text" name="username" id="id_username" autocomplete="username" required autofocus
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                          focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+          </div>
+          <div>
+            <label for="id_password" class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+            <input type="password" name="password" id="id_password" autocomplete="current-password" required
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900
+                          focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400">
+          </div>
+        </div>
+
+        <button type="submit"
+                class="mt-6 w-full py-2.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white
+                       font-semibold text-sm transition-colors">
+          Sign in
+        </button>
+      </form>
+    </div>
+
+    <p class="text-center text-xs text-gray-400 mt-6">
+      <a href="/" class="hover:text-gray-600">← Back to tournament</a>
+    </p>
+  </div>
+</body>
+</html>
+{% endif %}

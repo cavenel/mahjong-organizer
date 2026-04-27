@@ -1,0 +1,232 @@
+{% load static %}
+{% load pagination_tags %} 
+{% load mathfilters %}
+
+<html>
+<head>
+<link rel="stylesheet" href="{% static "images/flags.css" %}">
+<style>
+body {
+  white;/*background: rgb(204,204,204); */
+    letter-spacing: 1.5;
+}
+page {
+  background: white;
+  display: grid;
+  margin: 0 auto;
+  margin-bottom: 0.5cm;
+  box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+  position: relative;
+}
+page[size="A4"] {  
+  width: 21cm;
+  height: 29.7cm; 
+}
+page[size="A4"][layout="portrait"] {
+  width: 29.7cm;
+  height: 21cm;  
+}
+page[size="A3"] {
+  width: 29.7cm;
+  height: 42cm;
+}
+page[size="A3"][layout="portrait"] {
+  width: 42cm;
+  height: 29.7cm;  
+}
+page[size="A5"] {
+  width: 14.8cm;
+  height: 21cm;
+}
+page[size="A5"][layout="portrait"] {
+  width: 21cm;
+  height: 14.8cm;  
+}
+@media print {
+  body, page {
+    margin: 0;
+    box-shadow: none;
+    page-break-after: always;
+  }
+}
+.rounds_table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size:11px;
+}
+
+.page_table {
+    border-collapse: collapse;
+    margin:35px;
+    /*width: -moz-calc(100% - 70px);
+    width: -webkit-calc(100% - 70px);
+    width: -o-calc(100% - 70px);
+    width: calc(100% - 70px);*/
+    table-layout: fixed;
+    padding-top:0px;;
+}
+.page_table td, th {
+    /*border:1px solid #aaaaaa;*/
+}
+.card {
+    height:240px;
+    padding:10px;
+}
+h2 {
+    margin: 0px;
+    margin-top: -7px;
+    margin-bottom: 6px;
+    display: inline-block;
+    font-size: 1.3em;
+    /*line-height: 1.0em;*/
+}
+.red {
+    background-color:red;
+    color:white;
+}
+.green {
+    background-color:green;
+    color:white;
+}
+.blue {
+    background-color:blue;
+    color:white;
+}
+.small {
+    font-size:11px !important;
+    font-weight:normal;
+    width: 36px;
+}
+.rounds_table th {
+    text-align:left;
+    font-size:12px;
+}
+.center {
+    text-align:center !important;
+}
+.rounds_table td, .rounds_table th {
+    padding: 3px;
+    padding-bottom: 1px;
+}
+.rounds_table_back td, .rounds_table_back th {
+    padding: 5px;
+    padding-bottom: 3px;
+}
+.flag {
+    margin-top: -10px;
+}
+.table_table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 180px;
+    text-align:center;
+}
+.table_table tr {
+    height: 30px;
+}
+.table_table td {
+    border: 0px;
+}
+.name_top {
+    text-align:center;
+    border-bottom: 1px solid grey !important;
+    font-weight: bold;
+}
+.name_bottom {
+    text-align:center;
+    border-top: 1px solid grey !important;
+    font-weight: bold;
+}
+/*.name_left {
+    text-align:center;
+    border-right: 1px solid grey !important;
+    font-weight: bold;
+    margin:0 -100% ;
+    white-space:nowrap;
+    transform-origin:50% 50%;
+    -webkit-transform: rotate(270deg);
+    -moz-transform: rotate(270deg);
+    -ms-transform: rotate(270deg);
+    -o-transform: rotate(270deg);
+    transform: rotate(270deg);
+}*/
+.name_left {
+    text-align: center;
+    border-right: 1px solid grey !important;
+    font-weight: bold;
+    height: 117px;
+    width: 149px;
+    writing-mode: sideways-lr;
+    padding-right:8px;
+}
+.name_left p{
+    margin: 0 0%;
+    display: inline-block;
+    line-height: 1;
+}
+.name_left p:before{
+    content:'';
+    width:0;
+    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+    display:inline-block;
+    vertical-align:middle;
+}
+.name_right {
+    text-align: center;
+    border-left: 1px solid grey !important;
+    font-weight: bold;
+    height: 117px;
+    width: 149px;
+    writing-mode: vertical-rl;
+    padding-left:8px;
+}
+.name_right p:before{
+    content:'';
+    width:0;
+    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+    display:inline-block;
+    vertical-align:middle;
+}
+.name_right p{
+    margin: 0 0%;
+    display: inline-block;
+    line-height: 1;
+}
+.carpet {
+    background-color:white;
+    color:black;
+}
+</style>
+</head>
+<body>
+    {% for tables, times in rounds %}
+    {% with tables|chunked:20 as pages %}
+        {% for tables_chunk in pages %}
+            <page size="A3" layout="portrait">
+                <div style="text-align: center;vertical-align: middle;padding-top: 35px;height:45px">
+                    <h1>Round {{ forloop.parentloop.counter }}</h1><br/>
+                    {{ times.day }}<br/>
+                    {{ times.time }}
+                </div>
+                <table class='page_table' style="padding-top:0px;margin-top: 0px;">
+                    {% for row in tables_chunk|slice:"0:20"|chunked:5 %}
+                    <tr>
+                        {% for table in row %}
+                        <td>
+                            {% with forloop_counter=forloop.parentloop.parentloop.counter0|mul:20|add:forloop.parentloop.counter0|mul:5|add:forloop.counter %}
+                                {% include "SOMMC2018/print_table_per_round.html" %}
+                            {% endwith %}
+                        </td>
+                        {% endfor %}
+                    </tr>
+                    {% endfor %}
+                </table>
+                <div style="position:absolute; right:20px; bottom:20px;">
+                    <i>{{ variables.title }}</i>
+                </div>
+            </page>
+        {% endfor %}
+    {% endwith %}
+{% endfor %}
+</body>
+</html>

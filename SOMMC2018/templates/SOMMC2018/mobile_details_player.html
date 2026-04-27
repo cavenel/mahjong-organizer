@@ -1,0 +1,270 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ player.full_name }}</title>
+  <meta name="player-flag" content="{{ scores_json.flag }}">
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ open: {} }">
+
+  <div class="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-2">
+    <button onclick="goBack()" class="text-amber-600 text-sm font-medium">‹ Back</button>
+  </div>
+
+  <main class="max-w-2xl mx-auto px-4 py-4 space-y-4">
+
+    <!-- Summary -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
+      <div class="flex items-center px-4 py-3 gap-4">
+        <div class="flex-1">
+          <div class="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Rank</div>
+          <div class="text-2xl font-bold text-amber-600">{{ scores_json.pos }}</div>
+          {% if scores_json.pos_se %}
+            <div class="text-xs text-gray-400 mt-0.5">SE rank: {{ scores_json.pos_se }}</div>
+          {% endif %}
+        </div>
+        <div class="text-right">
+          <div class="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Total</div>
+          {% if variables.rules == "MCR" %}
+            <div class="text-2xl font-bold text-gray-800">{{ scores_json.total.tp|floatformat:-2 }}</div>
+            <div class="text-xs text-gray-500">{{ scores_json.total.mp }} MP</div>
+          {% else %}
+            <div class="text-2xl font-bold text-gray-800">{{ scores_json.total.mp }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% if player.EMA_ID %}
+        <a href="http://mahjong-europe.org/ranking/Players/{{ player.EMA_ID }}.html"
+           target="_blank" rel="noopener"
+           class="flex items-center px-4 py-3 text-sm text-blue-600 hover:bg-blue-50 transition-colors">
+          EMA profile ↗
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- Per-round scores -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Rounds ({{ scores_json.scores|length }} played)
+        </span>
+      </div>
+      <div class="divide-y divide-gray-100">
+
+        {% for round in player_rounds %}
+          <div>
+            <!-- Round header (tap to expand) -->
+            <button @click="open[{{ forloop.counter0 }}] = !open[{{ forloop.counter0 }}]"
+                    class="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors gap-3">
+              <span class="text-sm font-medium text-gray-700 w-20 shrink-0">Round {{ forloop.counter }}</span>
+              {% for seat in round.other_pos %}
+                {% if seat.player == player %}
+                  {% if seat.round_nb <= scores_json.scores|length %}
+                    {% if variables.rules == "MCR" %}
+                      <span class="flex-1 text-sm">
+                        TP: <span class="font-bold text-amber-600">{{ seat.tablepoints|floatformat:-2 }}</span>
+                        <span class="text-gray-400 text-xs ml-2">MP: {{ seat.minipoints }}</span>
+                      </span>
+                    {% else %}
+                      <span class="flex-1 text-sm">
+                        <span class="font-bold text-amber-600">{{ seat.minipoints }}</span>
+                        <span class="text-gray-500"> pts</span>
+                      </span>
+                    {% endif %}
+                  {% else %}
+                    <span class="flex-1 text-sm text-gray-400">—</span>
+                  {% endif %}
+                {% endif %}
+              {% endfor %}
+              <span class="text-gray-400 transition-transform duration-200"
+                    :class="open[{{ forloop.counter0 }}] ? 'rotate-90' : ''">›</span>
+            </button>
+
+            <!-- Expanded: seats at table -->
+            <div x-show="open[{{ forloop.counter0 }}]" class="border-t border-gray-100 bg-gray-50 pb-3">
+              <div class="px-4 pt-2 pb-2 text-xs text-gray-400">
+                Table {{ round.other_pos.0.table_nb }}
+              </div>
+              <div class="mx-4 rounded-lg overflow-hidden border border-gray-200 divide-y divide-gray-100">
+                {% for seat in round.other_pos %}
+                  <div class="flex items-center px-3 py-2 text-sm gap-2
+                               {% if seat.player == player %}bg-amber-50{% else %}bg-white{% endif %}">
+                    <span class="w-14 text-xs text-gray-400 shrink-0">
+                      {% if forloop.counter == 1 %}East
+                      {% elif forloop.counter == 2 %}South
+                      {% elif forloop.counter == 3 %}West
+                      {% else %}North{% endif %}
+                    </span>
+                    <span class="flex-1 truncate {% if seat.player == player %}font-medium text-gray-900{% else %}text-gray-700{% endif %}">
+                      {{ seat.player.full_name }}
+                    </span>
+                    {% if seat.round_nb <= scores_json.scores|length %}
+                      {% if variables.rules == "MCR" %}
+                        <div class="text-right shrink-0">
+                          <span class="font-bold {% if seat.player == player %}text-amber-600{% endif %}">
+                            {{ seat.tablepoints|floatformat:-2 }}
+                          </span>
+                          <span class="block text-xs text-gray-400">{{ seat.minipoints }}</span>
+                        </div>
+                      {% else %}
+                        <span class="font-bold shrink-0 {% if seat.player == player %}text-amber-600{% endif %}">
+                          {{ seat.minipoints }}
+                        </span>
+                      {% endif %}
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+              {% for seat in round.other_pos %}
+                {% if seat.player == player and round.detailed_hands %}
+                  <a href="detailed_scores_{{ seat.round_nb }}_{{ seat.table_nb }}"
+                     class="block mx-4 mt-3 text-center py-2 rounded-lg border border-amber-200 bg-white
+                            text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors">
+                    View detailed scores
+                  </a>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+        {% endfor %}
+
+        <!-- Total row -->
+        <div class="flex items-center px-4 py-3 bg-gray-50 gap-3">
+          <span class="text-sm font-bold text-gray-700 w-20 shrink-0">Total</span>
+          {% if variables.rules == "MCR" %}
+            <span class="flex-1 text-sm">
+              TP: <span class="font-bold text-amber-600">{{ scores_json.total.tp|floatformat:-2 }}</span>
+              <span class="text-gray-400 text-xs ml-2">MP: {{ scores_json.total.mp }}</span>
+            </span>
+          {% else %}
+            <span class="flex-1 text-sm font-bold text-amber-600">{{ scores_json.total.mp }} pts</span>
+          {% endif %}
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Rank history chart -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm px-4 py-4">
+      <p class="text-xs text-gray-400 mb-3 text-center uppercase tracking-wider">Rank progression</p>
+      <canvas id="rankChart" style="max-height:200px;"></canvas>
+    </div>
+
+    {% if extra_stats %}
+
+    <!-- Placement Rates -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Placement Rates</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-left font-medium">Place</th>
+            <th class="px-4 py-2 text-right font-medium">Rate</th>
+            <th class="px-4 py-2 text-right font-medium">Count</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in extra_stats.placement %}
+          <tr class="{% if row.count > 0 %}hover:bg-gray-50{% else %}text-gray-300{% endif %}">
+            <td class="px-4 py-2.5 font-medium text-gray-800">{{ row.label }}</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if extra_stats.total_rounds %}{{ row.rate_pct|floatformat:1 }}%{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Winning & Losing Stats -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Winning &amp; Losing Stats</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-left font-medium">Type</th>
+            <th class="px-4 py-2 text-right font-medium">Rate</th>
+            <th class="px-4 py-2 text-right font-medium">Hands</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in extra_stats.hand_stats %}
+          <tr class="{% if row.count > 0 %}hover:bg-gray-50{% else %}text-gray-300{% endif %}">
+            <td class="px-4 py-2.5 text-gray-800">{{ row.label }}</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if extra_stats.total_hands %}{{ row.rate_pct|floatformat:1 }}%{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if extra_stats.total_hands %}
+        <tfoot>
+          <tr class="border-t border-gray-200 text-xs text-gray-400">
+            <td class="px-4 py-2" colspan="3">{{ extra_stats.total_hands }} hands scored</td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+
+    {% endif %}
+
+  </main>
+
+  <script>
+    const historyData = {{ scores_json.history_pos }}.slice(2);
+    const ctx = document.getElementById('rankChart');
+    if (ctx && historyData.length >= 2) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: historyData.map((_, i) => 'R' + (i + 1)),
+          datasets: [{
+            label: 'Rank',
+            data: historyData,
+            fill: false,
+            borderColor: 'rgb(245, 158, 11)',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.2,
+            pointRadius: 3,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              reverse: true,
+              min: 1,
+              ticks: { color: '#9ca3af', stepSize: 1 },
+              grid: { color: '#e5e7eb' },
+            },
+            x: { ticks: { color: '#9ca3af' }, grid: { color: '#e5e7eb' } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    }
+
+    function goBack() {
+      if (window.history.length <= 1 && window.parent !== window) {
+        window.parent.closeModalFromIframe();
+      } else {
+        history.back();
+      }
+    }
+  </script>
+</body>
+</html>

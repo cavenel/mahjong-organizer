@@ -1,0 +1,86 @@
+{% load static %} 
+
+<link rel="stylesheet" href="{% static "images/flags.css" %}">
+<style>
+td {
+    padding: 0px 3px;
+    border: 1px solid #aaa;
+}
+table {
+    font-size: 11px;
+}
+</style>
+</head>
+<body>
+
+<div class="d-flex">
+    <div class="flex-fill" style="margin-right: 23px;">
+        <div class="row"> 
+            {% for table in positions %}
+                <div class="col-md-6"> 
+                    <div class="card mb-4">
+                        <div class="card-body">
+                            <h5 class="w3-container w3-light-grey">Table {{ forloop.counter }}</h5>
+                            <table class="w3-table-all">
+                                <tr>
+                                    <th></th>
+                                    <th width="24%">East</th>
+                                    <th width="24%">South</th>
+                                    <th width="24%">West</th>
+                                    <th width="24%">North</th>
+                                </tr>
+                                {% for round in table %}
+                                    <tr>
+                                        <th>R{{ forloop.counter }}&nbsp;</th>
+                                        {% for player in round %}
+                                            {% if "Player" in player.full_name %}
+                                                <td>{{ player.first_name }}</td>
+                                            {% else %}
+                                                <td style="color:#DC143C;"><b>{{ player.first_name }}</b></td>
+                                            {% endif %}
+                                        {%endfor%}
+                                    </tr>
+                                {%endfor%}
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            {%endfor%}
+        </div>
+    </div>
+    <div class="" style="min-width:350px">
+        <div class="card mb-4 ml-4 p-4">
+            <header class="w3-container w3-light-grey">
+                <h4>List of players</h4>
+            </header>
+            <form action="admin?page=randomize" method="post">{% csrf_token %}
+            <ul class="list-group" >
+                {% for player in players %}
+                    <li class="list-group-item pt-0 pb-0">
+                        <div class="row">
+                            <div class="col-sm-2 p-0">
+                                <label class="form-label m-0" for="player_{{ player.id }}">P_{{ forloop.counter }}</label>
+                            </div>
+                            <div class="col-sm-10 p-0">
+                                <select name="player_{{ player.id }}" onchange="this.form.submit()" class="form-select form-select-sm p-0">
+                                    {% if not "Player" in player.full_name %}
+                                        <option value="no">{{player.full_name}}</option>
+                                        <option value="clear"></option>
+                                    {% else %}
+                                        <option value="no"></option>
+                                    {% endif %}
+                                    {% for player_data in players_data %}
+                                        {% if player_data.full_name in remaining_players %}
+                                            <option value="{{player_data.id}}">{{player_data}}</option>
+                                        {% endif %}
+                                    {%endfor%}
+                                </select>
+                            </div>
+                        </div>
+                    </li>
+                {%endfor%}
+            </ul>
+            </form>
+        </div>
+    </div>
+</div>

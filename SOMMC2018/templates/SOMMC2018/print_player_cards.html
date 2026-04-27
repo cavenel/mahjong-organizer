@@ -1,0 +1,322 @@
+{% load static %} 
+
+<html>
+<head>
+<link rel="stylesheet" href="{% static "images/flags.css" %}">
+<style>
+body {
+  background: rgb(204,204,204); 
+}
+@media print {
+  body {
+    background: white;
+  }
+}
+page {
+  background: white;
+  display: grid;
+  margin: 0 auto;
+  margin-bottom: 0.5cm;
+  box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+}
+page[size="A4"] {  
+  width: 21cm;
+  height: 29.5cm; 
+}
+page[size="A4"][layout="portrait"] {
+  width: 29.7cm;
+  height: 21cm;  
+}
+page[size="A3"] {
+  width: 29.7cm;
+  height: 42cm;
+}
+page[size="A3"][layout="portrait"] {
+  width: 42cm;
+  height: 29.7cm;  
+}
+page[size="A5"] {
+  width: 14.8cm;
+  height: 21cm;
+}
+page[size="A5"][layout="portrait"] {
+  width: 21cm;
+  height: 14.8cm;  
+}
+@media print {
+  body, page {
+    margin: 0;
+    box-shadow: none;
+    break-after: page;
+  }
+}
+.rounds_table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size:11px;
+}
+
+.page_table {
+    border-collapse: collapse;
+    margin:59px;
+    width: auto;
+    table-layout: fixed;
+    padding-top:0px;;
+    height: fit-content;
+}
+.page_table td, th {
+    border:1px solid #aaaaaa;
+    border-style: dashed;
+    overflow: hidden;
+    white-space: nowrap;
+}
+.card {
+    height:54mm;
+    padding:2mm;
+    width:84mm;
+}
+h2 {
+    margin: 0px;
+    margin-top: -7px;
+    margin-bottom: 6px;
+    display: inline-block;
+    font-size: 1.3em;
+    /*line-height: 1.0em;*/
+}
+.red {
+    background-color:rgb(196, 0, 0);
+    color:white;
+}
+.green {
+    background-color:green;
+    color:white;
+}
+.blue {
+    background-color:rgb(0, 0, 201);
+    color:white;
+}
+.small {
+    font-size:11px !important;
+    font-weight:normal;
+    width: 36px;
+}
+.center {
+    text-align:center !important;
+}
+.rounds_table td, .rounds_table th {
+    padding: 2px;
+    padding-top: 3px;
+    padding-bottom: 3px;
+    border: 0.5px solid black;
+}
+.rounds_table_back td, .rounds_table_back th {
+    padding: 5px;
+    padding-bottom: 1px;
+}
+.rounds_table_back td {
+    padding-top: 2.5px;
+    padding-bottom: 2.5px;
+}
+.rounds_table th {
+    text-align:left;
+    font-size:12px;
+    padding-bottom: 1px;
+    padding-top: 1px;
+    padding-right: 4px;
+    padding-left: 4px;
+}
+.flag {
+    margin-top: -10px;
+}
+.table_table {
+    border-collapse: collapse;
+    table-layout: fixed;
+    width: 180px;
+    text-align:center;
+}
+.table_table tr {
+    height: 30px;
+}
+.table_table td {
+    border: 0px;
+}
+.name_top {
+    text-align:center;
+    border-bottom: 1px solid grey !important;
+    font-weight: bold;
+}
+.name_bottom {
+    text-align:center;
+    border-top: 1px solid grey !important;
+    font-weight: bold;
+}
+.name_left {
+    text-align:center;
+    border-right: 1px solid grey !important;
+    font-weight: bold;
+    margin:0 -100% ;
+    white-space:nowrap;
+    transform-origin:50% 50%;
+    -webkit-transform: rotate(270deg);
+    -moz-transform: rotate(270deg);
+    -ms-transform: rotate(270deg);
+    -o-transform: rotate(270deg);
+    transform: rotate(270deg);
+}
+.name_left p{
+    margin:0 -100% ;
+    display: inline-block;
+}
+.name_left p:before{
+    content:'';
+    width:0;
+    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+    display:inline-block;
+    vertical-align:middle;
+}
+.name_right {
+    text-align:center;
+    border-left: 1px solid grey !important;
+    font-weight: bold;
+    margin:0 -100% ;
+    white-space:nowrap;
+    transform-origin:50% 50%;
+    -webkit-transform: rotate(90deg);
+    -moz-transform: rotate(90deg);
+    -ms-transform: rotate(90deg);
+    -o-transform: rotate(90deg);
+    transform: rotate(90deg);
+}
+.name_right p:before{
+    content:'';
+    width:0;
+    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+    display:inline-block;
+    vertical-align:middle;
+}
+.name_right p{
+    margin:0 -100% ;
+    display: inline-block;
+}
+.carpet {
+    background-color:green;
+    color:white;
+}
+/*.page_front {
+    margin-top: 1mm;
+}
+.page_back {
+    margin-top: 1mm;
+}*/
+
+</style>
+</head>
+<body>
+{% for page in pages%}
+    <page size="A4" class='page_front'>
+    <table class='page_table'>
+    <tr>
+    <td>
+    {% with card=page.0 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.1 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.2 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.3 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.4 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.5 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.6 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.7 %}     
+        {% include "SOMMC2018/print_player_cards_card.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    </table>
+    </page>
+    <page size="A4" class='page_back'>
+    <table class='page_table'>
+    <tr>
+    <td>
+    {% with card=page.1 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.0 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.3 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.2 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.5 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.4 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    <tr>
+    <td>
+    {% with card=page.7 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    <td>
+    {% with card=page.6 %}     
+        {% include "SOMMC2018/print_player_cards_card_back.html" %}    
+    {% endwith %}
+    </td>
+    </tr>
+    </table>
+    </page>
+{%endfor%}
+
+</body>

@@ -1,0 +1,7 @@
+-r base.txt
+
+pytest-django
+factory-boy
+coverage
+django-debug-toolbar
+daphne

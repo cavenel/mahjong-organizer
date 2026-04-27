@@ -1,0 +1,238 @@
+{% load static %}
+{% load mathfilters %}
+
+<html>
+
+<head>
+<style>
+body {
+    background: rgb(204,204,204); 
+  }
+  page {
+    background: white;
+    display: grid;
+    margin: 0 auto;
+    margin-bottom: 0.5cm;
+    box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+  }
+  page[size="A4"] {  
+    width: 21cm;
+    height: 29.7cm; 
+  }
+  page[size="A4"][layout="portrait"] {
+    width: 29.7cm;
+    height: 21cm;  
+  }
+  page[size="A3"] {
+    width: 29.7cm;
+    height: 42cm;
+  }
+  page[size="A3"][layout="portrait"] {
+    width: 42cm;
+    height: 29.7cm;  
+  }
+  page[size="A5"] {
+    width: 14.8cm;
+    height: 21cm;
+  }
+  page[size="A5"][layout="portrait"] {
+    width: 21cm;
+    height: 14.8cm;  
+  }
+  @media print {
+    body, page {
+      margin: 0;
+      box-shadow: none;
+    }
+  }
+  .rounds_table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size:11px;
+  }
+  
+  .page_table {
+      border-collapse: collapse;
+      margin:35px;
+      width: -moz-calc(100% - 70px);
+      width: -webkit-calc(100% - 70px);
+      width: -o-calc(100% - 70px);
+      width: calc(100% - 70px);
+      table-layout: fixed;
+      padding-top:0px;;
+      display:block;
+  }
+  .page_table td, th {
+      border:1px solid #aaaaaa;
+  }
+  .card {
+      height:240px;
+      padding:10px;
+  }
+  h2 {
+      margin: 0px;
+      margin-top: -7px;
+      margin-bottom: 6px;
+      display: inline-block;
+      font-size: 1.3em;
+      /*line-height: 1.0em;*/
+  }
+  .red {
+      background-color:rgb(196, 0, 0);
+      color:white;
+  }
+  .green {
+      background-color:green;
+      color:white;
+  }
+  .blue {
+      background-color:rgb(0, 0, 201);
+      color:white;
+  }
+  .small {
+      font-size:11px !important;
+      font-weight:normal;
+      width: 36px;
+  }
+  .rounds_table th {
+      text-align:left;
+      font-size:12px;
+  }
+  .center {
+      text-align:center !important;
+  }
+  .rounds_table td, .rounds_table th {
+      padding: 3px;
+      padding-bottom: 1px;
+  }
+  .rounds_table_back td, .rounds_table_back th {
+      padding: 5px;
+      padding-bottom: 3px;
+  }
+  .flag {
+      margin-top: -10px;
+  }
+  .table_table {
+      border-collapse: collapse;
+      table-layout: fixed;
+      width: 100%;
+  }
+  .table_table tr {
+      height: 36px;
+  }
+  .table_table td {
+      border: 0px;
+      padding: 7px;
+  }
+  .name_top {
+      text-align:center;
+      border-bottom: 1px solid grey !important;
+      font-weight: bold;
+  }
+  .name_bottom {
+      text-align:center;
+      border-top: 1px solid grey !important;
+      font-weight: bold;
+  }
+  .name_left {
+      text-align:center;
+      border-right: 1px solid grey !important;
+      font-weight: bold;
+      margin:0 -100% ;
+      white-space:nowrap;
+      transform-origin:50% 50%;
+      -webkit-transform: rotate(270deg);
+      -moz-transform: rotate(270deg);
+      -ms-transform: rotate(270deg);
+      -o-transform: rotate(270deg);
+      transform: rotate(270deg);
+  }
+  .name_left p{
+      margin:0 -100% ;
+      display: inline-block;
+  }
+  .name_left p:before{
+      content:'';
+      width:0;
+      padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+      display:inline-block;
+      vertical-align:middle;
+  }
+  .name_right {
+      text-align:center;
+      border-left: 1px solid grey !important;
+      font-weight: bold;
+      margin:0 -100% ;
+      white-space:nowrap;
+      transform-origin:50% 50%;
+      -webkit-transform: rotate(90deg);
+      -moz-transform: rotate(90deg);
+      -ms-transform: rotate(90deg);
+      -o-transform: rotate(90deg);
+      transform: rotate(90deg);
+  }
+  .name_right p:before{
+      content:'';
+      width:0;
+      padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
+      display:inline-block;
+      vertical-align:middle;
+  }
+  .name_right p{
+      margin:0 -100% ;
+      display: inline-block;
+  }
+  .carpet {
+      background-color:green;
+      color:white;
+  }
+  .page_td {
+      width: 47%;
+      border: solid grey 0.5px;
+      display: inline-block;
+      text-align: center;
+      padding: 10px;
+      font-weight: bold;
+      text-transform: uppercase;
+      font-family: sans-serif;
+  }   
+  tr.info {
+        background: #ddd;
+        font-weight: bold;
+    }
+  </style>
+</head>
+
+<body>
+    <page size="A4" layout="portrait">
+        
+        <div class='page_table'>
+            <center>
+                <h1>Schedule</h1><h3>{{variables.fullname}}</h3>
+
+            </center>
+
+            {% regroup schedule by day as days_list %}
+            {% for day in days_list %}
+            <div class='page_td'>
+                <div class="col-sm-6">
+                <h3>{{ day.grouper }}</h3>
+                <table  class="table_table">
+                    <tbody>
+                        {% for item in day.list %}
+                            <tr {% if 'Round ' in item.name %}class="info"{% endif %}>
+                                <td width="120px">{{ item.time }}</td>
+                                <td>{{ item.name }}</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    </page>
+</body>
+
+</html>

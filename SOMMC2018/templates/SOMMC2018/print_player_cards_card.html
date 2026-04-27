@@ -1,0 +1,53 @@
+{% load static %} 
+
+<div class="card">
+{% if card.player %}
+    <!--<h2>{{ card.player.full_name }}</h2> 
+    <div style='padding-top: 1px;float:right;'><img style='zoom:0.8;' src='{% static "images/blank.png" %}' class='flag flag-{{ card.flag }}' alt=''></div>-->
+
+    <table class='rounds_table'>
+        {% regroup card.rounds by day as days_list %}
+        {% for day in days_list %}
+            {% if forloop.counter == 1 %}
+                <thead>
+                    <tr>
+                        <th colspan=2 style="border-left:0px; border-top:0px">{{variables.title}}</th>
+                        <th rowspan=2 class='red center'>Table /<br/>Wind</th>
+                        <th colspan=2 class='blue center'>Table points</th>
+                        <th colspan=2 class='green center'>Mini points</th>
+                    </tr>
+                    <tr>
+                        <th colspan=2 class='red'>{{day.grouper}}</th>
+                        <th class='blue center small'>Round</th>
+                        <th class='blue center small'>Total</th>
+                        <th class='green center small'>Round</th>
+                        <th class='green center small'>Total</th>
+                    </tr>
+                </thead>
+            {% else %}
+                <tr>
+                    <th colspan=7 class='red'>{{day.grouper}}</th>
+                </tr>
+            {% endif %}
+            {% for r in day.list %}
+                <tr>
+                    <td><b>{{ r.time }}</b></td>
+                    <td><center><b>{{r.name}}</b></center></td>
+                    <td><center>{{r.other_pos.0.table_nb}} {{ r.player_pos }}</center></td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                </tr>
+            {% endfor %}
+        {% endfor %}
+        <tr>
+            <td colspan=2 style="border-left:0px; border-bottom:0px">&nbsp;</td>
+            <th class='red center'>Total</th>
+            <td></td><td></td><td></td><td></td>
+        </tr>
+    </table>
+    <!--<div style="float:left;font-size: 11px;margin-top: 10px;display: flex;"><u>https://{{ variables.tenant }}.mahj.ovh{{variables.url}}</u></div>
+    <div style="float:right;font-size: 11px;margin-top: 10px;display: flex;"><b><i>{{variables.title}}</i></b></div>-->
+{% endif %}
+</div>

@@ -1,0 +1,143 @@
+{% load static %} 
+{% load pagination_tags %}
+
+<html>
+    <head>
+    <link rel="stylesheet" href="{% static "images/flags.css" %}">
+    <style>
+    body {
+    background: rgb(204,204,204); 
+    }
+    page {
+    background: white;
+    display: block;
+    margin: 0 auto;
+    margin-bottom: 0.5cm;
+    box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
+    }
+    page[size="A4"] {  
+    width: 21cm;
+    height: 29.5cm; 
+    }
+    page[size="A4"][layout="portrait"] {
+    width: 29.7cm;
+    height: 21cm;  
+    }
+    page[size="A3"] {
+    width: 29.7cm;
+    height: 42cm;
+    }
+    page[size="A3"][layout="portrait"] {
+    width: 42cm;
+    height: 29.7cm;  
+    }
+    page[size="A5"] {
+    width: 14.8cm;
+    height: 21cm;
+    }
+    page[size="A5"][layout="portrait"] {
+    width: 21cm;
+    height: 14.8cm;  
+    }
+    @media print {
+    body, page {
+        margin: 0;
+        box-shadow: none;
+        page-break-after: always;
+    }
+    }
+    .rounds_table {
+        border-collapse: collapse;
+        width: 100%;
+        font-size:11px;
+    }
+
+    .page_table {
+        border-collapse: collapse;
+        margin:35px;
+        width: -moz-calc(100% - 70px);
+        width: -webkit-calc(100% - 70px);
+        width: -o-calc(100% - 70px);
+        width: calc(100% - 70px);
+        table-layout: fixed;
+        padding-top:0px;;
+        zoom: 0.92;
+    }
+    .page_table td, th {
+        border:1px solid #aaaaaa;
+    }
+
+    table {
+        border-spacing: 0px;
+        font-size:14px;
+        padding:10px;
+        height: max-content;
+    }
+    td {
+        border: 1px solid #aaaaaa;
+        padding: 2px 5px;
+    }
+    </style>
+    </head>
+    <body>
+        {% for score_chunk in scores_json|chunked:40 %}
+            <page size="A4" class='page_front'>
+                <div style="padding-top: 35px;" class="page_table">
+                    <h1>{{variables.fullname}}</h1>
+                    <i>{{variables.period}}</i>
+                </div>
+                <table class="page_table">
+                    <thead>
+                    <tr>
+                    <th style="width: 25px;">Pos</th>
+                    <!--<th style="width: 25px;">SE</th>-->
+                    <th style="width: 150px;">Player</th>
+                    <th style="width: 31px;">Ctry</th>
+                    <th style="width: 65px;">Total</th>
+                    {% for r in rounds %}
+                        <th style="width: 60px;">Round {{ r }}</th>
+                    {% endfor %}
+                    </tr>
+                    </thead>
+                    {% for s in score_chunk %}
+                        <tr>
+                        {% if not s.visible and s.pos <= 10 %}
+                            <td colspan="30" style="padding-top:3px;background-color:#aaaaaa;">&nbsp;</td>
+                        {% endif %}
+                        {% if s.visible %}
+                            <td style="text-align:center;"> {{ s.pos }}</td>
+                            <!--<td style="text-align:center;"> {{ s.pos_se }}</td>-->
+                            <td> {{ s.name }}</td>
+                            <td style="text-align:center;"><img style='zoom:0.5;' src='{% static "images/blank.png" %}' class='flag flag-{{ s.flag }}' alt=''></div></td>
+                            <td style="background-color:#eee;">
+                                {% if variables.rules == "MCR" %}
+                                    <span style="float:left;padding-right:5px;">
+                                        <b>{{ s.total.tp|floatformat:-2 }}</b>
+                                    </span>
+                                    <span style="float:right;font-size: 0.8em;line-height: 14px;color:#000;">
+                                        <i>{{ s.total.mp }}</i>
+                                    </span>
+                                {% else %}
+                                    <span style="line-height: 14px;">
+                                        <b>{{ s.total.mp }}</b>
+                                    </span>
+                                {% endif %}
+                            </td>
+                            {% for r in s.scores %}
+                                <td>
+                                    {% if variables.rules == "MCR" %}
+                                        <span style="float:left;padding-right:10px;">{{ r.tp|floatformat:-2 }}</span>
+                                        <span style="float:right;font-size: 0.8em;line-height: 14px;color:#777;"><i>{{ r.mp }}</i></span>
+                                    {% else %}
+                                        <span><b>{{ r.mp }}</b></span>
+                                    {% endif %}
+                                </td>
+                            {% endfor %}
+                        {% endif %}
+                        </tr> 
+                    {% endfor %}
+                </table>
+            </page>
+        {% endfor %}
+    </body>
+</html>

@@ -1,0 +1,112 @@
+import itertools
+
+import pycountry
+
+from django.contrib.auth.decorators import user_passes_test
+from django.http import HttpResponse
+from django.template import loader
+
+from ..models import Player, Player_data, Position, Schedule
+from .helpers import get_tenant, get_variables
+from .scoring import player_rounds_json, scores_per_player_json, scores_per_table_json
+
+
+def cross_positions(request):
+    tenant = get_tenant(request)
+    scores = scores_per_table_json(request)
+    cross = []
+    for player in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+        cross.append({"player": player.first_name, "east": 0, "cross": []})
+        for _ in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+            cross[-1]["cross"].append(0)
+
+    for round_ in scores:
+        for table in round_:
+            players = [position["position"].player for position in table]
+            for position in table:
+                for player in players:
+                    if player.rand_id != position["position"].player.rand_id:
+                        cross[position["position"].player.rand_id - 1]["cross"][player.rand_id - 1] += 1
+                if position["position"].position == 1:
+                    cross[position["position"].player.rand_id - 1]["east"] += 1
+
+    template = loader.get_template('SOMMC2018/print_cross_positions.html')
+    return HttpResponse(template.render({'cross': cross}, request))
+
+
+def print_scores(request):
+    variables = get_variables(request)
+    nb_rounds = variables.nb_rounds
+    scores_json = scores_per_player_json(request, force_all=True)
+    template = loader.get_template('SOMMC2018/print_scores.html')
+    context = {
+        'scores_json': scores_json,
+        'rounds': range(1, 1 + nb_rounds),
+        'max_round': nb_rounds,
+        'variables': variables,
+    }
+    return HttpResponse(template.render(context, request))
+
+
+def print_schedule(request):
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
+    template = loader.get_template('SOMMC2018/print_schedule.html')
+    return HttpResponse(template.render({'schedule': schedule, 'variables': variables}, request))
+
+
+def player_cards(request):
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    players = Player.objects.filter(tenant=tenant).all()
+    flags = {}
+    for p in players:
+        try:
+            flags[p] = pycountry.countries.get(name=p.country.replace("The ", "").strip()).alpha_2.lower()
+        except Exception:
+            flags[p] = ""
+
+    player_rounds = [
+        {"player": p, "rounds": player_rounds_json(request, p.id), "flag": flags[p]}
+        for p in players
+    ]
+
+    def grouper(n, iterable, fillvalue=None):
+        args = [iter(iterable)] * n
+        return itertools.zip_longest(*args, fillvalue=fillvalue)
+
+    pages = list(grouper(8, player_rounds))
+
+    template = loader.get_template('SOMMC2018/print_player_cards.html')
+    return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
+
+
+@user_passes_test(lambda u: u.is_staff)
+def player_names(request):
+    tenant = get_tenant(request)
+    players = Player_data.objects.filter(tenant=tenant).all()
+    template = loader.get_template('SOMMC2018/print_player_names.html')
+    return HttpResponse(template.render({"players": players}, request))
+
+
+@user_passes_test(lambda u: u.is_staff)
+def table_posters(request):
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    position_vals = Position.objects.filter(tenant=tenant).order_by('id')
+
+    round_max = 0
+    table_max = 0
+    for position_val in position_vals:
+        round_max = max(round_max, position_val.round_nb)
+        table_max = max(table_max, position_val.table_nb)
+    positions = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
+    for position_val in position_vals:
+        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.position - 1] = position_val.player
+
+    schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
+    schedule = [s for s in schedule if "Round" in s.name or "Session" in s.name]
+    template = loader.get_template('SOMMC2018/print_table_posters.html')
+    context = {"rounds": zip(positions, schedule), "variables": variables}
+    return HttpResponse(template.render(context, request))

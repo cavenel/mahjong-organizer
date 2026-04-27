@@ -1,0 +1,282 @@
+{% load static %} 
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Swedish Open MCR Mahjong Championship 2019</title>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"></script>
+  
+<style>
+table{
+    white-space: nowrap;
+    border-collapse:collapse;
+    font-size:13px;
+    margin-left: auto;
+    margin-right: auto;
+    table-layout: fixed !important;
+    width: 638px;
+}
+table > tbody > tr > td{border:1px solid #aaa;padding:0px;}
+table > tbody > tr{background-color:#ddd}
+th {
+    border:1px solid #aaa;
+    text-align: center;
+}
+input {
+    width: 100%;
+    padding-left: 4px;
+    border:0px;
+}
+.player_name {
+
+}
+body {
+    zoom:1.1;
+}
+</style>
+
+</head>
+<body>
+
+<div class="container">
+    <h3>Round {{round_nb}} - table {{table_nb}}</h3>
+    <table>
+        <tr>
+            <th colspan=2></th>
+            {% for score in scores %}
+                <th colspan=2 style="font-size:10px;">Player {{forloop.counter}}</th>
+            {% endfor %}
+        </tr>
+        <tr>
+            <th>Wind</th>
+            <th>Hand</th>
+            {% for score in scores %}
+                <th colspan=2>{{score.player.rand_id}}. {{score.player.first_name}}</th>
+            {% endfor %}
+            <th>Points</th>
+            <th>By</th>
+            <th>From</th>
+        </tr>
+    {% for wind, hands in hands_per_wind %}
+        {% for hand in hands %}
+            <tr>
+                {% if forloop.counter == 1 %}
+                    <th rowspan=4 style="transform: rotate(270deg);">{{ wind }}</th>
+                {% endif %}
+                <th>{{ hand.hand_nb }}</th>
+                <td><input style="font-size:9px; line-height: 19px;" id='pts_{{ hand.hand_nb }}_1' disabled/></td><td><input style="font-weight:bold;" id='total_{{ hand.hand_nb }}_1' disabled/></td>
+                <td><input style="font-size:9px; line-height: 19px;" id='pts_{{ hand.hand_nb }}_2' disabled/></td><td><input style="font-weight:bold;" id='total_{{ hand.hand_nb }}_2' disabled/></td>
+                <td><input style="font-size:9px; line-height: 19px;" id='pts_{{ hand.hand_nb }}_3' disabled/></td><td><input style="font-weight:bold;" id='total_{{ hand.hand_nb }}_3' disabled/></td>
+                <td><input style="font-size:9px; line-height: 19px;" id='pts_{{ hand.hand_nb }}_4' disabled/></td><td><input style="font-weight:bold;" id='total_{{ hand.hand_nb }}_4' disabled/></td>
+                <td><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='pts_{{ hand.hand_nb }}' value='{{ hand.pts }}'/></td>
+                <td><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='by_{{ hand.hand_nb }}' value='{{ hand.win_by }}'/></td>
+                <td><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='from_{{ hand.hand_nb }}' value='{{ hand.win_from }}'/><input type="hidden" id='id_{{ hand.hand_nb }}' value='{{ hand.id }}'/><input type="hidden" id='version_{{ hand.hand_nb }}' value='{{ hand.version }}'/></td>
+                
+            </tr>
+        {% endfor %}
+        <tr><td style="font-size:4px;" colspan=13>&nbsp;</td></tr>
+    {% endfor %}
+    <tr>
+        <th colspan=2>Total</th>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='total_1' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='total_2' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='total_3' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='total_4' disabled/></td>
+        <td colspan="3" rowspan="2"><input type="checkbox" style="text-align:center;font-weight:bold;font-size:36px;width: 27px;zoom: 2;" id="valid_17" data-hand_nb="17" {%if completed.pts == 1 %}checked{% endif %}><label for="pts_17">Valid</label><input type="hidden" id="version_17" value="{{ completed.version }}"></td>
+    </tr>
+    <tr>
+        <th colspan=2>Table Points</th>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='tp_1' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='tp_2' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='tp_3' disabled/></td>
+        <td colspan=2><input style="text-align:center;font-weight:bold;font-size:18px;" id='tp_4' disabled/></td>
+    </tr>
+    </table>
+    </div>
+</div>
+<script>
+
+function sortWithIndeces(toSort) {
+  var len = toSort.length;
+  var indices = new Array(len);
+  for (var i = 0; i < len; ++i) indices[i] = i;
+  indices.sort(function (a, b) { return toSort[a] < toSort[b] ? 1 : toSort[a] > toSort[b] ? -1 : 0; });
+  return indices;
+}
+
+function get_tp (minipoints) {
+    var indeces = sortWithIndeces(minipoints);
+    console.log(minipoints, indeces)
+    table_points = [4,2,1,0];
+    tp = [null,null,null,null];
+    table_points_to_give = [];
+    players_to_give = [];
+    max_mp = 100000000;
+
+    for (var i = 0; i < indeces.length; ++i) {
+      if (minipoints[indeces[i]] != max_mp) {
+        players_to_give.push([])
+        table_points_to_give.push([])
+        max_mp = minipoints[indeces[i]];
+      }
+      players_to_give[players_to_give.length-1].push(indeces[i]);
+      table_points_to_give[table_points_to_give.length-1].push(table_points[i]);
+    }
+    for (var i = 0; i < players_to_give.length; ++i) {
+      var sum = table_points_to_give[i].reduce(function(a, b) { return a + b; });
+      var avg = sum / table_points_to_give[i].length;
+      for (var j = 0; j < players_to_give[i].length; ++j) {
+        tp[players_to_give[i][j]] = avg;
+      }
+    }
+    console.log(players_to_give, table_points_to_give, tp);
+    return tp;
+}
+setTimeout(function() {$("#pts_1").focus();},200)
+$("#pts_1").focus();
+for (i = 0; i < 16; i++) { 
+    if ($("#pts_" + (i+1)).val() == "0")
+        $("#pts_" + (i+1)).val("")
+    if ($("#by_" + (i+1)).val() == "0")
+        $("#by_" + (i+1)).val("")
+    if ($("#from_" + (i+1)).val() == "0")
+        $("#from_" + (i+1)).val("")
+}
+var ajax_timeouts = {};
+
+function send_ajax (table_row) {
+    if ($("#valid_" + table_row).length) {
+        var id = {{completed.id}};
+        if ($("#valid_" + table_row).prop("checked"))
+            var pts = 1;
+        else
+            var pts = 0;
+        var from = 0;
+        var by = 0;
+    }
+    else {
+        var id = $("#id_" + table_row).val();
+        var pts = $("#pts_" + table_row).val();
+        var from = $("#from_" + table_row).val();
+        var by = $("#by_" + table_row).val();
+    }
+    var version = $("#version_" + table_row).val() || 0;
+    var url =  "update_hand_points";
+    console.log("sending " + url, id, pts, from, by, "version=" + version);
+    data = {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'id': id,
+        'pts': pts,
+        'from': from,
+        'by': by,
+        'version': version,
+    }
+    $.post(url, data, function(resp) {
+        console.log( "success", resp );
+        if (resp && resp.version) {
+            $("#version_" + table_row).val(resp.version);
+        }
+    }).done(function(){
+        if ($("#valid_" + table_row).length) {
+            var popup = parent.document.getElementById("popup_back");
+            var frame = parent.document.getElementById('popupFrame');
+            popup.style.display = "none";
+        }
+    })
+}
+
+function update_scores () {
+    total = [0,0,0,0]
+    for (i = 0; i < 16; i++) { 
+        pts = parseInt($("#pts_" + (i+1)).val());
+        by = parseInt($("#by_" + (i+1)).val());
+        from = parseInt($("#from_" + (i+1)).val());
+        if (isNaN(from))
+            from = 0;
+        if (isNaN(by) || by < 1 || by > 4 || from > 4) {
+            for (p = 1; p < 5; p++) {
+                $("#pts_" + (i+1) + "_" + p).val("")
+                $("#total_" + (i+1) + "_" + p).val(total[p-1])
+            } 
+            continue;
+        }
+        if (from == 0 || from == by) {
+            for (p = 1; p < 5; p++) {
+                if (p == by) {
+                    $("#pts_" + (i+1) + "_" + p).val(3*(8+pts))
+                }
+                else {
+                    $("#pts_" + (i+1) + "_" + p).val(-8-pts)
+                }
+            } 
+        }
+        else {
+            for (p = 1; p < 5; p++) {
+                if (p == by) {
+                    $("#pts_" + (i+1) + "_" + p).val(3*8+pts);
+                }
+                else if (p == from) {
+                    $("#pts_" + (i+1) + "_" + p).val(-8-pts);
+                }
+                else {
+                    $("#pts_" + (i+1) + "_" + p).val(-8);
+                }
+            } 
+        }
+
+        for (p = 1; p < 5; p++) {
+            total[p-1] += parseInt($("#pts_" + (i+1) + "_" + p).val());
+            $("#total_" + (i+1) + "_" + p).val(total[p-1]);
+        } 
+    }
+    
+    var real_tp = [
+        {% for s in scores %}{% if s.tablepoints != None %}{{s.tablepoints}}{% else %}0{% endif %},{% endfor %}
+    ];
+
+    var real_mp = [
+        {% for s in scores %}{% if s.minipoints != None %}{{s.minipoints}}{% else %}0{% endif %},{% endfor %}
+    ];
+
+    for (p = 1; p < 5; p++) {
+        $("#total_" + p).val(total[p-1]);
+        console.log(Math.round(total[p-1]), Math.round(real_mp[p-1]));
+        if (Math.round(total[p-1]) == Math.round(real_mp[p-1])) {
+            $("#total_" + p).css("background-color","#ada")
+        }
+        else {
+            $("#total_" + p).css("background-color","#daa")
+        }
+    } 
+    tp = get_tp (total);
+    
+    for (p = 1; p < 5; p++) {
+        $("#tp_" + p).val(tp[p-1]);
+        if (tp[p-1] == real_tp[p-1]) {
+            $("#tp_" + p).css("background-color","#ada")
+        }
+        else {
+            $("#tp_" + p).css("background-color","#daa")
+        }
+    } 
+}
+
+$("input").on("input change", function() {
+    var row = $(this).attr("data-hand_nb");
+    update_scores();
+    if (ajax_timeouts[row]) {
+        clearTimeout(ajax_timeouts[row]);
+    }
+    ajax_timeouts[row] = setTimeout(function(){ send_ajax(row); }, 1000);
+});
+
+update_scores ();
+</script>
+</body>
+</html>
+

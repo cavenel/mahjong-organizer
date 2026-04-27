@@ -1,0 +1,185 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ team_name }}</title>
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <div class="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-2">
+    <button onclick="goBack()" class="text-amber-600 text-sm font-medium">‹ Back</button>
+  </div>
+
+  <main class="max-w-2xl mx-auto px-4 py-4 space-y-4">
+
+    <!-- Team header + members table -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-3 border-b border-gray-100">
+        <h1 class="text-xl font-bold text-gray-800">{{ team_name }}</h1>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-center font-medium w-12">Pos</th>
+            <th class="px-4 py-2 text-left font-medium">Player</th>
+            {% if variables.rules == "MCR" %}
+              <th class="px-4 py-2 text-right font-medium">TP</th>
+            {% endif %}
+            <th class="px-4 py-2 text-right font-medium">MP</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for m in members %}
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2.5 text-center font-bold text-amber-600">{{ m.pos }}</td>
+            <td class="px-4 py-2.5">
+              <a href="details_player_{{ m.player_id }}"
+                 class="font-medium text-gray-800 hover:text-amber-600 transition-colors">
+                {{ m.name }}
+              </a>
+            </td>
+            {% if variables.rules == "MCR" %}
+              <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ m.total.tp|floatformat:-2 }}</td>
+            {% endif %}
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ m.total.mp }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="border-t-2 border-gray-300 bg-amber-50/60">
+            <td class="px-4 py-2.5 text-center font-bold text-amber-600">{{ team_pos }}</td>
+            <td class="px-4 py-2.5 font-bold text-gray-800">{{ team_name }}</td>
+            {% if variables.rules == "MCR" %}
+              <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ team_total.tp|floatformat:-2 }}</td>
+            {% endif %}
+            <td class="px-4 py-2.5 text-right font-bold text-gray-700">{{ team_total.mp }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
+    {% if extra_stats %}
+
+    <!-- Placement Rates -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">
+          Placement Rates
+          <span class="text-gray-400 font-normal ml-1">({{ extra_stats.total_rounds }} rounds)</span>
+        </span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-left font-medium">Place</th>
+            <th class="px-4 py-2 text-right font-medium">Rate</th>
+            <th class="px-4 py-2 text-right font-medium">Count</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in extra_stats.placement %}
+          <tr class="{% if row.count > 0 %}hover:bg-gray-50{% else %}text-gray-300{% endif %}">
+            <td class="px-4 py-2.5 font-medium text-gray-800">{{ row.label }}</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if extra_stats.total_rounds %}{{ row.rate_pct|floatformat:1 }}%{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Winning & Losing Stats -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Winning &amp; Losing Stats</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-left font-medium">Type</th>
+            <th class="px-4 py-2 text-right font-medium">Rate</th>
+            <th class="px-4 py-2 text-right font-medium">Hands</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in extra_stats.hand_stats %}
+          <tr class="{% if row.count > 0 %}hover:bg-gray-50{% else %}text-gray-300{% endif %}">
+            <td class="px-4 py-2.5 text-gray-800">{{ row.label }}</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if extra_stats.total_hands %}{{ row.rate_pct|floatformat:1 }}%{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        {% if extra_stats.total_hands %}
+        <tfoot>
+          <tr class="border-t border-gray-200 text-xs text-gray-400">
+            <td class="px-4 py-2" colspan="3">{{ extra_stats.total_hands }} hands scored</td>
+          </tr>
+        </tfoot>
+        {% endif %}
+      </table>
+    </div>
+
+    {% endif %}
+
+    <!-- Rank progression chart -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm px-4 py-4">
+      <p class="text-xs text-gray-400 mb-3 text-center uppercase tracking-wider">Team rank progression</p>
+      <canvas id="rankChart" style="max-height:200px;"></canvas>
+    </div>
+
+  </main>
+
+  <script>
+    const historyData = {{ team_history_pos }};
+    const ctx = document.getElementById('rankChart');
+    if (ctx && historyData.length >= 2) {
+      new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: historyData.map((_, i) => 'R' + (i + 1)),
+          datasets: [{
+            label: 'Team rank',
+            data: historyData,
+            fill: false,
+            borderColor: 'rgb(245, 158, 11)',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.2,
+            pointRadius: 3,
+          }]
+        },
+        options: {
+          responsive: true,
+          scales: {
+            y: {
+              reverse: true,
+              min: 1,
+              ticks: { color: '#9ca3af', stepSize: 1 },
+              grid: { color: '#e5e7eb' },
+            },
+            x: { ticks: { color: '#9ca3af' }, grid: { color: '#e5e7eb' } },
+          },
+          plugins: { legend: { display: false } },
+        },
+      });
+    }
+
+    function goBack() {
+      if (window.history.length <= 1 && window.parent !== window) {
+        window.parent.closeModalFromIframe();
+      } else {
+        history.back();
+      }
+    }
+  </script>
+
+</body>
+</html>

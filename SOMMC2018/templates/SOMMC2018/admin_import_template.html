@@ -1,0 +1,19 @@
+<h4 class="fw-bold py-3 mb-4">Import settings from Excel template</h4>
+<p>
+    Download template <a class="button" href="static/MahjongTemplate.xlsx">here</a>.
+</p>
+<form method="post" enctype="multipart/form-data" action="admin_upload_from_template" onsubmit="$('#loading').removeClass('d-none');">
+    {% csrf_token %}
+    <div class="alert alert-danger" role="alert">WARNING: Importing from template will erase any scores previously filled.</div>
+    <div class="input-group">
+        <input type="file" name="myfile" accept=".xslx, .ods, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="form-control" id="inputGroupFile04" aria-describedby="inputGroupFileAddon04" aria-label="Upload">
+        <button class="btn btn-outline-primary" type="submit">Import from Excel template</button>
+    </div>
+    <div class="container mt-2 d-none" id="loading">
+        <div class="spinner-border spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        Importing data, please wait...
+    </div>
+
+</form>

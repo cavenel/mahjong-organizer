@@ -1,0 +1,173 @@
+[
+  {
+    "day": "Sat",
+    "detailed_hands": true,
+    "name": "Round 1",
+    "other_pos": [
+      {
+        "__model__": "Position",
+        "id": 1,
+        "minipoints": 0,
+        "pk": 1,
+        "player_id": 1,
+        "position": 1,
+        "round_nb": 1,
+        "table_nb": 1,
+        "tablepoints": 4.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 2,
+        "minipoints": 10,
+        "pk": 2,
+        "player_id": 2,
+        "position": 2,
+        "round_nb": 1,
+        "table_nb": 1,
+        "tablepoints": 2.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 3,
+        "minipoints": 20,
+        "pk": 3,
+        "player_id": 3,
+        "position": 3,
+        "round_nb": 1,
+        "table_nb": 1,
+        "tablepoints": 1.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 4,
+        "minipoints": 30,
+        "pk": 4,
+        "player_id": 4,
+        "position": 4,
+        "round_nb": 1,
+        "table_nb": 1,
+        "tablepoints": 0.0,
+        "tenant_id": 1
+      }
+    ],
+    "player_pos": "East",
+    "time": "10:00"
+  },
+  {
+    "day": "Sat",
+    "detailed_hands": true,
+    "name": "Round 2",
+    "other_pos": [
+      {
+        "__model__": "Position",
+        "id": 17,
+        "minipoints": 5,
+        "pk": 17,
+        "player_id": 1,
+        "position": 1,
+        "round_nb": 2,
+        "table_nb": 1,
+        "tablepoints": 4.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 18,
+        "minipoints": 55,
+        "pk": 18,
+        "player_id": 6,
+        "position": 2,
+        "round_nb": 2,
+        "table_nb": 1,
+        "tablepoints": 2.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 19,
+        "minipoints": 105,
+        "pk": 19,
+        "player_id": 11,
+        "position": 3,
+        "round_nb": 2,
+        "table_nb": 1,
+        "tablepoints": 1.0,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 20,
+        "minipoints": 155,
+        "pk": 20,
+        "player_id": 16,
+        "position": 4,
+        "round_nb": 2,
+        "table_nb": 1,
+        "tablepoints": 0.0,
+        "tenant_id": 1
+      }
+    ],
+    "player_pos": "East",
+    "time": "11:00"
+  },
+  {
+    "day": "Sat",
+    "detailed_hands": false,
+    "name": "Round 3",
+    "other_pos": [
+      {
+        "__model__": "Position",
+        "id": 33,
+        "minipoints": null,
+        "pk": 33,
+        "player_id": 1,
+        "position": 1,
+        "round_nb": 3,
+        "table_nb": 1,
+        "tablepoints": null,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 34,
+        "minipoints": null,
+        "pk": 34,
+        "player_id": 7,
+        "position": 2,
+        "round_nb": 3,
+        "table_nb": 1,
+        "tablepoints": null,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 35,
+        "minipoints": null,
+        "pk": 35,
+        "player_id": 12,
+        "position": 3,
+        "round_nb": 3,
+        "table_nb": 1,
+        "tablepoints": null,
+        "tenant_id": 1
+      },
+      {
+        "__model__": "Position",
+        "id": 36,
+        "minipoints": null,
+        "pk": 36,
+        "player_id": 14,
+        "position": 4,
+        "round_nb": 3,
+        "table_nb": 1,
+        "tablepoints": null,
+        "tenant_id": 1
+      }
+    ],
+    "player_pos": "East",
+    "time": "12:00"
+  }
+]

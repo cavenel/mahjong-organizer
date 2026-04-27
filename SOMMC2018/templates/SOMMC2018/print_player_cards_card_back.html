@@ -1,0 +1,49 @@
+{% load static %} 
+
+<div class="card">
+{% if card.player %}
+    <h2>{{ card.player.full_name }}</h2> 
+    <div style='padding-top: 1px;float:right;'><img style='zoom:0.8;' src='{% static "images/blank.png" %}' class='flag flag-{{ card.flag }}' alt=''></div>
+
+    <table class='rounds_table rounds_table_back' style="table-layout: fixed;">
+        {% regroup card.rounds by day as days_list %}
+        {% for day in days_list %}
+            {% if forloop.counter == 1 %}
+                <thead>
+                <tr>
+                    <th colspan=2 class='red'>
+                        {{day.grouper}}
+                    </th>
+                    <th class='blue center' style="">East</th>
+                    <th class='blue center' style="">South</th>
+                    <th class='blue center' style="">West</th>
+                    <th class='blue center' style="">North</th>
+                </tr>
+                </thead>
+            {% else %}
+                <tr>
+                <th colspan=6 class='red'>
+                    {{day.grouper}}
+                </th>
+                </tr>
+            {% endif %}
+            {% for r in day.list %}
+                <tr>
+                <td><center><b>{{r.name}}</b></center></td>
+                <td><center>Table {{r.other_pos.0.table_nb}}</center></td>
+                {% for pos in r.other_pos %}
+                    {% if pos.player == card.player %}
+                        <td style=" padding-right:0px"><b>{{ pos.player.first_name }}</b></td>
+                    {% endif %}
+                    {% if pos.player != card.player %}
+                        <td style=" padding-right:0px">{{ pos.player.first_name }}</td>
+                    {% endif %}
+                {% endfor %}
+                </tr>
+            {% endfor %}
+        {% endfor %}
+    </table>
+    <div style="float:left;font-size: 11px;margin-top: 5px;display: flex;"><u>https://{{ variables.tenant }}.mahj.ovh{{variables.url}}</u></div>
+    <div style="float:right;font-size: 11px;margin-top: 5px;display: flex;"><b><i>{{variables.title}}</i></b></div>
+{% endif %}
+</div>

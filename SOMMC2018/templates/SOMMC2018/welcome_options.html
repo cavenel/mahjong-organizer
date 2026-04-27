@@ -1,0 +1,65 @@
+<ons-page id="welcome_options_display">
+    <ons-toolbar>
+      <div class="left">
+        <ons-back-button>Back</ons-back-button>
+      </div>
+      <div class="center">Welcome message</div>
+    </ons-toolbar>
+    
+    <p class="intro">
+        <b>Update the welcoming text</b><br/><small><i>(Displayed under the timer)</i></small><br/>
+    </p>
+        
+    <textarea id="welcome_message" style="width:100%;background-color:white;" class="textarea" placeholder="Welcome">{{ welcome }}</textarea>
+    <br/><br/>
+    <center><button class="button" id="send_message">Apply</button></center>
+    <p class="intro">
+        <b>Update the competition title</b><br/>
+    </p>
+    <textarea id="title" style="width:100%;background-color:white;" class="textarea" placeholder="">{{ variables.title }}</textarea>
+    <br/><br/>
+    <center><button class="button" id="send_title">Apply</button></center>
+    
+    <script>
+    
+    function set_welcome () {
+        appNavigator.popPage();
+        data = {
+            'csrfmiddlewaretoken': '{{ csrf_token }}',
+        }
+        $.post("update_welcome?welcome=" + $("#welcome_message").val(), data, function() {
+            console.log( "success" );
+        })
+        ons.notification.alert('The welcoming message has been changed.')
+    }
+    
+    function set_title () {
+        appNavigator.popPage();
+        data = {
+            'csrfmiddlewaretoken': '{{ csrf_token }}',
+            'title': $("#title").val()
+        }
+        $.post("update_variables", data, function() {
+            console.log( "success" );
+        })
+        ons.notification.alert('The title has been changed.')
+    }
+    
+    $("#welcome_message").focus();
+    $("#send_message").click(function() {
+        console.log("send_message");
+        set_welcome();
+    })
+    
+    $("#send_title").click(function() {
+        console.log("send_title");
+        set_title();
+    })
+    $().ready(function() {
+
+    })
+    
+    
+    </script>
+    
+</ons-page>

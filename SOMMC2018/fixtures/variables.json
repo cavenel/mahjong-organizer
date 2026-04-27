@@ -1,0 +1,10 @@
+[
+  {
+    "model": "SOMMC2018.variable",
+    "pk": 1,
+    "fields": {
+      "welcome": "",
+      "final": 0
+    }
+  }
+]

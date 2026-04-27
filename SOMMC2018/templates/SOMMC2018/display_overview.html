@@ -1,0 +1,49 @@
+<html>
+<body style="background-color:black">
+
+<div id="wrap">
+    <div class="label">Projector 1
+    </div>
+    <iframe src="1"></iframe></div>
+<div id="wrap">
+    <div class="label">Projector 2
+    </div>
+    <iframe src="2"></iframe></div>
+<div id="wrap">
+        <div class="label">Projector 3
+    </div>
+    <iframe src="3"></iframe></div>
+<div id="wrap">
+        <div class="label">Projector 4
+        </div>
+    <iframe src="4"></iframe></div>
+
+<style>
+    #wrap { position:relative; width: 825px; height: 467px; padding: 0; overflow: hidden; display: inline-block;}
+    iframe { width: 1920px; height: 1080px; border: 3px solid red; }
+    iframe {
+        -ms-zoom: 0.4266
+        -moz-transform: scale(0.4266);
+        -moz-transform-origin: 0 0;
+        -o-transform: scale(0.4266);
+        -o-transform-origin: 0 0;
+        -webkit-transform: scale(0.4266);
+        -webkit-transform-origin: 0 0;
+    }
+    .label {
+        position: absolute;
+        background-color: #aaaaaaaa;
+        border: 1px solid #888;
+        color: black;
+        z-index: 10;
+        font-size: 10px;
+        padding: 2px 8px;
+        right: 6px;
+        top: 2px;
+        font-family: monospace;
+        text-align:center;
+    }
+</style>
+
+</body>
+</html>

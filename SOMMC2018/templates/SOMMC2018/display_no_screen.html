@@ -1,0 +1,41 @@
+{% load static %} 
+
+<html style="background-color:black;">
+<head>
+  <title>Swedish Open MCR Mahjong Championship 2018</title>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+</head>
+<body>
+<h1 style="color:white">Add screen from admin page first</h1>
+<script>
+var getUrlParameter = function getUrlParameter(sParam) {
+    var sPageURL = decodeURIComponent(window.location.search.substring(1)),
+        sURLVariables = sPageURL.split('&'),
+        sParameterName,
+        i;
+
+    for (i = 0; i < sURLVariables.length; i++) {
+        sParameterName = sURLVariables[i].split('=');
+
+        if (sParameterName[0] === sParam) {
+            return sParameterName[1] === undefined ? true : sParameterName[1];
+        }
+    }
+};
+
+(function() {
+    var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    var subdomain = '{{ subdomain }}';
+    function connect() {
+        var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
+        ws.onmessage = function() { location.reload(); };
+        ws.onclose = function() { setTimeout(connect, 3000); };
+        ws.onerror = function() { ws.close(); };
+    }
+    connect();
+})();
+
+</script>
+</body>

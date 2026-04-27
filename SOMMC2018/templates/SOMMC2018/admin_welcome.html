@@ -1,0 +1,45 @@
+<h4>Admin dashboard</h4>
+
+<p><b>Mahj.OVH</b> <i>(Mahjong Organizer Virtual Hub)</i> is an &quot;all-in-one&quot; toolbox for organizing Mahjong Tournaments.</p>
+
+<p>List of features:</p>
+<ul>
+<li>Import players, positions and schedule from a spreadsheet file.</li>
+<li>Print player cards, table positions, <em>etc.</em></li>
+<li>Write scores during tournament.</li>
+<li>Print scores.</li>
+<li>Manage displays / projectors (show counter, show scores between rounds, show schedule, <em>etc.</em>)</li>
+<li>Export EMA report</li>
+</ul>
+<p>
+<i>Note that this application is not in any way related to the European Mahjong Association.</i>
+</p>
+
+<!-- Create a bootstrap modal with error-->
+{% if error %}
+<div class="modal fade" id="errorModal" tabindex="-1" aria-labelledby="errorModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="errorModalLabel">Error</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        {{ error|safe }}<br/><br/>
+        Correct the .xlsx document or contact the administrator: <a href="mailto:cavenel@gmail.com">cavenel@gmail.com</a>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+    window.addEventListener("load", (event) => {
+        var myModal = new bootstrap.Modal(document.getElementById('errorModal'), {
+            keyboard: false
+        });
+        myModal.show();
+    });
+</script>
+{% endif %}

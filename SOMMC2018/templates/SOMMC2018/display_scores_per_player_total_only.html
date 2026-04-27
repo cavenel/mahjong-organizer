@@ -1,0 +1,123 @@
+{% load static %}
+{% load mathfilters %}
+
+<html>
+<head>
+  <title>Swedish Open MCR Mahjong Championship 2019</title>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+  <link rel="stylesheet" href="{% static "images/flags.css" %}">
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css">
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
+  <style>
+    body, html {
+      background-color: black;
+      zoom: {{ variables.zoom|mul:1.2 }};
+    }
+    .scores_page {
+      text-align: center;
+    }
+    .scores_cols {
+      display: flex;
+      justify-content: space-evenly; 
+      vertical-align: top;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    table.total_only {
+      background-color: white;
+      white-space: nowrap;
+      border-collapse: collapse;
+      font-size: 11px;
+      zoom: 1.4;
+    }
+    table.total_only > tbody > tr > td {
+      border: 1px solid #aaa;
+      padding: 2px 5px;
+    }
+    table.total_only th {
+      text-align: center;
+      background-color: black;
+      color: white;
+    }
+  </style>
+</head>
+<body>
+  <center><h1 style="color:white;">Scores after round {{ rounds|length }}</h1></center><br/>
+
+  {% for page in pages %}
+    <div class="scores_page" id="scores_page_{{ forloop.counter }}" {% if not forloop.first %}style="display:none;"{% endif %}>
+      <div class="scores_cols">
+        {% for col in page %}
+          <table class="total_only">
+            <thead>
+              <tr>
+                <th style="width: 25px;">Pos</th>
+                <th style="width: 150px;">Player</th>
+                <th style="width: 25px;">Ctry</th>
+                <th style="width: 65px;">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for s in col %}
+                <tr>
+                  {% if not s.visible and s.pos <= 10 %}
+                    <td colspan="4" style="padding-top:3px;background-color:#aaaaaa;">&nbsp;</td>
+                  {% endif %}
+                  {% if s.visible %}
+                    <td style="text-align:center;">{{ s.pos }}</td>
+                    <td>{{ s.name }}</td>
+                    <td style="text-align:center;"><img style='zoom:0.5;' src='{% static "images/blank.png" %}' class='flag flag-{{ s.flag }}' alt=''></td>
+                    <td style="background-color:#eee;">
+                      {% if variables.rules == "MCR" %}
+                        <span style="float:left;padding-right:5px;"><b>{{ s.total.tp|floatformat:-2 }}</b></span>
+                        <span style="float:right;font-size: 0.8em;line-height: 14px;color:#000;"><i>{{ s.total.mp }}</i></span>
+                      {% else %}
+                        <span style="line-height: 14px;"><b>{{ s.total.mp }}</b></span>
+                      {% endif %}
+                    </td>
+                  {% endif %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endfor %}
+      </div>
+      {% if pages|length > 1 %}
+        <br/><center style="color:#aaa;font-size: 21px;">Page {{ forloop.counter }} / {{ pages|length }}</center>
+      {% endif %}
+    </div>
+  {% endfor %}
+
+  {% if pages|length > 1 %}
+    <script>
+      setInterval(function() {
+        var currentPage = $(".scores_page:visible").attr("id").split("_")[2];
+        $(".scores_page").hide();
+        var nextPage = parseInt(currentPage) + 1;
+        if (nextPage > {{ pages|length }}) { nextPage = 1; }
+        $("#scores_page_" + nextPage).show();
+      }, 10000);
+    </script>
+  {% endif %}
+
+  <div style="position:fixed;bottom: 30px;color:white;right:30px;zoom:1.02;text-align: right;">
+    <img src="https://api.qrserver.com/v1/create-qr-code/?size=123x123&amp;data=http://{{ variables.tenant }}.mahj.ovh" style="margin-bottom: 10px;"><br>
+    <span style="font-size:20px;line-height:16px;">Tournament app: https://{{ variables.tenant }}.mahj.ovh</span>
+  </div>
+
+  <script>
+    (function() {
+      var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      var subdomain = '{{ subdomain }}';
+      function connect() {
+        var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
+        ws.onmessage = function() { location.reload(); };
+        ws.onclose = function() { setTimeout(connect, 3000); };
+        ws.onerror = function() { ws.close(); };
+      }
+      connect();
+    })();
+  </script>
+</body>
+</html>
