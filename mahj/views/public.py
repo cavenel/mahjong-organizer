@@ -143,7 +143,7 @@ def desktop(request):
         'uses_teams': uses_teams,
         'team_rows': team_rows,
     }
-    template = loader.get_template('SOMMC2018/desktop.html')
+    template = loader.get_template('mahj/desktop.html')
     html = template.render(context, request)
     cache.set(html_key, html, HTML_CACHE_TTL)
     return HttpResponse(html)

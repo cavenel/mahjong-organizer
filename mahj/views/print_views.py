@@ -30,7 +30,7 @@ def cross_positions(request):
                 if position["position"].position == 1:
                     cross[position["position"].player.rand_id - 1]["east"] += 1
 
-    template = loader.get_template('SOMMC2018/print_cross_positions.html')
+    template = loader.get_template('mahj/print_cross_positions.html')
     return HttpResponse(template.render({'cross': cross}, request))
 
 
@@ -38,7 +38,7 @@ def print_scores(request):
     variables = get_variables(request)
     nb_rounds = variables.nb_rounds
     scores_json = scores_per_player_json(request, force_all=True)
-    template = loader.get_template('SOMMC2018/print_scores.html')
+    template = loader.get_template('mahj/print_scores.html')
     context = {
         'scores_json': scores_json,
         'rounds': range(1, 1 + nb_rounds),
@@ -52,7 +52,7 @@ def print_schedule(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    template = loader.get_template('SOMMC2018/print_schedule.html')
+    template = loader.get_template('mahj/print_schedule.html')
     return HttpResponse(template.render({'schedule': schedule, 'variables': variables}, request))
 
 
@@ -78,7 +78,7 @@ def player_cards(request):
 
     pages = list(grouper(8, player_rounds))
 
-    template = loader.get_template('SOMMC2018/print_player_cards.html')
+    template = loader.get_template('mahj/print_player_cards.html')
     return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
 
 
@@ -86,7 +86,7 @@ def player_cards(request):
 def player_names(request):
     tenant = get_tenant(request)
     players = Player_data.objects.filter(tenant=tenant).all()
-    template = loader.get_template('SOMMC2018/print_player_names.html')
+    template = loader.get_template('mahj/print_player_names.html')
     return HttpResponse(template.render({"players": players}, request))
 
 
@@ -107,6 +107,6 @@ def table_posters(request):
 
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     schedule = [s for s in schedule if "Round" in s.name or "Session" in s.name]
-    template = loader.get_template('SOMMC2018/print_table_posters.html')
+    template = loader.get_template('mahj/print_table_posters.html')
     context = {"rounds": zip(positions, schedule), "variables": variables}
     return HttpResponse(template.render(context, request))

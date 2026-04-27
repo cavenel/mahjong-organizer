@@ -9,8 +9,8 @@ import json
 import os
 import pytest
 
-from SOMMC2018 import views
-from SOMMC2018.tests.conftest import normalize
+from mahj import views
+from mahj.tests.conftest import normalize
 
 SNAPSHOT_DIR = os.path.join(os.path.dirname(__file__), 'snapshots')
 

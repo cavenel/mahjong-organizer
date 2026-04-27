@@ -31,7 +31,7 @@ def index(request, screen_id=None):
     if screen:
         view = screen.view
         if view == "" or view == "black" or view == "null":
-            template = loader.get_template('SOMMC2018/display_black.html')
+            template = loader.get_template('mahj/display_black.html')
             return HttpResponse(template.render({'subdomain': subdomain}, request))
         elif view == "scores p. 1":
             return scores_per_player(request, "html", 1)
@@ -50,18 +50,18 @@ def index(request, screen_id=None):
         elif view == "counter":
             return counter(request)
         elif view == "schedule":
-            template = loader.get_template('SOMMC2018/display_schedule.html')
+            template = loader.get_template('mahj/display_schedule.html')
             schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
             context = {"schedule": schedule, "variables": variables, "subdomain": subdomain}
             return HttpResponse(template.render(context, request))
         return HttpResponse("")
     else:
-        template = loader.get_template('SOMMC2018/display_no_screen.html')
+        template = loader.get_template('mahj/display_no_screen.html')
         return HttpResponse(template.render({'subdomain': subdomain}, request))
 
 
 def overview(request):
-    template = loader.get_template('SOMMC2018/display_overview.html')
+    template = loader.get_template('mahj/display_overview.html')
     return HttpResponse(template.render({}, request))
 
 
@@ -83,7 +83,7 @@ def counter(request):
     except (IndexError, KeyError):
         nb_rounds = 0
 
-    template = loader.get_template('SOMMC2018/display_counter.html')
+    template = loader.get_template('mahj/display_counter.html')
     context = {
         'variables': variables,
         'counter': counter_val,
@@ -103,7 +103,7 @@ def scores_per_table(request, ext):
     if ext == "json":
         return HttpResponse(json.dumps(scores_json))
     elif ext == "html":
-        template = loader.get_template('SOMMC2018/scores_per_table.html')
+        template = loader.get_template('mahj/scores_per_table.html')
         context = {
             'scores_json': scores_json,
             "players": all_players,
@@ -158,7 +158,7 @@ def scores_per_player(request, ext, page_nb=None):
             "schedule": schedule,
             "subdomain": tenant.subdomain if tenant else '',
         }
-        return render(request, "SOMMC2018/display_scores_per_player_table.html", context)
+        return render(request, "mahj/display_scores_per_player_table.html", context)
     elif ext == "tpt":
         context = {
             "scores_json": scores_json,
@@ -166,7 +166,7 @@ def scores_per_player(request, ext, page_nb=None):
             "max_round": nb_rounds,
             "variables": variables,
         }
-        return render(request, "SOMMC2018/mobile_scores_per_player_list.html", context)
+        return render(request, "mahj/mobile_scores_per_player_list.html", context)
     return HttpResponseNotFound('<h1>Page not found</h1>')
 
 
@@ -205,7 +205,7 @@ def scores_per_player_total_only(request):
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
     }
-    return render(request, "SOMMC2018/display_scores_per_player_total_only.html", context)
+    return render(request, "mahj/display_scores_per_player_total_only.html", context)
 
 
 @user_passes_test(is_display_op)

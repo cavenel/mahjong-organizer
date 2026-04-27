@@ -21,7 +21,7 @@ def details_player(request, id):
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
     rounds = player_rounds_json(request, id)
     extra_stats = player_extra_stats(tenant, player, variables)
-    template = loader.get_template('SOMMC2018/mobile_details_player.html')
+    template = loader.get_template('mahj/mobile_details_player.html')
     context = {
         'player': player,
         'player_rounds': rounds,
@@ -113,7 +113,7 @@ def details_team(request, team_name):
     team_pos = next((i + 1 for i, (name, _) in enumerate(ranked_teams) if name == team_name), None)
     team_total = by_team.get(team_name, {'tp': 0.0, 'mp': 0})
 
-    template = loader.get_template('SOMMC2018/mobile_details_team.html')
+    template = loader.get_template('mahj/mobile_details_team.html')
     context = {
         'team_name': team_name,
         'extra_stats': extra_stats,
@@ -153,7 +153,7 @@ def detailed_scores(request, round_nb, table_nb):
     for position_val in position_vals:
         scores[position_val.position - 1] = position_val
 
-    template = loader.get_template('SOMMC2018/mobile_detailed_scores.html')
+    template = loader.get_template('mahj/mobile_detailed_scores.html')
     context = {
         'hands_per_wind': hands_per_wind,
         'completed': all_hands[16],

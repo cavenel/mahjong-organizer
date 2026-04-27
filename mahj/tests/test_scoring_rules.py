@@ -1,7 +1,7 @@
-"""Pure-Python unit tests for helpers in SOMMC2018/scoring.py — no DB."""
+"""Pure-Python unit tests for helpers in mahj/scoring.py — no DB."""
 from types import SimpleNamespace
 
-from SOMMC2018.scoring import (
+from mahj.scoring import (
     _assign_ranks,
     _country_flag,
     _group_by,

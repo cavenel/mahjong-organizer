@@ -80,7 +80,7 @@ def admin_scores_per_hand(request, round_nb, table_nb):
     for position_val in position_vals:
         scores[position_val.position - 1] = position_val
 
-    template = loader.get_template('SOMMC2018/admin_scores_per_hand.html')
+    template = loader.get_template('mahj/admin_scores_per_hand.html')
     context = {
         'hands_per_wind': hands_per_wind,
         'completed': all_hands[16],

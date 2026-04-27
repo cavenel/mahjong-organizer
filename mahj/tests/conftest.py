@@ -5,7 +5,7 @@ from django.db.models import ForeignKey, Model
 from django.db.models.query import QuerySet
 from django.test import RequestFactory
 
-from SOMMC2018.models import Tenant, Player, Variable, Schedule, Position, Hand, PublishedRound
+from mahj.models import Tenant, Player, Variable, Schedule, Position, Hand, PublishedRound
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 
-from SOMMC2018.models import Hand
+from mahj.models import Hand
 
 
 @pytest.fixture

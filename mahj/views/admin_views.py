@@ -260,7 +260,7 @@ def randomize(request):
         positions[position_val.table_nb - 1][position_val.round_nb - 1][position_val.position - 1] = position_val.player
 
     remaining_players = [p.full_name for p in players_data if p.full_name not in [p1.full_name for p1 in players]]
-    template = loader.get_template('SOMMC2018/admin_randomize.html')
+    template = loader.get_template('mahj/admin_randomize.html')
     context = {
         "positions": positions,
         "players_data": players_data,
@@ -380,7 +380,7 @@ def counter_start(request):
 def timer_options(request):
     # -1 means "counter never started" — JS in timer_options.html treats negatives as sentinel state.
     variables = get_variables(request)
-    template = loader.get_template('SOMMC2018/timer_options.html')
+    template = loader.get_template('mahj/timer_options.html')
     return HttpResponse(template.render({"counter": variables.counter}, request))
 
 
@@ -390,7 +390,7 @@ def welcome_options(request):
         welcome = variables.welcome
     except Exception:
         welcome = "Welcome"
-    template = loader.get_template('SOMMC2018/welcome_options.html')
+    template = loader.get_template('mahj/welcome_options.html')
     return HttpResponse(template.render({"welcome": welcome, "variables": variables}, request))
 
 
@@ -401,7 +401,7 @@ def options(request, error=None):
         logout(request)
         return HttpResponseRedirect('admin')
 
-    template = loader.get_template('SOMMC2018/admin.html')
+    template = loader.get_template('mahj/admin.html')
     page = request.GET.get('page')
     
     if is_scorer(request.user) and not request.user.is_staff and page is None:
@@ -411,7 +411,7 @@ def options(request, error=None):
 
     if page == "welcome" or page is None:
         page = "welcome"
-        template2 = loader.get_template('SOMMC2018/admin_welcome.html')
+        template2 = loader.get_template('mahj/admin_welcome.html')
         page_content = template2.render({"error": error}, request)
     elif page == "display":
         variables = get_variables(request)
@@ -485,10 +485,10 @@ def options(request, error=None):
             "variables": variables,
             "final_reveal": last_round_pub.reveal_level if last_round_pub else 0,
         }
-        template2 = loader.get_template('SOMMC2018/admin_display.html')
+        template2 = loader.get_template('mahj/admin_display.html')
         page_content = template2.render(context, request)
     elif page == "import_template":
-        template2 = loader.get_template('SOMMC2018/admin_import_template.html')
+        template2 = loader.get_template('mahj/admin_import_template.html')
         page_content = template2.render({}, request)
     elif page == "randomize":
         page_content = randomize(request)
@@ -500,7 +500,7 @@ def options(request, error=None):
             nb_rounds = len(scores_per_player_json(request, check_final)[0]["scores"])  # noqa: F821 — preserved legacy behavior
         except Exception:
             nb_rounds = 6
-        template2 = loader.get_template('SOMMC2018/admin_scores_per_table.html')
+        template2 = loader.get_template('mahj/admin_scores_per_table.html')
         published_rounds = list(
             PublishedRound.objects.filter(tenant=tenant)
                 .order_by('round_nb').values_list('round_nb', flat=True)
@@ -529,7 +529,7 @@ def options(request, error=None):
         ]
         rounds_stats = stat_rounds(request, check_final=False)
         rounds_max_stats = stat_all_rounds(request)
-        template2 = loader.get_template('SOMMC2018/admin_players_statistics.html')
+        template2 = loader.get_template('mahj/admin_players_statistics.html')
         context = {
             "players_stats": players_stats,
             "stat_rounds": rounds_stats,

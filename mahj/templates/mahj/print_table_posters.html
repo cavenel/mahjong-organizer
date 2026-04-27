@@ -214,7 +214,7 @@ h2 {
                         {% for table in row %}
                         <td>
                             {% with forloop_counter=forloop.parentloop.parentloop.counter0|mul:20|add:forloop.parentloop.counter0|mul:5|add:forloop.counter %}
-                                {% include "SOMMC2018/print_table_per_round.html" %}
+                                {% include "mahj/print_table_per_round.html" %}
                             {% endwith %}
                         </td>
                         {% endfor %}

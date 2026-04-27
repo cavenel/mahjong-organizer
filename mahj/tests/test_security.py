@@ -11,7 +11,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from SOMMC2018.models import Hand
+from mahj.models import Hand
 
 
 HOST = 'test.mahj.ovh'

@@ -1,4 +1,4 @@
-"""Re-export every view function so ``from SOMMC2018 import views`` + ``views.<name>`` continues to work."""
+"""Re-export every view function so ``from mahj import views`` + ``views.<name>`` continues to work."""
 
 from .helpers import (
     PositionForm,

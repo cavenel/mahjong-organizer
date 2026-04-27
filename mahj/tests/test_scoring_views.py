@@ -6,8 +6,8 @@ Swedish ranking, hidden final cut-off, etc.
 """
 import pytest
 
-from SOMMC2018 import views
-from SOMMC2018.models import Hand, Position, PublishedRound
+from mahj import views
+from mahj.models import Hand, Position, PublishedRound
 
 
 @pytest.fixture

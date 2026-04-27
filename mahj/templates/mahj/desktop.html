@@ -453,13 +453,13 @@
       <h2 class="font-bold text-gray-700 text-base uppercase tracking-wider mb-4">Overall — after {{ stat_rounds|length }} round{{ stat_rounds|length|pluralize }}</h2>
       <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 mb-8">
 
-        {% include "SOMMC2018/stats_card.html" with title="Most Self-Draw Wins" items=stat_all.sd_win_max kind="wins" %}
-        {% include "SOMMC2018/stats_card.html" with title="Highest Self-Draw Hand" items=stat_all.sd_hand_max kind="hand" %}
-        {% include "SOMMC2018/stats_card.html" with title="Highest Winning Hand (from others)" items=stat_all.ron_hand_max kind="hand" %}
-        {% include "SOMMC2018/stats_card.html" with title="Most Self-Draws in One Game" items=stat_all.sd_win_max kind="wins" %}
-        {% include "SOMMC2018/stats_card.html" with title="Most Winning from Others in One Game" items=stat_all.ron_win_max kind="wins" %}
-        {% include "SOMMC2018/stats_card.html" with title="Most Winning in One Game" items=stat_all.total_win_max kind="wins" %}
-        {% include "SOMMC2018/stats_card.html" with title="Highest Points in One Game" items=stat_all.mp_max kind="mp" %}
+        {% include "mahj/stats_card.html" with title="Most Self-Draw Wins" items=stat_all.sd_win_max kind="wins" %}
+        {% include "mahj/stats_card.html" with title="Highest Self-Draw Hand" items=stat_all.sd_hand_max kind="hand" %}
+        {% include "mahj/stats_card.html" with title="Highest Winning Hand (from others)" items=stat_all.ron_hand_max kind="hand" %}
+        {% include "mahj/stats_card.html" with title="Most Self-Draws in One Game" items=stat_all.sd_win_max kind="wins" %}
+        {% include "mahj/stats_card.html" with title="Most Winning from Others in One Game" items=stat_all.ron_win_max kind="wins" %}
+        {% include "mahj/stats_card.html" with title="Most Winning in One Game" items=stat_all.total_win_max kind="wins" %}
+        {% include "mahj/stats_card.html" with title="Highest Points in One Game" items=stat_all.mp_max kind="mp" %}
 
       </div>
 
@@ -486,13 +486,13 @@
           <div>
             <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
 
-              {% include "SOMMC2018/stats_card.html" with title="Most Self-Draw Wins" items=round.sd_win_max kind="wins" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Highest Self-Draw Hand" items=round.sd_hand_max kind="hand" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Highest Winning Hand (from others)" items=round.ron_hand_max kind="hand" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Most Self-Draws in One Game" items=round.sd_win_max kind="wins" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Most Winning from Others in One Game" items=round.ron_win_max kind="wins" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Most Winning in One Game" items=round.total_win_max kind="wins" rn=forloop.counter %}
-              {% include "SOMMC2018/stats_card.html" with title="Highest Points in One Game" items=round.mp_max kind="mp" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Most Self-Draw Wins" items=round.sd_win_max kind="wins" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Highest Self-Draw Hand" items=round.sd_hand_max kind="hand" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Highest Winning Hand (from others)" items=round.ron_hand_max kind="hand" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Most Self-Draws in One Game" items=round.sd_win_max kind="wins" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Most Winning from Others in One Game" items=round.ron_win_max kind="wins" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Most Winning in One Game" items=round.total_win_max kind="wins" rn=forloop.counter %}
+              {% include "mahj/stats_card.html" with title="Highest Points in One Game" items=round.mp_max kind="mp" rn=forloop.counter %}
 
             </div>
           </div>
