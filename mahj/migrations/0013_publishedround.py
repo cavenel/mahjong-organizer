@@ -1,6 +1,6 @@
 from django.db import migrations, models
 import django.db.models.deletion
-import SOMMC2018.models
+import mahj.models
 
 
 def migrate_final_to_publishedround(apps, schema_editor):
@@ -73,7 +73,7 @@ class Migration(migrations.Migration):
                 ('reveal_level', models.IntegerField(default=100)),
                 ('published_at', models.DateTimeField(auto_now=True)),
                 ('tenant', models.ForeignKey(
-                    default=SOMMC2018.models.Tenant.get_default_pk,
+                    default=mahj.models.Tenant.get_default_pk,
                     on_delete=django.db.models.deletion.CASCADE,
                     to='SOMMC2018.tenant',
                 )),
