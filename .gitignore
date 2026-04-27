@@ -14,3 +14,14 @@ staticfiles/
 
 # Docker
 *.sock
+
+# Pytest
+.pytest_cache/
+
+# Backup and temp folders
+bakup/
+tmp/
+
+# Node/npm (if used)
+node_modules/
+package-lock.json
