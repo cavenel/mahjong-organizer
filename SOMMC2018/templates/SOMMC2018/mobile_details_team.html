@@ -173,8 +173,8 @@
     }
 
     function goBack() {
-      if (window.history.length <= 1 && window.parent !== window) {
-        window.parent.closeModalFromIframe();
+      if (window.parent !== window && typeof window.parent.modalGoBack === 'function') {
+        window.parent.modalGoBack();
       } else {
         history.back();
       }

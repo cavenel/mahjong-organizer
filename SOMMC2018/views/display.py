@@ -9,7 +9,7 @@ from django.http import HttpResponse, HttpResponseNotFound
 from django.shortcuts import render
 from django.template import loader
 
-from ..models import Player, Position, PublishedRound, Schedule, Screen
+from ..models import Player, Position, Schedule, Screen
 from ..signals import broadcast_display
 from ..scoring import _last_round_reveal
 from .helpers import get_podium, get_tenant, get_variables, is_display_op

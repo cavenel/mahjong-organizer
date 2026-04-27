@@ -556,6 +556,7 @@
         modalUrl: null,
         modalTitle: '',
         modalFlag: '',
+        modalStack: [],
         _ws: null,
         _wsDelay: 1000,
 
@@ -597,16 +598,37 @@
         },
 
         openModal(href) {
+          this.modalStack = [href];
           this.modalUrl = href;
           this.modalTitle = '';
+          this.modalFlag = '';
           document.body.style.overflow = 'hidden';
-          window.closeModalFromIframe = () => this.closeModal();
+          window.modalGoBack = () => this.modalGoBack();
+        },
+
+        modalNavigate(href) {
+          this.modalStack.push(href);
+          this.modalUrl = href;
+          this.modalTitle = '';
+          this.modalFlag = '';
+        },
+
+        modalGoBack() {
+          if (this.modalStack.length <= 1) {
+            this.closeModal();
+            return;
+          }
+          this.modalStack.pop();
+          this.modalUrl = this.modalStack[this.modalStack.length - 1];
+          this.modalTitle = '';
+          this.modalFlag = '';
         },
 
         closeModal() {
           this.modalUrl = null;
           this.modalTitle = '';
           this.modalFlag = '';
+          this.modalStack = [];
           document.body.style.overflow = '';
         },
 
@@ -616,6 +638,17 @@
             this.modalTitle = doc.title || '';
             const flagMeta = doc.querySelector('meta[name="player-flag"]');
             this.modalFlag = flagMeta ? flagMeta.content : '';
+            // Intercept internal modal links inside the iframe so navigation
+            // is driven by our explicit modalStack, not the iframe's native history.
+            doc.addEventListener('click', (clickEvent) => {
+              const a = clickEvent.target.closest('a[href]');
+              if (!a) return;
+              const href = a.getAttribute('href');
+              if (href && (href.startsWith('details_player_') || href.startsWith('detailed_scores_') || href.startsWith('details_team_'))) {
+                clickEvent.preventDefault();
+                this.modalNavigate(href);
+              }
+            });
           } catch (_) {}
         },
 

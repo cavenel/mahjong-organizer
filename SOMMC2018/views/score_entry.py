@@ -6,7 +6,7 @@ from django.db.models import F
 from django.http import HttpResponse, JsonResponse
 from django.template import loader
 
-from ..models import Hand, Player, Position, PublishedRound
+from ..models import Hand, Position, PublishedRound
 from ..signals import (
     broadcast_publish_state,
     broadcast_scorer_row,
@@ -54,7 +54,6 @@ def _row_payload(tenant, round_nb, table_nb):
 @user_passes_test(is_scorer)
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
-    all_players = Player.objects.filter(tenant=tenant).order_by('rand_id')
     position_vals = Position.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
     hand_vals = Hand.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
 
