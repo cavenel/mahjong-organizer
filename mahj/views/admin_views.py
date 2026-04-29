@@ -520,22 +520,6 @@ def options(request, error=None):
             "validated_keys": validated_keys,
         }
         page_content = template2.render(context, request)
-    elif page == "statistics":
-        variables = get_variables(request)
-        players = Player.objects.filter(tenant=tenant).all()
-        players_stats = [
-            {"player": p, "stats": player_statistics(request, p, variables)}
-            for p in players
-        ]
-        rounds_stats = stat_rounds(request, check_final=False)
-        rounds_max_stats = stat_all_rounds(request)
-        template2 = loader.get_template('mahj/admin_players_statistics.html')
-        context = {
-            "players_stats": players_stats,
-            "stat_rounds": rounds_stats,
-            "rounds_max_stats": rounds_max_stats,
-        }
-        page_content = template2.render(context, request)
     else:
         page_content = "None"
 

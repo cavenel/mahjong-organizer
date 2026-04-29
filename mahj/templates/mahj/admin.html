@@ -137,12 +137,6 @@
         </li>
         {% endif %}
         {% if user.is_staff or user_is_display_op %}
-          <li class="menu-item {% if page == "statistics" %}active{% endif %}">
-            <a href="admin?page=statistics" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-stats"></i>
-              <div data-i18n="Email">Statistics</div>
-            </a>
-          </li>
           <li class="menu-item {% if page == "display" %}active{% endif %}">
             <a href="admin?page=display" class="menu-link">
               <i class="menu-icon tf-icons bx bx-desktop"></i>

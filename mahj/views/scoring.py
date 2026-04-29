@@ -5,7 +5,10 @@ from ..models import Player
 from .helpers import get_tenant, get_variables
 
 
-LEADERBOARD_TTL = 20  # seconds; also invalidated on Position/Variable writes via signals.
+LEADERBOARD_TTL = 20   # rendered HTML: how long the page can be served stale.
+SUB_CACHE_TTL = 300    # underlying data pieces: signals invalidate them on real writes,
+                       # so this longer TTL is just a defensive safety net and lets the
+                       # 20s HTML rebuild stay cheap (it just composes warm sub-caches).
 
 
 def scores_per_table_json(request):
@@ -23,7 +26,7 @@ def scores_per_player_json(request, check_final=True, force_all=False):
         tenant, get_variables(request),
         check_final=check_final, force_all=force_all,
     )
-    cache.set(cache_key, scores, LEADERBOARD_TTL)
+    cache.set(cache_key, scores, SUB_CACHE_TTL)
     return scores
 
 
@@ -40,12 +43,20 @@ def stat_rounds(request, check_final=False):
     if cached is not None:
         return cached
     result = _scoring.round_winners(tenant, get_variables(request), check_final)
-    cache.set(cache_key, result, LEADERBOARD_TTL)
+    cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 
 
 def stat_all_rounds(request):
-    return _scoring.overall_winners(get_tenant(request), get_variables(request))
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    cache_key = f'stat_all:{subdomain}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = _scoring.overall_winners(tenant, get_variables(request))
+    cache.set(cache_key, result, SUB_CACHE_TTL)
+    return result
 
 
 def tournament_seating(request, check_final=True, force_all=False, valid_pairs=None):
@@ -59,5 +70,5 @@ def tournament_seating(request, check_final=True, force_all=False, valid_pairs=N
         tenant, get_variables(request),
         check_final=check_final, force_all=force_all, valid_pairs=valid_pairs,
     )
-    cache.set(cache_key, result, LEADERBOARD_TTL)
+    cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
