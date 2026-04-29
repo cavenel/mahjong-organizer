@@ -22,7 +22,7 @@ def index(request, screen_id=None):
     subdomain = tenant.subdomain if tenant else ''
     if screen_id:
         try:
-            screen = Screen.objects.filter(tenant=tenant).all()[screen_id - 1]
+            screen = Screen.objects.filter(tenant=tenant).all().order_by('id')[screen_id - 1]
         except IndexError:
             screen = None
     else:
@@ -44,7 +44,7 @@ def index(request, screen_id=None):
             # show the top row — switch to the page-1 view so the reveal is
             # actually legible. Flip back once the reveal is complete.
             reveal = _last_round_reveal(tenant, variables.nb_rounds)
-            if reveal is not None and reveal <= 11:
+            if reveal is not None and reveal != 0 and reveal <= 14:
                 return scores_per_player(request, "html", 1)
             return scores_per_player_total_only(request)
         elif view == "counter":
