@@ -1,59 +1,4 @@
 {% load static %}
-{% if "admin" in request.GET.next %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
-  <title>EMA Tournament Organizer</title>
-  <link rel="icon" type="image/x-icon" href="static/images/mcr_logo.png" />
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/dashboard/vendor/fonts/boxicons.css" />
-  <link rel="stylesheet" href="/static/dashboard/vendor/css/core.css" />
-  <link rel="stylesheet" href="/static/dashboard/vendor/css/theme-default.css" />
-  <link rel="stylesheet" href="/static/dashboard/css/demo.css" />
-  <link rel="stylesheet" href="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-  <script src="/static/dashboard/vendor/js/helpers.js"></script>
-  <script src="/static/dashboard/vendor/libs/jquery/jquery.js"></script>
-  <script src="/static/dashboard/js/config.js"></script>
-</head>
-<body>
-<section class="vh-100">
-  <div class="container py-5 h-100">
-    <div class="row d-flex justify-content-center align-items-center h-100">
-      <div class="col col-xl-10">
-        <div class="card" style="border-radius: 1rem;">
-          <div class="row g-0">
-            <div class="col-md-6 col-lg-5 d-none d-md-block">
-              <img src="/static/images/mahjong.jpg" alt="login form" class="img-fluid" style="border-radius: 1rem 0 0 1rem;" />
-            </div>
-            <div class="col-md-6 col-lg-7 d-flex align-items-center">
-              <div class="card-body p-4 p-lg-5 text-black">
-                <form method="post" action="/accounts/login/?next={{ next }}" style="padding-left:10px;padding-right:10px;">
-                  <div class="d-flex align-items-center mb-3 pb-1">
-                    <span class="h2 fw-bold mb-0">Mahjong Tournament Organizer</span>
-                  </div>
-                  <h5 class="fw-normal mb-3 pb-3" style="letter-spacing: 1px;">Sign into your account</h5>
-                  {% csrf_token %}
-                  <div class="form-outline mb-4">{{ form.as_p }}</div>
-                  <div class="pt-1 mb-4">
-                    <button class="btn btn-dark btn-lg btn-block" type="submit">Login</button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-</section>
-</body>
-</html>
-
-{% else %}
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -112,4 +57,3 @@
   </div>
 </body>
 </html>
-{% endif %}

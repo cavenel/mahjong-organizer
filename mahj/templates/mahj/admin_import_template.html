@@ -1,19 +1,39 @@
-<h4 class="fw-bold py-3 mb-4">Import settings from Excel template</h4>
-<p>
-    Download template <a class="button" href="static/MahjongTemplate.xlsx">here</a>.
-</p>
-<form method="post" enctype="multipart/form-data" action="admin_upload_from_template" onsubmit="$('#loading').removeClass('d-none');">
+{% load static %}
+<div class="max-w-2xl space-y-4">
+  <h2 class="text-xl font-bold text-gray-800">Import settings from Excel template</h2>
+  <p class="text-sm text-gray-600">
+    Download the template <a class="text-amber-600 hover:underline" href="static/MahjongTemplate.xlsx">here</a>.
+  </p>
+
+  <form method="post" enctype="multipart/form-data" action="admin_upload_from_template"
+        onsubmit="document.getElementById('import-loading').classList.remove('hidden');"
+        class="space-y-4">
     {% csrf_token %}
-    <div class="alert alert-danger" role="alert">WARNING: Importing from template will erase any scores previously filled.</div>
-    <div class="input-group">
-        <input type="file" name="myfile" accept=".xslx, .ods, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel" class="form-control" id="inputGroupFile04" aria-describedby="inputGroupFileAddon04" aria-label="Upload">
-        <button class="btn btn-outline-primary" type="submit">Import from Excel template</button>
-    </div>
-    <div class="container mt-2 d-none" id="loading">
-        <div class="spinner-border spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
-        </div>
-        Importing data, please wait...
+
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-2">
+      <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span><b>Warning:</b> Importing from template will erase any scores previously filled.</span>
     </div>
 
-</form>
+    <div class="flex flex-wrap items-center gap-2">
+      <input type="file" name="myfile"
+             accept=".xslx, .ods, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel"
+             class="block flex-1 min-w-0 text-sm text-gray-700 file:mr-3 file:px-4 file:py-2 file:rounded-lg
+                    file:border-0 file:bg-amber-50 file:text-amber-700 file:font-medium
+                    hover:file:bg-amber-100 cursor-pointer">
+      <button type="submit"
+              class="px-4 py-2 text-sm font-semibold rounded-lg border-2 border-amber-500 text-amber-600
+                     hover:bg-amber-500 hover:text-white transition-colors">
+        Import from Excel template
+      </button>
+    </div>
+
+    <div id="import-loading" class="hidden flex items-center gap-3 text-sm text-gray-600">
+      <svg class="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+        <path fill="currentColor" class="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      Importing data, please wait...
+    </div>
+  </form>
+</div>

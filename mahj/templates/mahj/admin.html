@@ -1,373 +1,215 @@
-
+{% load static %}
 <!DOCTYPE html>
-<html lang="en" class="light-style layout-footer-fixed layout-menu-collapsed" dir="ltr" data-theme="theme-default"
-  data-assets-path="/static/dashboard/" data-template="vertical-menu-template-starter">
-
+<html lang="en" class="h-full">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0"/>
-
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Mahjong Tournament Organizer</title>
-
-  <meta name="description" content="" />
-
-  <!-- Favicon -->
-  <link rel="icon" type="image/x-icon" href="static/images/mcr_logo.png" />
-
-  <!-- Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link
-    href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&display=swap"
-    rel="stylesheet" />
-
-  <!-- Icons. Uncomment required icon fonts -->
-  <link rel="stylesheet" href="/static/dashboard/vendor/fonts/boxicons.css" />
-  <!-- <link rel="stylesheet" href="/static/dashboard/vendor/fonts/fontawesome.css" /> -->
-  <!-- <link rel="stylesheet" href="/static/dashboard/vendor/fonts/flag-icons.css" /> -->
-
-  <!-- Core CSS -->
-  <link rel="stylesheet" href="/static/dashboard/vendor/css/core.css" />
-  <link rel="stylesheet" href="/static/dashboard/vendor/css/theme-default.css" />
-  <link rel="stylesheet" href="/static/dashboard/css/demo.css" />
-
-  <!-- Vendors CSS -->
-  <link rel="stylesheet" href="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.css" />
-
-  <!-- Helpers -->
-  <script src="/static/dashboard/vendor/js/helpers.js"></script>
-  <script src="/static/dashboard/vendor/libs/jquery/jquery.js"></script>
-
-  
-  <!--? Config:  Mandatory theme config file contain global vars & default theme options, Set your preferred theme option in this file.  -->
-  <script src="/static/dashboard/js/config.js"></script>
-
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>[x-cloak] { display: none !important; }</style>
 </head>
 
-<body>
+<body class="h-full bg-gray-50 text-gray-900"
+      x-data="adminShell()"
+      @keydown.escape.window="closeModals()">
 
-<!-- Layout wrapper -->
-<div class="layout-wrapper layout-content-navbar">
+  <!-- Sidebar overlay (mobile) -->
+  <div x-show="sidebarOpen" x-transition.opacity
+       class="fixed inset-0 z-30 bg-black/40 lg:hidden"
+       @click="sidebarOpen=false" x-cloak></div>
 
-  <!-- Layout container -->
-  <div class="layout-container">
+  <!-- Sidebar -->
+  <aside class="fixed inset-y-0 left-0 z-40 w-60 bg-white border-r border-gray-200 flex flex-col
+                transform transition-transform duration-200 lg:translate-x-0"
+         :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
 
-    <!-- Menu -->
-    <aside id="layout-menu" class="layout-menu menu-vertical menu bg-menu-theme">
-      <div class="app-brand demo">
-        <a href="/admin" class="app-brand-link">
-          <span class="app-brand-logo demo">
-            <img src="static/images/mcr_logo.png" class="h-auto" width="22" alt="logo">
+    <a href="/admin" class="flex items-center gap-2 px-4 h-14 border-b border-gray-100">
+      <img src="{% static 'images/mcr_logo.png' %}" class="w-6 h-6" alt="logo">
+      <span class="font-bold text-gray-800">Mahj.OVH</span>
+    </a>
+
+    <nav class="flex-1 overflow-y-auto py-3 text-sm">
+      {% if user.is_staff %}
+        <a href="admin?page=welcome"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          Welcome
+        </a>
+
+        <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Preparation</p>
+
+        <a href="admin?page=import_template"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'import_template' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+          Import from template
+        </a>
+
+        <a href="admin?page=randomize"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'randomize' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM9 9h.01M15 15h.01M9 15h.01M15 9h.01M12 12h.01"/></svg>
+          Randomize players
+        </a>
+
+        <button type="button" @click="prepPrintOpen=!prepPrintOpen"
+                class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
+          <span class="flex items-center gap-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            To print
           </span>
-          <span class="menu-text fw-bold ms-2">Mahj.OVH</span>
+          <svg class="w-3 h-3 transition-transform" :class="prepPrintOpen ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <ul x-show="prepPrintOpen" x-transition class="text-gray-600" x-cloak>
+          <li><button type="button" @click="showPrintModal('player_names')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Player names</button></li>
+          <li><button type="button" @click="showPrintModal('player_cards')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Player cards</button></li>
+          <li><button type="button" @click="showPrintModal('table_posters')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Table positions</button></li>
+          <li><button type="button" @click="showPrintModal('cross_positions')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Cross positions</button></li>
+          <li><button type="button" @click="showPrintModal('print_schedule')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Schedule</button></li>
+        </ul>
+      {% endif %}
+
+      <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">During tournament</p>
+
+      {% if user.is_staff or user_is_scorer %}
+        <a href="admin?page=scoring"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+          Scoring
+        </a>
+      {% endif %}
+
+      {% if user.is_staff or user_is_display_op %}
+        <a href="admin?page=display"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          Display on screens
         </a>
 
-        <a href="javascript:void(0);" class="layout-menu-toggle menu-link text-large ms-auto">
-          <i class="bx bx-chevron-left bx-sm align-middle"></i>
+        <button type="button" @click="livePrintOpen=!livePrintOpen"
+                class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
+          <span class="flex items-center gap-3">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            To print
+          </span>
+          <svg class="w-3 h-3 transition-transform" :class="livePrintOpen ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <ul x-show="livePrintOpen" x-transition class="text-gray-600" x-cloak>
+          <li><button type="button" @click="showPrintModal('print_scores')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Scores</button></li>
+        </ul>
+      {% endif %}
+
+      {% if user.is_staff %}
+        <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">After tournament</p>
+        <a target="_blank" href="EMA_report.xlsx"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-4-4m4 4l4-4"/></svg>
+          Generate EMA report
         </a>
-      </div>
+      {% endif %}
+    </nav>
+  </aside>
 
-      <div class="menu-inner-shadow"></div>
+  <!-- Main column -->
+  <div class="lg:pl-60 flex flex-col min-h-screen">
 
-      <ul class="menu-inner py-1">
-        <!-- Page -->
-        {% if user.is_staff %}
-        <li class="menu-item {% if page == "welcome" %}active{% endif %}">
-          <a href="admin?page=welcome" class="menu-link">
-            <i class="menu-icon tf-icons bx bx-home-circle"></i>
-            <div data-i18n="Email">Welcome</div>
-          </a>
-        </li>
-          <li class="menu-header small text-uppercase"><span class="menu-header-text">Preparation</span></li>
-          <li class="menu-item {% if page == "import_template" %}active{% endif %}">
-            <a href="admin?page=import_template" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-import"></i>
-              <div data-i18n="Email">Import from template</div>
-            </a>
-          </li>
+    <!-- Topbar -->
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-3">
+      <button type="button" class="lg:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900"
+              @click="sidebarOpen=true">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h1 class="font-semibold text-sm text-gray-700 tracking-wide truncate">Mahjong Tournament Organizer</h1>
 
-          <li class="menu-item {% if page == "randomize" %}active{% endif %}">
-            <a href="admin?page=randomize" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-dice-5"></i>
-              <div data-i18n="Email">Randomize players</div>
-            </a>
-          </li>
-          
-          <li class="menu-item">
-            <a href="javascript:void(0);" class="menu-link menu-toggle">
-              <i class="menu-icon tf-icons bx bx-printer"></i>
-              <div data-i18n="Misc">To print</div>
-            </a>
-            <ul class="menu-sub">
-              <li class="menu-item">
-                <a onclick="print('player_names');" href="#" class="menu-link">
-                  Player names
-                </a>
-              </li>
-              <li class="menu-item">
-                <a  onclick="print('player_cards');" href="#"  class="menu-link">
-                  Player cards
-                </a>
-              </li>
-              <li class="menu-item">
-                <a  onclick="print('table_posters');" href="#"  class="menu-link">
-                  Table positions
-                </a>
-              </li>
-              <li class="menu-item">
-                <a  onclick="print('cross_positions');" href="#"  class="menu-link">
-                  Cross positions
-                </a>
-              </li>
-              <li class="menu-item">
-                <a  onclick="print('print_schedule');" href="#"  class="menu-link">
-                  Schedule
-                </a>
-              </li>
-            </ul>
-          </li>  
-        {% endif %} 
-        <li class="menu-header small text-uppercase"><span class="menu-header-text">During tournament</span></li>
-        {% if user.is_staff or user_is_scorer %}
-        <li class="menu-item {% if page == "scoring" %}active{% endif %}">
-          <a href="admin?page=scoring" class="menu-link">
-            <i class="menu-icon tf-icons bx bx-table"></i>
-            <div data-i18n="Email">Scoring</div>
-          </a>
-        </li>
-        {% endif %}
-        {% if user.is_staff or user_is_display_op %}
-          <li class="menu-item {% if page == "display" %}active{% endif %}">
-            <a href="admin?page=display" class="menu-link">
-              <i class="menu-icon tf-icons bx bx-desktop"></i>
-              <div data-i18n="Email">Display on screens</div>
-            </a>
-          </li>
-          <li class="menu-item">
-            <a href="javascript:void(0);" class="menu-link menu-toggle">
-              <i class="menu-icon tf-icons bx bx-printer"></i>
-              <div data-i18n="Misc">To print</div>
-            </a>
-            <ul class="menu-sub">
-              <li class="menu-item">
-                <a  onclick="print('print_scores');" href="#"  class="menu-link">
-                  Scores
-                </a>
-              </li>
-            </ul>
-          </li>
-        {% endif %} 
-        {% if user.is_staff %}
-        <li class="menu-header small text-uppercase"><span class="menu-header-text">After tournament</span></li>
-        <li class="menu-item">
-          <a target="_blank" href="EMA_report.xlsx" class="menu-link">
-            <i class="menu-icon tf-icons bx bx-download"></i>
-            <div data-i18n="Email">Generate EMA report</div>
-          </a>
-        </li>
-        {% endif %} 
-        
-      </ul>
-    </aside>
-    <!--/ Menu -->
-
-    <!-- Layout page -->
-    <div class="layout-page">
-
-      <!-- Navbar -->
-      <nav
-        class="layout-navbar container-xxl navbar navbar-expand-xl navbar-detached align-items-center bg-navbar-theme"
-        id="layout-navbar">
-
-        <div class="layout-menu-toggle navbar-nav align-items-xl-center me-3 me-xl-0 d-xl-none">
-          <a class="nav-item nav-link px-0 me-xl-4" href="javascript:void(0)">
-            <i class="bx bx-menu bx-sm"></i>
-          </a>
-        </div>
-
-        <div class="navbar-nav-right d-flex align-items-center" id="navbar-collapse">
-          MAHJONG TOURNAMENT ORGANIZER
-          <ul class="navbar-nav flex-row align-items-center ms-auto">
-
-            <!-- User -->
-            <li class="nav-item navbar-dropdown dropdown-user dropdown">
-              <a class="nav-link dropdown-toggle hide-arrow" href="javascript:void(0);" data-bs-toggle="dropdown">
-                <div class="avatar avatar-online">
-                  <img src="/static/dashboard/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" />
-                </div>
-              </a>
-              <ul class="dropdown-menu dropdown-menu-end">
-                <li>
-                  <a class="dropdown-item" href="#">
-                    <div class="d-flex">
-                      <div class="flex-shrink-0 me-3">
-                        <div class="avatar avatar-online">
-                          <img src="/static/dashboard/img/avatars/1.png" alt class="w-px-40 h-auto rounded-circle" />
-                        </div>
-                      </div>
-                      <div class="flex-grow-1">
-                        <span class="fw-semibold d-block">{{ username }}</span>
-                        <small class="text-muted">Admin</small>
-                      </div>
-                    </div>
-                  </a>
-                </li>
-                <li>
-                  <div class="dropdown-divider"></div>
-                </li>
-                <li>
-                  <a class="dropdown-item" target="_blank" href="admin_db">
-                    <i class="bx bx-data me-2"></i>
-                    <span class="align-middle">Database administration</span>
-                  </a>
-                </li>
-                <li>
-                  <div class="dropdown-divider"></div>
-                </li>
-                <li>
-                  <a class="dropdown-item" href="admin?logout=1">
-                    <i class="bx bx-power-off me-2"></i>
-                    <span class="align-middle">Log Out</span>
-                  </a>
-                </li>
-              </ul>
-            </li>
-            <!--/ User -->
-
-          </ul>
-        </div>
-      </nav>
-      <!--/ Navbar -->
-
-      <!-- Content wrapper -->
-      <div class="content-wrapper">
-
-        <!-- Content -->
-        <div class="container-xxl flex-grow-1 container-p-y pb-0">
-          {{ page_content }}
-        </div>
-        <!--/ Content -->
-
-        <!-- Footer -->
-        <footer class="content-footer footer bg-footer-theme">
-          <div
-            class="container-xxl d-flex flex-wrap justify-content-between align-items-center py-2 flex-md-row flex-column">
-
-            <div class="mb-2 mb-md-0">
-              © 2018 – 
-              <script>
-                document.write(new Date().getFullYear());
-              </script>
-              , Christophe Avenel
-            </div>
+      <div class="ml-auto relative" @click.outside="userMenuOpen=false">
+        <button type="button" @click="userMenuOpen=!userMenuOpen"
+                class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100">
+          <div class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-semibold text-sm">
+            {{ username|first|upper }}
           </div>
-        </footer>
-        <!--/ Footer -->
-
-        <!-- Content area backdrop -->
-        <div class="content-backdrop fade"></div>
-      </div>
-      <!--/ Content wrapper -->
-
-    </div>
-    <!-- Layout page -->
-
-  </div>
-  <!-- Layout container -->
-
-  <!-- Overlay -->
-  <div class="layout-overlay layout-menu-toggle"></div>
-
-  <!-- Drag Target Area To SlideIn Menu On Small Screens -->
-  <div class="drag-target"></div>
-  <div class="modal fade" id="modalScrollable" tabindex="-1" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-dialog-scrollable" role="document" style="max-width: 60rem;">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title" id="modalScrollableTitle">For printing</h5>
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body">
-          <iframe id="modal-iframe" name="modal-iframe" src="" style="width:100%;height:600px;"></iframe>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-            Close
-          </button>
-          <button type="button" class="btn btn-primary" onclick='window.frames["modal-iframe"].focus();window.frames["modal-iframe"].print();'><i class="bx bx-printer bx-sm"></i>&nbsp;&nbsp;Print</button>
+        </button>
+        <div x-show="userMenuOpen" x-transition x-cloak
+             class="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
+          <div class="px-3 py-2 border-b border-gray-100">
+            <p class="font-semibold text-gray-800">{{ username }}</p>
+            <p class="text-xs text-gray-500">Admin</p>
+          </div>
+          <a target="_blank" href="admin_db" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+            Database administration
+          </a>
+          <a href="admin?logout=1" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            Log out
+          </a>
         </div>
       </div>
-    </div>
+    </header>
+
+    <!-- Page content -->
+    <main class="flex-1 px-4 py-6 max-w-7xl w-full mx-auto">
+      {{ page_content }}
+    </main>
+
+    <footer class="py-3 px-4 text-center text-xs text-gray-400 border-t border-gray-100">
+      © 2018 – <span x-text="new Date().getFullYear()"></span>, Christophe Avenel
+    </footer>
   </div>
-  <div class="modal fade" id="modalDetails" tabindex="-1" aria-modal="true" role="dialog">
-    <div class="modal-dialog modal-dialog-scrollable" role="document" style="max-width: 54rem;">
-      <div class="modal-content">
-        <div class="modal-header">
-          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-        </div>
-        <div class="modal-body" style="padding:0px">
-          <iframe id="modalDetails-iframe" name="modal-iframe" src="" style="width:100%;height:600px;"></iframe>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">
-            Close
-          </button>
-        </div>
+
+  <!-- Print modal -->
+  <div x-show="printModal.open" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closePrintModal()"></div>
+    <div class="relative z-10 bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-5xl" style="height:85vh;">
+      <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200">
+        <h2 class="text-sm font-semibold text-gray-700">For printing</h2>
+        <button @click="closePrintModal()" class="text-gray-400 hover:text-gray-700 w-8 h-8 rounded-lg hover:bg-gray-100 text-2xl leading-none">&times;</button>
+      </div>
+      <iframe id="modal-iframe" name="modal-iframe" :src="printModal.src" class="flex-1 w-full border-0"></iframe>
+      <div class="flex justify-end gap-2 px-5 py-3 border-t border-gray-200">
+        <button type="button" @click="closePrintModal()"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+        <button type="button" onclick='window.frames["modal-iframe"].focus(); window.frames["modal-iframe"].print();'
+                class="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">Print</button>
       </div>
     </div>
   </div>
-</div>
-<!--/ Layout wrapper -->
 
-  <!-- Core JS -->
-  <!-- build:js assets/vendor/js/core.js -->
-  <script src="/static/dashboard/vendor/libs/popper/popper.js"></script>
-  <script src="/static/dashboard/vendor/js/bootstrap.js"></script>
-  <script src="/static/dashboard/vendor/libs/perfect-scrollbar/perfect-scrollbar.js"></script>
-  <script src="/static/dashboard/vendor/js/menu.js"></script>
-  <!-- endbuild -->
+  <!-- Details modal (score sheet inside iframe) -->
+  <div x-show="detailsModal.open" x-cloak
+       class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeDetailsModal()"></div>
+    <div class="relative z-10 bg-white rounded-2xl shadow-2xl flex flex-col w-full max-w-4xl" style="height:85vh;">
+      <div class="flex items-center justify-end px-5 py-2 border-b border-gray-200">
+        <button @click="closeDetailsModal()" class="text-gray-400 hover:text-gray-700 w-8 h-8 rounded-lg hover:bg-gray-100 text-2xl leading-none">&times;</button>
+      </div>
+      <iframe id="modalDetails-iframe" name="modalDetails-iframe" :src="detailsModal.src" class="flex-1 w-full border-0 rounded-b-2xl"></iframe>
+    </div>
+  </div>
 
-  <!-- Main JS -->
-  <script src="/static/dashboard/js/main.js"></script>
   <script>
-    function print(page) {
-      $("#modal-iframe")[0].src = ""
-      setTimeout(function() {
-      $("#modal-iframe")[0].src = page
-      $("#modalScrollable").modal('show');
-      },100)
+    function adminShell() {
+      return {
+        sidebarOpen: false,
+        userMenuOpen: false,
+        prepPrintOpen: false,
+        livePrintOpen: false,
+        printModal: { open: false, src: '' },
+        detailsModal: { open: false, src: '' },
+
+        init() { window._adminShell = this; },
+        showPrintModal(url)   { this.printModal.src   = url; this.printModal.open   = true; },
+        showDetailsModal(url) { this.detailsModal.src = url; this.detailsModal.open = true; },
+        closePrintModal()   { this.printModal.open   = false; this.printModal.src   = ''; },
+        closeDetailsModal() { this.detailsModal.open = false; this.detailsModal.src = ''; },
+        closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; },
+      };
     }
+
+    // Globals so embedded fragment scripts (admin_*.html) can drive the modals.
+    window.showPrintModal   = (url) => window._adminShell.showPrintModal(url);
+    window.showDetailsModal = (url) => window._adminShell.showDetailsModal(url);
   </script>
 </body>
-
 </html>
-<!--
-  <ul>
-    <form method="post" enctype="multipart/form-data" action="upload_from_template">
-      {% csrf_token %}
-      <input type="file" name="myfile" accept=".xslx, .ods, application/vnd.openxmlformats-officedocument.spreadsheetml.sheet, application/vnd.ms-excel">
-      <button type="submit">Update from Excel template</button>
-      (<a href="static/MahjongTemplate.xlsx">Download template here</a>)
-    </form>
-
-    <li>
-    <a target="_blank" href="player_names">Player names</a>
-    </li>
-
-    <li>
-    <a target="_blank" href="player_cards">See player cards</a>
-    </li>
-
-    <li>
-    <a target="_blank" href="table_posters">See table posters</a>
-    </li>
-
-    <li>
-    <a target="_blank" href="cross_positions">Cross positions</a>
-    </li>
-
-    <li>
-    <a target="_blank" href="display">Display</a>
-    </li>
-  </ul>
-  -->
