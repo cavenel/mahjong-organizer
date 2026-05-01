@@ -37,12 +37,6 @@ body, html {
             text-align:left;
             vertical-align:bottom;
         }
-        .nb_1 {
-            background-color:rgb(0,255,0)!important;
-        }
-        .nb_b {
-            background-color:#888!important;
-        }
     </style>
     <table>
     <thead>
@@ -59,14 +53,20 @@ body, html {
       <th style="height: 18px;">{{ c.player }}</th>
       <th><center>{{ c.east }}</center></th>
       {% for c_c in c.cross %}
-      {%if forloop.counter0 == forloop.parentloop.counter0%}
-      <td class="nb_b" style="text-align:center;width:10px;">&nbsp;</td>
-      {%endif%}
-      {%if forloop.counter0 != forloop.parentloop.counter0%}
-      <td class="nb_{{c_c}}" style="text-align:center;width:10px;"> {{ c_c }}</td>
-      {%endif%}
+      <td data-val="{{ c_c }}" style="text-align:center;width:10px;"> {{ c_c }}</td>
       {% endfor %}
     </tr> 
     {% endfor %}
     </table>
+  <script>
+    const cells = document.querySelectorAll('td[data-val]');
+    const max = Math.max(...[...cells].map(c => +c.dataset.val));
+    if (max > 0) {
+      cells.forEach(c => {
+        const alpha = +c.dataset.val / max;
+        c.style.backgroundColor = `rgba(220,38,38,${alpha.toFixed(3)})`;
+        c.style.color = alpha > 0.5 ? '#fff' : '#111';
+      });
+    }
+  </script>
 </body>

@@ -14,7 +14,7 @@
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ open: {} }">
 
-  <div class="sticky top-0 z-10 bg-white border-b border-gray-100 px-4 py-2">
+  <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 pt-2 pb-2.5 space-y-1">
     <button onclick="goBack()" class="text-amber-600 text-sm font-medium">‹ Back</button>
   </div>
 
@@ -22,6 +22,24 @@
 
     <!-- Summary -->
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
+      <div class="flex items-center px-4 py-3 gap-2.5">
+        {% if scores_json.flag %}
+          <span class="flag flag-{{ scores_json.flag }} shrink-0"></span>
+        {% endif %}
+        <div class="min-w-0 flex-1">
+          <div class="text-base font-bold text-gray-900 truncate">{{ player.full_name }}</div>
+          <div class="flex items-center gap-1.5 text-xs text-gray-500">
+            {% if scores_json.country %}
+              <span>{{ scores_json.country }}</span>
+            {% endif %}
+            {% if scores_json.team %}
+              {% if scores_json.country %}<span class="text-gray-300">·</span>{% endif %}
+              <a href="details_team_{{ scores_json.team }}"
+                class="text-amber-600 hover:text-amber-700 font-medium truncate">{{ scores_json.team }}</a>
+            {% endif %}
+          </div>
+        </div>
+      </div>
       <div class="flex items-center px-4 py-3 gap-4">
         <div class="flex-1">
           <div class="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Rank</div>

@@ -20,6 +20,7 @@
     thead .col-f1, thead .col-f2 { background-color: rgb(249 250 251); }  /* gray-50 */
     tbody tr .col-f1, tbody tr .col-f2 { background-color: #fff; }
     tbody tr:hover .col-f1, tbody tr:hover .col-f2 { background-color: rgb(255 251 235); } /* solid amber-50 */
+    tbody td { line-height: 1; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 min-h-screen"
@@ -72,7 +73,7 @@
         <button @click="open = !open" @click.stop class="text-gray-500 hover:text-gray-700 px-2 py-1 rounded text-lg leading-none">⋮</button>
         <div x-show="open" @click.outside="open = false"
              class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-lg z-50 overflow-hidden">
-          {% if user.is_staff %}
+          {% if user.is_staff or user_is_scorer %}
             <a href="/admin" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">Admin</a>
             <a href="/?logout=1" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Log out</a>
           {% else %}
@@ -328,9 +329,14 @@
                     {% if s.visible %}
                       <tr class="hover:bg-amber-50/40 transition-colors">
                         <td class="col-f1 px-3 py-2 text-center font-bold text-amber-600">{{ s.pos }}</td>
-                        <td class="col-f2 px-3 py-2">
+                        <td class="col-f2 px-3 py-1">
                           <a href="details_player_{{ s.player_id }}"
-                             class="font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ s.name }}</a>
+                             class="font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ s.name }}</a><br/>
+                             {% if s.team %}
+                              <small class="ml-3 text-gray-400 italic">
+                                {{ s.team }}
+                              </small>
+                             {% endif %}
                         </td>
                         <td class="px-3 py-2 text-center">
                           <img style="zoom:0.5;" src="{% static 'images/blank.png' %}" class="flag flag-{{ s.flag }} inline-block" alt="">

@@ -14,21 +14,46 @@ from .scoring import player_rounds_json, scores_per_player_json, scores_per_tabl
 def cross_positions(request):
     tenant = get_tenant(request)
     scores = scores_per_table_json(request)
-    cross = []
-    for player in Player.objects.filter(tenant=tenant).order_by('rand_id'):
-        cross.append({"player": player.first_name, "east": 0, "cross": []})
-        for _ in Player.objects.filter(tenant=tenant).order_by('rand_id'):
-            cross[-1]["cross"].append(0)
 
-    for round_ in scores:
-        for table in round_:
-            players = [position["position"].player for position in table]
-            for position in table:
-                for player in players:
-                    if player.rand_id != position["position"].player.rand_id:
-                        cross[position["position"].player.rand_id - 1]["cross"][player.rand_id - 1] += 1
-                if position["position"].position == 1:
-                    cross[position["position"].player.rand_id - 1]["east"] += 1
+    if request.GET.get('per_team'):
+        teams = sorted(
+            Player.objects.filter(tenant=tenant)
+                          .exclude(team='')
+                          .values_list('team', flat=True)
+                          .distinct()
+        )
+        team_idx = {t: i for i, t in enumerate(teams)}
+        cross = [{"player": t, "east": 0, "cross": [0] * len(teams)} for t in teams]
+        for round_ in scores:
+            for table in round_:
+                for i, pos_a in enumerate(table):
+                    team_a = pos_a["position"].player.team
+                    if team_a not in team_idx:
+                        continue
+                    if pos_a["position"].position == 1:
+                        cross[team_idx[team_a]]["east"] += 1
+                    for j, pos_b in enumerate(table):
+                        if i == j:
+                            continue
+                        team_b = pos_b["position"].player.team
+                        if team_b in team_idx:
+                            cross[team_idx[team_a]]["cross"][team_idx[team_b]] += 1
+    else:
+        cross = []
+        for player in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+            cross.append({"player": player.first_name, "east": 0, "cross": []})
+            for _ in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+                cross[-1]["cross"].append(0)
+
+        for round_ in scores:
+            for table in round_:
+                players = [position["position"].player for position in table]
+                for position in table:
+                    for player in players:
+                        if player.rand_id != position["position"].player.rand_id:
+                            cross[position["position"].player.rand_id - 1]["cross"][player.rand_id - 1] += 1
+                    if position["position"].position == 1:
+                        cross[position["position"].player.rand_id - 1]["east"] += 1
 
     template = loader.get_template('mahj/print_cross_positions.html')
     return HttpResponse(template.render({'cross': cross}, request))

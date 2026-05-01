@@ -5,7 +5,7 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.template import loader
 
 from ..models import Hand, Schedule
-from .helpers import get_tenant, get_variables
+from .helpers import get_tenant, get_variables, is_scorer
 from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, tournament_seating
 
 HTML_CACHE_TTL = LEADERBOARD_TTL  # same TTL as data; also invalidated by signals
@@ -142,6 +142,7 @@ def desktop(request):
         'stat_all': stat_all_data,
         'uses_teams': uses_teams,
         'team_rows': team_rows,
+        'user_is_scorer': is_scorer(request.user),
     }
     template = loader.get_template('mahj/desktop.html')
     html = template.render(context, request)
