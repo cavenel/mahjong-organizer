@@ -231,8 +231,16 @@ var getUrlParameter = function getUrlParameter() {
             var msg = JSON.parse(e.data);
             if (msg.event === 'counter_update') {
                 apply_counter_state(msg.counter);
-            } else {
+            } else if (msg.event === 'screen_update') {
                 location.reload();
+            } else {
+                // leaderboard_update / variables_update: only reload if the
+                // round timer isn't currently running (avoids flicker mid-round).
+                var total_time = {{ variables.total_time }};
+                var running = time_start > 0 && (new Date().getTime() - time_start) < total_time * 1000;
+                // also check countdown value, in case the timer is in the 4-second countdown phase before starting.
+                var countdown_running = countdown_value > 0;
+                if (!running && !countdown_running) location.reload();
             }
         };
         ws.onclose = function() { setTimeout(connect, 3000); };

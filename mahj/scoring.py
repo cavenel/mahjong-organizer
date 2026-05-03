@@ -5,6 +5,7 @@ shape as the corresponding view previously produced. Golden-file tests in
 tests/test_scoring_golden.py lock the output shape.
 """
 from collections import defaultdict
+from functools import lru_cache
 from itertools import groupby
 
 import pycountry
@@ -31,7 +32,7 @@ def scores_per_table(tenant, variables):
     return grid
 
 
-def round_winners(tenant, variables, check_final=False):
+def round_winners(tenant, variables, check_final=False, positions=None, hands=None):
     """Per-round top minipoints / single-hand score / same-seat-win streaks."""
     if check_final:
         round_max = _last_published_round(tenant)
@@ -42,12 +43,19 @@ def round_winners(tenant, variables, check_final=False):
     else:
         round_max = _last_complete_round(tenant, variables)
 
+    if positions is None:
+        positions = list(
+            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
+        )
+    if hands is None:
+        hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
+
     pos_by_round = _group_by(
-        Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player'),
+        (p for p in positions if p.round_nb <= round_max),
         key=lambda p: p.round_nb,
     )
     hand_by_round = _group_by(
-        Hand.objects.filter(tenant=tenant, round_nb__lte=round_max),
+        (h for h in hands if h.round_nb <= round_max),
         key=lambda h: h.round_nb,
     )
 
@@ -57,13 +65,13 @@ def round_winners(tenant, variables, check_final=False):
     ]
 
 
-def overall_winners(tenant, variables):
+def overall_winners(tenant, variables, positions=None, hands=None):
     """Aggregate round_winners across rounds: items from rounds tying for overall top."""
-    rounds = round_winners(tenant, variables)
+    rounds = round_winners(tenant, variables, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
-        'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h.pts),
-        'ron_hand_max':  _roll_up(rounds, 'ron_hand_max',  lambda h: h.pts),
+        'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h['pts']),
+        'ron_hand_max':  _roll_up(rounds, 'ron_hand_max',  lambda h: h['pts']),
         'sd_win_max':    _roll_up(rounds, 'sd_win_max',    lambda d: d['nb_win']),
         'ron_win_max':   _roll_up(rounds, 'ron_win_max',   lambda d: d['nb_win']),
         'total_win_max': _roll_up(rounds, 'total_win_max', lambda d: d['nb_win']),
@@ -104,13 +112,16 @@ def player_rounds(tenant, player):
     ]
 
 
-def player_standings(tenant, variables, check_final=True, force_all=False):
+def player_standings(tenant, variables, check_final=True, force_all=False, positions=None):
     """Cumulative player totals with rank evolution across rounds."""
     players = list(Player.objects.filter(tenant=tenant).order_by('rand_id'))
 
+    if positions is None:
+        positions = list(Position.objects.filter(tenant=tenant).order_by('round_nb'))
+
     positions_by_player = defaultdict(list)
     round_max = variables.nb_rounds
-    for pos in Position.objects.filter(tenant=tenant).order_by('round_nb'):
+    for pos in positions:
         positions_by_player[pos.player_id].append(pos)
         if pos.minipoints is None or pos.tablepoints is None:
             round_max = min(round_max, pos.round_nb - 1)
@@ -169,22 +180,26 @@ def player_standings(tenant, variables, check_final=True, force_all=False):
     return ranked
 
 
-def tournament_seating(tenant, variables, check_final=True, force_all=False, valid_pairs=None):
+def tournament_seating(tenant, variables, check_final=True, force_all=False, valid_pairs=None, positions=None):
     """seating grid + player→table lookup. Applies the same end-of-tournament
     masking as player_standings: when the last round is published but the
     podium reveal hasn't completed, check_final viewers see the final round's
     seats without MP/TP. Public viewers also see MP/TP masked for any
     unpublished round.
     """
-    position_vals = list(
-        Position.objects.filter(tenant=tenant).select_related('player').order_by('id')
-    )
+    if positions is None:
+        position_vals = list(
+            Position.objects.filter(tenant=tenant).select_related('player').order_by('id')
+        )
+    else:
+        position_vals = positions
     round_max = max((p.round_nb for p in position_vals), default=0)
     table_max = max((p.table_nb for p in position_vals), default=0)
 
+    pub_rows = {r.round_nb: r.reveal_level for r in PublishedRound.objects.filter(tenant=tenant)}
     last_complete = _last_complete_round(tenant, variables)
-    last_published = _last_published_round(tenant)
-    reveal = _last_round_reveal(tenant, variables.nb_rounds)
+    last_published = max(pub_rows) if pub_rows else 0
+    reveal = pub_rows.get(variables.nb_rounds)
     end_of_tournament = (
         last_complete == variables.nb_rounds and not force_all
         and reveal is not None and reveal <= 11
@@ -421,12 +436,14 @@ def team_extra_stats(tenant, team_name, variables):
 # ---- helpers --------------------------------------------------------------
 
 def _last_complete_round(tenant, variables):
-    round_max = variables.nb_rounds
-    for p in Position.objects.filter(tenant=tenant).filter(
-        Q(tablepoints=None) | Q(minipoints=None)
-    ):
-        round_max = min(round_max, p.round_nb - 1)
-    return round_max
+    first_incomplete = (
+        Position.objects.filter(tenant=tenant)
+        .filter(Q(tablepoints=None) | Q(minipoints=None))
+        .order_by('round_nb')
+        .values('round_nb')
+        .first()
+    )
+    return (first_incomplete['round_nb'] - 1) if first_incomplete else variables.nb_rounds
 
 
 def _last_published_round(tenant):
@@ -455,6 +472,7 @@ def _group_by(iterable, key):
     return out
 
 
+@lru_cache(maxsize=256)
 def _country_flag(country):
     try:
         return pycountry.countries.get(name=country.replace('The ', '').strip()).alpha_2.lower()
@@ -484,16 +502,25 @@ def _winners_for_round(positions, hands):
              'sd_win_max': [], 'ron_win_max': [], 'total_win_max': []}
     if not round_complete:
         return empty
+    # Pre-resolve player from positions to avoid N+1 in template via Hand.win_by_player().
+    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in positions}
     game_hands = [h for h in hands if h.hand_nb != COMPLETION_HAND_NB and h.pts > 0]
     sd_hands = [h for h in game_hands if _is_self_draw(h)]
     ron_hands = [h for h in game_hands if not _is_self_draw(h)]
+    def _hand_item(h):
+        return {
+            'pts': h.pts,
+            'round_nb': h.round_nb,
+            'table_nb': h.table_nb,
+            'player': pos_lookup.get((h.round_nb, h.table_nb, h.win_by)),
+        }
     return {
         'mp_max':        mp_max,
-        'sd_hand_max':   _top_by(sd_hands,   key=lambda h: h.pts, exclude_zero=True),
-        'ron_hand_max':  _top_by(ron_hands,  key=lambda h: h.pts, exclude_zero=True),
-        'sd_win_max':    _top_win_streaks(sd_hands),
-        'ron_win_max':   _top_win_streaks(ron_hands),
-        'total_win_max': _top_win_streaks(game_hands),
+        'sd_hand_max':   [_hand_item(h) for h in _top_by(sd_hands,  key=lambda h: h.pts, exclude_zero=True)],
+        'ron_hand_max':  [_hand_item(h) for h in _top_by(ron_hands, key=lambda h: h.pts, exclude_zero=True)],
+        'sd_win_max':    _top_win_streaks(sd_hands, pos_lookup),
+        'ron_win_max':   _top_win_streaks(ron_hands, pos_lookup),
+        'total_win_max': _top_win_streaks(game_hands, pos_lookup),
     }
 
 
@@ -507,8 +534,12 @@ def _top_by(items, key, exclude_zero=False):
     return [x for x in items if key(x) == top]
 
 
-def _top_win_streaks(hands):
-    """For each (table, winning-seat) pair, count wins; keep groups tying for max."""
+def _top_win_streaks(hands, pos_lookup=None):
+    """For each (table, winning-seat) pair, count wins; keep groups tying for max.
+
+    `pos_lookup` maps (round_nb, table_nb, position) -> Player; when provided it
+    resolves the winning player without triggering Hand.win_by_player()'s N+1.
+    """
     if not hands:
         return []
     by_seat = defaultdict(list)
@@ -519,8 +550,12 @@ def _top_win_streaks(hands):
     max_wins = max(len(g) for g in ordered)
     if max_wins == 0:
         return []
+    def _player_of(h):
+        if pos_lookup is None:
+            return h.win_by_player
+        return pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
     return [
-        {'nb_win': len(g), 'player': g[0].win_by_player, 'pos': g[0]}
+        {'nb_win': len(g), 'player': _player_of(g[0]), 'pos': g[0]}
         for g in ordered if len(g) == max_wins
     ]
 

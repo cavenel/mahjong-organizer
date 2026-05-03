@@ -4,7 +4,7 @@ from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
 from django.template import loader
 
-from ..models import Hand, Schedule
+from ..models import Hand, Position, Schedule
 from .helpers import get_tenant, get_variables, is_scorer
 from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, tournament_seating
 
@@ -32,13 +32,16 @@ def desktop(request):
 
     variables = get_variables(request)
     nb_rounds = variables.nb_rounds
-    scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
-    valid_pairs = set(
-        Hand.objects.filter(tenant=tenant, hand_nb=17, pts=1)
-                    .values_list('round_nb', 'table_nb')
+
+    # Fetch positions and hands once; share between standings, seating, and stats.
+    positions = list(
+        Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
     )
+    hands = list(Hand.objects.filter(tenant=tenant))
+    valid_pairs = {(h.round_nb, h.table_nb) for h in hands if h.hand_nb == 17 and h.pts == 1}
+    scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin, positions=positions)
     seating, player_table = tournament_seating(
-        request, check_final=check_final, force_all=is_admin, valid_pairs=valid_pairs,
+        request, check_final=check_final, force_all=is_admin, valid_pairs=valid_pairs, positions=positions,
     )
     seating_json = [
         {
@@ -126,8 +129,8 @@ def desktop(request):
     if schedule is None:
         schedule = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
         cache.set(schedule_key, schedule, 300)
-    stat_rounds_data = stat_rounds(request, check_final=check_final)
-    stat_all_data = stat_all_rounds(request)
+    stat_rounds_data = stat_rounds(request, check_final=check_final, positions=positions, hands=hands)
+    stat_all_data = stat_all_rounds(request, positions=positions, hands=hands)
 
     context = {
         'variables': variables,
