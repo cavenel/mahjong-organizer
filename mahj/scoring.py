@@ -475,7 +475,12 @@ def _group_by(iterable, key):
 @lru_cache(maxsize=256)
 def _country_flag(country):
     try:
-        return pycountry.countries.get(name=country.replace('The ', '').strip()).alpha_2.lower()
+        name = country.replace('The ', '').strip()
+        match = pycountry.countries.get(name=name)
+        if match is None:
+            results = pycountry.countries.search_fuzzy(name)
+            match = results[0] if results else None
+        return match.alpha_2.lower() if match else ''
     except Exception:
         return ''
 

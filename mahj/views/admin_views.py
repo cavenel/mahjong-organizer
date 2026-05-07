@@ -117,6 +117,15 @@ def admin_upload_from_template(request):
                 if row[0] is None:
                     break
                 last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
+                # Make first_name, last_name into title-case strings:
+                if isinstance(first_name_raw, str):
+                    first_name_raw = first_name_raw.strip().title()
+                else:
+                    first_name_raw = ""
+                if isinstance(last_name_raw, str):
+                    last_name_raw = last_name_raw.strip().title()
+                else:
+                    last_name_raw = ""
                 full_name = f"{first_name_raw} {last_name_raw}"
                 team = (team_raw or "").strip()
                 if team:

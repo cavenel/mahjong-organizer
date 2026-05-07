@@ -412,7 +412,7 @@
         if (Math.random() < 0.1) {
           data['pts_' + i]  = 0; data['by_' + i] = 0; data['from_' + i] = 0;
         } else {
-          data['pts_' + i]  = Math.floor(Math.pow(Math.random(), 4) * 103) + 8;
+          data['pts_' + i]  = Math.floor(Math.random() * Math.random() * Math.random() * 103) + 8;
           data['by_' + i]   = Math.floor(Math.random() * 4) + 1;
           data['from_' + i] = Math.floor(Math.random() * 4) + 1;
         }

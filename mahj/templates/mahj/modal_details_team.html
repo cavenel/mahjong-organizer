@@ -5,6 +5,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ team_name }}</title>
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1"></script>
 </head>
@@ -26,6 +27,7 @@
           <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
             <th class="px-4 py-2 text-center font-medium w-12">Pos</th>
             <th class="px-4 py-2 text-left font-medium">Player</th>
+            <th class="px-4 py-2 text-center font-medium w-16">CTRY</th>
             {% if variables.rules == "MCR" %}
               <th class="px-4 py-2 text-right font-medium">TP</th>
             {% endif %}
@@ -42,6 +44,9 @@
                 {{ m.name }}
               </a>
             </td>
+            <td class="px-4 py-2.5 text-center">
+              <img style="zoom:0.5;" src="{% static 'images/blank.png' %}" class="flag flag-{{ m.flag }} inline-block" alt="">
+            </td>
             {% if variables.rules == "MCR" %}
               <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ m.total.tp|floatformat:-2 }}</td>
             {% endif %}
@@ -53,6 +58,7 @@
           <tr class="border-t-2 border-gray-300 bg-amber-50/60">
             <td class="px-4 py-2.5 text-center font-bold text-amber-600">{{ team_pos }}</td>
             <td class="px-4 py-2.5 font-bold text-gray-800">{{ team_name }}</td>
+            <td class="px-4 py-2.5 text-center"></td>
             {% if variables.rules == "MCR" %}
               <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ team_total.tp|floatformat:-2 }}</td>
             {% endif %}
