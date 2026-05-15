@@ -172,6 +172,7 @@ def admin_upload_from_template(request):
                             value += player.full_name[len(value):len(value) + 1]
                         else:
                             break
+                    value = value.rstrip()
                     player.first_name = value + "." if value != firstname else value
             for player in players_:
                 player.full_name = f"{player.full_name}"

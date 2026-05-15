@@ -474,6 +474,8 @@ def _group_by(iterable, key):
 
 @lru_cache(maxsize=256)
 def _country_flag(country):
+    if country == "Independent":
+        return 'mi'
     try:
         name = country.replace('The ', '').strip()
         match = pycountry.countries.get(name=name)

@@ -1,322 +1,173 @@
-{% load static %} 
-
-<html>
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
 <head>
-<link rel="stylesheet" href="{% static "images/flags.css" %}">
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Player Cards — {{ variables.title }}</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="{% static 'images/flags.css' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-body {
-  background: rgb(204,204,204); 
-}
-@media print {
+  :root {
+    --se-blue:        #006AA7;
+    --se-yellow:      #FECC02;
+    --se-yellow-soft: #FDD835;
+    --se-yellow-deep: #D4A800;
+    --paper:          #FFFFFF;
+    --ink:            #1A2530;
+    --ink-soft:       #2A3540;
+    --muted:          #6E6E6E;
+    --muted-soft:     #A8A8A8;
+    --line:           #C0C0C0;
+    --line-soft:      #E0E0E0;
+    --write-border:   #9A9A9A;
+  }
+
   body {
-    background: white;
+    font-family: 'Geist', system-ui, sans-serif;
+    color: var(--ink);
+    background: #1c1814;
+    -webkit-font-smoothing: antialiased;
   }
-}
-page {
-  background: white;
-  display: grid;
-  margin: 0 auto;
-  margin-bottom: 0.5cm;
-  box-shadow: 0 0 0.5cm rgba(0,0,0,0.5);
-}
-page[size="A4"] {  
-  width: 21cm;
-  height: 29.5cm; 
-}
-page[size="A4"][layout="portrait"] {
-  width: 29.7cm;
-  height: 21cm;  
-}
-page[size="A3"] {
-  width: 29.7cm;
-  height: 42cm;
-}
-page[size="A3"][layout="portrait"] {
-  width: 42cm;
-  height: 29.7cm;  
-}
-page[size="A5"] {
-  width: 14.8cm;
-  height: 21cm;
-}
-page[size="A5"][layout="portrait"] {
-  width: 21cm;
-  height: 14.8cm;  
-}
-@media print {
-  body, page {
-    margin: 0;
-    box-shadow: none;
-    break-after: page;
-  }
-}
-.rounds_table {
-    border-collapse: collapse;
+
+  .display    { font-family: 'Fraunces', 'Times New Roman', serif; font-variation-settings: "opsz" 144; }
+  .mono       { font-family: 'Geist Mono', ui-monospace, monospace; font-feature-settings: "tnum" 1; }
+  .title-font { font-family: "Tahoma", sans-serif; font-weight: 700; font-size: 11.4pt; letter-spacing: 0.04em; }
+
+  /* ── Card shell ── */
+  .card {
     width: 100%;
-    font-size:11px;
-}
-
-.page_table {
-    border-collapse: collapse;
-    margin:59px;
-    width: auto;
-    table-layout: fixed;
-    padding-top:0px;;
-    height: fit-content;
-}
-.page_table td, th {
-    border:1px solid #aaaaaa;
-    border-style: dashed;
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    position: relative;
     overflow: hidden;
-    white-space: nowrap;
-}
-.card {
-    height:54mm;
-    padding:2mm;
-    width:84mm;
-}
-h2 {
-    margin: 0px;
-    margin-top: -7px;
-    margin-bottom: 6px;
-    display: inline-block;
-    font-size: 1.3em;
-    /*line-height: 1.0em;*/
-}
-.red {
-    background-color:rgb(196, 0, 0);
-    color:white;
-}
-.green {
-    background-color:green;
-    color:white;
-}
-.blue {
-    background-color:rgb(0, 0, 201);
-    color:white;
-}
-.small {
-    font-size:11px !important;
-    font-weight:normal;
-    width: 36px;
-}
-.center {
-    text-align:center !important;
-}
-.rounds_table td, .rounds_table th {
-    padding: 2px;
-    padding-top: 3px;
-    padding-bottom: 3px;
-    border: 0.5px solid black;
-}
-.rounds_table_back td, .rounds_table_back th {
-    padding: 5px;
-    padding-bottom: 1px;
-}
-.rounds_table_back td {
-    padding-top: 2.5px;
-    padding-bottom: 2.5px;
-}
-.rounds_table th {
-    text-align:left;
-    font-size:12px;
-    padding-bottom: 1px;
-    padding-top: 1px;
-    padding-right: 4px;
-    padding-left: 4px;
-}
-.flag {
-    margin-top: -10px;
-}
-.table_table {
-    border-collapse: collapse;
-    table-layout: fixed;
-    width: 180px;
-    text-align:center;
-}
-.table_table tr {
-    height: 30px;
-}
-.table_table td {
-    border: 0px;
-}
-.name_top {
-    text-align:center;
-    border-bottom: 1px solid grey !important;
-    font-weight: bold;
-}
-.name_bottom {
-    text-align:center;
-    border-top: 1px solid grey !important;
-    font-weight: bold;
-}
-.name_left {
-    text-align:center;
-    border-right: 1px solid grey !important;
-    font-weight: bold;
-    margin:0 -100% ;
-    white-space:nowrap;
-    transform-origin:50% 50%;
-    -webkit-transform: rotate(270deg);
-    -moz-transform: rotate(270deg);
-    -ms-transform: rotate(270deg);
-    -o-transform: rotate(270deg);
-    transform: rotate(270deg);
-}
-.name_left p{
-    margin:0 -100% ;
-    display: inline-block;
-}
-.name_left p:before{
-    content:'';
-    width:0;
-    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
-    display:inline-block;
-    vertical-align:middle;
-}
-.name_right {
-    text-align:center;
-    border-left: 1px solid grey !important;
-    font-weight: bold;
-    margin:0 -100% ;
-    white-space:nowrap;
-    transform-origin:50% 50%;
-    -webkit-transform: rotate(90deg);
-    -moz-transform: rotate(90deg);
-    -ms-transform: rotate(90deg);
-    -o-transform: rotate(90deg);
-    transform: rotate(90deg);
-}
-.name_right p:before{
-    content:'';
-    width:0;
-    padding-top:110%;/* takes width as reference, + 10% for faking some extra padding */
-    display:inline-block;
-    vertical-align:middle;
-}
-.name_right p{
-    margin:0 -100% ;
-    display: inline-block;
-}
-.carpet {
-    background-color:green;
-    color:white;
-}
-/*.page_front {
-    margin-top: 1mm;
-}
-.page_back {
-    margin-top: 1mm;
-}*/
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
 
+  /* ── Header decorations ── */
+  .blue-accent { height: 1.2mm; background: var(--se-blue); flex-shrink: 0; }
+  .yellow-rule {
+    height: 0.5mm; flex-shrink: 0;
+    background: linear-gradient(90deg, transparent 0%, var(--se-yellow) 15%, var(--se-yellow-soft) 50%, var(--se-yellow) 85%, transparent 100%);
+  }
+  .blue-sep { height: 0.35mm; background: var(--se-blue); flex-shrink: 0; }
+
+  /* ── Wind chip ── */
+  .wind {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 4.4mm; height: 4.4mm; border-radius: 0.6mm;
+    font-family: 'Geist Mono', monospace; font-size: 6.4pt; font-weight: 700;
+    color: white; line-height: 1; flex-shrink: 0;
+  }
+  .wind.E { background: var(--se-yellow); color: var(--se-blue); }
+  .wind.S, .wind.W, .wind.N { background: var(--se-blue); }
+  .wind.sm { width: 3.6mm; height: 3.6mm; font-size: 5.4pt; border-radius: 0.4mm; }
+
+  /* ── Front: score grid ── */
+  .grid-row {
+    display: grid;
+    grid-template-columns: 3.6mm 16mm 13mm 14mm 14mm 14mm 14mm;
+    align-items: center;
+    column-gap: 1mm;
+  }
+  .pos-cell { display: flex; align-items: center; justify-content: center; gap: 0.8mm; }
+  .pos-cell .tbl { width: 30px; text-align: center; font-size: 8.2pt; color: var(--ink); font-weight: 700; line-height: 1; white-space: nowrap; }
+
+  .day-band { display: flex; align-items: center; gap: 2mm; padding-top: 0.75mm; padding-bottom: 0.3mm; }
+  .day-band .label { font-family: 'Geist Mono', monospace; font-size: 5.6pt; letter-spacing: 0.22em; color: var(--se-yellow-deep); text-transform: uppercase; white-space: nowrap; }
+  .day-band .rule  { flex: 1; height: 0.18mm; background: var(--line); }
+
+  .write-cell { height: 5.6mm; background: var(--paper); border: 0.25mm solid var(--write-border); border-radius: 0.5mm; }
+  .write-cell.total { border: 0.45mm solid var(--ink); }
+
+  /* ── Back: opponents grid ── */
+  .opp-grid {
+    display: grid;
+    grid-template-columns: 4mm 18mm 1fr 1fr 1fr 1fr;
+    column-gap: 1mm;
+    align-items: stretch;
+    padding-bottom: 0.85mm;
+  }
+  .opp-cell {
+    padding: 1.2mm 0.3mm 1.2mm 0.6mm; font-size: 6.7pt; line-height: 1.05;
+    border-bottom: 0.15mm solid var(--line-soft); position: relative; color: var(--ink-soft);
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .opp-cell.me { color: var(--ink); font-weight: 700; }
+  /*.opp-cell.me::before {
+    content: "●"; position: absolute; left: 0.4mm; top: 50%;
+    font-size: 4pt; color: var(--se-blue); transform: translateY(-50%); line-height: 1;
+  }*/
+  .pos-back {
+    display: flex; align-items: center; justify-content: center; gap: 0.8mm;
+    border-bottom: 0.15mm solid var(--line-soft); padding: 1.2mm 0;
+  }
+  .pos-back .tbl { width: 30px; font-size: 8.2pt; text-align: center; font-weight: 700; color: var(--ink); line-height: 1; white-space: nowrap; }
+  .wind-head {
+    display: flex; align-items: center; gap: 1mm;
+    padding: 1.2mm 0 1.2mm 1.6mm;
+    border-bottom: 0.4mm solid var(--ink);
+    font-family: 'Geist Mono', monospace; font-size: 5.8pt; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink);
+  }
+  .pos-head {
+    border-bottom: 0.4mm solid var(--ink);
+    font-family: 'Geist Mono', monospace; font-size: 5.4pt; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+    text-align: center; padding: 1.2mm 0;
+  }
+
+  /* ── Print layout: 2 × 2 A6 on A4 ── */
+  .a4-page {
+    width: 210mm;
+    height: 297mm;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    padding: 5mm 0mm;
+    overflow: hidden;
+    background: white;
+    border: 0px;
+  }
+
+  @media screen {
+    .a4-page { margin: 6mm auto; box-shadow: 0 4px 32px rgba(0,0,0,0.6); }
+  }
+
+  @media print {
+    body { background: white; }
+    .a4-page { break-after: page; page-break-after: always; }
+    .card { border: 0.0mm solid #ddd; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
 </style>
 </head>
 <body>
-{% for page in pages%}
-    <page size="A4" class='page_front'>
-    <table class='page_table'>
-    <tr>
-    <td>
-    {% with card=page.0 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.1 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.2 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.3 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.4 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.5 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.6 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.7 %}     
-        {% include "mahj/print_player_cards_card.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    </table>
-    </page>
-    <page size="A4" class='page_back'>
-    <table class='page_table'>
-    <tr>
-    <td>
-    {% with card=page.1 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.0 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.3 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.2 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.5 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.4 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    <tr>
-    <td>
-    {% with card=page.7 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    <td>
-    {% with card=page.6 %}     
-        {% include "mahj/print_player_cards_card_back.html" %}    
-    {% endwith %}
-    </td>
-    </tr>
-    </table>
-    </page>
-{%endfor%}
 
+{% for page in pages %}
+
+  {# ═══ FRONT page ═══ #}
+  <div class="a4-page">
+    {% with card=page.0 %}{% include "mahj/print_player_cards_card.html" %}{% endwith %}
+    {% with card=page.1 %}{% include "mahj/print_player_cards_card.html" %}{% endwith %}
+    {% with card=page.2 %}{% include "mahj/print_player_cards_card.html" %}{% endwith %}
+    {% with card=page.3 %}{% include "mahj/print_player_cards_card.html" %}{% endwith %}
+  </div>
+
+  {# ═══ BACK page — columns mirrored for duplex (flip on long edge) ═══ #}
+  <div class="a4-page">
+    {% with card=page.1 %}{% include "mahj/print_player_cards_card_back.html" %}{% endwith %}
+    {% with card=page.0 %}{% include "mahj/print_player_cards_card_back.html" %}{% endwith %}
+    {% with card=page.3 %}{% include "mahj/print_player_cards_card_back.html" %}{% endwith %}
+    {% with card=page.2 %}{% include "mahj/print_player_cards_card_back.html" %}{% endwith %}
+  </div>
+
+{% endfor %}
 </body>
+</html>

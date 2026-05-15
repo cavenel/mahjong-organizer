@@ -1,53 +1,99 @@
-{% load static %} 
+{% load static %}
+{% if card and card.player %}
+<div class="card" style="{% if card == page.0 or  card == page.1 %}transform: rotate(180deg);{% endif %}">
 
-<div class="card">
-{% if card.player %}
-    <!--<h2>{{ card.player.full_name }}</h2> 
-    <div style='padding-top: 1px;float:right;'><img style='zoom:0.8;' src='{% static "images/blank.png" %}' class='flag flag-{{ card.flag }}' alt=''></div>-->
+  {# ── Header ── #}
+  <div style="padding: 0 5mm 2.1mm; background: white; flex-shrink: 0;">
+    <div class="blue-accent"></div>
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:1.7mm;">
+      <img src="{% static 'images/OEMC-2026-Uppsala_logo.png' %}" style="max-height:46px;">
+      <div style="text-align:right; padding-bottom:0.4mm; line-height:1.15;">
+        <div class="title-font" style="color:var(--se-blue);">{{ variables.fullname }}</div>
+      </div>
+    </div>
+    <div class="yellow-rule" style="margin-top:1.4mm;"></div>
+    <div class="mono" style="display:flex; align-items:center; justify-content:space-between; font-size:5.4pt; letter-spacing:0.22em; text-transform:uppercase; color:var(--ink); margin-top:1mm;">
+      <span>{{ variables.period }}</span>
+      <span style="color:var(--se-yellow-deep);">·</span>
+      <span>{{ variables.nb_rounds }} Sessions</span>
+      <span style="color:var(--se-yellow-deep);">·</span>
+      <span>{{ variables.rules }}</span>
+    </div>
+    <div class="blue-sep" style="margin-top:1.2mm;"></div>
+  </div>
 
-    <table class='rounds_table'>
-        {% regroup card.rounds by day as days_list %}
-        {% for day in days_list %}
-            {% if forloop.counter == 1 %}
-                <thead>
-                    <tr>
-                        <th colspan=2 style="border-left:0px; border-top:0px">{{variables.title}}</th>
-                        <th rowspan=2 class='red center'>Table /<br/>Wind</th>
-                        <th colspan=2 class='blue center'>Table points</th>
-                        <th colspan=2 class='green center'>Mini points</th>
-                    </tr>
-                    <tr>
-                        <th colspan=2 class='red'>{{day.grouper}}</th>
-                        <th class='blue center small'>Round</th>
-                        <th class='blue center small'>Total</th>
-                        <th class='green center small'>Round</th>
-                        <th class='green center small'>Total</th>
-                    </tr>
-                </thead>
-            {% else %}
-                <tr>
-                    <th colspan=7 class='red'>{{day.grouper}}</th>
-                </tr>
-            {% endif %}
-            {% for r in day.list %}
-                <tr>
-                    <td><b>{{ r.time }}</b></td>
-                    <td><center><b>{{r.name}}</b></center></td>
-                    <td><center>{{r.other_pos.0.table_nb}} {{ r.player_pos }}</center></td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                    <td>&nbsp;</td>
-                </tr>
-            {% endfor %}
-        {% endfor %}
-        <tr>
-            <td colspan=2 style="border-left:0px; border-bottom:0px">&nbsp;</td>
-            <th class='red center'>Total</th>
-            <td></td><td></td><td></td><td></td>
-        </tr>
-    </table>
-    <!--<div style="float:left;font-size: 11px;margin-top: 10px;display: flex;"><u>https://{{ variables.tenant }}.mahj.ovh{{variables.url}}</u></div>
-    <div style="float:right;font-size: 11px;margin-top: 10px;display: flex;"><b><i>{{variables.title}}</i></b></div>-->
-{% endif %}
+  {# ── Player name & country ── #}
+  <div style="padding: 1.4mm 5mm 1mm; flex-shrink: 0;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="display" style="font-size:18pt; line-height:1; font-weight:500; color:var(--ink);">
+        {{ card.player.full_name }}
+      </div>
+      <div style="text-align:right; line-height:1.2;">
+        <div class="mono" style="font-size:5.2pt; letter-spacing:0.24em; text-transform:uppercase; color:var(--muted);">Country</div>
+        <div style="display:flex; align-items:center; gap:1mm; margin-top:0.6mm; justify-content:flex-end;">
+          <img src="{% static 'images/blank.png' %}" class="flag flag-{{ card.flag }}" alt=""
+               style="zoom:0.8; display:block;">
+          {% if card.flag != "mi" %}
+            <span class="mono" style="font-size:7pt; color:var(--ink); font-weight:600; letter-spacing:0.04em;">{{ card.flag|upper }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin: 0 5mm; height:0.3mm; background:var(--se-blue); flex-shrink:0;"></div>
+
+  {# ── Score grid ── #}
+  <div style="padding: 0.8mm 5mm 0; flex:1; display:flex; flex-direction:column; min-height:0;">
+
+    <div class="grid-row">
+      <div></div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted);">Time</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.16em; text-transform:uppercase; color:var(--muted); text-align:center;">Tbl · Seat</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center; grid-column:span 2;">Table Pts</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center; grid-column:span 2;">Mini Pts</div>
+    </div>
+    <div class="grid-row" style="border-bottom:0.18mm solid var(--ink); padding-bottom:0.6mm;">
+      <div></div><div></div><div></div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center;">Round</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center;">Total</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center;">Round</div>
+      <div class="mono" style="font-size:4.8pt; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); text-align:center;">Total</div>
+    </div>
+
+    {% for r in card.rounds %}
+      {% ifchanged r.day %}
+        <div class="day-band"><span class="label">{{ r.day }}</span><span class="rule"></span></div>
+      {% endifchanged %}
+      <div class="grid-row" style="padding: 0.5mm 0;">
+        <div class="mono" style="font-size:6pt; color:var(--muted);">{{ forloop.counter }}</div>
+        <div class="mono" style="font-size:6.2pt;">{{ r.time }}</div>
+        <div class="pos-cell">
+          <span class="tbl">{{ r.other_pos.0.table_nb }}</span>
+          <span class="wind {{ r.player_pos|slice:':1' }}">{{ r.player_pos|slice:':1' }}</span>
+        </div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+      </div>
+    {% endfor %}
+
+    <div class="grid-row" style="border-top:0.4mm solid var(--ink); padding-top:1.2mm; margin-top:0.5mm; padding-bottom:0.4mm;">
+      <div></div>
+      <div class="mono" style="font-size:6pt; letter-spacing:0.22em; font-weight:700; color:var(--ink); text-transform:uppercase;">Total</div>
+      <div></div><div></div>
+      <div class="write-cell total"></div>
+      <div></div>
+      <div class="write-cell total"></div>
+    </div>
+
+    <div style="margin-top:5px; padding-top:1.3mm; text-align:right; border-top:0.2mm solid var(--line);">
+      <span class="mono" style="font-size:6pt; color:var(--ink);">https://{{ variables.tenant }}.mahj.ovh</span>
+    </div>
+  </div>
+
 </div>
+{% else %}
+<div class="card" style="background:white;"></div>
+{% endif %}

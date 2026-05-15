@@ -1,49 +1,85 @@
-{% load static %} 
+{% load static %}
+{% if card and card.player %}
+<div class="card" style="{% if card == page.0 or  card == page.1 %}transform: rotate(180deg);{% endif %}">
 
-<div class="card">
-{% if card.player %}
-    <h2>{{ card.player.full_name }}</h2> 
-    <div style='padding-top: 1px;float:right;'><img style='zoom:0.8;' src='{% static "images/blank.png" %}' class='flag flag-{{ card.flag }}' alt=''></div>
+  {# ── Header (identical to front) ── #}
+  <div style="padding: 0 5mm 2.1mm; background: white; flex-shrink: 0;">
+    <div class="blue-accent"></div>
+    <div style="display:flex; align-items:flex-end; justify-content:space-between; margin-top:1.7mm;">
+      <img src="{% static 'images/OEMC-2026-Uppsala_logo.png' %}" style="max-height:46px;">
+      <div style="text-align:right; padding-bottom:0.4mm; line-height:1.15;">
+        <div class="title-font" style="color:var(--se-blue);">{{ variables.fullname }}</div>
+      </div>
+    </div>
+    <div class="yellow-rule" style="margin-top:1.4mm;"></div>
+    <div class="mono" style="display:flex; align-items:center; justify-content:space-between; font-size:5.4pt; letter-spacing:0.22em; text-transform:uppercase; color:var(--ink); margin-top:1mm;">
+      <span>{{ variables.period }}</span>
+      <span style="color:var(--se-yellow-deep);">·</span>
+      <span>{{ variables.nb_rounds }} Sessions</span>
+      <span style="color:var(--se-yellow-deep);">·</span>
+      <span>{{ variables.rules }}</span>
+    </div>
+    <div class="blue-sep" style="margin-top:1.2mm;"></div>
+  </div>
 
-    <table class='rounds_table rounds_table_back' style="table-layout: fixed;">
-        {% regroup card.rounds by day as days_list %}
-        {% for day in days_list %}
-            {% if forloop.counter == 1 %}
-                <thead>
-                <tr>
-                    <th colspan=2 class='red'>
-                        {{day.grouper}}
-                    </th>
-                    <th class='blue center' style="">East</th>
-                    <th class='blue center' style="">South</th>
-                    <th class='blue center' style="">West</th>
-                    <th class='blue center' style="">North</th>
-                </tr>
-                </thead>
-            {% else %}
-                <tr>
-                <th colspan=6 class='red'>
-                    {{day.grouper}}
-                </th>
-                </tr>
-            {% endif %}
-            {% for r in day.list %}
-                <tr>
-                <td><center><b>{{r.name}}</b></center></td>
-                <td><center>Table {{r.other_pos.0.table_nb}}</center></td>
-                {% for pos in r.other_pos %}
-                    {% if pos.player == card.player %}
-                        <td style=" padding-right:0px"><b>{{ pos.player.first_name }}</b></td>
-                    {% endif %}
-                    {% if pos.player != card.player %}
-                        <td style=" padding-right:0px">{{ pos.player.first_name }}</td>
-                    {% endif %}
-                {% endfor %}
-                </tr>
-            {% endfor %}
+  {# ── Player name & country ── #}
+  <div style="padding: 1.4mm 5mm 1mm; flex-shrink: 0;">
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div class="display" style="font-size:18pt; line-height:1; font-weight:500; color:var(--ink);">
+        {{ card.player.full_name }}
+      </div>
+      <div style="text-align:right; line-height:1.2;">
+        <div class="mono" style="font-size:5.2pt; letter-spacing:0.24em; text-transform:uppercase; color:var(--muted);">Country</div>
+        <div style="display:flex; align-items:center; gap:1mm; margin-top:0.6mm; justify-content:flex-end;">
+          <img src="{% static 'images/blank.png' %}" class="flag flag-{{ card.flag }}" alt=""
+               style="zoom:0.8; display:block;">
+          {% if card.flag != "mi" %}
+            <span class="mono" style="font-size:7pt; color:var(--ink); font-weight:600; letter-spacing:0.04em;">{{ card.flag|upper }}</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin: 0 5mm; height:0.3mm; background:var(--se-blue); flex-shrink:0;"></div>
+
+  {# ── Opponents column headers ── #}
+  <div style="padding: 0.8mm 5mm 0; flex-shrink:0;">
+    <div class="opp-grid">
+      <div></div>
+      <div class="pos-head">Tbl · Seat</div>
+      <div class="wind-head"><span class="wind sm E">E</span><span>EAST</span></div>
+      <div class="wind-head"><span class="wind sm S">S</span><span>SOUTH</span></div>
+      <div class="wind-head"><span class="wind sm W">W</span><span>WEST</span></div>
+      <div class="wind-head"><span class="wind sm N">N</span><span>NORTH</span></div>
+    </div>
+  </div>
+
+  {# ── Opponents rows ── #}
+  <div style="padding: 0.4mm 5mm 0; flex:1; display:flex; flex-direction:column; min-height:0;">
+
+    {% for r in card.rounds %}
+      {% ifchanged r.day %}
+        <div class="day-band"><span class="label">{{ r.day }}</span><span class="rule"></span></div>
+      {% endifchanged %}
+      <div class="opp-grid">
+        <div class="mono" style="font-size:6.2pt; padding-left:0.4mm; color:var(--muted); align-self:center;">{{ forloop.counter }}</div>
+        <div class="pos-back">
+          <span class="tbl">{{ r.other_pos.0.table_nb }}</span>
+          <span class="wind sm {{ r.player_pos|slice:':1' }}">{{ r.player_pos|slice:':1' }}</span>
+        </div>
+        {% for pos in r.other_pos %}
+          <div class="opp-cell{% if pos.player == card.player %} me{% endif %}">{{ pos.player.first_name }}</div>
         {% endfor %}
-    </table>
-    <div style="float:left;font-size: 11px;margin-top: 5px;display: flex;"><u>https://{{ variables.tenant }}.mahj.ovh{{variables.url}}</u></div>
-    <div style="float:right;font-size: 11px;margin-top: 5px;display: flex;"><b><i>{{variables.title}}</i></b></div>
-{% endif %}
+      </div>
+    {% endfor %}
+
+    <div style="margin-top:5px; padding-top:1.3mm; text-align:right; border-top:0.2mm solid var(--line);">
+      <span class="mono" style="font-size:6pt; color:var(--ink);">https://{{ variables.tenant }}.mahj.ovh</span>
+    </div>
+  </div>
+
 </div>
+{% else %}
+<div class="card" style="background:white;"></div>
+{% endif %}

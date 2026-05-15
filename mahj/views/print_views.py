@@ -10,6 +10,18 @@ from ..models import Player, Player_data, Position, Schedule
 from .helpers import get_tenant, get_variables
 from .scoring import player_rounds_json, scores_per_player_json, scores_per_table_json
 
+def _country_flag(country):
+    if country == "Independent":
+        return 'mi'
+    try:
+        name = country.replace('The ', '').strip()
+        match = pycountry.countries.get(name=name)
+        if match is None:
+            results = pycountry.countries.search_fuzzy(name)
+            match = results[0] if results else None
+        return match.alpha_2.lower() if match else ''
+    except Exception:
+        return ''
 
 def cross_positions(request):
     tenant = get_tenant(request)
@@ -87,10 +99,7 @@ def player_cards(request):
     players = Player.objects.filter(tenant=tenant).all()
     flags = {}
     for p in players:
-        try:
-            flags[p] = pycountry.countries.get(name=p.country.replace("The ", "").strip()).alpha_2.lower()
-        except Exception:
-            flags[p] = ""
+        flags[p] = _country_flag(p.country)
 
     player_rounds = [
         {"player": p, "rounds": player_rounds_json(request, p.id), "flag": flags[p]}
@@ -101,7 +110,7 @@ def player_cards(request):
         args = [iter(iterable)] * n
         return itertools.zip_longest(*args, fillvalue=fillvalue)
 
-    pages = list(grouper(8, player_rounds))
+    pages = list(grouper(4, player_rounds))
 
     template = loader.get_template('mahj/print_player_cards.html')
     return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
