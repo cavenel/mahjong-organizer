@@ -15,6 +15,8 @@ def _country_flag(country):
         return 'mi'
     try:
         name = country.replace('The ', '').strip()
+        if not name:
+            return ''  # search_fuzzy('') matches an arbitrary country (gb); short-circuit
         match = pycountry.countries.get(name=name)
         if match is None:
             results = pycountry.countries.search_fuzzy(name)

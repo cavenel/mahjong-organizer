@@ -132,6 +132,47 @@ class TestScorerWriteEndpointsGated:
         assert resp.status_code == 302
 
 
+class TestScanEndpointsGated:
+    """The /scan OCR endpoints require is_staff OR membership in 'Scorer'.
+
+    Regression guard: these decorators were once commented out, exposing an
+    unauthenticated surface that calls the (paid) Anthropic API and writes/validates
+    Hand rows for whatever tenant the Host header resolves to.
+    """
+
+    PREFILL_BODY = '{"round_nb": 1, "table_nb": 1, "scores": []}'
+
+    def test_scan_page_anonymous_redirected(self, client_, tournament):
+        resp = client_.get('/scan')
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_scan_positions_anonymous_redirected(self, client_, tournament):
+        resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_scan_prefill_anonymous_redirected(self, client_, tournament):
+        resp = client_.post('/scan_prefill', data=self.PREFILL_BODY, content_type='application/json')
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_scan_page_non_scorer_redirected(self, client_, tournament, anonymous_user):
+        client_.force_login(anonymous_user)
+        resp = client_.get('/scan')
+        assert resp.status_code == 302
+
+    def test_scan_prefill_non_scorer_redirected(self, client_, tournament, anonymous_user):
+        client_.force_login(anonymous_user)
+        resp = client_.post('/scan_prefill', data=self.PREFILL_BODY, content_type='application/json')
+        assert resp.status_code == 302
+
+    def test_scan_positions_scorer_allowed(self, client_, tournament, scorer_group_user):
+        client_.force_login(scorer_group_user)
+        resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
+        assert resp.status_code == 200
+
+
 class TestCsrfEnforcement:
     """POST endpoints must reject requests without a CSRF token."""
 
@@ -144,8 +185,9 @@ class TestCsrfEnforcement:
 
     def test_update_hand_points_accepts_with_csrf_token(self, csrf_client, hand, staff_user):
         csrf_client.force_login(staff_user)
-        # Prime the CSRF cookie via any GET, then echo the token in the POST.
-        csrf_client.get('/options')
+        # Prime the CSRF cookie via a GET that renders {% csrf_token %} (the score sheet);
+        # the welcome page at /options does not, so it sets no cookie.
+        csrf_client.get('/scores_per_hand_1_1')
         token = csrf_client.cookies['csrftoken'].value
         resp = csrf_client.post(
             '/update_hand_points',
