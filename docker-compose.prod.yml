@@ -16,6 +16,7 @@ services:
     volumes:
       - gunicorn_sock:/run/gunicorn
       - static_files:/static
+      - ./captures:/app/mahj/captures
     ports: []    # nginx handles external traffic; web is not exposed directly
 
   nginx:

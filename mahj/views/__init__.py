@@ -58,6 +58,7 @@ from .display import (
     scores_per_table,
     update_screen_view,
 )
+from .scan import scan_page, scan_positions, scan_prefill
 from .print_views import (
     cross_positions,
     player_cards,

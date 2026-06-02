@@ -1,0 +1,493 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Scan score sheet</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}?v={% now "YmdHi" %}">
+  <style>
+    table.review-table { border-collapse: collapse; width: 100%; }
+    table.review-table th, table.review-table td { border: 1px solid #d1d5db; padding: 4px 6px; text-align: center; }
+    table.review-table input { width: 100%; border: 0; text-align: center; padding: 2px; outline: none; font-variant-numeric: tabular-nums; }
+    table.review-table input:focus { background: #fef3c7; }
+    .diff-cell { font-size: 8px; color: #9ca3af; text-align: left; padding: 1px 4px; line-height: 1; min-width: 36px; border-bottom: none; }
+    .total-cell { font-weight: 700; font-size: 11px; text-align: right; padding: 1px 4px; border-top: none; min-width: 36px; font-variant-numeric: tabular-nums; background: #e5e7eb; }
+  </style>
+</head>
+
+<body class="min-h-full bg-gray-50 text-gray-900 flex items-center justify-center px-4 py-12">
+  <div class="w-full max-w-2xl">
+
+    <!-- ====== LIST VIEW ====== -->
+    <div id="list-view">
+      <h1 class="text-2xl font-bold text-gray-800 mb-2 text-center">Scan score sheet</h1>
+      <p class="text-sm text-gray-600 mb-6 text-center">Take a clear photo of the whole A4 sheet, well-lit, no fingers covering the edges.</p>
+
+      <label class="flex flex-col items-center justify-center gap-2 p-6 border-gray-300 rounded-xl cursor-pointer bg-white shadow-sm mb-6">
+        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+        </svg>
+        <span class="text-sm font-medium text-gray-600">Tap to take photo</span>
+        <input type="file" id="file" class="hidden" accept="image/*" capture="environment">
+      </label>
+
+      <div id="queue" class="space-y-2"></div>
+    </div>
+
+    <!-- ====== REVIEW VIEW ====== -->
+    <div id="review-view" class="hidden">
+      <div class="flex gap-3 mb-2 justify-end">
+        <label class="flex items-center gap-1">
+          <span class="text-xs text-gray-500">R</span>
+          <input type="number" id="ocr-round" min="1" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold">
+        </label>
+        <label class="flex items-center gap-1">
+          <span class="text-xs text-gray-500">T</span>
+          <input type="number" id="ocr-table" min="1" class="w-12 border rounded px-1 py-0.5 text-center text-xs font-bold">
+        </label>
+      </div>
+
+      <div id="pos-warning" class="hidden rounded-lg p-2 text-xs font-semibold text-center mb-3"></div>
+
+      <table class="review-table text-xs mb-2">
+        <thead>
+          <tr class="bg-gray-100 text-gray-500">
+            <th class="w-10">Hand</th>
+            <th class="w-14">Value</th>
+            <th class="w-14">Winner</th>
+            <th class="w-14">Disc.</th>
+            <th style="min-width:36px;">P1</th>
+            <th style="min-width:36px;">P2</th>
+            <th style="min-width:36px;">P3</th>
+            <th style="min-width:36px;">P4</th>
+          </tr>
+        </thead>
+        <tbody id="review-body"></tbody>
+        <tfoot>
+          <tr class="total-row bg-gray-100">
+            <td>Total</td>
+            <td colspan="3"></td>
+            <td id="sum-1">0</td>
+            <td id="sum-2">0</td>
+            <td id="sum-3">0</td>
+            <td id="sum-4">0</td>
+          </tr>
+          <tr id="check-row" class="hidden text-xs font-semibold">
+            <td>Check</td>
+            <td colspan="3" class="text-gray-400">MP</td>
+            <td id="check-1">—</td>
+            <td id="check-2">—</td>
+            <td id="check-3">—</td>
+            <td id="check-4">—</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <p id="sum-warning" class="hidden text-red-600 text-xs text-center mb-2 font-semibold">
+        Totals do not sum to zero — please check the values.
+      </p>
+
+      <div class="flex gap-3 justify-center mt-4">
+        <button id="btn-discard" class="px-4 py-2 rounded-lg text-sm font-medium bg-gray-200 text-gray-700 hover:bg-gray-300">
+          Discard
+        </button>
+        <button id="btn-save" class="px-4 py-2 rounded-lg text-sm font-medium bg-blue-100 text-blue-700 hover:bg-blue-200">
+          Save (not valid)
+        </button>
+        <button id="btn-submit" class="px-6 py-2 rounded-lg text-sm font-semibold bg-amber-500 text-white hover:bg-amber-600 shadow">
+          Validate
+        </button>
+      </div>
+
+      <div id="prefill-error" class="hidden mt-3 rounded-lg p-3 text-sm bg-red-100 text-red-800 text-center">
+        <span id="prefill-error-text"></span>
+        <button id="btn-overwrite" class="hidden ml-2 px-3 py-1 rounded text-xs font-semibold bg-red-600 text-white hover:bg-red-700">
+          Overwrite
+        </button>
+      </div>
+      <div id="prefill-ok" class="hidden mt-3 rounded-lg p-3 text-sm bg-green-100 text-green-800 text-center"></div>
+    </div>
+
+  </div>
+
+<script>
+const csrf = '{{ csrf_token }}';
+
+/* ====== QUEUE MODEL ====== */
+
+let nextId = 0;
+const items = [];   // { id, status, label, error, data }
+let activeItemId = null;
+
+function addItem(file) {
+  const item = {
+    id: nextId++,
+    status: 'uploading',   // uploading -> processing -> ready | error
+    label: file.name,
+    error: null,
+    data: null,             // { Round, Table, Scores }
+  };
+  items.push(item);
+  renderQueue();
+  processItem(item, file);
+}
+
+async function processItem(item, file) {
+  const fd = new FormData();
+  fd.append('image', file);
+  fd.append('csrfmiddlewaretoken', csrf);
+
+  try {
+    const res = await fetch('scan', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (!data.ok) { item.status = 'error'; item.error = data.error || 'Failed'; renderQueue(); return; }
+
+    item.status = 'ready';
+    item.data = data.data;
+    item.label = `R${data.data.Round || '?'} T${data.data.Table || '?'}`;
+    renderQueue();
+
+  } catch (e) {
+    item.status = 'error';
+    item.error = 'Network error: ' + e.message;
+    renderQueue();
+  }
+}
+
+function removeItem(id) {
+  const idx = items.findIndex(i => i.id === id);
+  if (idx !== -1) items.splice(idx, 1);
+  renderQueue();
+}
+
+/* ====== QUEUE RENDERING ====== */
+
+const statusConfig = {
+  uploading:  { bg: 'bg-amber-50',  text: 'text-amber-700', icon: '⏳', badge: 'Processing...' },
+  ready:      { bg: 'bg-green-50',  text: 'text-green-800', icon: '✅', badge: 'Ready' },
+  error:      { bg: 'bg-red-50',    text: 'text-red-700',   icon: '❌', badge: 'Error' },
+  saved:      { bg: 'bg-blue-50',   text: 'text-blue-700',  icon: '☑️', badge: 'Saved' },
+};
+
+function renderQueue() {
+  const el = document.getElementById('queue');
+  el.innerHTML = '';
+  items.forEach(item => {
+    const cfg = statusConfig[item.status];
+    const div = document.createElement('div');
+    div.className = `flex items-center gap-3 rounded-lg px-4 py-3 ${cfg.bg} ${cfg.text}`;
+
+    const spinning = (item.status === 'uploading' || item.status === 'processing');
+
+    let left = `<span class="text-lg">${cfg.icon}</span>`;
+    if (spinning) {
+      left = `<svg class="w-5 h-5 animate-spin text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+      </svg>`;
+    }
+
+    let right = '';
+    if (item.status === 'ready') {
+      right = `<button data-open="${item.id}" class="ml-auto px-3 py-1 rounded text-xs font-semibold bg-green-600 text-white hover:bg-green-700">Review</button>`;
+    } else if (item.status === 'error') {
+      right = `<button data-remove="${item.id}" class="ml-auto px-2 py-1 rounded text-xs font-semibold bg-red-200 text-red-800 hover:bg-red-300">✕</button>`;
+    } else if (item.status === 'saved') {
+      right = `<button data-remove="${item.id}" class="ml-auto px-2 py-1 rounded text-xs font-semibold bg-blue-200 text-blue-800 hover:bg-blue-300">✕</button>`;
+    }
+
+    const label = item.status === 'error'
+      ? `<span class="text-xs truncate">${item.error}</span>`
+      : `<span class="text-sm font-medium">${item.label}</span> <span class="text-xs opacity-70">${cfg.badge}</span>`;
+
+    div.innerHTML = `${left}<div class="flex flex-col min-w-0">${label}</div>${right}`;
+    el.appendChild(div);
+  });
+
+  el.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => openReview(parseInt(btn.dataset.open)));
+  });
+  el.querySelectorAll('[data-remove]').forEach(btn => {
+    btn.addEventListener('click', () => removeItem(parseInt(btn.dataset.remove)));
+  });
+}
+
+/* ====== FILE INPUT ====== */
+
+document.getElementById('file').addEventListener('change', function () {
+  if (!this.files[0]) return;
+  addItem(this.files[0]);
+  this.value = '';
+});
+
+/* ====== VIEW SWITCHING ====== */
+
+function showListView() {
+  document.getElementById('list-view').classList.remove('hidden');
+  document.getElementById('review-view').classList.add('hidden');
+  activeItemId = null;
+  document.getElementById('prefill-error').classList.add('hidden');
+  document.getElementById('prefill-ok').classList.add('hidden');
+}
+
+function openReview(id) {
+  const item = items.find(i => i.id === id);
+  if (!item || item.status !== 'ready') return;
+
+  activeItemId = id;
+  document.getElementById('list-view').classList.add('hidden');
+  document.getElementById('review-view').classList.remove('hidden');
+  document.getElementById('prefill-error').classList.add('hidden');
+  document.getElementById('prefill-ok').classList.add('hidden');
+
+  document.getElementById('ocr-round').value = item.data.Round || '';
+  document.getElementById('ocr-table').value = item.data.Table || '';
+  buildReviewTable(item.data.Scores || []);
+  fetchPositions();
+}
+
+/* ====== POSITIONS ====== */
+
+let posAbort = null;
+let currentPositions = [];
+
+async function fetchPositions() {
+  const round_nb = document.getElementById('ocr-round').value;
+  const table_nb = document.getElementById('ocr-table').value;
+  const posWarning = document.getElementById('pos-warning');
+  const checkRow = document.getElementById('check-row');
+
+  posWarning.classList.add('hidden');
+  checkRow.classList.add('hidden');
+  currentPositions = [];
+
+  if (!round_nb || !table_nb) { computeScores(); return; }
+
+  if (posAbort) posAbort.abort();
+  posAbort = new AbortController();
+
+  try {
+    const res = await fetch(`scan_positions?round_nb=${round_nb}&table_nb=${table_nb}`, { signal: posAbort.signal });
+    const data = await res.json();
+
+    if (!data.ok || data.positions.length === 0) {
+      posWarning.className = 'rounded-lg p-2 text-xs font-semibold text-center mb-3 bg-yellow-100 text-yellow-800';
+      posWarning.textContent = 'No positions found for this round/table.';
+      posWarning.classList.remove('hidden');
+      computeScores();
+      return;
+    }
+
+    if (data.validated) {
+      posWarning.className = 'rounded-lg p-2 text-xs font-semibold text-center mb-3 bg-blue-100 text-blue-800';
+      posWarning.textContent = 'This score sheet is already validated.';
+      posWarning.classList.remove('hidden');
+    } else if (data.has_hands) {
+      posWarning.className = 'rounded-lg p-2 text-xs font-semibold text-center mb-3 bg-red-100 text-red-800';
+      posWarning.textContent = 'Hand data already exists for this round/table. Saving will be blocked.';
+      posWarning.classList.remove('hidden');
+    }
+
+    currentPositions = data.positions;
+    checkRow.classList.remove('hidden');
+    computeScores();
+
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      posWarning.className = 'rounded-lg p-2 text-xs font-semibold text-center mb-3 bg-red-100 text-red-800';
+      posWarning.textContent = 'Could not load positions.';
+      posWarning.classList.remove('hidden');
+    }
+    computeScores();
+  }
+}
+
+document.getElementById('ocr-round').addEventListener('input', fetchPositions);
+document.getElementById('ocr-table').addEventListener('input', fetchPositions);
+
+/* ====== SCORE COMPUTATION ====== */
+
+function computeScores() {
+  const totals = [0, 0, 0, 0];
+  for (let i = 1; i <= 16; i++) {
+    const pts  = parseInt(document.getElementById('rv-pts-' + i).value) || 0;
+    const by   = parseInt(document.getElementById('rv-by-' + i).value) || 0;
+    const from = parseInt(document.getElementById('rv-from-' + i).value) || 0;
+    const cells = [
+      document.getElementById('rv-s-' + i + '-1'),
+      document.getElementById('rv-s-' + i + '-2'),
+      document.getElementById('rv-s-' + i + '-3'),
+      document.getElementById('rv-s-' + i + '-4'),
+    ];
+    const totalCells = [
+      document.getElementById('rv-t-' + i + '-1'),
+      document.getElementById('rv-t-' + i + '-2'),
+      document.getElementById('rv-t-' + i + '-3'),
+      document.getElementById('rv-t-' + i + '-4'),
+    ];
+    if (by < 1 || by > 4) {
+      cells.forEach(c => { if (c) c.textContent = ''; });
+      totalCells.forEach((c, idx) => { c.textContent = totals[idx] || ''; });
+      continue;
+    }
+    for (let p = 1; p <= 4; p++) {
+      let delta;
+      if (from === 0 || from === by) {
+        delta = (p === by) ? 3 * (8 + pts) : -(8 + pts);
+      } else {
+        if (p === by)        delta = 3 * 8 + pts;
+        else if (p === from) delta = -(8 + pts);
+        else                 delta = -8;
+      }
+      if (cells[p - 1]) cells[p - 1].textContent = delta;
+      totals[p - 1] += delta;
+    }
+    for (let p = 0; p < 4; p++) {
+      totalCells[p].textContent = totals[p];
+    }
+  }
+  for (let p = 1; p <= 4; p++) {
+    document.getElementById('sum-' + p).textContent = totals[p - 1];
+  }
+  const grandTotal = totals[0] + totals[1] + totals[2] + totals[3];
+  const anyHand = totals.some(t => t !== 0);
+  document.getElementById('sum-warning').classList.toggle('hidden', grandTotal === 0 || !anyHand);
+
+  for (let p = 1; p <= 4; p++) {
+    const cell = document.getElementById('check-' + p);
+    const pos = currentPositions.find(x => x.position === p);
+    if (!pos || pos.mp == null) {
+      cell.textContent = '—';
+      cell.style.background = '';
+    } else {
+      cell.textContent = pos.mp;
+      cell.style.background = (totals[p - 1] === pos.mp) ? '#bbf7d0' : '#fecaca';
+    }
+  }
+}
+
+function validPlayer(v) {
+  return (v != null && v >= 1 && v <= 4) ? v : '';
+}
+
+function buildReviewTable(scores) {
+  const reviewBody = document.getElementById('review-body');
+  reviewBody.innerHTML = '';
+  for (let i = 1; i <= 16; i++) {
+    const s = scores.find(x => x.Hand === i) || {};
+    if (i > 1 && (i - 1) % 4 === 0) {
+      const sep = document.createElement('tr');
+      sep.innerHTML = '<td colspan="8" style="height:4px; background:#e5e7eb; padding:0; border:none;"></td>';
+      reviewBody.appendChild(sep);
+    }
+    const conf = (s.Confidence != null) ? s.Confidence : 1.0;
+    const bg = conf < 1.0 ? 'background:rgba(254,202,202,' + (1 - conf).toFixed(2) + ');' : '';
+
+    if (i === 1) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td class="bg-gray-50 font-medium text-gray-500">' + i + '</td>' +
+        '<td><input type="number" id="rv-pts-' + i + '" style="' + bg + '" value="' + (s.Value != null ? s.Value : '') + '"></td>' +
+        '<td><input type="number" id="rv-by-' + i + '" min="0" max="4" style="' + bg + '" value="' + validPlayer(s.Winner) + '"></td>' +
+        '<td><input type="number" id="rv-from-' + i + '" min="0" max="4" style="' + bg + '" value="' + validPlayer(s.Discarder) + '"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-1"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-2"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-3"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-4"></td>';
+      reviewBody.appendChild(tr);
+    } else {
+      const diffTr = document.createElement('tr');
+      diffTr.innerHTML =
+        '<td rowspan="2" class="bg-gray-50 font-medium text-gray-500">' + i + '</td>' +
+        '<td rowspan="2"><input type="number" id="rv-pts-' + i + '" style="' + bg + '" value="' + (s.Value != null ? s.Value : '') + '"></td>' +
+        '<td rowspan="2"><input type="number" id="rv-by-' + i + '" min="0" max="4" style="' + bg + '" value="' + validPlayer(s.Winner) + '"></td>' +
+        '<td rowspan="2"><input type="number" id="rv-from-' + i + '" min="0" max="4" style="' + bg + '" value="' + validPlayer(s.Discarder) + '"></td>' +
+        '<td class="diff-cell" id="rv-s-' + i + '-1"></td>' +
+        '<td class="diff-cell" id="rv-s-' + i + '-2"></td>' +
+        '<td class="diff-cell" id="rv-s-' + i + '-3"></td>' +
+        '<td class="diff-cell" id="rv-s-' + i + '-4"></td>';
+      reviewBody.appendChild(diffTr);
+
+      const totalTr = document.createElement('tr');
+      totalTr.innerHTML =
+        '<td class="total-cell" id="rv-t-' + i + '-1"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-2"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-3"></td>' +
+        '<td class="total-cell" id="rv-t-' + i + '-4"></td>';
+      reviewBody.appendChild(totalTr);
+    }
+  }
+  reviewBody.querySelectorAll('input').forEach(inp => {
+    inp.addEventListener('input', computeScores);
+  });
+  computeScores();
+}
+
+/* ====== BUTTONS ====== */
+
+document.getElementById('btn-discard').addEventListener('click', () => {
+  if (activeItemId != null) removeItem(activeItemId);
+  showListView();
+});
+
+async function submitScores(force, validate) {
+  const round_nb = parseInt(document.getElementById('ocr-round').value);
+  const table_nb = parseInt(document.getElementById('ocr-table').value);
+  if (!round_nb || !table_nb) { alert('Round and Table are required.'); return; }
+
+  const scores = [];
+  for (let i = 1; i <= 16; i++) {
+    const pts  = document.getElementById('rv-pts-' + i).value;
+    const by   = document.getElementById('rv-by-' + i).value;
+    const from = document.getElementById('rv-from-' + i).value;
+    scores.push({
+      Hand: i,
+      Value:     pts  !== '' ? parseInt(pts)  : null,
+      Winner:    by   !== '' ? parseInt(by)   : null,
+      Discarder: from !== '' ? parseInt(from) : null,
+    });
+  }
+
+  const errDiv = document.getElementById('prefill-error');
+  const errText = document.getElementById('prefill-error-text');
+  const btnOverwrite = document.getElementById('btn-overwrite');
+  const okDiv  = document.getElementById('prefill-ok');
+  errDiv.classList.add('hidden');
+  btnOverwrite.classList.add('hidden');
+  okDiv.classList.add('hidden');
+
+  try {
+    const res = await fetch('scan_prefill', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
+      body: JSON.stringify({ round_nb, table_nb, scores, force: !!force, validate: !!validate }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      removeItem(activeItemId);
+      okDiv.textContent = validate
+        ? `Round ${round_nb} Table ${table_nb} saved & validated.`
+        : `Round ${round_nb} Table ${table_nb} saved (not validated).`;
+      okDiv.classList.remove('hidden');
+      setTimeout(showListView, 1200);
+    } else {
+      errText.textContent = data.error || 'Save failed';
+      errDiv.classList.remove('hidden');
+      if (data.conflict) btnOverwrite.classList.remove('hidden');
+    }
+  } catch (e) {
+    errText.textContent = 'Network error: ' + e.message;
+    errDiv.classList.remove('hidden');
+  }
+}
+
+document.getElementById('btn-save').addEventListener('click', () => submitScores(false, false));
+document.getElementById('btn-submit').addEventListener('click', () => submitScores(false, true));
+document.getElementById('btn-overwrite').addEventListener('click', () => submitScores(true, true));
+</script>
+</body>
+</html>

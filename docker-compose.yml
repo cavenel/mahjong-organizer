@@ -60,6 +60,8 @@ services:
       REDIS_URL: redis://redis:6379/1
     ports:
       - "8000:8000"
+    volumes:
+      - ./captures:/app/mahj/captures
     depends_on:
       pgbouncer:
         condition: service_healthy

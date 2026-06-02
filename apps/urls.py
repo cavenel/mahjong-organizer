@@ -45,6 +45,11 @@ urlpatterns = [
     path('check_final', views.check_final, name='check_final'),
     path('check_variables', views.check_variables, name='check_variables'),
 
+    # Scan
+    path('scan', views.scan_page, name='scan'),
+    path('scan_positions', views.scan_positions, name='scan_positions'),
+    path('scan_prefill', views.scan_prefill, name='scan_prefill'),
+
     # Print / export
     path('scores_per_player.<str:ext>', views.scores_per_player, name='scores_per_player'),
     path('EMA_report.xlsx', views.admin_print_EMA),

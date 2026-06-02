@@ -22,6 +22,9 @@ staticfiles/
 bakup/
 tmp/
 
+# Score-sheet scan debug crops (runtime output)
+captures/
+
 # Node/npm (if used)
 node_modules/
 package-lock.json

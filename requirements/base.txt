@@ -12,3 +12,7 @@ Unidecode
 beautifulsoup4
 whitenoise
 python-decouple
+opencv-python-headless
+Pillow
+numpy
+anthropic

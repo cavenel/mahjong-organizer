@@ -115,5 +115,16 @@ STORAGES = {
     },
 }
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {'class': 'logging.StreamHandler'},
+    },
+    'loggers': {
+        'mahj.views.scan': {'handlers': ['console'], 'level': 'DEBUG'},
+    },
+}
+
 CSRF_TRUSTED_ORIGINS = ['https://mahj.ovh', 'https://*.mahj.ovh']
 X_FRAME_OPTIONS = 'SAMEORIGIN'
