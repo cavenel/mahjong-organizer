@@ -209,7 +209,13 @@
         showPrintModal(url)   { this.printModal.src   = url; this.printModal.open   = true; },
         showDetailsModal(url) { this.detailsModal.src = url; this.detailsModal.open = true; },
         closePrintModal()   { this.printModal.open   = false; this.printModal.src   = ''; },
-        closeDetailsModal() { this.detailsModal.open = false; this.detailsModal.src = ''; },
+        closeDetailsModal() {
+          try {
+            var iframe = document.getElementById('modalDetails-iframe');
+            if (iframe && iframe.contentWindow && iframe.contentWindow.flushPending) iframe.contentWindow.flushPending();
+          } catch(e) {}
+          this.detailsModal.open = false; this.detailsModal.src = '';
+        },
         closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; },
       };
     }

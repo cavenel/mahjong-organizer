@@ -41,6 +41,7 @@
 
   .valid-badge { color: #ccc; font-size: 1.4em; margin-left: 4px; }
   .valid-badge.active { color: #28a745; font-weight: bold; }
+  .valid-badge.in-progress { color: #e6a817; font-weight: bold; }
 
   .player-name {
     padding: 5px 5px 0 5px; font-size: 11px; font-weight: 500; color: var(--text-muted);
@@ -161,7 +162,7 @@
                             data-link="scores_per_hand_{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
                             tabindex="-1">Score sheet</button>
                     {% with rn=forloop.parentloop.counter|stringformat:"s" tn=forloop.counter|stringformat:"s" %}{% with vkey=rn|add:"-"|add:tn %}
-                      <span class="valid-badge {% if vkey in validated_keys %}active{% endif %}" title="Score sheet validated">✓</span>
+                      <span class="valid-badge {% if vkey in validated_keys %}active{% elif vkey in filled_keys %}in-progress{% endif %}" title="Score sheet validated">✓</span>
                     {% endwith %}{% endwith %}
                   </td>
                 {% endif %}
@@ -259,6 +260,31 @@
   var timers = {};
   var recentlyEdited = {};
   var publishedRounds = new Set({{ published_rounds }});
+
+  function flushPending() {
+    for (var rid in timers) {
+      if (!timers[rid]) continue;
+      clearTimeout(timers[rid]);
+      delete timers[rid];
+      var row = $('#' + rid);
+      if (!row.length) continue;
+      var positions = [];
+      row.find(".position_div").each(function() {
+        positions.push({
+          id: $(this).attr("data-id"),
+          mp: $(this).find("input[name='minipoints']").val(),
+          tp: $(this).find("input[name='tablepoints']").val(),
+        });
+      });
+      fetch("update_positions_bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
+        body: JSON.stringify({ positions: positions }),
+        keepalive: true,
+      });
+    }
+  }
+  window.addEventListener('beforeunload', flushPending);
 
   function rowIsComplete(row) {
     var ok = true;
@@ -361,7 +387,17 @@
         } else if (msg.type === 'scorer.validation') {
           var vrow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
           var badge = vrow.find('.valid-badge');
-          if (msg.valid) badge.addClass('active'); else badge.removeClass('active');
+          if (msg.valid) {
+            badge.removeClass('in-progress').addClass('active');
+          } else {
+            badge.removeClass('active').addClass('in-progress');
+          }
+        } else if (msg.type === 'scorer.filled') {
+          var frow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
+          var fbadge = frow.find('.valid-badge');
+          if (!fbadge.hasClass('active')) {
+            if (msg.filled) fbadge.addClass('in-progress'); else fbadge.removeClass('in-progress');
+          }
         }
       };
       ws.onclose = function() { setTimeout(connect, 2000); };

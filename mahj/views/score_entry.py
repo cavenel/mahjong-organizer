@@ -9,6 +9,7 @@ from django.template import loader
 from ..models import Hand, Position, PublishedRound
 from ..signals import (
     broadcast_publish_state,
+    broadcast_scorer_filled,
     broadcast_scorer_row,
     broadcast_scorer_validation,
     invalidate_leaderboard,
@@ -105,6 +106,15 @@ def create_hand_points(request):
         hand.win_by = int(request.POST.get('by_' + str(i + 1)))
         hand.win_from = int(request.POST.get('from_' + str(i + 1)))
         hand.save()
+    filled = Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, pts__gt=0,
+    ).exclude(hand_nb=17).exists()
+    broadcast_scorer_filled(tenant.subdomain, {
+        'type': 'scorer.filled',
+        'round_nb': int(round_nb),
+        'table_nb': int(table_nb),
+        'filled': filled,
+    })
     return HttpResponse("")
 
 
@@ -157,6 +167,17 @@ def update_hand_points(request):
                 'round_nb': updated_hand.round_nb,
                 'table_nb': updated_hand.table_nb,
                 'valid': updated_hand.pts == 1,
+            })
+        else:
+            filled = Hand.objects.filter(
+                tenant=tenant, round_nb=updated_hand.round_nb,
+                table_nb=updated_hand.table_nb, pts__gt=0,
+            ).exclude(hand_nb=17).exists()
+            broadcast_scorer_filled(tenant.subdomain, {
+                'type': 'scorer.filled',
+                'round_nb': updated_hand.round_nb,
+                'table_nb': updated_hand.table_nb,
+                'filled': filled,
             })
     except Hand.DoesNotExist:
         pass

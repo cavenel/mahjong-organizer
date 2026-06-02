@@ -616,6 +616,13 @@ def options(request, error=None):
             for rn, tn in Hand.objects.filter(tenant=tenant, hand_nb=17, pts=1)
                                        .values_list('round_nb', 'table_nb')
         }
+        filled_keys = {
+            f"{rn}-{tn}"
+            for rn, tn in Hand.objects.filter(tenant=tenant, pts__gt=0)
+                                       .exclude(hand_nb=17)
+                                       .values_list('round_nb', 'table_nb')
+                                       .distinct()
+        } - validated_keys
         context = {
             'scores_json': scores_json,
             "players": all_players,
@@ -624,6 +631,7 @@ def options(request, error=None):
             "published_rounds": published_rounds,
             "subdomain": tenant.subdomain if tenant else '',
             "validated_keys": validated_keys,
+            "filled_keys": filled_keys,
         }
         page_content = template2.render(context, request)
     else:

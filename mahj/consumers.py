@@ -57,5 +57,8 @@ class ScorersConsumer(AsyncJsonWebsocketConsumer):
     async def scorer_validation(self, event):
         await self.send_json(event['data'])
 
+    async def scorer_filled(self, event):
+        await self.send_json(event['data'])
+
 
 LeaderboardConsumer = TenantConsumer

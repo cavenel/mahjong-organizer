@@ -16,6 +16,7 @@
     .delta-cell input { font-size: 10px; line-height: 18px; color: #6b7280; text-align: right; }
     .total-cell input { font-weight: 600; font-size: 12px; text-align: right; color: #1f2937; }
     .input-cell input { font-size: 13px; text-align: center; }
+    .input-cell input:disabled { background: #f3f4f6; color: #9ca3af; }
     .sum-cell input { font-weight: 700; font-size: 18px; text-align: center; }
   </style>
 </head>
@@ -145,6 +146,34 @@
 
   var ajax_timeouts = {};
 
+  function flushPending() {
+    for (var row in ajax_timeouts) {
+      if (!ajax_timeouts[row]) continue;
+      clearTimeout(ajax_timeouts[row]);
+      delete ajax_timeouts[row];
+      var id, pts, from, by;
+      if ($("#valid_" + row).length) {
+        id = {{ completed.id }};
+        pts = $("#valid_" + row).prop("checked") ? 1 : 0;
+        from = 0; by = 0;
+      } else {
+        id   = $("#id_"   + row).val();
+        pts  = $("#pts_"  + row).val();
+        from = $("#from_" + row).val();
+        by   = $("#by_"   + row).val();
+      }
+      var version = $("#version_" + row).val() || 0;
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+      fd.append('id', id); fd.append('pts', pts);
+      fd.append('from', from); fd.append('by', by);
+      fd.append('version', version);
+      navigator.sendBeacon("update_hand_points", fd);
+    }
+  }
+  window.addEventListener('beforeunload', flushPending);
+  window.addEventListener('pagehide', flushPending);
+
   function send_ajax (table_row) {
     var id, pts, from, by;
     if ($("#valid_" + table_row).length) {
@@ -213,14 +242,25 @@
     }
   }
 
+  function updateDisabledState() {
+    var valid = $("#valid_17").prop("checked");
+    for (var i = 1; i <= 16; i++) {
+      $("#pts_" + i).prop("disabled", valid);
+      $("#by_" + i).prop("disabled", valid);
+      $("#from_" + i).prop("disabled", valid);
+    }
+  }
+
   $("input").on("input change", function() {
     var row = $(this).attr("data-hand_nb");
+    if (row == "17") updateDisabledState();
     update_scores();
     if (ajax_timeouts[row]) clearTimeout(ajax_timeouts[row]);
     ajax_timeouts[row] = setTimeout(function(){ send_ajax(row); }, 1000);
   });
 
   update_scores();
+  updateDisabledState();
 </script>
 
 </body>

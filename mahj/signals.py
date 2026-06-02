@@ -61,6 +61,11 @@ def broadcast_scorer_validation(subdomain, data):
     _broadcast(f'scorers_{subdomain}', 'scorer.validation', data)
 
 
+def broadcast_scorer_filled(subdomain, data):
+    """Notify scorer pages that a table's filled state changed (has hand data or not)."""
+    _broadcast(f'scorers_{subdomain}', 'scorer.filled', data)
+
+
 def invalidate_leaderboard(subdomain):
     """Called from publish/unpublish paths: bust caches and wake public displays."""
     _invalidate_leaderboard(subdomain)
