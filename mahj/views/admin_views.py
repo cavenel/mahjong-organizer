@@ -16,6 +16,7 @@ from django.template import loader
 from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import BASE_DIR, get_counter, get_tenant, get_variables, is_display_op, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
+from .print_views import _country_flag
 from .scoring import (
     scores_per_player_json,
     scores_per_table_json,
@@ -233,8 +234,9 @@ def randomize(request):
     players = Player.objects.filter(tenant=tenant).order_by('rand_id')
     players_data = Player_data.objects.filter(tenant=tenant).order_by('full_name')
     for player in players:
-        if request.POST.get('player_' + str(player.id)):
-            if request.POST.get('player_' + str(player.id)) == "clear":
+        val = request.POST.get('player_' + str(player.id))
+        if val and val not in ('no', ''):
+            if val == "clear":
                 player.full_name = "Player #" + str(player.rand_id)
                 player.first_name = "#" + str(player.rand_id)
                 player.EMA_ID = ""
@@ -243,7 +245,7 @@ def randomize(request):
                 player.team = ""
             else:
                 try:
-                    player_data = [p for p in players_data if p.id == int(request.POST.get('player_' + str(player.id)))][0]
+                    player_data = [p for p in players_data if p.id == int(val)][0]
                 except IndexError:
                     continue
                 player.full_name = player_data.full_name
@@ -278,6 +280,100 @@ def randomize(request):
         "remaining_players": remaining_players,
     }
     return template.render(context, request)
+
+
+@user_passes_test(lambda u: u.is_staff)
+def admin_team_draw(request):
+    tenant = get_tenant(request)
+    players_data = Player_data.objects.filter(tenant=tenant).order_by('full_name')
+
+    teams_dict = {}
+    for pd in players_data:
+        if pd.team:
+            if pd.team not in teams_dict:
+                teams_dict[pd.team] = []
+            teams_dict[pd.team].append({
+                "id": pd.id,
+                "full_name": pd.full_name,
+                "first_name": pd.first_name,
+                "country": pd.country,
+                "flag": _country_flag(pd.country),
+                "EMA_ID": pd.EMA_ID,
+            })
+
+    teams_list = [
+        {"name": name, "players": players}
+        for name, players in sorted(teams_dict.items())
+    ]
+
+    nb_teams = len(teams_list)
+
+    saved_draw = []
+    players_with_team = Player.objects.filter(tenant=tenant).exclude(team="").order_by('rand_id')
+    if players_with_team.exists():
+        draw_teams = {}
+        for p in players_with_team:
+            if p.team not in draw_teams:
+                draw_teams[p.team] = []
+            draw_teams[p.team].append({
+                "full_name": p.full_name,
+                "rand_id": p.rand_id,
+            })
+        slot = 1
+        for team_name in sorted(draw_teams.keys()):
+            members = sorted(draw_teams[team_name], key=lambda x: x["rand_id"])
+            saved_draw.append({
+                "slot": slot,
+                "team_name": team_name,
+                "players": members,
+            })
+            slot += 1
+
+    template = loader.get_template('mahj/admin_team_draw.html')
+    context = {
+        "teams_json": json.dumps(teams_list),
+        "nb_teams": nb_teams,
+        "saved_draw_json": json.dumps(saved_draw) if saved_draw else "null",
+    }
+    return HttpResponse(template.render(context, request))
+
+
+@user_passes_test(lambda u: u.is_staff)
+def admin_team_draw_save(request):
+    if request.method != 'POST':
+        return HttpResponse('POST required', status=405)
+
+    tenant = get_tenant(request)
+    data = json.loads(request.body)
+    assignments = data.get('assignments', [])
+
+    pd_ids = [a['player_data_id'] for a in assignments]
+    player_datas = {
+        pd.id: pd
+        for pd in Player_data.objects.filter(tenant=tenant, id__in=pd_ids)
+    }
+
+    players_by_rand = {
+        p.rand_id: p
+        for p in Player.objects.filter(tenant=tenant)
+    }
+
+    updated = []
+    for a in assignments:
+        pd = player_datas.get(a['player_data_id'])
+        player = players_by_rand.get(a['rand_id'])
+        if pd and player:
+            player.full_name = pd.full_name
+            player.first_name = pd.first_name
+            player.EMA_ID = pd.EMA_ID
+            player.country = pd.country
+            player.email = pd.email
+            player.team = pd.team
+            updated.append(player)
+
+    Player.objects.bulk_update(updated, ['full_name', 'first_name', 'EMA_ID', 'country', 'email', 'team'])
+
+    return HttpResponse('OK')
 
 
 @user_passes_test(lambda u: u.is_staff)

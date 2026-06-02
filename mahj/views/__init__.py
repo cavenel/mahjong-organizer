@@ -42,6 +42,8 @@ from .admin_views import (
     counter_start,
     options,
     randomize,
+    admin_team_draw,
+    admin_team_draw_save,
     timer_options,
     update_variables,
     update_welcome,

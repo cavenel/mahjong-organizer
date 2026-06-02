@@ -1,0 +1,777 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Team Draw</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <style>
+    [x-cloak] { display: none !important; }
+    @keyframes flash-green {
+      0%, 100% { background-color: transparent; }
+      50% { background-color: #d1fae5; }
+    }
+    .animate-flash-green { animation: flash-green 0.6s ease-in-out; }
+    @keyframes flash-red {
+      0%, 100% { background-color: transparent; }
+      50% { background-color: #fee2e2; }
+    }
+    .animate-flash-red { animation: flash-red 0.4s ease-in-out; }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
+  </style>
+</head>
+<body class="h-screen bg-white text-gray-900 overflow-hidden flex flex-col">
+
+  <script type="application/json" id="teams-data">
+    {{ teams_json|safe }}
+  </script>
+  <script type="application/json" id="saved-draw-data">
+    {{ saved_draw_json|safe }}
+  </script>
+
+  <!-- CLOCK -->
+  <div id="clock" class="fixed top-3 right-6 text-2xl font-mono text-gray-400 z-20"></div>
+
+  <!-- ZONE 1: TOP BANNER -->
+  <div id="zone-banner" class="flex-[8] flex items-center justify-center px-8">
+    <h1 id="banner-text" class="text-6xl font-bold text-gray-800 text-center"></h1>
+  </div>
+
+  <!-- ZONE 2: ACTION ZONE -->
+  <div id="zone-action" class="flex-[7] flex items-center justify-center px-12 relative z-10 overflow-visible"></div>
+
+  <!-- ZONE 3: PLAYER CARDS -->
+  <div id="zone-cards" class="flex-[25] flex items-center justify-center px-12">
+    <div id="player-cards" class="flex flex-row gap-4 w-full h-full py-1" style="zoom:1.6;"></div>
+  </div>
+
+  <!-- ZONE 4: PROGRESS GRID -->
+  <div id="zone-grid" class="flex-[50] px-8 py-2 flex items-start justify-center overflow-y-auto" style="zoom: 1.3;">
+    <div id="progress-grid" class="w-full"></div>
+  </div>
+
+  <!-- ZONE 5: FOOTER TOOLBAR -->
+  <div id="zone-footer" class="flex-[5] flex items-center justify-end gap-3 px-6 border-t border-gray-200 text-sm">
+    <button id="btn-undo" onclick="undoLast()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Undo last</button>
+    <button id="btn-pause" onclick="togglePause()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Pause</button>
+    <button id="btn-export" onclick="exportCSV()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Export CSV</button>
+  </div>
+
+  <!-- PAUSE OVERLAY -->
+  <div id="pause-overlay" class="fixed inset-0 z-50 bg-white flex items-center justify-center hidden cursor-pointer" onclick="togglePause()">
+    <div class="text-center">
+      <h2 class="text-5xl font-bold text-gray-400">Brief pause</h2>
+      <p class="text-2xl text-gray-300 mt-4">Please stand by...</p>
+      <p class="text-sm text-gray-300 mt-8">Click anywhere to resume</p>
+    </div>
+  </div>
+
+  <script>
+  const TEAMS = JSON.parse(document.getElementById('teams-data').textContent);
+  const NB_TEAMS = {{ nb_teams }};
+
+  const state = {
+    events: [],
+    paused: false,
+    started_at: null,
+    finished_at: null,
+  };
+
+  // ─── DERIVED HELPERS ───────────────────────────────────
+
+  function currentSlot() {
+    let maxCompleted = 0;
+    for (const e of state.events) {
+      if (e.kind === 'TEAM_CONFIRMED') {
+        maxCompleted = Math.max(maxCompleted, e.slot);
+      }
+    }
+    const next = maxCompleted + 1;
+    return Math.min(next, NB_TEAMS);
+  }
+
+  function teamForSlot(slot) {
+    for (let i = state.events.length - 1; i >= 0; i--) {
+      const e = state.events[i];
+      if (e.kind === 'TEAM_ASSIGNED' && e.slot === slot) {
+        return TEAMS.find(t => t.name === e.team_name) || null;
+      }
+    }
+    return null;
+  }
+
+  function rolesForSlot(slot) {
+    const roles = [];
+    for (const e of state.events) {
+      if (e.kind === 'ROLE_ASSIGNED' && e.slot === slot) {
+        roles.push(e.role);
+      }
+    }
+    return roles;
+  }
+
+  function slotIsComplete(slot) {
+    return rolesForSlot(slot).length >= 4;
+  }
+
+  function currentMode() {
+    const confirmedSlots = state.events.filter(e => e.kind === 'TEAM_CONFIRMED').length;
+    if (confirmedSlots >= NB_TEAMS) return 'DRAW_COMPLETE';
+
+    const slot = currentSlot();
+    const team = teamForSlot(slot);
+    if (!team) return 'TEAM_SEARCH';
+    if (slotIsComplete(slot) && !showingVerification) return 'SLOT_COMPLETE';
+    return 'ROLE_ENTRY';
+  }
+
+  function remainingTeams() {
+    const assigned = new Set();
+    for (const e of state.events) {
+      if (e.kind === 'TEAM_ASSIGNED') {
+        assigned.add(e.team_name);
+      }
+    }
+    return TEAMS.filter(t => !assigned.has(t.name));
+  }
+
+  function randId(slot, role) {
+    return 4 * (slot - 1) + role + 1;
+  }
+
+  // ─── STATE MUTATIONS ──────────────────────────────────
+
+  function pushEvent(event) {
+    event.t = Date.now();
+    if (!state.started_at) state.started_at = event.t;
+    state.events.push(event);
+    saveState();
+    render();
+  }
+
+  function undoLast() {
+    if (state.events.length === 0) return;
+    state.events.pop();
+    saveState();
+    render();
+  }
+
+  function saveState() {
+    localStorage.setItem('team_draw_state', JSON.stringify({
+      events: state.events,
+      paused: state.paused,
+      started_at: state.started_at,
+      finished_at: state.finished_at,
+    }));
+  }
+
+  function loadState() {
+    const saved = localStorage.getItem('team_draw_state');
+    if (saved) {
+      if (confirm('A draw is in progress. Resume where you left off?')) {
+        const parsed = JSON.parse(saved);
+        state.events = parsed.events || [];
+        state.paused = parsed.paused || false;
+        state.started_at = parsed.started_at;
+        state.finished_at = parsed.finished_at;
+      } else {
+        localStorage.removeItem('team_draw_state');
+      }
+    }
+  }
+
+  function togglePause() {
+    state.paused = !state.paused;
+    document.getElementById('pause-overlay').classList.toggle('hidden', !state.paused);
+    saveState();
+  }
+
+  // ─── TEAM SEARCH ──────────────────────────────────────
+
+  let searchValue = '';
+  let searchHighlight = 0;
+
+  function getSearchMatches() {
+    if (!searchValue) return [];
+    const remaining = remainingTeams();
+    return remaining.filter(t => t.name.toLowerCase().includes(searchValue)).slice(0, 5);
+  }
+
+  function filterTeams(value) {
+    searchValue = value.toLowerCase();
+    searchHighlight = 0;
+    renderSearchResults();
+  }
+
+  function renderSearchResults() {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    const matches = getSearchMatches();
+    if (matches.length > 0) {
+      container.innerHTML = matches.map((t, i) =>
+        `<div class="text-3xl px-6 py-3 cursor-pointer rounded-lg transition-colors
+                    ${i === searchHighlight ? 'bg-teal-100 text-teal-900' : 'hover:bg-gray-100'}"
+              onclick="confirmTeam('${t.name.replace(/'/g, "\\'")}')">${t.name}</div>`
+      ).join('');
+    } else {
+      container.innerHTML = '';
+    }
+  }
+
+  function searchArrow(dir) {
+    const matches = getSearchMatches();
+    if (matches.length === 0) return;
+    searchHighlight = Math.max(0, Math.min(matches.length - 1, searchHighlight + dir));
+    renderSearchResults();
+  }
+
+  function confirmTeam(teamName) {
+    const slot = currentSlot();
+    searchValue = '';
+    searchHighlight = 0;
+    pushEvent({ kind: 'TEAM_ASSIGNED', slot: slot, team_name: teamName });
+  }
+
+  function confirmHighlighted() {
+    const matches = getSearchMatches();
+    if (matches.length > 0) {
+      confirmTeam(matches[searchHighlight].name);
+    }
+  }
+
+  function handleSearchKey(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); searchArrow(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); searchArrow(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); confirmHighlighted(); }
+  }
+
+  // ─── ROLE ENTRY ───────────────────────────────────────
+
+  let verificationTimeout = null;
+  let showingVerification = false;
+  let verifyingPlayerIdx = -1;
+
+  function enterRole(roleDisplay) {
+    const role = roleDisplay - 1;
+    const slot = currentSlot();
+    const existing = rolesForSlot(slot);
+
+    if (existing.includes(role)) {
+      const actionZone = document.getElementById('zone-action');
+      actionZone.classList.add('animate-flash-red');
+      setTimeout(() => actionZone.classList.remove('animate-flash-red'), 400);
+      return;
+    }
+
+    verifyingPlayerIdx = existing.length;
+    showingVerification = true;
+
+    const event = { kind: 'ROLE_ASSIGNED', slot: slot, role: role, t: Date.now() };
+    if (!state.started_at) state.started_at = event.t;
+    state.events.push(event);
+    saveState();
+
+    renderPlayerCards(slot);
+    renderProgressGrid(slot);
+
+    clearTimeout(verificationTimeout);
+    verificationTimeout = setTimeout(() => {
+      showingVerification = false;
+      verifyingPlayerIdx = -1;
+      render();
+    }, 3000);
+  }
+
+  // ─── SLOT COMPLETE / ADVANCE ──────────────────────────
+
+  function advanceToNextSlot() {
+    const slot = currentSlot();
+    pushEvent({ kind: 'TEAM_CONFIRMED', slot: slot });
+
+    const confirmedSlots = state.events.filter(e => e.kind === 'TEAM_CONFIRMED').length;
+    if (confirmedSlots >= NB_TEAMS) {
+      state.finished_at = Date.now();
+      saveState();
+      saveToDjango();
+    }
+    render();
+  }
+
+  // ─── RENDER ───────────────────────────────────────────
+
+  function render() {
+    const mode = currentMode();
+    const slot = currentSlot();
+
+    renderBanner(mode, slot);
+    renderActionZone(mode, slot);
+    renderPlayerCards(slot);
+    renderProgressGrid(slot);
+    renderFooter(mode);
+
+    if (mode === 'DRAW_COMPLETE') {
+      renderVerificationCard();
+    }
+  }
+
+  function renderBanner(mode, slot) {
+    const el = document.getElementById('banner-text');
+    if (!el) return;
+    const team = teamForSlot(slot);
+
+    switch (mode) {
+      case 'TEAM_SEARCH':
+        el.textContent = `Drawing team number ${slot} of ${NB_TEAMS}`;
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      case 'ROLE_ENTRY':
+        el.innerHTML = `<span class="text-teal-700">${team.name}</span> &mdash; Team ${slot}`;
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      case 'SLOT_COMPLETE':
+        el.innerHTML = `<span class="text-emerald-600">${team.name}</span> &mdash; Complete`;
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      case 'DRAW_COMPLETE':
+        el.textContent = '';
+        break;
+    }
+  }
+
+  function renderActionZone(mode, slot) {
+    const el = document.getElementById('zone-action');
+    const team = teamForSlot(slot);
+
+    switch (mode) {
+      case 'TEAM_SEARCH':
+        el.innerHTML = `
+          <div class="flex flex-col items-center justify-center w-full max-w-3xl relative">
+            <input type="text" id="team-search-input" autofocus
+                   placeholder="Type the team name from the slip..."
+                   class="w-full text-4xl px-6 py-4 border-2 border-gray-300 rounded-lg
+                          focus:border-teal-700 focus:outline-none"
+                   oninput="filterTeams(this.value)"
+                   onkeydown="handleSearchKey(event)">
+            <div id="search-results" class="absolute top-full mt-2 w-full space-y-1 bg-white rounded-lg shadow-lg z-20"></div>
+          </div>`;
+        setTimeout(() => {
+          renderSearchResults();
+          const input = document.getElementById('team-search-input');
+          if (input) input.focus();
+        }, 50);
+        break;
+
+      case 'ROLE_ENTRY':
+        const rolesEntered = rolesForSlot(slot);
+        const n = rolesEntered.length;
+        el.innerHTML = `
+          <div class="text-xl text-gray-500">
+            Envelope slip <span class="font-semibold text-teal-700">${n + 1}</span> of 4 &mdash; press 1, 2, 3, or 4
+          </div>`;
+        break;
+
+      case 'SLOT_COMPLETE':
+        const label = slot < NB_TEAMS
+          ? `Draw team ${slot + 1} &rarr;`
+          : 'Save draw &amp; show results';
+        el.innerHTML = `
+          <button onclick="advanceToNextSlot()"
+                  class="px-12 py-4 text-4xl ${slot < NB_TEAMS ? 'bg-emerald-700 hover:bg-emerald-800' : 'bg-teal-700 hover:bg-teal-800'} text-white
+                         rounded-lg shadow-lg transition-colors">
+            ${label}
+          </button>`;
+        break;
+
+      case 'DRAW_COMPLETE':
+        el.innerHTML = '';
+        break;
+    }
+  }
+
+  function renderPlayerCards(slot) {
+    const container = document.getElementById('player-cards');
+    const team = teamForSlot(slot);
+    const mode = currentMode();
+
+    if (!team || mode === 'DRAW_COMPLETE' || mode === 'TEAM_SEARCH') {
+      container.innerHTML = '';
+      return;
+    }
+
+    const roles = rolesForSlot(slot);
+    const nextIdx = roles.length;
+
+    container.innerHTML = team.players.map((player, idx) => {
+      const role = roles[idx];
+      const hasRole = role !== undefined;
+      const rid = hasRole ? randId(slot, role) : null;
+      const roleDisplay = hasRole ? (role + 1) : null;
+      const isVerifying = showingVerification && idx === verifyingPlayerIdx;
+      const isNext = !showingVerification && idx === nextIdx && nextIdx < 4;
+
+      let cardClass, numberClass;
+      if (isVerifying) {
+        cardClass = 'bg-amber-50 border-4 border-amber-400 ring-4 ring-amber-200';
+        numberClass = 'text-amber-600';
+      } else if (hasRole) {
+        cardClass = 'bg-emerald-50 border-2 border-emerald-400';
+        numberClass = 'text-emerald-700';
+      } else if (isNext) {
+        cardClass = 'bg-white border-4 border-teal-500 ring-4 ring-teal-200';
+        numberClass = 'text-gray-200';
+      } else {
+        cardClass = 'bg-white border-2 border-gray-200';
+        numberClass = 'text-gray-200';
+      }
+
+      const flagHtml = player.flag
+        ? `<span class="flag flag-${player.flag}" style="width:24px;height:24px;vertical-align:middle"></span>`
+        : '';
+
+      return `
+        <div class="flex-1 rounded-lg px-4 py-2 flex flex-col items-center justify-center gap-1
+                    transition-all duration-300 ${cardClass}
+                    ${isVerifying ? 'animate-fade-in-up' : ''}">
+          <div class="text-lg font-semibold text-gray-800 text-center">${flagHtml} ${player.full_name}</div>
+          <div class="text-7xl font-bold ${numberClass}">
+            ${hasRole ? roleDisplay : '&mdash;'}
+          </div>
+          <div class="text-sm text-gray-600 font-mono">
+            ${hasRole
+              ? `4 &times; ${slot - 1} + ${roleDisplay} = <span class="font-bold text-base">#${rid}</span>`
+              : '&mdash;'}
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderProgressGrid(currentSlotNum) {
+    const container = document.getElementById('progress-grid');
+    const cols = 7;
+    let html = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
+
+    for (let s = 1; s <= NB_TEAMS; s++) {
+      const team = teamForSlot(s);
+      const roles = rolesForSlot(s);
+      const isComplete = slotIsComplete(s) && state.events.some(e => e.kind === 'TEAM_CONFIRMED' && e.slot === s);
+      const isCurrent = (s === currentSlotNum);
+      const hasTeam = !!team;
+
+      let bgClass, ringClass;
+      if (isComplete) {
+        bgClass = 'bg-emerald-100 text-emerald-900';
+        ringClass = '';
+      } else if (isCurrent) {
+        bgClass = 'bg-teal-50 text-teal-900';
+        ringClass = 'ring-2 ring-teal-700';
+      } else if (hasTeam) {
+        bgClass = 'bg-amber-50 text-amber-900';
+        ringClass = '';
+      } else {
+        bgClass = 'bg-gray-100 text-gray-400';
+        ringClass = '';
+      }
+
+      let playerLines = '';
+      if (hasTeam) {
+        const byRole = new Map();
+        team.players.forEach((p, idx) => {
+          const r = roles[idx];
+          if (r !== undefined) byRole.set(r, p);
+        });
+        playerLines = Array.from({length: 4}, (_, role) => {
+          const rid = randId(s, role);
+          const p = byRole.get(role);
+          if (p) {
+            return `<div class="truncate"><b>#${rid}.</b> ${p.full_name}</div>`;
+          } else {
+            return `<div class="truncate text-gray-400">#${rid}.</div>`;
+          }
+        }).join('');
+      } else {
+        playerLines = Array.from({length: 4}, () => `<div>&nbsp;</div>`).join('');
+      }
+
+      html += `
+        <div class="border rounded px-1.5 py-1 ${bgClass} ${ringClass}">
+          <div class="text-[11px] font-bold truncate">${s}. ${team ? team.name : ''}</div>
+          <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
+        </div>`;
+    }
+
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  function renderFooter(mode) {
+  }
+
+  // ─── VERIFICATION CARD ────────────────────────────────
+
+  async function renderVerificationCard() {
+    const result = [];
+    for (let s = 1; s <= NB_TEAMS; s++) {
+      const team = teamForSlot(s);
+      const roles = rolesForSlot(s);
+      if (!team) continue;
+      result.push({
+        slot: s,
+        team_name: team.name,
+        players: team.players.map((p, idx) => ({
+          full_name: p.full_name,
+          role: roles[idx],
+          rand_id: randId(s, roles[idx]),
+        })),
+      });
+    }
+
+    const fp = await computeFingerprint(result);
+    const startStr = state.started_at ? new Date(state.started_at).toLocaleTimeString() : '—';
+    const endStr = state.finished_at ? new Date(state.finished_at).toLocaleTimeString() : '—';
+
+    document.body.className = 'h-screen bg-white text-gray-900 flex flex-col overflow-hidden';
+
+    const cols = 6;
+    let gridHtml = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
+    for (const r of result) {
+      const playerLines = r.players.map(p =>
+        `<div class="truncate"><b>#${p.rand_id}</b>. ${p.full_name}</div>`
+      ).join('');
+      gridHtml += `
+        <div class="border rounded px-1.5 py-1 bg-emerald-100 text-emerald-900">
+          <div class="text-[11px] font-bold truncate">${r.slot}. ${r.team_name}</div>
+          <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
+        </div>`;
+    }
+    gridHtml += '</div>';
+
+    document.body.innerHTML = `
+      <div class="flex items-center justify-between px-8 py-3">
+        <div>
+          <h1 class="text-3xl font-bold text-teal-800">Draw complete</h1>
+          <p class="text-sm text-gray-500">${NB_TEAMS * 4} players &mdash; ${startStr} to ${endStr}</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <div id="save-status" class="text-sm text-gray-400">Saving...</div>
+          <div class="text-sm text-gray-400 font-mono">SHA ${fp}</div>
+        </div>
+      </div>
+      <div class="flex-1 px-8 pb-4 overflow-y-auto" style="zoom: 1.8;">
+        ${gridHtml}
+      </div>`;
+  }
+
+  // ─── FINGERPRINT ──────────────────────────────────────
+
+  async function computeFingerprint(result) {
+    const canonical = result.map(r =>
+      `${r.slot}|${r.team_name}|${r.players.map(p => p.role).join(',')}`
+    ).join('\n');
+    const buf = new TextEncoder().encode(canonical);
+    const hash = await crypto.subtle.digest('SHA-256', buf);
+    return Array.from(new Uint8Array(hash))
+      .slice(0, 4)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+
+  // ─── CSV EXPORT ───────────────────────────────────────
+
+  function exportCSV() {
+    let csv = 'slot,team_name,player_name,role_display,rand_id\n';
+    for (let s = 1; s <= NB_TEAMS; s++) {
+      const team = teamForSlot(s);
+      const roles = rolesForSlot(s);
+      if (!team) continue;
+      team.players.forEach((p, idx) => {
+        if (roles[idx] !== undefined) {
+          csv += `${s},"${team.name}","${p.full_name}",${roles[idx] + 1},${randId(s, roles[idx])}\n`;
+        }
+      });
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'team_draw_result.csv';
+    a.click();
+  }
+
+  // ─── SAVE TO DJANGO ───────────────────────────────────
+
+  async function saveToDjango() {
+    const result = [];
+    for (let s = 1; s <= NB_TEAMS; s++) {
+      const team = teamForSlot(s);
+      const roles = rolesForSlot(s);
+      if (!team) continue;
+      team.players.forEach((p, idx) => {
+        if (roles[idx] !== undefined) {
+          result.push({
+            player_data_id: p.id,
+            rand_id: randId(s, roles[idx]),
+          });
+        }
+      });
+    }
+
+    try {
+      const resp = await fetch('admin_team_draw_save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify({ assignments: result }),
+      });
+      if (resp.ok) {
+        localStorage.removeItem('team_draw_state');
+        const banner = document.getElementById('save-status');
+        if (banner) {
+          banner.textContent = 'Saved to server';
+          banner.className = 'text-sm text-emerald-600 font-semibold mt-2';
+        }
+      } else {
+        const banner = document.getElementById('save-status');
+        if (banner) {
+          banner.textContent = 'Save failed: ' + await resp.text();
+          banner.className = 'text-sm text-red-600 font-semibold mt-2';
+        }
+      }
+    } catch (e) {
+      const banner = document.getElementById('save-status');
+      if (banner) {
+        banner.textContent = 'Network error: ' + e.message;
+        banner.className = 'text-sm text-red-600 font-semibold mt-2';
+      }
+    }
+  }
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+  }
+
+  // ─── KEYBOARD HANDLER ─────────────────────────────────
+
+  document.addEventListener('keydown', function(e) {
+    if (state.paused) {
+      if (e.key === 'Escape') togglePause();
+      return;
+    }
+
+    const mode = currentMode();
+
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault();
+      undoLast();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      togglePause();
+      return;
+    }
+
+    if (mode === 'ROLE_ENTRY') {
+      if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+      if (['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault();
+        enterRole(parseInt(e.key));
+      }
+      if ((e.key === 'Enter' || e.key === ' ') && slotIsComplete(currentSlot())) {
+        e.preventDefault();
+        showingVerification = false;
+        verifyingPlayerIdx = -1;
+        clearTimeout(verificationTimeout);
+        advanceToNextSlot();
+      }
+    }
+
+    if (mode === 'SLOT_COMPLETE') {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        advanceToNextSlot();
+      }
+    }
+  });
+
+  // ─── CLOCK ─────────────────────────────────────────────
+
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+
+    // Add date with format Jun 5 2026
+    const dateStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+
+    const el = document.getElementById('clock');
+    if (el) el.textContent = `${dateStr} — ${h}:${m}:${s}`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ─── SHOW SAVED RECAP ──────────────────────────────────
+
+  function showSavedRecap(savedDraw) {
+    const cols = 6;
+    let gridHtml = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
+    for (const r of savedDraw) {
+      const playerLines = r.players.map(p =>
+        `<div class="truncate"><b>#${p.rand_id}</b>. ${p.full_name}</div>`
+      ).join('');
+      gridHtml += `
+        <div class="border rounded px-1.5 py-1 bg-emerald-100 text-emerald-900">
+          <div class="text-[11px] font-bold truncate">${r.slot}. ${r.team_name}</div>
+          <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
+        </div>`;
+    }
+    gridHtml += '</div>';
+
+    document.body.className = 'h-screen bg-white text-gray-900 flex flex-col overflow-hidden';
+    document.body.innerHTML = `
+      <div class="flex items-center justify-between px-8 py-3">
+        <div>
+          <h1 class="text-3xl font-bold text-teal-800">Last saved draw</h1>
+          <p class="text-sm text-gray-500">${savedDraw.length * 4} players</p>
+        </div>
+        <div class="flex items-center gap-4">
+          <button onclick="sessionStorage.setItem('team_draw_skip_recap','1');location.reload()" class="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600">Start new draw</button>
+        </div>
+      </div>
+      <div class="flex-1 px-8 pb-4 overflow-y-auto" style="zoom: 1.8;">
+        ${gridHtml}
+      </div>`;
+  }
+
+  // ─── INIT ─────────────────────────────────────────────
+
+  const SAVED_DRAW = JSON.parse(document.getElementById('saved-draw-data').textContent);
+  const skipRecap = sessionStorage.getItem('team_draw_skip_recap');
+  if (SAVED_DRAW && SAVED_DRAW.length > 0 && !skipRecap) {
+    if (confirm('A draw has already been saved to the server. View the results?\n\nClick OK to see the recap, or Cancel to start a new draw.')) {
+      localStorage.removeItem('team_draw_state');
+      showSavedRecap(SAVED_DRAW);
+    } else {
+      localStorage.removeItem('team_draw_state');
+      sessionStorage.setItem('team_draw_skip_recap', '1');
+      render();
+    }
+  } else {
+    loadState();
+    render();
+  }
+  </script>
+
+</body>
+</html>

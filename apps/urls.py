@@ -18,6 +18,8 @@ urlpatterns = [
     # Admin actions
     path('admin_upload_from_template', views.admin_upload_from_template, name='admin_upload_from_template'),
     path('randomize', views.randomize, name='randomize'),
+    path('admin_team_draw', views.admin_team_draw, name='admin_team_draw'),
+    path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
     path('update_variables', views.update_variables, name='update_variables'),
     path('update_welcome', views.update_welcome, name='update_welcome'),
     path('welcome_options', views.welcome_options, name='welcome_options'),
