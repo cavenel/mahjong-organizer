@@ -294,6 +294,18 @@ def set_round_published(request):
         if qs.filter(minipoints=None).exists() or qs.filter(tablepoints=None).exists():
             return JsonResponse({'status': 'error', 'error': 'round is incomplete'}, status=400)
 
+        if round_nb > 1:
+            previous_published = set(
+                PublishedRound.objects.filter(tenant=tenant, round_nb__lt=round_nb)
+                    .values_list('round_nb', flat=True)
+            )
+            missing = [r for r in range(1, round_nb) if r not in previous_published]
+            if missing:
+                return JsonResponse({
+                    'status': 'error',
+                    'error': f'Cannot publish round {round_nb} — round(s) {", ".join(map(str, missing))} not published yet',
+                }, status=400)
+
         reveal = 0 if is_last_round else 100
         PublishedRound.objects.update_or_create(
             tenant=tenant, round_nb=round_nb,
@@ -306,4 +318,48 @@ def set_round_published(request):
     subdomain = tenant.subdomain if tenant else ''
     invalidate_leaderboard(subdomain)
     broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
+
+    from ..webhook import fire_webhook
+    from .scoring import scores_per_player_json
+    standings = scores_per_player_json(request, check_final=True)
+
+    uses_teams = any(s.get('team') for s in standings)
+    team_standings = []
+    if uses_teams:
+        by_team = {}
+        for s in standings:
+            t = s.get('team') or ''
+            if not t:
+                continue
+            slot = by_team.setdefault(t, {
+                'team': t,
+                'flag': '',
+                '_flags': set(),
+                'total': {'tp': 0.0, 'mp': 0},
+                'scores': [{'tp': None, 'mp': None} for _ in range(variables.nb_rounds)],
+            })
+            slot['_flags'].add(s.get('flag') or '')
+            slot['total']['tp'] += s['total'].get('tp') or 0
+            slot['total']['mp'] += s['total'].get('mp') or 0
+            for r_idx, sc in enumerate(s.get('scores', [])):
+                if r_idx < len(slot['scores']) and sc.get('tp') is not None:
+                    rslot = slot['scores'][r_idx]
+                    rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
+                    rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
+        sort_key = (lambda x: -x['total']['tp']) if variables.rules == 'MCR' else (lambda x: -x['total']['mp'])
+        team_standings = sorted(by_team.values(), key=sort_key)
+        for i, tr in enumerate(team_standings, 1):
+            tr['pos'] = i
+            flags = tr.pop('_flags')
+            tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
+
+    fire_webhook({
+        'event': 'round_published' if published else 'round_unpublished',
+        'round_nb': round_nb,
+        'rules': variables.rules,
+        'nb_rounds': variables.nb_rounds,
+        'standings': standings,
+        'team_standings': team_standings if uses_teams else None,
+    })
+
     return JsonResponse({'status': 'ok', 'published_rounds': _published_rounds(tenant)})

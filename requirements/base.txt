@@ -15,4 +15,5 @@ python-decouple
 opencv-python-headless
 Pillow
 numpy
+requests
 anthropic
