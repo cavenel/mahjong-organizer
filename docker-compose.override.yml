@@ -1,0 +1,8 @@
+# Dev-only overlay — loaded automatically by `docker compose up` (no -f flags).
+# Publishes gunicorn's port to the host for local access. The prod stack runs with
+# explicit `-f docker-compose.yml -f docker-compose.prod.yml`, which does NOT load
+# this file, so prod never publishes 8000 (nginx is the only front door there).
+services:
+  web:
+    ports:
+      - "8000:8000"
