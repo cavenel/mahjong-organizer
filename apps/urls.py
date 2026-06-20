@@ -49,6 +49,7 @@ urlpatterns = [
 
     # Scan
     path('scan', views.scan_page, name='scan'),
+    path('scan_<int:round_nb>_<int:table_nb>', views.scan_page, name='scan_prefill_page'),
     path('scan_positions', views.scan_positions, name='scan_positions'),
     path('scan_prefill', views.scan_prefill, name='scan_prefill'),
 

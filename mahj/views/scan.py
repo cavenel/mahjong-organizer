@@ -19,7 +19,6 @@ from .helpers import BASE_DIR, get_tenant, is_scorer
 # ---- Configure these ------------------------------------------------------
 TEMPLATE_PATH      = BASE_DIR / "static" / "template.jpg"
 BBOX_SCORES        = (135, 238, 384, 1500)    # (x1, y1, x2, y2) in template coords
-BBOX_HEADER        = (769, 43, 1190, 102)     # Round & Table area in template coords
 MAX_FEATURES       = 5000
 GOOD_MATCH_PERCENT = 0.15
 MIN_MATCHES        = 12
@@ -100,12 +99,12 @@ def _encode_crop(aligned, bbox):
 
 
 @user_passes_test(is_scorer)
-def scan_page(request):
-    import anthropic
-    import cv2
-
-    _ensure_initialized()
+def scan_page(request, round_nb=None, table_nb=None):
     if request.method == "POST":
+        import anthropic
+        import cv2
+
+        _ensure_initialized()
         file = request.FILES.get("image")
         if not file:
             return JsonResponse({"ok": False, "error": "No image uploaded"}, status=400)
@@ -122,17 +121,14 @@ def scan_page(request):
             )
 
         scores_b64 = _encode_crop(aligned, BBOX_SCORES)
-        header_b64 = _encode_crop(aligned, BBOX_HEADER)
 
-        # DEBUG: save crops and aligned image to inspect what Claude sees
+        # DEBUG: save crop and aligned image to inspect what Claude sees
         debug_dir = BASE_DIR / "captures" / "debug_crops"
         os.makedirs(debug_dir, exist_ok=True)
         cv2.imwrite(str(debug_dir / "aligned.jpg"), aligned)
         x1, y1, x2, y2 = BBOX_SCORES
         cv2.imwrite(str(debug_dir / "crop_scores.jpg"), aligned[y1:y2, x1:x2])
-        x1, y1, x2, y2 = BBOX_HEADER
-        cv2.imwrite(str(debug_dir / "crop_header.jpg"), aligned[y1:y2, x1:x2])
-        logger.info("Debug crops saved to %s", debug_dir)
+        logger.info("Debug crop saved to %s", debug_dir)
 
         api_key = os.environ.get('ANTHROPIC_API_KEY', '')
         if not api_key:
@@ -146,10 +142,8 @@ def scan_page(request):
                 messages=[{
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": "Image 1: the score columns (Value, Winner, Discarder for hands 1-16)."},
+                        {"type": "text", "text": "Image: the score columns (Value, Winner, Discarder for hands 1-16)."},
                         {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": scores_b64}},
-                        {"type": "text", "text": "Image 2: the header area with Round number and Table number."},
-                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": header_b64}},
                         {"type": "text", "text": OCR_PROMPT},
                     ],
                 }],
@@ -171,9 +165,9 @@ def scan_page(request):
             return JsonResponse({"ok": False, "error": str(e)}, status=502)
 
         logger.info("Claude parsed data: %s", data)
-        return JsonResponse({"ok": True, "data": data})
+        return JsonResponse({"ok": True, "scores": data.get("Scores", [])})
 
-    return render(request, "mahj/scan.html")
+    return render(request, "mahj/scan.html", {"round_nb": round_nb, "table_nb": table_nb})
 
 
 OCR_PROMPT = (
@@ -183,7 +177,6 @@ OCR_PROMPT = (
     'Discarder (integer 1-4, or null if the cell is empty, crossed out, '
     'or contains any non-digit symbol). '
     'If a hand was not played, set all three to null. '
-    'Image 1 has the score columns, Image 2 has the Round and Table numbers. '
     'For each hand, set Confidence to a float between 0.0 (unreadable, '
     'pure guess) and 1.0 (perfectly legible, fully certain).'
 )
@@ -191,8 +184,6 @@ OCR_PROMPT = (
 OCR_SCHEMA = {
     "type": "object",
     "properties": {
-        "Round": {"type": "integer"},
-        "Table": {"type": "integer"},
         "Scores": {
             "type": "array",
             "items": {
@@ -209,7 +200,7 @@ OCR_SCHEMA = {
             },
         },
     },
-    "required": ["Round", "Table", "Scores"],
+    "required": ["Scores"],
     "additionalProperties": False,
 }
 
@@ -294,6 +285,7 @@ def scan_prefill(request):
         value = entry.get('Value')
         winner = entry.get('Winner')
         discarder = entry.get('Discarder')
+        confidence = entry.get('Confidence')
         hand, _ = Hand.objects.get_or_create(
             tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
             defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
@@ -301,6 +293,7 @@ def scan_prefill(request):
         hand.pts = int(value) if value is not None else 0
         hand.win_by = int(winner) if winner is not None else 0
         hand.win_from = int(discarder) if discarder is not None else 0
+        hand.confidence = float(confidence) if confidence is not None else 1.0
         hand.save()
 
     validate = body.get('validate', True)

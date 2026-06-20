@@ -5,6 +5,7 @@ from django.db import transaction
 from django.db.models import F
 from django.http import HttpResponse, JsonResponse
 from django.template import loader
+from django.urls import reverse
 
 from ..models import Hand, Position, PublishedRound
 from ..signals import (
@@ -52,6 +53,19 @@ def _row_payload(tenant, round_nb, table_nb):
     }
 
 
+def _scan_qr_svg(request, round_nb, table_nb):
+    """Inline SVG QR linking to the pre-filled scan page. Empty string if the
+    pure-Python `segno` dependency isn't installed on this host."""
+    try:
+        import segno
+    except ImportError:
+        return ''
+    url = request.build_absolute_uri(
+        reverse('scan_prefill_page', args=[round_nb, table_nb])
+    )
+    return segno.make(url, error='m').svg_inline(scale=3, border=2)
+
+
 @user_passes_test(is_scorer)
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
@@ -67,15 +81,25 @@ def admin_scores_per_hand(request, round_nb, table_nb):
         h.save()
         all_hands[16] = h
 
-    hands_per_wind = []
-    for i, wind in enumerate(["East", "South", "West", "North"]):
-        hands_per_wind.append([wind, []])
-        for j in range(4):
-            h = all_hands[i * 4 + j]
-            if h is None:
-                h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i * 4 + j + 1, pts=0, win_by=0, win_from=0)
-                h.save()
-            hands_per_wind[-1][1].append(h)
+    hands = []
+    for i in range(16):
+        h = all_hands[i]
+        if h is None:
+            h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i + 1, pts=0, win_by=0, win_from=0)
+            h.save()
+        # Tint low-confidence (OCR-guessed) cells; manual edits reset confidence to 1.0.
+        conf_bg = ''
+        if h.confidence is not None and h.confidence < 1.0:
+            conf_bg = 'background:rgba(254,202,202,{:.2f});'.format(1.0 - h.confidence)
+        hands.append({
+            'hand_nb': h.hand_nb,
+            'pts': h.pts,
+            'win_by': h.win_by,
+            'win_from': h.win_from,
+            'id': h.id,
+            'version': h.version,
+            'conf_bg': conf_bg,
+        })
 
     scores = [None, None, None, None]
     for position_val in position_vals:
@@ -83,11 +107,12 @@ def admin_scores_per_hand(request, round_nb, table_nb):
 
     template = loader.get_template('mahj/admin_scores_per_hand.html')
     context = {
-        'hands_per_wind': hands_per_wind,
+        'hands': hands,
         'completed': all_hands[16],
         'scores': scores,
         'round_nb': round_nb,
         'table_nb': table_nb,
+        'qr_svg': _scan_qr_svg(request, round_nb, table_nb),
     }
     return HttpResponse(template.render(context, request))
 
@@ -141,6 +166,7 @@ def update_hand_points(request):
         tenant=tenant, id=hand_id, version=client_version,
     ).update(
         pts=pts, win_by=win_by, win_from=win_from,
+        confidence=1.0,
         version=F('version') + 1,
     )
 

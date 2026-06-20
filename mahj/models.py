@@ -86,6 +86,7 @@ class Hand(TenantAwareModel):
     win_by      = models.IntegerField(blank=True, default=None)
     win_from    = models.IntegerField(blank=True, default=None)
     version     = models.IntegerField(default=0)
+    confidence  = models.FloatField(default=1.0)
 
     class Meta:
         indexes = [

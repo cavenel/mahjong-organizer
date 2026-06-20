@@ -69,6 +69,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 4,
         "pk": 4,
@@ -98,6 +99,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 1,
         "pk": 1,
@@ -127,6 +129,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 2,
         "pk": 2,
@@ -156,6 +159,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 3,
         "pk": 3,
@@ -185,6 +189,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 20,
         "pk": 20,
@@ -214,6 +219,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 21,
         "pk": 21,
@@ -243,6 +249,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 18,
         "pk": 18,
@@ -272,6 +279,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 19,
         "pk": 19,
@@ -301,6 +309,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 36,
         "pk": 36,
@@ -330,6 +339,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 37,
         "pk": 37,
@@ -359,6 +369,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 38,
         "pk": 38,
@@ -388,6 +399,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 35,
         "pk": 35,
@@ -417,6 +429,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 52,
         "pk": 52,
@@ -446,6 +459,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 53,
         "pk": 53,
@@ -475,6 +489,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 54,
         "pk": 54,
@@ -504,6 +519,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 55,
         "pk": 55,
@@ -533,6 +549,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 71,
         "pk": 71,
@@ -562,6 +579,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 72,
         "pk": 72,
@@ -591,6 +609,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 69,
         "pk": 69,
@@ -620,6 +639,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 70,
         "pk": 70,
@@ -649,6 +669,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 87,
         "pk": 87,
@@ -678,6 +699,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 88,
         "pk": 88,
@@ -707,6 +729,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 89,
         "pk": 89,
@@ -736,6 +759,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 86,
         "pk": 86,
@@ -765,6 +789,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 103,
         "pk": 103,
@@ -794,6 +819,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 104,
         "pk": 104,
@@ -823,6 +849,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 105,
         "pk": 105,
@@ -852,6 +879,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 106,
         "pk": 106,
@@ -881,6 +909,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 123,
         "pk": 123,
@@ -910,6 +939,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 120,
         "pk": 120,
@@ -939,6 +969,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 121,
         "pk": 121,
@@ -968,6 +999,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 122,
         "pk": 122,
@@ -1001,6 +1033,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 4,
         "pk": 4,
@@ -1030,6 +1063,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 1,
         "pk": 1,
@@ -1059,6 +1093,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 2,
         "pk": 2,
@@ -1088,6 +1123,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 3,
         "pk": 3,
@@ -1117,6 +1153,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 20,
         "pk": 20,
@@ -1146,6 +1183,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 21,
         "pk": 21,
@@ -1175,6 +1213,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 18,
         "pk": 18,
@@ -1204,6 +1243,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 19,
         "pk": 19,
@@ -1233,6 +1273,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 36,
         "pk": 36,
@@ -1262,6 +1303,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 37,
         "pk": 37,
@@ -1291,6 +1333,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 38,
         "pk": 38,
@@ -1320,6 +1363,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 35,
         "pk": 35,
@@ -1349,6 +1393,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 52,
         "pk": 52,
@@ -1378,6 +1423,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 53,
         "pk": 53,
@@ -1407,6 +1453,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 54,
         "pk": 54,
@@ -1436,6 +1483,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 55,
         "pk": 55,
@@ -1465,6 +1513,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 71,
         "pk": 71,
@@ -1494,6 +1543,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 72,
         "pk": 72,
@@ -1523,6 +1573,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 69,
         "pk": 69,
@@ -1552,6 +1603,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 70,
         "pk": 70,
@@ -1581,6 +1633,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 87,
         "pk": 87,
@@ -1610,6 +1663,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 88,
         "pk": 88,
@@ -1639,6 +1693,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 89,
         "pk": 89,
@@ -1668,6 +1723,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 86,
         "pk": 86,
@@ -1697,6 +1753,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 103,
         "pk": 103,
@@ -1726,6 +1783,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 104,
         "pk": 104,
@@ -1755,6 +1813,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 105,
         "pk": 105,
@@ -1784,6 +1843,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 106,
         "pk": 106,
@@ -1813,6 +1873,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 4,
         "id": 123,
         "pk": 123,
@@ -1842,6 +1903,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 1,
         "id": 120,
         "pk": 120,
@@ -1871,6 +1933,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 2,
         "id": 121,
         "pk": 121,
@@ -1900,6 +1963,7 @@
       },
       "pos": {
         "__model__": "Hand",
+        "confidence": 1.0,
         "hand_nb": 3,
         "id": 122,
         "pk": 122,

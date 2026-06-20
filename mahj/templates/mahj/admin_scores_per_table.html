@@ -373,9 +373,16 @@
     if (!subdomain) return;
     var proto = (location.protocol === "https:") ? "wss" : "ws";
     var url = proto + "://" + location.host + "/ws/scorers/" + subdomain + "/";
-    var ws;
+    var ws, reconnectTimer = null, retries = 0;
+    function scheduleReconnect() {
+      if (reconnectTimer) return;                 // a reconnect is already pending
+      var delay = Math.min(30000, 1000 * Math.pow(2, retries++));  // capped backoff
+      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(); }, delay);
+    }
     function connect() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
       ws = new WebSocket(url);
+      ws.onopen = function() { retries = 0; };
       ws.onmessage = function(evt) {
         var msg;
         try { msg = JSON.parse(evt.data); } catch (e) { return; }
@@ -400,8 +407,15 @@
           }
         }
       };
-      ws.onclose = function() { setTimeout(connect, 2000); };
+      ws.onclose = function() { scheduleReconnect(); };
     }
+    // Reconnect immediately when the browser regains connectivity instead of
+    // waiting out the backoff timer.
+    window.addEventListener('online', function() {
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      retries = 0;
+      connect();
+    });
     connect();
 
     function applyRowSync(msg) {
