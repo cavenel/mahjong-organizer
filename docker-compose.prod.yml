@@ -18,6 +18,14 @@ services:
       - static_files:/static
       - ./captures:/app/mahj/captures
     ports: []    # nginx handles external traffic; web is not exposed directly
+    # Ready once gunicorn has bound the socket (after the static copy + migrations).
+    # The socket is the exact thing nginx proxies to; checking it avoids the
+    # ALLOWED_HOSTS (400) / SECURE_SSL_REDIRECT (301) traps an HTTP probe would hit.
+    healthcheck:
+      test: ["CMD-SHELL", "test -S /run/gunicorn/mahjong.sock"]
+      interval: 5s
+      retries: 10
+      start_period: 30s    # absorb migrations on a fresh DB
 
   nginx:
     image: nginx:alpine
@@ -33,7 +41,8 @@ services:
       - certbot_www:/var/www/certbot:ro
       - nginx_cache:/var/cache/nginx/desktop
     depends_on:
-      - web
+      web:
+        condition: service_healthy
 
   # Certbot — only runs on demand (profiles: certbot), never as a background daemon.
   #
