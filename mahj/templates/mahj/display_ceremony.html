@@ -8,6 +8,7 @@
   <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <script src="{% static 'js/display_socket.js' %}"></script>
   <style>
     @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
     .pop { animation: pop .55s cubic-bezier(.2,.8,.2,1) both; }
@@ -20,11 +21,10 @@
   <div id="ceremony-root" class="h-full flex flex-col"></div>
 
   <script>
-    // The screen reuses the same vanilla-JS websocket pattern as the other
-    // display screens (no Alpine on display screens). It renders the current
-    // slide, then patches it live on each `ceremony.update` — no full reload
-    // for reveals. Only the return-to-normal (phase 'idle') or an unrelated
-    // display event reloads, so index() re-renders the screen's normal view.
+    // The screen renders the current slide, then patches it live on each
+    // `ceremony.update` — no full reload for reveals. Only the return-to-normal
+    // (phase 'idle') or an unrelated display event reloads, so index()
+    // re-renders the screen's normal view.
     const BLANK_PNG = "{% static 'images/blank.png' %}";
     const LOGO_PNG  = "{% static 'images/mcr_logo.png' %}";
     const TITLE     = "{{ variables.title|default:variables.fullname|default:'Prize-giving'|escapejs }}";
@@ -117,26 +117,27 @@
 
     render(slide);
 
-    (function () {
-      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      function connect() {
-        const ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + SUBDOMAIN + '/');
-        ws.onmessage = function (evt) {
-          let msg;
-          try { msg = JSON.parse(evt.data); } catch (e) { location.reload(); return; }
-          if (msg && msg.event === 'ceremony') {
-            if (msg.phase === 'idle') { location.reload(); return; }  // back to normal screen
-            slide = msg;
-            render(slide);                                            // live reveal, no reload
-          } else {
-            location.reload();                                        // unrelated display change
-          }
-        };
-        ws.onclose = function () { setTimeout(connect, 3000); };
-        ws.onerror = function () { ws.close(); };
-      }
-      connect();
-    })();
+    // Drive the screen through the shared display client so it gets the
+    // heartbeat (detects half-open sockets) and reload-on-reconnect for free.
+    // A reconnect reloads, and index() re-renders the correct ceremony/idle
+    // state server-side — so even if we miss the final `phase: idle` publish
+    // while the socket is down, the reload resyncs us back to the normal screen
+    // instead of freezing on a stale slide.
+    connectDisplaySocket({
+      subdomain: SUBDOMAIN,
+      onUpdate: function (msg) {
+        if (msg && msg.event === 'ceremony') {
+          if (msg.phase === 'idle') { location.reload(); return; }  // back to normal screen
+          slide = msg;
+          render(slide);                                            // live reveal, no reload
+        } else {
+          location.reload();                                        // unrelated display change
+        }
+      },
+      // A reconnect means we may have missed a reveal or the final publish
+      // while down — reload so the server re-renders the current state.
+      onReconnect: function () { location.reload(); },
+    });
   </script>
 </body>
 </html>

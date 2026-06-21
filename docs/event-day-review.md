@@ -125,7 +125,19 @@ Fix options:
 
 ---
 
-## 🟠 E5 — The ceremony screen can get stuck on a stale slide at the worst moment
+## 🟠 E5 — The ceremony screen can get stuck on a stale slide at the worst moment — ✅ FIXED
+
+**Resolution:** `display_ceremony.html` now drives its socket through the shared
+`connectDisplaySocket` (the same hardened client as the other display screens),
+so it inherits the ping/pong heartbeat (detects half-open sockets) and
+reload-on-reconnect. `onUpdate` keeps the live-reveal behaviour (patch in place
+on `ceremony.update`, reload on `phase: idle` or an unrelated display event); the
+explicit `onReconnect` reloads. Because `index()` re-renders the correct
+ceremony/idle state server-side, a reconnect after a blip resyncs the screen to
+the current phase — so missing the final `action=publish` while the socket was
+down can no longer freeze the screen on a stale slide.
+
+Original finding below for the record.
 
 `display_ceremony.html` uses its **own** WebSocket client (not the hardened
 `display_socket.js`). It has no ping/pong heartbeat, and crucially it does **not reload on
@@ -154,7 +166,19 @@ Fix: set `max_requests = 0` (disable) for the ASGI deployment, or raise it to a 
 so screens aren't churned. If memory creep is a real concern, run a separate dedicated
 worker pool for `/ws/` vs HTTP.
 
-## 🟠 E7 — Per-player / per-team modals are uncached and heavy, and hundreds will open them
+## 🟠 E7 — Per-player / per-team modals are uncached and heavy, and hundreds will open them — ✅ FIXED
+
+**Resolution:** `details_player` and `details_team` now cache their rendered HTML
+for 30s, keyed by `(subdomain, id, is_admin, leaderboard_gen)`. `leaderboard_gen`
+is a monotonic counter in `signals.py` that `_invalidate_leaderboard` bumps on
+every real leaderboard write (score edit, publish/unpublish, variable change), so
+a write orphans the old key and the next open re-renders — no per-id enumeration
+needed, and stale data lives at most the 30s TTL. `is_admin` is in the key (it
+drives `force_all`), and the modals carry no CSRF/per-user content, so the cached
+HTML is safe to share. `details_team`'s free-form name is md5-hashed into the key
+to satisfy cache-key validation. Covered by `test_event_robustness.py`.
+
+Original finding below for the record.
 
 `details_player` and `details_team` (`public_modals.py`) are the "see my scores/stats"
 endpoints players will hammer. `scores_per_player_json` inside them is cached, but
@@ -166,7 +190,15 @@ Fix: wrap these in a short per-key cache (e.g. `cache.get_or_set` keyed by
 `(subdomain, id, last_published_round)` with a 20–60s TTL, busted by `invalidate_leaderboard`).
 Verify with a quick concurrent load test (see runbook below).
 
-## 🟠 E8 — Display standings 500 if there are fewer than 12 players
+## 🟠 E8 — Display standings 500 if there are fewer than 12 players — ✅ FIXED
+
+**Resolution:** `display.py:147` now guards the index
+(`if page_nb and len(scores_json) > 11 and scores_json[11]["visible"]:`), so a
+small player count no longer raises `IndexError`. The other `scores_json[0]`
+accesses were already wrapped in `try/except (IndexError, KeyError)`. Covered by
+`test_event_robustness.py`.
+
+Original finding below for the record.
 
 `display.py:147` does `scores_json[11]["visible"]` and several places index `scores_json[0]`.
 With < 12 players this is an `IndexError` → 500 on a projector screen. Not a risk at the

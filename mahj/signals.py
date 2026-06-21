@@ -17,7 +17,28 @@ from .models import Tenant, Variable
 logger = logging.getLogger(__name__)
 
 
+def leaderboard_gen(subdomain):
+    """Monotonic counter, bumped on every leaderboard invalidation.
+
+    Used as a cache-key component for per-id modal caches (details_player /
+    details_team) so they bust on any real write without having to enumerate
+    every player/team id — the old key is simply orphaned and expires via TTL.
+    """
+    return cache.get(f'leaderboard_gen:{subdomain}') or 0
+
+
+def _bump_leaderboard_gen(subdomain):
+    key = f'leaderboard_gen:{subdomain}'
+    try:
+        cache.incr(key)
+    except ValueError:
+        # Key absent (first write, or evicted). Seed it with no expiry so the
+        # counter survives as long as Redis does.
+        cache.set(key, 1, None)
+
+
 def _invalidate_leaderboard(subdomain):
+    _bump_leaderboard_gen(subdomain)
     for cf in (True, False):
         for fa in (True, False):
             cache.delete(f'leaderboard:{subdomain}:{cf}:{fa}')

@@ -1,18 +1,35 @@
 """Iframe-modal endpoints opened from the public desktop page."""
+import hashlib
+
+from django.core.cache import cache
 from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Hand, Player, Position
 from .helpers import get_tenant, get_variables
 from ..scoring import player_extra_stats, team_extra_stats
+from ..signals import leaderboard_gen
 from .scoring import player_rounds_json, scores_per_player_json
+
+
+# These modals run uncached, heavy per-open queries (especially details_team,
+# which rebuilds the full team rank history per round) and hundreds of players
+# hammer them during the event. Cache the rendered HTML briefly, keyed by the
+# leaderboard generation so a real write (score edit / publish) busts it.
+MODAL_CACHE_TTL = 30
 
 
 def details_player(request, id):
     tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    is_admin = request.user.is_staff
+    cache_key = f'modal_player:{subdomain}:{id}:{is_admin}:{leaderboard_gen(subdomain)}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return HttpResponse(cached)
+
     variables = get_variables(request)
     player = Player.objects.get(tenant=tenant, id=id)
-    is_admin = request.user.is_staff
     scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
     rounds = player_rounds_json(request, id)
@@ -28,18 +45,29 @@ def details_player(request, id):
         'variables': variables,
         'extra_stats': extra_stats,
     }
-    return HttpResponse(template.render(context, request))
+    html = template.render(context, request)
+    cache.set(cache_key, html, MODAL_CACHE_TTL)
+    return HttpResponse(html)
 
 
 def details_team(request, team_name):
     tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    is_admin = request.user.is_staff
+    # Hash team_name into the key: it's free-form (spaces/unicode) and Django's
+    # cache key validation rejects those.
+    team_hash = hashlib.md5(team_name.encode('utf-8')).hexdigest()
+    cache_key = f'modal_team:{subdomain}:{team_hash}:{is_admin}:{leaderboard_gen(subdomain)}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return HttpResponse(cached)
+
     variables = get_variables(request)
     extra_stats = team_extra_stats(tenant, team_name, variables)
     if extra_stats is None:
         from django.http import Http404
         raise Http404
 
-    is_admin = request.user.is_staff
     leaderboard = scores_per_player_json(request, check_final=True, force_all=is_admin)
     member_ids = {p['id'] for p in extra_stats['players']}
     members = sorted(
@@ -94,7 +122,9 @@ def details_team(request, team_name):
         'team_history_pos': team_history_pos,
         'variables': variables,
     }
-    return HttpResponse(template.render(context, request))
+    html = template.render(context, request)
+    cache.set(cache_key, html, MODAL_CACHE_TTL)
+    return HttpResponse(html)
 
 
 def detailed_scores(request, round_nb, table_nb):

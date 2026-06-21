@@ -144,7 +144,7 @@ def scores_per_player(request, ext, page_nb=None):
     except (IndexError, KeyError):
         nb_rounds = 0
     nb_pages = math.ceil(len(scores_json) / variables.score_lines)
-    if page_nb and scores_json[11]["visible"]:
+    if page_nb and len(scores_json) > 11 and scores_json[11]["visible"]:
         min_line = (page_nb - 1) * variables.score_lines
         max_line = page_nb * variables.score_lines
         scores_json = scores_json[min_line:max_line]
