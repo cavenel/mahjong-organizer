@@ -696,6 +696,9 @@
           connectDisplaySocket({
             subdomain: '{{ tenant.subdomain }}',
             path: '/ws/leaderboard/',
+            // Spectator phone page: it shows its own wsConnected indicator and is
+            // refreshable, so suppress the full-width projector banner.
+            statusBanner: false,
             onConnect: () => { this.wsConnected = true; },
             onDisconnect: () => { this.wsConnected = false; },
             // A reconnect means we may have missed a publish while down — flag

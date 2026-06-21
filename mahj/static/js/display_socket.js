@@ -61,6 +61,74 @@ function connectDisplaySocket(opts) {
   var pingTimer = null;
   var pongTimer = null;
 
+  // --- disconnect banner ---------------------------------------------------
+  // A visible, persistent overlay so an unattended projector never sits silently
+  // stale: if the socket stays down past a short grace window we show a
+  // high-contrast bar. It's attached to <html> (not <body>) because the projector
+  // templates zoom <body>, which would otherwise shrink/scale the bar. The ping/
+  // pong watchdog turns a dead-but-OPEN socket into an onclose, so this one banner
+  // also covers the silently-half-open case. Callers that own their own status UI
+  // (the public desktop page) opt out with statusBanner:false.
+  var BANNER_GRACE_MS = 4000;
+  var bannerEnabled = opts.statusBanner !== false;
+  var bannerEl = null;
+  var bannerVisible = false;
+  var bannerGraceTimer = null;
+  var bannerSecTimer = null;
+
+  function ensureBanner() {
+    if (bannerEl || !bannerEnabled) return bannerEl;
+    if (!document.getElementById('ds-banner-style')) {
+      var st = document.createElement('style');
+      st.id = 'ds-banner-style';
+      st.textContent = '@keyframes dsBannerPulse{0%,100%{opacity:1}50%{opacity:.55}}';
+      (document.head || document.documentElement).appendChild(st);
+    }
+    bannerEl = document.createElement('div');
+    bannerEl.id = 'ds-banner';
+    bannerEl.style.cssText = [
+      'position:fixed', 'top:0', 'left:0', 'right:0', 'z-index:2147483647',
+      'background:#dc2626', 'color:#fff', 'font:bold 28px/1.4 sans-serif',
+      'text-align:center', 'padding:14px 8px', 'letter-spacing:.5px',
+      'box-shadow:0 2px 12px rgba(0,0,0,.5)',
+      'animation:dsBannerPulse 1.5s ease-in-out infinite', 'pointer-events:none',
+      'display:none'
+    ].join(';');
+    (document.documentElement || document.body).appendChild(bannerEl);
+    return bannerEl;
+  }
+
+  function displayBanner() {
+    var el = ensureBanner();
+    if (!el) return;
+    var downSince = Date.now();
+    function paint() {
+      var secs = Math.round((Date.now() - downSince) / 1000);
+      el.textContent = '⚠ DISPLAY DISCONNECTED — reconnecting… (' + secs + 's)';
+    }
+    paint();
+    el.style.display = 'block';
+    bannerVisible = true;
+    if (bannerSecTimer) clearInterval(bannerSecTimer);
+    bannerSecTimer = setInterval(paint, 1000);
+    log('disconnect banner shown');
+  }
+
+  function hideBanner() {
+    if (bannerGraceTimer) { clearTimeout(bannerGraceTimer); bannerGraceTimer = null; }
+    if (bannerSecTimer) { clearInterval(bannerSecTimer); bannerSecTimer = null; }
+    if (bannerEl) bannerEl.style.display = 'none';
+    bannerVisible = false;
+  }
+
+  function armBanner() {
+    if (!bannerEnabled || bannerVisible || bannerGraceTimer) return;
+    bannerGraceTimer = setTimeout(function() {
+      bannerGraceTimer = null;
+      displayBanner();
+    }, BANNER_GRACE_MS);
+  }
+
   function clearTimers() {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
     if (pongTimer) { clearTimeout(pongTimer); pongTimer = null; }
@@ -97,6 +165,7 @@ function connectDisplaySocket(opts) {
       retryDelay = 1000;
       log('open' + (reconnected ? ' (RECONNECT → would reload)' : ' (first connect)'));
       startHeartbeat();
+      hideBanner();
       if (opts.onConnect) opts.onConnect();
       if (reconnected && !HOLD) {
         (opts.onReconnect || function() { location.reload(); })();
@@ -118,6 +187,8 @@ function connectDisplaySocket(opts) {
     ws.onclose = function(e) {
       log('close (code=' + (e && e.code) + ' wasClean=' + (e && e.wasClean) + ')');
       clearTimers();
+      // Show the stale-screen banner if we don't recover within the grace window.
+      armBanner();
       if (opts.onDisconnect) opts.onDisconnect();
       // Jittered, capped exponential backoff so a fleet of screens doesn't
       // reconnect (and reload) in lockstep after a restart.
