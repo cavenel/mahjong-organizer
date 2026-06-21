@@ -7,8 +7,8 @@ class Tenant(models.Model):
     @classmethod
     def get_default_pk(cls):
         tenant, created = cls.objects.get_or_create(
-            title='default subdomain', 
-            defaults=dict(description='Empty subdomain'),
+            subdomain='default',
+            defaults=dict(name='Empty subdomain'),
         )
         return tenant.pk
     
@@ -99,7 +99,7 @@ class Hand(TenantAwareModel):
             position_vals = Position.objects.using(self._state.db).filter(tenant=self.tenant, round_nb=self.round_nb, table_nb=self.table_nb, position=self.win_by)
             pos = position_vals[0]
             return pos.player
-        except:
+        except Exception:
             return None
         
 
@@ -108,7 +108,7 @@ class Hand(TenantAwareModel):
             position_vals = Position.objects.using(self._state.db).filter(tenant=self.tenant, round_nb=self.round_nb, table_nb=self.table_nb, position=self.win_from)
             pos = position_vals[0]
             return pos.player
-        except:
+        except Exception:
             return None
 
     def __str__(self):
