@@ -171,7 +171,7 @@ OCR_SCHEMA = {
                 "properties": {
                     "Hand": {"type": "integer"},
                     "Value": {"type": ["integer", "null"]},
-                    "Winner": {"type": ["integer"]},
+                    "Winner": {"type": ["integer", "null"]},
                     "Discarder": {"type": ["integer", "null"]},
                     "Confidence": {"type": "number"},
                 },
