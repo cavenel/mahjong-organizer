@@ -21,6 +21,13 @@ class TenantConsumer(AsyncJsonWebsocketConsumer):
         await self.channel_layer.group_discard(self.leaderboard_group, self.channel_name)
         await self.channel_layer.group_discard(self.display_group, self.channel_name)
 
+    async def receive_json(self, content, **kwargs):
+        # Clients send {"type":"ping"} as a keepalive/half-open probe; answer so
+        # their pong watchdog can tell a live socket from a dead one. Anything
+        # else is ignored (the base class would otherwise raise on receipt).
+        if content.get('type') == 'ping':
+            await self.send_json({'event': 'pong'})
+
     # --- handlers (type field dot → underscore) ---
 
     async def leaderboard_update(self, event):

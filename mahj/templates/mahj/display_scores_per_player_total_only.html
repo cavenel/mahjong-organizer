@@ -106,18 +106,12 @@
     <span style="font-size:20px;line-height:16px;">Tournament app: https://{{ variables.tenant }}.mahj.ovh</span>
   </div>
 
+  <script src="{% static 'js/display_socket.js' %}"></script>
   <script>
-    (function() {
-      var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      var subdomain = '{{ subdomain }}';
-      function connect() {
-        var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
-        ws.onmessage = function() { location.reload(); };
-        ws.onclose = function() { setTimeout(connect, 3000); };
-        ws.onerror = function() { ws.close(); };
-      }
-      connect();
-    })();
+    connectDisplaySocket({
+      subdomain: '{{ subdomain }}',
+      onUpdate: function() { location.reload(); },
+    });
   </script>
 </body>
 </html>

@@ -284,6 +284,7 @@ body, html {
             <span style="font-size:20px;line-height:16px;">Tournament app: https://{{ variables.tenant }}.mahj.ovh</span>
         </div>
     {% endif %}
+<script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 
 var getUrlParameter = function getUrlParameter() {
@@ -303,16 +304,9 @@ var getUrlParameter = function getUrlParameter() {
 };
 
 console.log({{final}}, {{scores_json_groups|length}}, {{rounds|length}}, {{variables.nb_rounds}});
-(function() {
-    var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    var subdomain = '{{ subdomain }}';
-    function connect() {
-        var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
-        ws.onmessage = function() { location.reload(); };
-        ws.onclose = function() { setTimeout(connect, 3000); };
-        ws.onerror = function() { ws.close(); };
-    }
-    connect();
-})();
+connectDisplaySocket({
+    subdomain: '{{ subdomain }}',
+    onUpdate: function() { location.reload(); },
+});
 </script>
 </body>

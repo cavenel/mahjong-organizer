@@ -97,6 +97,7 @@ body {
     <div id='countdown'></div>
 </div>
 
+<script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 
 var time_start = {{ counter }};
@@ -222,32 +223,30 @@ var getUrlParameter = function getUrlParameter() {
     return window.location.href.substring(window.location.href.lastIndexOf('/') + 1)
 };
 
-(function() {
-    var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    var subdomain = '{{ subdomain }}';
-    function connect() {
-        var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
-        ws.onmessage = function(e) {
-            var msg = JSON.parse(e.data);
-            if (msg.event === 'counter_update') {
-                apply_counter_state(msg.counter);
-            } else if (msg.event === 'screen_update') {
-                location.reload();
-            } else {
-                // leaderboard_update / variables_update: only reload if the
-                // round timer isn't currently running (avoids flicker mid-round).
-                var total_time = {{ variables.total_time }};
-                var running = time_start > 0 && (new Date().getTime() - time_start) < total_time * 1000;
-                // also check countdown value, in case the timer is in the 4-second countdown phase before starting.
-                var countdown_running = countdown_value > 0;
-                if (!running && !countdown_running) location.reload();
-            }
-        };
-        ws.onclose = function() { setTimeout(connect, 3000); };
-        ws.onerror = function() { ws.close(); };
-    }
-    connect();
-})();
+// Reload only if the round timer isn't currently running (avoids flicker
+// mid-round). The local timer vars survive a socket blip, so this guard is
+// valid both for live leaderboard/variable updates and on reconnect.
+function reloadUnlessRunning() {
+    var total_time = {{ variables.total_time }};
+    var running = time_start > 0 && (new Date().getTime() - time_start) < total_time * 1000;
+    // also check countdown value, in case the timer is in the 4-second countdown phase before starting.
+    var countdown_running = countdown_value > 0;
+    if (!running && !countdown_running) location.reload();
+}
+connectDisplaySocket({
+    subdomain: '{{ subdomain }}',
+    onUpdate: function(msg) {
+        if (msg.event === 'counter_update') {
+            apply_counter_state(msg.counter);
+        } else if (msg.event === 'screen_update') {
+            location.reload();
+        } else {
+            reloadUnlessRunning();
+        }
+    },
+    // A reconnect means we may have missed an event while down — resync.
+    onReconnect: reloadUnlessRunning,
+});
 
 const tryToPlay = setInterval(() => {
     const audio = new Audio('{% static "sounds/gong.mp3" %}');

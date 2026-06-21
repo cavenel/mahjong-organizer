@@ -8,6 +8,7 @@
   <title>{{ variables.title }}</title>
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <script src="{% static 'js/display_socket.js' %}"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
@@ -563,8 +564,6 @@
         modalTitle: '',
         modalFlag: '',
         modalStack: [],
-        _ws: null,
-        _wsDelay: 1000,
 
         init() {
           this.$watch('teamView', v => localStorage.setItem('teamView', v ? '1' : '0'));
@@ -694,20 +693,18 @@
         },
 
         connectWS() {
-          const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-          const subdomain = '{{ tenant.subdomain }}';
-          this._ws = new WebSocket(`${proto}://${location.host}/ws/leaderboard/${subdomain}/`);
-          this._ws.onopen = () => { this.wsConnected = true; this._wsDelay = 1000; };
-          this._ws.onmessage = (e) => {
-            const msg = JSON.parse(e.data);
-            if (msg.event === 'leaderboard_update') this.updateAvailable = true;
-          };
-          this._ws.onclose = () => {
-            this.wsConnected = false;
-            setTimeout(() => this.connectWS(), this._wsDelay);
-            this._wsDelay = Math.min(this._wsDelay * 2, 30000);
-          };
-          this._ws.onerror = () => this._ws.close();
+          connectDisplaySocket({
+            subdomain: '{{ tenant.subdomain }}',
+            path: '/ws/leaderboard/',
+            onConnect: () => { this.wsConnected = true; },
+            onDisconnect: () => { this.wsConnected = false; },
+            // A reconnect means we may have missed a publish while down — flag
+            // the refresh prompt so the standings can be re-fetched.
+            onReconnect: () => { this.updateAvailable = true; },
+            onUpdate: (msg) => {
+              if (msg.event === 'leaderboard_update') this.updateAvailable = true;
+            },
+          });
         },
       };
     }
