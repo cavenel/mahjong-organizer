@@ -37,6 +37,24 @@ def test_ping_gets_pong():
     asyncio.run(body())
 
 
+def test_broadcast_swallows_send_failure(monkeypatch):
+    """A messaging failure (e.g. a transient Redis blip) must not propagate.
+    Broadcasts run after the DB write in score-entry/publish paths, so a raise
+    here would turn an already-committed save into a 500 for the scorer."""
+    from mahj import signals
+
+    class BoomLayer:
+        async def group_send(self, *args, **kwargs):
+            raise RuntimeError("redis down")
+
+    monkeypatch.setattr('channels.layers.get_channel_layer', lambda: BoomLayer())
+
+    # None of these should raise.
+    signals.broadcast_scorer_row('devsub', {'round_nb': 1, 'table_nb': 1, 'positions': []})
+    signals.broadcast_display('devsub', 'screen.update', {'event': 'screen_update'})
+    signals.invalidate_leaderboard('devsub')
+
+
 def test_publish_and_screen_broadcasts_reach_display_client():
     async def body():
         layer = get_channel_layer()

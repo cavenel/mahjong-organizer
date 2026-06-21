@@ -81,7 +81,15 @@ Fix (in order of payoff):
 5. Gate the unconditional debug-image writes + DEBUG logging of raw OCR text behind
    `settings.DEBUG` (review.md I1) — they write to disk and log player data on every scan.
 
-## 🔴 E3 — A Redis blip can turn a *successful* score save into a 500 to the scorer
+## 🔴 E3 — A Redis blip can turn a *successful* score save into a 500 to the scorer — ✅ FIXED
+
+**Resolution:** `signals._broadcast` now wraps the `group_send` in try/except —
+a send failure is logged at WARNING and swallowed instead of propagating. Since
+broadcasts run after the committed DB write, a messaging hiccup can no longer
+fail the write; worst case a live page misses one update and resyncs on its next
+reconnect/refresh. Covered by `test_broadcast_swallows_send_failure`.
+
+Original finding below for the record.
 
 Every score-entry path (`update_hand_points`, `update_positions_bulk`,
 `create_hand_points`, `validate_score_sheet`, scan write, publish) does its DB write and

@@ -5,12 +5,16 @@ Broadcast groups:
   display_{subdomain}     — Variable saves, screen switches, counter writes.
   scorers_{subdomain}     — fine-grained row sync between scorer pages (no cache bust).
 """
+import logging
+
 from asgiref.sync import async_to_sync
 from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
 from .models import Tenant, Variable
+
+logger = logging.getLogger(__name__)
 
 
 def _invalidate_leaderboard(subdomain):
@@ -30,15 +34,25 @@ def _invalidate_leaderboard(subdomain):
 
 
 def _broadcast(group, event_type, data):
-    """Send a Channels group_send; silently no-ops if the layer isn't configured."""
+    """Send a Channels group_send; best-effort.
+
+    No-ops if the layer isn't configured, and swallows any send failure (e.g. a
+    transient Redis blip): broadcasts run *after* the DB write in score-entry and
+    publish paths, so a messaging error must never turn an already-committed write
+    into a 500 for the scorer. Worst case a live page misses one update and resyncs
+    on its next reconnect/refresh.
+    """
     from channels.layers import get_channel_layer
     channel_layer = get_channel_layer()
     if channel_layer is None:
         return
-    async_to_sync(channel_layer.group_send)(
-        group,
-        {'type': event_type, 'data': data},
-    )
+    try:
+        async_to_sync(channel_layer.group_send)(
+            group,
+            {'type': event_type, 'data': data},
+        )
+    except Exception:
+        logger.warning("Channels broadcast to %s failed", group, exc_info=True)
 
 
 def broadcast_display(subdomain, event_type, data):
