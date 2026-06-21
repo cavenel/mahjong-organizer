@@ -48,8 +48,10 @@ CACHES = {
     }
 }
 
-SESSION_ENGINE = 'django.contrib.sessions.backends.cache'
-SESSION_CACHE_ALIAS = 'default'
+# Sessions live in the database, not the Redis cache: only staff (<=20) ever
+# authenticate, so the per-request indexed lookup is negligible, and keeping auth
+# off Redis means a Redis restart/flush/eviction can't log everyone out mid-event.
+SESSION_ENGINE = 'django.contrib.sessions.backends.db'
 
 ROOT_URLCONF = 'apps.urls'
 

@@ -3,8 +3,9 @@ class AuthCookieMiddleware:
 
     nginx reads this cookie to decide whether to bypass its `/` microcache:
     anonymous viewers (no cookie) get cached responses; logged-in staff/scorers
-    always see live data. Reading session is cheap (Redis-backed); we never
-    touch request.user here.
+    always see live data. Reading the session is cheap — anonymous requests have
+    no session cookie so the (DB) session store is never queried, and only the
+    <=20 staff sessions incur an indexed lookup; we never touch request.user here.
     """
 
     COOKIE = 'auth'

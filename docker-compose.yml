@@ -17,6 +17,11 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    # Everything in Redis is now disposable (regenerable cache + transient channel
+    # layer; sessions live in Postgres), so cap memory and evict LRU under pressure
+    # instead of the default `noeviction`, which fails writes when full. Default RDB
+    # snapshots stay on, giving a warm cache after a graceful restart.
+    command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis_data:/data
     healthcheck:
