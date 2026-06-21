@@ -183,6 +183,9 @@ def admin_upload_from_template(request):
 
             Hand.objects.filter(tenant=tenant).delete()
             Position.objects.filter(tenant=tenant).delete()
+            # The new schedule starts with empty scores, so any rounds that were
+            # published for the previous tournament are now stale — unpublish them all.
+            PublishedRound.objects.filter(tenant=tenant).delete()
             nb_players = len(players_)
             nb_tables = nb_players // 4
             players_by_rand = {p.rand_id: p for p in players_}
@@ -211,11 +214,13 @@ def admin_upload_from_template(request):
             wb.close()
             from ..signals import invalidate_leaderboard
             invalidate_leaderboard(tenant.subdomain)
+            broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
         except Exception:
             Player.objects.filter(tenant=tenant).delete()
             Player_data.objects.filter(tenant=tenant).delete()
             Hand.objects.filter(tenant=tenant).delete()
             Position.objects.filter(tenant=tenant).delete()
+            PublishedRound.objects.filter(tenant=tenant).delete()
             Schedule.objects.filter(tenant=tenant).delete()
             variables = get_variables(request)
             variables.nb_rounds = 0
@@ -653,6 +658,9 @@ def options(request, error=None):
             "subdomain": tenant.subdomain if tenant else '',
             "validated_keys": validated_keys,
             "filled_keys": filled_keys,
+            # Only staff may publish/unpublish — the endpoint is staff-only, so
+            # keep the toggle disabled for scorer accounts to avoid a dead control.
+            "can_publish": request.user.is_staff,
         }
         page_content = template2.render(context, request)
     elif page == "ceremony":

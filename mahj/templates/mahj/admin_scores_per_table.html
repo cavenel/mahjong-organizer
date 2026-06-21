@@ -62,6 +62,10 @@
   .score-inputs input:focus { background: #f0f6ff; }
   .score-inputs input.mp-input { flex: 2; width: 60px; border-right: 1px solid var(--border-light); font-size: 18px; }
   .score-inputs input.tp-input { flex: 1; width: 36px; background: var(--bg-header); color: var(--text-sub); }
+  /* Published rounds are locked — scores can only change after unpublishing. */
+  .score-inputs.locked { background: var(--bg-header); }
+  .score-inputs.locked input { background: var(--bg-header); color: var(--text-sub); cursor: not-allowed; }
+  .score-inputs.locked input:focus { background: var(--bg-header); }
 
   .col-sum { width: 40px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; padding: 6px 8px !important; vertical-align: bottom !important; }
   .col-sum.sum-ok  { color: var(--green); font-weight: 600; font-size: 14px; }
@@ -110,8 +114,12 @@
                  disabled>
           <span class="publish-label font-medium">Publish round {{ forloop.counter }}</span>
         </label>
+        {% if not can_publish %}
+        <span class="text-xs italic text-gray-400">— staff only</span>
+        {% endif %}
+        <span class="lock-hint text-xs italic text-gray-400 {% if forloop.counter not in published_rounds %}hidden{% endif %}">— unpublish to edit scores</span>
         {% if forloop.counter == last_round %}
-          <span class="text-xs text-gray-400">(last round: publishing starts the podium reveal at level 0 — use +/– on the display admin page to reveal positions)</span>
+          <span class="text-xs text-gray-400">(last round: publishing keeps the final standings hidden — run the reveal from the Prize-giving console on the <a href="admin?page=ceremony" class="underline hover:text-amber-700">Ceremony admin page</a>)</span>
         {% endif %}
         <span class="ml-auto text-xs publish-status {% if forloop.counter in published_rounds %}published font-semibold text-emerald-600{% endif %}">
           {% if forloop.counter in published_rounds %}Published{% else %}Not published{% endif %}
@@ -260,6 +268,8 @@
   var timers = {};
   var recentlyEdited = {};
   var publishedRounds = new Set({{ published_rounds }});
+  // Publishing/unpublishing is staff-only (the backend rejects scorer accounts).
+  var canPublish = {{ can_publish|yesno:"true,false" }};
 
   function flushPending() {
     for (var rid in timers) {
@@ -300,12 +310,17 @@
     var toggle = pane.find(".publish-toggle");
     var isPub = publishedRounds.has(roundNb);
     toggle.prop("checked", isPub);
-    toggle.prop("disabled", !complete && !isPub);
+    toggle.prop("disabled", !canPublish || (!complete && !isPub));
     var status = pane.find(".publish-status");
     status.toggleClass("published", isPub);
     if (isPub) status.addClass("font-semibold text-emerald-600");
     else       status.removeClass("font-semibold text-emerald-600");
     status.text(isPub ? "Published" : "Not published");
+    // Lock score inputs while the round is published — editing requires
+    // unpublishing first (the backend rejects edits to a published round).
+    pane.find("input[name='minipoints']").prop("readonly", isPub);
+    pane.find(".score-inputs").toggleClass("locked", isPub);
+    pane.find(".lock-hint").toggleClass("hidden", !isPub);
   }
 
   function refreshAllPublishToggles() {
@@ -443,6 +458,7 @@
     $(".table_row").each(function() {
       var row = $(this);
       if (!row.closest(".tab-pane").hasClass("active")) return;
+      if (publishedRounds.has(parseInt(row.attr("data-round-nb")))) return;
       var inp = row.find("input[name='minipoints']"), sum = 0;
       for (var i = 0; i < 3; i++) { var v = Math.floor(Math.random()*200)-100; inp[i].value = v; sum += v; }
       inp[3].value = -sum;
@@ -480,6 +496,7 @@
     $(".table_row").each(function() {
       var row = $(this);
       if (!row.closest(".tab-pane").hasClass("active")) return;
+      if (publishedRounds.has(parseInt(row.attr("data-round-nb")))) return;
       row.find("input[name='minipoints']").val("");
       update_line(row, true); send_ajax(row);
     });

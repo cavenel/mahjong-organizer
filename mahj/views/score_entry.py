@@ -26,11 +26,15 @@ def _published_rounds(tenant):
 
 
 def _unpublish_rounds_from(tenant, round_nb):
-    """Edit to round N invalidates publication of N and everything after it."""
+    """Unpublishing round N also unpublishes everything after it (no gaps)."""
     qs = PublishedRound.objects.filter(tenant=tenant, round_nb__gte=round_nb)
     deleted = qs.exists()
     qs.delete()
     return deleted
+
+
+def _round_is_published(tenant, round_nb):
+    return PublishedRound.objects.filter(tenant=tenant, round_nb=round_nb).exists()
 
 
 def _row_payload(tenant, round_nb, table_nb):
@@ -119,18 +123,42 @@ def admin_scores_per_hand(request, round_nb, table_nb):
 
 @user_passes_test(is_scorer)
 def create_hand_points(request):
+    """Bulk-write all 16 hands of a table (admin random-fill tool).
+
+    One transaction, and each hand's version is bumped with F('version')+1 rather
+    than written back from a stale read. A plain read-modify-save here would rewind
+    the version a concurrent per-cell update_hand_points depends on, silently
+    clobbering that scorer's edit; the atomic increment keeps the optimistic lock
+    monotonic so no write is lost without a 409.
+    """
     tenant = get_tenant(request)
     table_nb = request.POST.get('table_nb')
     round_nb = request.POST.get('round_nb')
-    for i in range(16):
+
+    def _int(name):
         try:
-            hand = Hand.objects.get(tenant=tenant, table_nb=table_nb, round_nb=round_nb, hand_nb=i + 1)
-        except Hand.DoesNotExist:
-            hand = Hand(tenant=tenant, table_nb=table_nb, round_nb=round_nb, hand_nb=i + 1, pts=0, win_by=0, win_from=0)
-        hand.pts = int(request.POST.get('pts_' + str(i + 1)))
-        hand.win_by = int(request.POST.get('by_' + str(i + 1)))
-        hand.win_from = int(request.POST.get('from_' + str(i + 1)))
-        hand.save()
+            return int(request.POST.get(name))
+        except (TypeError, ValueError):
+            return 0
+
+    with transaction.atomic():
+        for i in range(16):
+            hand_nb = i + 1
+            fields = {
+                'pts': _int('pts_' + str(hand_nb)),
+                'win_by': _int('by_' + str(hand_nb)),
+                'win_from': _int('from_' + str(hand_nb)),
+                'confidence': 1.0,
+            }
+            updated = Hand.objects.filter(
+                tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
+            ).update(version=F('version') + 1, **fields)
+            if not updated:
+                Hand.objects.create(
+                    tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
+                    **fields,
+                )
+
     filled = Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, pts__gt=0,
     ).exclude(hand_nb=17).exists()
@@ -236,6 +264,12 @@ def validate_score_sheet(request):
 def update_position_points(request):
     tenant = get_tenant(request)
     position = Position.objects.get(tenant=tenant, id=request.GET.get('id'))
+
+    # Published rounds are locked: a score can only change after the round is
+    # explicitly unpublished. Reject the edit rather than silently unpublishing.
+    if _round_is_published(tenant, position.round_nb):
+        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
+
     try:
         position.minipoints = int(request.GET.get('mp'))
     except (TypeError, ValueError):
@@ -248,11 +282,7 @@ def update_position_points(request):
     position.save()
 
     subdomain = tenant.subdomain if tenant else ''
-    unpublished = _unpublish_rounds_from(tenant, position.round_nb)
     broadcast_scorer_row(subdomain, _row_payload(tenant, position.round_nb, position.table_nb))
-    if unpublished:
-        invalidate_leaderboard(subdomain)
-        broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
     return HttpResponse("")
 
 
@@ -287,28 +317,29 @@ def update_positions_bulk(request):
     if not to_update:
         return HttpResponse("")
 
-    with transaction.atomic():
-        Position.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
-
     round_nb = to_update[0].round_nb
     table_nb = to_update[0].table_nb
     subdomain = tenant.subdomain if tenant else ''
 
+    # Published rounds are locked: a score can only change after the round is
+    # explicitly unpublished. Reject the edit rather than silently unpublishing.
+    if _round_is_published(tenant, round_nb):
+        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
+
+    with transaction.atomic():
+        Position.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
+
     # Scorer-to-scorer live sync: cheap, no cache bust, not sent to public displays.
     broadcast_scorer_row(subdomain, _row_payload(tenant, round_nb, table_nb))
-
-    # If this edit falls inside a previously published round (or any later round),
-    # those publications become invalid. Unpublish and notify.
-    if _unpublish_rounds_from(tenant, round_nb):
-        invalidate_leaderboard(subdomain)
-        broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
 
     return HttpResponse("")
 
 
-@user_passes_test(is_scorer)
+@user_passes_test(lambda u: u.is_staff)
 def set_round_published(request):
-    """Publish or unpublish a round. Publishing requires all 4 positions of every
+    """Publish or unpublish a round. Staff-only: publishing locks a round's scores,
+    so scorers must not be able to publish/unpublish (a stray unpublish would reopen
+    finalized scores for editing). Publishing requires all 4 positions of every
     table in that round to have both minipoints and tablepoints set. On success,
     invalidates the public leaderboard cache and broadcasts a refresh to displays.
     """

@@ -1,4 +1,3 @@
-- Make only admin (staff, not scorer only) can Publish and Unpublish a round (so scores can not be edited after publishing)
 - Add Theme variables
 
 # Theme variables:

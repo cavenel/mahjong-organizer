@@ -7,6 +7,8 @@ Covers:
   allows users in the 'Scorer' group.
 - CSRF is enforced on the POST endpoint update_hand_points.
 """
+import json
+
 import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
@@ -142,6 +144,33 @@ class TestScorerWriteEndpointsGated:
             'id': hand.id, 'version': hand.version, 'pts': 1, 'by': 1, 'from': 2,
         })
         assert resp.status_code == 302
+
+
+class TestPublishIsStaffOnly:
+    """Publishing/unpublishing locks scores, so it must be staff-only — a scorer
+    must not be able to unpublish and reopen finalized scores."""
+
+    def test_anonymous_redirected(self, client_, tournament):
+        resp = client_.post('/set_round_published',
+                            data=json.dumps({'round_nb': 1, 'published': False}),
+                            content_type='application/json')
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_scorer_group_member_redirected(self, client_, tournament, scorer_group_user):
+        client_.force_login(scorer_group_user)
+        resp = client_.post('/set_round_published',
+                            data=json.dumps({'round_nb': 1, 'published': False}),
+                            content_type='application/json')
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_staff_user_allowed(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = client_.post('/set_round_published',
+                            data=json.dumps({'round_nb': 1, 'published': False}),
+                            content_type='application/json')
+        assert resp.status_code == 200
 
 
 class TestScanEndpointsGated:
