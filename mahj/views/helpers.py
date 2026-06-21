@@ -1,5 +1,6 @@
 import pathlib
 
+from django.conf import settings
 from django.core.cache import cache
 from django.forms import ModelForm
 
@@ -54,13 +55,16 @@ def get_tenant(request):
     if hasattr(request, '_tenant'):
         return request._tenant
     subdomain = get_domain(request)
-    if subdomain == "192":
+    # Dev convenience only: map a bare LAN IP (192.168.x.x) to a known dev tenant.
+    if settings.DEBUG and subdomain == "192":
         subdomain = "devvarberg"
     cache_key = f'tenant:{subdomain}'
     tenant = cache.get(cache_key)
     if tenant is None:
         tenant = Tenant.objects.filter(subdomain=subdomain).first()
-        if tenant is None and request.user.is_authenticated and request.user.is_staff:
+        # Auto-provision a tenant only in dev. In prod a typo'd subdomain must not
+        # silently create one — create tenants explicitly via the Django admin.
+        if tenant is None and settings.DEBUG and request.user.is_authenticated and request.user.is_staff:
             tenant = Tenant(subdomain=subdomain)
             tenant.save()
         if tenant is not None:
