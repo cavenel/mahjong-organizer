@@ -28,11 +28,11 @@ from .score_entry import (
     update_position_points,
     update_positions_bulk,
 )
+from .ceremony import ceremony_control, ceremony_data
 from .public import desktop
 from .public_modals import (
     detailed_scores,
     details_player,
-    details_player_ema,
     details_team,
 )
 from .admin_views import (

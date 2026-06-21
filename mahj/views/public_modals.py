@@ -1,8 +1,4 @@
 """Iframe-modal endpoints opened from the public desktop page."""
-from urllib.request import urlopen
-
-from bs4 import BeautifulSoup
-
 from django.http import HttpResponse
 from django.template import loader
 
@@ -33,31 +29,6 @@ def details_player(request, id):
         'extra_stats': extra_stats,
     }
     return HttpResponse(template.render(context, request))
-
-
-def details_player_ema(request, id):
-    tenant = get_tenant(request)
-    player = Player.objects.filter(tenant=tenant).get(id=id)
-    url = "http://mahjong-europe.org/ranking/Players/{0}.html".format(player.EMA_ID)
-    COL_COUNTRY, COL_RANK = 2, 5
-
-    player_response = urlopen(url)
-    player_parse = BeautifulSoup(player_response.read(), "lxml")
-    player_country = player_parse.find(class_="contentpaneopen").table.find_all("img")[1]["src"]
-
-    tournaments = player_parse.find_all(attrs={"rules": "GROUPS"})[0].find_all("tr")[1:]
-    internal_tournaments, external_tournaments = [], []
-    for tournament in tournaments:
-        columns = tournament.find_all("td")
-        tournament_country = columns[COL_COUNTRY].find_all("img")[0]["src"]
-        rank = [float(r) for r in columns[COL_RANK].get_text().strip().split("/")]
-        tournament_val = max(0, 1000 - (2000 / rank[1]) * (rank[0] - 1))
-        if tournament_country == player_country:
-            internal_tournaments.append(tournament_val)
-        else:
-            external_tournaments.append(tournament_val)
-    val = sum(sorted(external_tournaments, reverse=True)[:2]) + sum(internal_tournaments)
-    return HttpResponse(val)
 
 
 def details_team(request, team_name):

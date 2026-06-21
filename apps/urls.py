@@ -15,6 +15,10 @@ urlpatterns = [
     path('update_screen_view', views.update_screen_view, name='update_screen_view'),
     path('overview', views.overview, name='overview'),
 
+    # Prize-giving ceremony
+    path('ceremony_control', views.ceremony_control, name='ceremony_control'),
+    path('ceremony_data', views.ceremony_data, name='ceremony_data'),
+
     # Admin actions
     path('admin_upload_from_template', views.admin_upload_from_template, name='admin_upload_from_template'),
     path('randomize', views.randomize, name='randomize'),
@@ -37,7 +41,6 @@ urlpatterns = [
 
     # Desktop modal endpoints
     path('details_player_<int:id>', views.details_player, name='details_player'),
-    path('details_player_ema_<int:id>', views.details_player_ema, name='details_player_ema'),
     path('detailed_scores_<int:round_nb>_<int:table_nb>', views.detailed_scores, name='detailed_scores'),
     path('details_team_<str:team_name>', views.details_team, name='details_team'),
 
