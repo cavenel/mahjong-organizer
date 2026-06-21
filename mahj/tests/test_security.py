@@ -11,7 +11,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Hand
+from mahj.models import Hand, Variable
 
 
 HOST = 'test.mahj.ovh'
@@ -52,6 +52,18 @@ def scorer_group_user(db):
 @pytest.fixture
 def hand(tournament):
     return Hand.objects.filter(tenant=tournament['tenant'], round_nb=1, table_nb=1, hand_nb=1).first()
+
+
+@pytest.fixture
+def display_op_user(db):
+    u = User.objects.create_user('displayop', password='pw')
+    group, _ = Group.objects.get_or_create(name='Display_op')
+    u.groups.add(group)
+    return u
+
+
+def _counter(tournament):
+    return Variable.objects.get(tenant=tournament['tenant']).counter
 
 
 class TestStaffOnlyEndpointsRedirectAnonymous:
@@ -171,6 +183,80 @@ class TestScanEndpointsGated:
         client_.force_login(scorer_group_user)
         resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
         assert resp.status_code == 200
+
+
+class TestCounterTimerGated:
+    """The round timer is server-authoritative and only a display operator may
+    start/stop it (hard invariant: only an explicit admin action stops the
+    counter). Reads are public so projector screens can poll their state.
+
+    Regression guard: counter_start once accepted an arbitrary ?new_value= from
+    anyone with a CSRF token, so any spectator could stop/reset the live timer.
+    """
+
+    def test_read_is_public_and_does_not_mutate(self, client_, tournament):
+        before = _counter(tournament)
+        resp = client_.post('/counter_start')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['counter'] == before
+        assert 'server_now' in data
+        assert _counter(tournament) == before  # unchanged
+
+    def test_anonymous_cannot_start(self, client_, tournament):
+        resp = client_.post('/counter_start?action=start')
+        assert resp.status_code == 403
+        assert _counter(tournament) == -1  # untouched
+
+    def test_anonymous_cannot_stop(self, client_, tournament, display_op_user):
+        # Operator starts a running timer, then an anonymous stop must be rejected.
+        client_.force_login(display_op_user)
+        client_.post('/counter_start?action=start')
+        running = _counter(tournament)
+        assert running > 0
+        client_.logout()
+        resp = client_.post('/counter_start?action=stop')
+        assert resp.status_code == 403
+        assert _counter(tournament) == running  # timer survives the stray request
+
+    def test_non_op_cannot_start(self, client_, tournament, anonymous_user):
+        client_.force_login(anonymous_user)
+        resp = client_.post('/counter_start?action=start')
+        assert resp.status_code == 403
+        assert _counter(tournament) == -1
+
+    def test_display_op_start_sets_future_gong_time(self, client_, tournament, display_op_user):
+        import time as _time
+        client_.force_login(display_op_user)
+        now_ms = int(_time.time() * 1000)
+        resp = client_.post('/counter_start?action=start')
+        assert resp.status_code == 200
+        value = resp.json()['counter']
+        # Start = now + lead + countdown, so the gong moment is a few seconds out.
+        assert now_ms + 3000 <= value <= now_ms + 10000
+        assert _counter(tournament) == value
+
+    def test_display_op_stop_resets(self, client_, tournament, display_op_user):
+        client_.force_login(display_op_user)
+        client_.post('/counter_start?action=start')
+        assert _counter(tournament) > 0
+        resp = client_.post('/counter_start?action=stop')
+        assert resp.status_code == 200
+        assert resp.json()['counter'] == -1
+        assert _counter(tournament) == -1
+
+    def test_writes_must_be_post_not_get(self, client_, tournament, display_op_user):
+        client_.force_login(display_op_user)
+        resp = client_.get('/counter_start?action=start')
+        assert resp.status_code == 403
+        assert _counter(tournament) == -1
+
+    def test_legacy_new_value_is_ignored(self, client_, tournament, display_op_user):
+        # The old arbitrary-value write path is gone: new_value must not move the counter.
+        client_.force_login(display_op_user)
+        resp = client_.post('/counter_start?new_value=999999')
+        assert resp.status_code == 200
+        assert _counter(tournament) == -1
 
 
 class TestCsrfEnforcement:

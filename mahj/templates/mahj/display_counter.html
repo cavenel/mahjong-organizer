@@ -100,144 +100,105 @@ body {
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 
-var time_start = {{ counter }};
-var main_interval = null;
-var countdown_value = -1;
+// ── Server-authoritative round timer ───────────────────────────────────────
+// `goTime` is an absolute epoch-ms "gong moment" (the round start). <=0 = stopped.
+// The server sets it; screens are pure renderers and never write it. LEAD_MS /
+// COUNTDOWN_MS mirror counter_start in admin_views.py — keep them in sync.
+var LEAD_MS = 1000;
+var COUNTDOWN_MS = 3000;
+var TOTAL_TIME = {{ variables.total_time }};
+var GONG_SRC = '{% static "sounds/gong.mp3" %}';
 
-function show_counter() {
-    total_time = {{ variables.total_time }};
-    var milliseconds = new Date().getTime();
-    
-    if (time_start <= 0) {
-        result = 0
-    }
-    else if (milliseconds - time_start >= total_time*1000) {
-        result = total_time
-        if (Math.floor((milliseconds - time_start)/1000.0)==total_time) {
-            new Audio('{% static "sounds/gong.mp3" %}').play()
-        }
-    }
-    else {
-        result = Math.floor((milliseconds - time_start) / 1000)
-    }
-    /*if (Math.floor((milliseconds - time_start)/1000.0)==1.75*60*60) {
-        new Audio('{% static "sounds/notif.mp3" %}').play()
-    }*/
-    result = total_time - result;
-    hours = Math.floor(result / 60 / 60)
-    result = result - 60 * 60 * hours
-    minutes = Math.floor(result / 60) 
-    result = result - 60 * minutes
-    seconds = result
-    
-    hours_1 = Math.floor(hours / 10)
-    hours_2 = hours - 10 * hours_1
-    
-    minutes_1 = Math.floor(minutes / 10)
-    minutes_2 = minutes - 10 * minutes_1
-    
-    seconds_1 = Math.floor(seconds / 10)
-    seconds_2 = seconds - 10 * seconds_1
-    $("#seconds_1").html(seconds_1)
-    $("#seconds_2").html(seconds_2)
-    
-    $("#minutes_1").text(minutes_1)
-    $("#minutes_2").text(minutes_2)
-    
-    $("#hours_1").text(hours_1)
-    $("#hours_2").text(hours_2)
-    
-    start_string = "Go"
-    
-    if (countdown_value == 0) {
-        if ($("#countdown").text() != start_string) {
-            $("#countdown").show();
-            $("#countdown").text(start_string);
-            setTimeout(function(){$("#countdown").fadeOut( "slow" );},2000);
-            new Audio('{% static "sounds/gong.mp3" %}').play()
-        }
-    }
-    else if (countdown_value != -1) {
-        $("#countdown").show();
-        $("#countdown").text(countdown_value)
-        $("#countdown").fadeOut( "slow" );
-    }    
-    else {
-        $("#countdown").text("")
-    }
-    
-}
-function show_countdown () {
-    countdown_value -= 1;
-    if (countdown_value == 0) {
-        time_start = new Date().getTime();// - 2*60*60*1000 + 920000;
-        set_counter(time_start);
-        setTimeout(show_countdown, 4000);
-    }
-    else if (countdown_value == -1) {
-        null;
-    }
-    else {
-        setTimeout(show_countdown, 900);
-    }
-    
+var goTime = parseInt('{{ counter }}', 10) || -1;
+var clockOffset = 0;          // serverNow - localNow; refreshed from every server reply
+var startGongPlayed = true;   // flipped false only when we witness a live start
+var endGongPlayed = true;
+var loop = null;
+
+function serverNow() { return Date.now() + clockOffset; }
+function playGong() { try { new Audio(GONG_SRC).play(); } catch (e) {} }
+
+function renderTimer(remaining) {
+    if (remaining < 0) remaining = 0;
+    var hours = Math.floor(remaining / 3600);
+    var minutes = Math.floor((remaining % 3600) / 60);
+    var seconds = remaining % 60;
+    $("#hours_1").text(Math.floor(hours / 10));
+    $("#hours_2").text(hours % 10);
+    $("#minutes_1").text(Math.floor(minutes / 10));
+    $("#minutes_2").text(minutes % 10);
+    $("#seconds_1").text(Math.floor(seconds / 10));
+    $("#seconds_2").text(seconds % 10);
 }
 
-function set_counter (value) {
-    data = {
-        'csrfmiddlewaretoken': '{{ csrf_token }}',
+function tick() {
+    var now = serverNow();
+    var running = goTime > 0 && now >= goTime;
+
+    // Main HH:MM:SS — counts down from TOTAL_TIME once the round is running.
+    var elapsed = running ? Math.floor((now - goTime) / 1000) : 0;
+    if (elapsed > TOTAL_TIME) elapsed = TOTAL_TIME;
+    renderTimer(TOTAL_TIME - elapsed);
+
+    if (running && elapsed >= TOTAL_TIME && !endGongPlayed) {
+        endGongPlayed = true;
+        playGong();
     }
-    $.post( "counter_start?new_value=" + value, data, function( data ) {
-      console.log("counter changed");
-    });
-}
 
-function restart_main_interval () {
-    clearInterval(main_interval);
-    show_counter();
-    main_interval = setInterval(show_counter, 1000);
-}
-
-
-function apply_counter_state(value) {
-    value = parseInt(value);
-    time_start = value;
-    if (value == -3) {
-        set_counter(-1);
-        countdown_value = 4;
-        show_countdown();
-        restart_main_interval();
-    } else {
-        // Running timer or stopped — restart display loop with the fetched value.
-        restart_main_interval();
+    // Start overlay: lead window (blank) → 3 → 2 → 1 → Go + gong.
+    if (goTime <= 0) {
+        $("#countdown").text("");
+        return;
+    }
+    var remMs = goTime - now;
+    if (remMs > COUNTDOWN_MS) {
+        $("#countdown").text("");                                       // lead buffer
+    } else if (remMs > 0) {
+        $("#countdown").show().text(String(Math.ceil(remMs / 1000)));   // 3, 2, 1
+    } else if (!startGongPlayed) {
+        startGongPlayed = true;
+        $("#countdown").show().text("Go");
+        playGong();
+        setTimeout(function () { $("#countdown").fadeOut("slow"); }, 2000);
     }
 }
 
-// Pull current counter value immediately on load; don't wait for a WS push.
-$.post("counter_start", {'csrfmiddlewaretoken': '{{ csrf_token }}'}, function(data) {
-    apply_counter_state(data);
-});
+function restartLoop() {
+    clearInterval(loop);
+    tick();
+    // Fast tick so every screen flips 3→2→1→GONG on the same wall-clock boundary,
+    // not on each screen's own 1s phase.
+    loop = setInterval(tick, 150);
+}
 
+function applyCounterState(data) {
+    goTime = parseInt(data.counter, 10) || -1;
+    if (data.server_now != null) clockOffset = parseInt(data.server_now, 10) - Date.now();
+    // Sound the gongs only if we're witnessing them live; a screen that loads or
+    // reconnects mid-round must not replay the start gong.
+    var now = serverNow();
+    startGongPlayed = !(goTime > 0 && now < goTime);
+    endGongPlayed = !(goTime > 0 && now < goTime + TOTAL_TIME * 1000);
+    restartLoop();
+}
 
-var getUrlParameter = function getUrlParameter() {
-    return window.location.href.substring(window.location.href.lastIndexOf('/') + 1)
-};
+// Pull current state immediately on load; don't wait for a WS push.
+$.post("counter_start", { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+       function (data) { applyCounterState(data); }, 'json');
 
-// Reload only if the round timer isn't currently running (avoids flicker
-// mid-round). The local timer vars survive a socket blip, so this guard is
-// valid both for live leaderboard/variable updates and on reconnect.
+// Reload only if the timer isn't counting down or running (avoids flicker
+// mid-round). goTime + clockOffset are reconstructed from the next server reply,
+// so this is safe both for live updates and on reconnect.
 function reloadUnlessRunning() {
-    var total_time = {{ variables.total_time }};
-    var running = time_start > 0 && (new Date().getTime() - time_start) < total_time * 1000;
-    // also check countdown value, in case the timer is in the 4-second countdown phase before starting.
-    var countdown_running = countdown_value > 0;
-    if (!running && !countdown_running) location.reload();
+    var active = goTime > 0 && serverNow() < goTime + TOTAL_TIME * 1000;
+    if (!active) location.reload();
 }
+
 connectDisplaySocket({
     subdomain: '{{ subdomain }}',
     onUpdate: function(msg) {
         if (msg.event === 'counter_update') {
-            apply_counter_state(msg.counter);
+            applyCounterState(msg);
         } else if (msg.event === 'screen_update') {
             location.reload();
         } else {

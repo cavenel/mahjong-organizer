@@ -1,5 +1,6 @@
 import io
 import os
+import time
 import traceback
 from datetime import datetime
 
@@ -10,7 +11,7 @@ from unidecode import unidecode
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import user_passes_test
 from django.core.files.storage import FileSystemStorage
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
 
 from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
@@ -466,28 +467,48 @@ def check_final(request):
     return HttpResponse(final_val)
 
 
+# The round timer is server-authoritative. `counter` holds an absolute epoch-ms
+# "gong moment": the instant the round starts (and the start gong sounds). Before
+# it, screens render a synchronized lead window + 3-2-1 countdown; after it, the
+# elapsed/remaining time. <= 0 means stopped / never started.
+#
+# Start = now + LEAD + COUNTDOWN. The LEAD is dead time during which every screen
+# has received the broadcast but nothing visible happens yet, so a screen whose
+# message is slightly delayed still catches the very first "3" — all rooms count
+# down (and gong) in lockstep. Both constants are mirrored in display_counter.html
+# and admin_display.html; keep them in sync.
+COUNTER_LEAD_MS = 1000
+COUNTER_COUNTDOWN_MS = 3000
+
+
 def counter_start(request):
-    print ("counter start")
+    """Read (no args, public — screens poll this) or command the round timer.
+
+    Writes (?action=start|stop) are restricted to display operators and must be
+    POSTs: only an explicit admin action may start/stop the counter. Clients never
+    supply a timestamp — the server computes it — so projector screens are pure
+    renderers and can't race each other or be reset by a stray request.
+    """
     tenant = get_tenant(request)
-    new_value = request.GET.get('new_value')
-    print ("new counter value:", new_value)
-    if new_value:
-        try:
-            value = int(new_value)
+    action = request.GET.get('action')
+    if action in ('start', 'stop'):
+        if request.method != 'POST' or not is_display_op(request.user):
+            return HttpResponseForbidden('forbidden')
+        if action == 'start':
+            value = int(time.time() * 1000) + COUNTER_LEAD_MS + COUNTER_COUNTDOWN_MS
+        else:  # stop / reset
+            value = -1
+        if tenant is not None:
             set_counter(tenant, value)
-            print ("counter set to:", value, "broadcasting update...", tenant.subdomain)
-            broadcast_display(tenant.subdomain, 'counter.update', {'event': 'counter_update', 'counter': value})
-        except ValueError:
-            print ("Invalid counter value:", new_value)
-            pass
-    return HttpResponse(get_counter(tenant))
-
-
-def timer_options(request):
-    # -1 means "counter never started" — JS in timer_options.html treats negatives as sentinel state.
-    variables = get_variables(request)
-    template = loader.get_template('mahj/timer_options.html')
-    return HttpResponse(template.render({"counter": variables.counter}, request))
+            broadcast_display(tenant.subdomain, 'counter.update', {
+                'event': 'counter_update',
+                'counter': value,
+                'server_now': int(time.time() * 1000),
+            })
+    return JsonResponse({
+        'counter': get_counter(tenant),
+        'server_now': int(time.time() * 1000),
+    })
 
 
 def welcome_options(request):

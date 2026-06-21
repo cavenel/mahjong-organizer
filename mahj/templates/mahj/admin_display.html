@@ -118,9 +118,13 @@
 
   <script>
   (function() {
-    var timeStart = 0;
+    // `goTime` is the server's absolute epoch-ms gong moment (round start), or
+    // <=0 when stopped. The server owns it; this panel only issues start/stop.
+    var goTime = 0;
+    var clockOffset = 0;     // serverNow - localNow, from each server reply
     var counterMode = 'stopped';
     var csrf = '{{ csrf_token }}';
+    function serverNow() { return Date.now() + clockOffset; }
 
     var BTN_BASE = 'inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg text-white transition-colors ';
     var BTN_VARIANT = {
@@ -141,11 +145,11 @@
     function getTotalTime() { return parseInt(document.getElementById('variables-total_time').value) || 6900; }
 
     function updateDisplay() {
-      var now = new Date().getTime();
+      var now = serverNow();
       var totalTime = getTotalTime();
       var remaining = totalTime;
-      if (timeStart > 0) {
-        remaining = Math.max(0, totalTime - Math.floor((now - timeStart) / 1000));
+      if (goTime > 0 && now >= goTime) {
+        remaining = Math.max(0, totalTime - Math.floor((now - goTime) / 1000));
       }
       var h = Math.floor(remaining / 3600);
       var m = Math.floor((remaining % 3600) / 60);
@@ -154,18 +158,25 @@
     }
 
     function updateButtons() {
-      var now = new Date().getTime();
+      var now = serverNow();
       var btn   = document.getElementById('timer-btn');
       var badge = document.getElementById('timer-status-badge');
       var totalTime = getTotalTime();
 
-      if (timeStart <= 0) {
+      if (goTime <= 0) {
         counterMode = 'stopped';
         btn.className = BTN_BASE + BTN_VARIANT.stopped;
         btn.innerHTML = ICON_PLAY + '<span id="timer-btn-label">Start timer</span>';
         badge.className = BADGE_BASE + BADGE_VARIANT.stopped;
         badge.textContent = 'Stopped';
-      } else if (now - timeStart < totalTime * 1000) {
+      } else if (now < goTime) {
+        // Lead + 3-2-1 countdown before the round starts.
+        counterMode = 'running';
+        btn.className = BTN_BASE + BTN_VARIANT.running;
+        btn.innerHTML = ICON_RESET + '<span>Reset timer</span>';
+        badge.className = BADGE_BASE + BADGE_VARIANT.running;
+        badge.textContent = 'Starting…';
+      } else if (now - goTime < totalTime * 1000) {
         counterMode = 'running';
         btn.className = BTN_BASE + BTN_VARIANT.running;
         btn.innerHTML = ICON_RESET + '<span>Reset timer</span>';
@@ -181,20 +192,24 @@
       updateDisplay();
     }
 
-    function applyCounter(value) { timeStart = parseInt(value); updateButtons(); }
+    function applyCounter(data) {
+      goTime = parseInt(data.counter, 10) || -1;
+      if (data.server_now != null) clockOffset = parseInt(data.server_now, 10) - Date.now();
+      updateButtons();
+    }
 
     function fetchStatus() {
-      $.post('counter_start', { csrfmiddlewaretoken: csrf }, function(data) { applyCounter(data); });
+      $.post('counter_start', { csrfmiddlewaretoken: csrf }, function(data) { applyCounter(data); }, 'json');
     }
 
     window.timerAction = function() {
       if (counterMode === 'stopped') {
-        $.post('counter_start?new_value=-3', { csrfmiddlewaretoken: csrf }, function() { fetchStatus(); });
+        $.post('counter_start?action=start', { csrfmiddlewaretoken: csrf }, function(data) { applyCounter(data); }, 'json');
       } else if (counterMode === 'done') {
-        $.post('counter_start?new_value=0',  { csrfmiddlewaretoken: csrf }, function() { fetchStatus(); });
+        $.post('counter_start?action=stop',  { csrfmiddlewaretoken: csrf }, function(data) { applyCounter(data); }, 'json');
       } else if (counterMode === 'running') {
         if (confirm('The timer is running. Are you sure you want to reset it?')) {
-          $.post('counter_start?new_value=0', { csrfmiddlewaretoken: csrf }, function() { fetchStatus(); });
+          $.post('counter_start?action=stop', { csrfmiddlewaretoken: csrf }, function(data) { applyCounter(data); }, 'json');
         }
       }
     };
@@ -207,7 +222,7 @@
       var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
       ws.onmessage = function(e) {
         var msg = JSON.parse(e.data);
-        if (msg.event === 'counter_update') applyCounter(msg.counter);
+        if (msg.event === 'counter_update') applyCounter(msg);
       };
       ws.onclose = function() { setTimeout(connectWS, 3000); };
       ws.onerror = function() { ws.close(); };

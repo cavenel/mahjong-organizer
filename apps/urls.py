@@ -27,7 +27,6 @@ urlpatterns = [
     path('update_variables', views.update_variables, name='update_variables'),
     path('update_welcome', views.update_welcome, name='update_welcome'),
     path('welcome_options', views.welcome_options, name='welcome_options'),
-    path('timer_options', views.timer_options, name='timer_options'),
     path('counter_start', views.counter_start, name='counter_start'),
 
     # Score entry
