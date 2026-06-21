@@ -37,7 +37,24 @@ returning a graceful empty/`""` response, and cache the result per EMA_ID for th
 If the EMA-rank feature isn't used live, disable the route entirely. (It isn't linked from
 any template, so disabling is the safest pre-event move.)
 
-## 🔴 E2 — Synchronous OCR scan path can starve all workers during parallel scanning
+## 🔴 E2 — Synchronous OCR scan path can starve all workers during parallel scanning — ✅ FIXED (moved to a worker queue)
+
+**Resolution:** OCR was moved off the request path entirely. `POST /scan` now
+stages the uploaded image on the shared `captures/scan_jobs/` volume, pushes a job
+onto a Redis FIFO queue (`mahj/scan_queue.py`), and returns a `job_id` instantly;
+the client polls `GET /scan_status?job_id=`. A dedicated `scan_worker` management
+command consumes the queue and runs the OpenCV alignment + Anthropic OCR one job
+at a time, writing the result back to Redis. Compose runs **2 `scan_worker`
+replicas** sharing the one queue, so scan concurrency is bounded to 2 and can never
+tie up the gunicorn request workers. Also addressed here: the Anthropic client now
+has `timeout=30, max_retries=1`; debug crop writes are gated behind `settings.DEBUG`;
+the response's first *text* block is selected defensively (review.md S8); and the
+single-threaded worker removes the shared-OpenCV thread-safety concern (review.md
+S1). The gunicorn-vs-nginx `/scan` timeout mismatch (S4) is now moot for OCR.
+
+Remaining knob: if a burst regularly exceeds 2, raise `scan_worker` replicas.
+
+Original finding below for the record.
 
 `mahj/views/scan.py` runs, inside a single request: image decode → OpenCV ORB homography
 → a multi-second Anthropic `messages.create` call → DB writes. With 10 scorers uploading

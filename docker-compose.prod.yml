@@ -27,6 +27,12 @@ services:
       retries: 10
       start_period: 30s    # absorb migrations on a fresh DB
 
+  # OCR workers run prod settings; everything else (build, command, queue,
+  # ./captures mount, replicas) is inherited from the base compose file.
+  scan_worker:
+    environment:
+      DJANGO_SETTINGS_MODULE: apps.settings.prod
+
   nginx:
     image: nginx:alpine
     restart: unless-stopped

@@ -8,6 +8,7 @@
 import json
 import pytest
 from django.contrib.auth.models import Group, User
+from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
 from mahj.models import Hand
@@ -82,6 +83,66 @@ class TestScanPrefillPage:
         # round_nb / table_nb reach the template context for client-side pre-fill.
         assert "ctxRound = '2'" in html
         assert "ctxTable = '3'" in html
+
+
+class TestScanEnqueue:
+    """POST /scan stages the image + enqueues a job and returns instantly;
+    the heavy OCR runs in the scan_worker, not on the request worker."""
+
+    def test_scan_enqueues_and_returns_job_id(self, client_, tournament, scorer, monkeypatch):
+        client_.force_login(scorer)
+        captured = {}
+
+        def fake_stage(raw):
+            captured['bytes'] = raw
+            return 'job-abc'
+
+        def fake_enqueue(job):
+            captured['job'] = job
+
+        monkeypatch.setattr('mahj.scan_queue.stage_image', fake_stage)
+        monkeypatch.setattr('mahj.scan_queue.enqueue', fake_enqueue)
+
+        img = SimpleUploadedFile('sheet.jpg', b'\xff\xd8\xffnot-a-real-jpeg', content_type='image/jpeg')
+        resp = client_.post('/scan_2_3', {'image': img})
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body['ok'] is True and body['job_id'] == 'job-abc'
+        # The view does no OCR itself — it only hands the bytes to the queue.
+        assert captured['bytes'] == b'\xff\xd8\xffnot-a-real-jpeg'
+        assert captured['job']['job_id'] == 'job-abc'
+        assert captured['job']['round_nb'] == 2 and captured['job']['table_nb'] == 3
+
+    def test_scan_without_image_is_400(self, client_, tournament, scorer):
+        client_.force_login(scorer)
+        resp = client_.post('/scan', {})
+        assert resp.status_code == 400
+        assert resp.json()['ok'] is False
+
+
+class TestScanStatus:
+    def test_status_requires_job_id(self, client_, scorer):
+        client_.force_login(scorer)
+        assert client_.get('/scan_status').status_code == 400
+
+    def test_status_reports_pending_done_and_expired(self, client_, scorer, monkeypatch):
+        client_.force_login(scorer)
+        results = {
+            'p': {'status': 'pending'},
+            'd': {'status': 'done', 'scores': [{'Hand': 1, 'Value': 20}]},
+            'e': {'status': 'error', 'error': 'bad photo'},
+            'x': None,
+        }
+        monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: results[jid])
+
+        assert client_.get('/scan_status?job_id=p').json()['status'] == 'pending'
+        done = client_.get('/scan_status?job_id=d').json()
+        assert done['status'] == 'done' and done['scores'][0]['Value'] == 20
+        err = client_.get('/scan_status?job_id=e').json()
+        assert err['ok'] is False and err['error'] == 'bad photo'
+        expired = client_.get('/scan_status?job_id=x').json()
+        assert expired['ok'] is False and expired['status'] == 'expired'
 
 
 class TestScoreSheetQr:

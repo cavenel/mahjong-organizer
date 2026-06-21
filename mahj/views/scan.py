@@ -8,6 +8,7 @@ import os
 # inside the functions that need them. This keeps the URLconf importable — and the
 # auth-gated endpoints testable — on hosts where the OCR stack isn't installed.
 
+from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -101,73 +102,52 @@ def _encode_crop(aligned, bbox):
 @user_passes_test(is_scorer)
 def scan_page(request, round_nb=None, table_nb=None):
     if request.method == "POST":
-        import anthropic
-        import cv2
-
-        _ensure_initialized()
+        # Stage the image and hand OCR off to a scan_worker via the queue, then
+        # return immediately. The heavy OpenCV + LLM work never runs on a request
+        # worker, so parallel scans can't starve score entry or the displays.
+        # The client polls scan_status for the result.
+        from .. import scan_queue
         file = request.FILES.get("image")
         if not file:
             return JsonResponse({"ok": False, "error": "No image uploaded"}, status=400)
+        tenant = get_tenant(request)
         try:
-            image = _read_image(file)
-        except Exception as e:
-            return JsonResponse({"ok": False, "error": f"Invalid image: {e}"}, status=400)
-
-        aligned = _align_to_template(image)
-        if aligned is None:
+            job_id = scan_queue.stage_image(file.read())
+            scan_queue.enqueue({
+                'job_id': job_id,
+                'round_nb': round_nb,
+                'table_nb': table_nb,
+                'subdomain': tenant.subdomain if tenant else '',
+            })
+        except Exception:
+            logger.exception("Failed to enqueue scan job")
             return JsonResponse(
-                {"ok": False, "error": "Could not align with template. Try a clearer, less tilted shot."},
-                status=422,
-            )
-
-        scores_b64 = _encode_crop(aligned, BBOX_SCORES)
-
-        # DEBUG: save crop and aligned image to inspect what Claude sees
-        debug_dir = BASE_DIR / "captures" / "debug_crops"
-        os.makedirs(debug_dir, exist_ok=True)
-        cv2.imwrite(str(debug_dir / "aligned.jpg"), aligned)
-        x1, y1, x2, y2 = BBOX_SCORES
-        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), aligned[y1:y2, x1:x2])
-        logger.info("Debug crop saved to %s", debug_dir)
-
-        api_key = os.environ.get('ANTHROPIC_API_KEY', '')
-        if not api_key:
-            return JsonResponse({"ok": False, "error": "ANTHROPIC_API_KEY not configured"}, status=500)
-
-        try:
-            client = anthropic.Anthropic(api_key=api_key)
-            message = client.messages.create(
-                model="claude-sonnet-4-6",
-                max_tokens=2048,
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {"type": "text", "text": "Image: the score columns (Value, Winner, Discarder for hands 1-16)."},
-                        {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": scores_b64}},
-                        {"type": "text", "text": OCR_PROMPT},
-                    ],
-                }],
-                output_config={
-                    "format": {
-                        "type": "json_schema",
-                        "schema": OCR_SCHEMA,
-                    },
-                },
-            )
-            raw = message.content[0].text
-            logger.info("Claude raw response: %s", raw[:2000])
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            logger.exception("Claude returned non-JSON: %s", raw[:500])
-            return JsonResponse({"ok": False, "error": f"LLM returned invalid JSON:\n{raw[:1000]}"}, status=502)
-        except Exception as e:
-            logger.exception("Claude API call failed")
-            return JsonResponse({"ok": False, "error": str(e)}, status=502)
-
-        logger.info("Claude parsed data: %s", data)
-        return JsonResponse({"ok": True, "scores": data.get("Scores", [])})
+                {"ok": False, "error": "Scan service is unavailable. Try again."}, status=503)
+        return JsonResponse({"ok": True, "job_id": job_id})
 
     return render(request, "mahj/scan.html", {"round_nb": round_nb, "table_nb": table_nb})
+
+
+@user_passes_test(is_scorer)
+def scan_status(request):
+    """Poll a queued OCR job: pending / done(scores) / error / expired."""
+    from .. import scan_queue
+    job_id = request.GET.get('job_id', '')
+    if not job_id:
+        return JsonResponse({"ok": False, "error": "job_id required"}, status=400)
+
+    result = scan_queue.get_result(job_id)
+    if result is None:
+        # Result TTL elapsed, or a worker crashed mid-job and never wrote one.
+        return JsonResponse({"ok": False, "status": "expired",
+                             "error": "Scan timed out or was lost. Re-take the photo."})
+    status = result.get('status')
+    if status == 'pending':
+        return JsonResponse({"ok": True, "status": "pending"})
+    if status == 'done':
+        return JsonResponse({"ok": True, "status": "done", "scores": result.get('scores', [])})
+    return JsonResponse({"ok": False, "status": "error",
+                         "error": result.get('error', 'Could not read the sheet.')})
 
 
 OCR_PROMPT = (
@@ -205,6 +185,71 @@ OCR_SCHEMA = {
 }
 
 logger = logging.getLogger(__name__)
+
+
+def _first_text(message):
+    """Return the first text block's text — don't assume block 0 is text."""
+    for block in message.content:
+        if getattr(block, 'type', None) == 'text':
+            return block.text
+    raise ValueError("OCR response contained no text block")
+
+
+def run_scan(image_bgr):
+    """Align a score-sheet photo to the template and OCR the score columns.
+
+    Worker-side logic with no request/response coupling: returns a result dict
+    ready to store for polling — {'status': 'done', 'scores': [...]} or
+    {'status': 'error', 'error': msg}. Runs in the scan_worker process.
+    """
+    _ensure_initialized()
+    aligned = _align_to_template(image_bgr)
+    if aligned is None:
+        return {'status': 'error',
+                'error': 'Could not align with template. Try a clearer, less tilted shot.'}
+
+    scores_b64 = _encode_crop(aligned, BBOX_SCORES)
+
+    # Only dump crops for offline inspection in DEBUG — never in production.
+    if settings.DEBUG:
+        import cv2
+        debug_dir = BASE_DIR / "captures" / "debug_crops"
+        os.makedirs(debug_dir, exist_ok=True)
+        cv2.imwrite(str(debug_dir / "aligned.jpg"), aligned)
+        x1, y1, x2, y2 = BBOX_SCORES
+        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), aligned[y1:y2, x1:x2])
+
+    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+    if not api_key:
+        return {'status': 'error', 'error': 'ANTHROPIC_API_KEY not configured'}
+
+    try:
+        import anthropic
+        # Bounded timeout so one slow API call can't pin the single-job worker.
+        client = anthropic.Anthropic(api_key=api_key, timeout=30.0, max_retries=1)
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Image: the score columns (Value, Winner, Discarder for hands 1-16)."},
+                    {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": scores_b64}},
+                    {"type": "text", "text": OCR_PROMPT},
+                ],
+            }],
+            output_config={"format": {"type": "json_schema", "schema": OCR_SCHEMA}},
+        )
+        raw = _first_text(message)
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("Claude returned non-JSON")
+        return {'status': 'error', 'error': 'OCR returned invalid data. Re-take the photo.'}
+    except Exception as e:
+        logger.exception("Claude API call failed")
+        return {'status': 'error', 'error': str(e)}
+
+    return {'status': 'done', 'scores': data.get("Scores", [])}
 
 
 WINDS = ['E', 'S', 'W', 'N']

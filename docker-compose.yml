@@ -67,6 +67,25 @@ services:
         condition: service_healthy
     command: sh -c "python manage.py migrate --noinput && exec gunicorn apps.asgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
 
+  # Score-sheet OCR workers — consume the Redis scan queue off the request path.
+  # Several replicas share one FIFO queue, so parallel scans are bounded here and
+  # can never starve the web workers. Shares ./captures for the staged images.
+  scan_worker:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: apps.settings.dev
+      REDIS_URL: redis://redis:6379/1
+    volumes:
+      - ./captures:/app/mahj/captures
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: python manage.py scan_worker
+    deploy:
+      replicas: 2
+
 volumes:
   postgres_data:
   redis_data:
