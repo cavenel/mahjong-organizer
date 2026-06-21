@@ -1,29 +1,15 @@
 import itertools
 
-import pycountry
-
 from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Player, Player_data, Position, Schedule
+from ..scoring import _country_flag
 from .helpers import get_tenant, get_variables
-from .scoring import player_rounds_json, scores_per_player_json, scores_per_table_json
+from .. import scoring as _scoring
+from .scoring import scores_per_player_json, scores_per_table_json
 
-def _country_flag(country):
-    if country == "Independent":
-        return 'mi'
-    try:
-        name = country.replace('The ', '').strip()
-        if not name:
-            return ''  # search_fuzzy('') matches an arbitrary country (gb); short-circuit
-        match = pycountry.countries.get(name=name)
-        if match is None:
-            results = pycountry.countries.search_fuzzy(name)
-            match = results[0] if results else None
-        return match.alpha_2.lower() if match else ''
-    except Exception:
-        return ''
 
 def cross_positions(request):
     tenant = get_tenant(request)
@@ -98,13 +84,14 @@ def print_schedule(request):
 def player_cards(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
-    players = Player.objects.filter(tenant=tenant).all()
-    flags = {}
-    for p in players:
-        flags[p] = _country_flag(p.country)
+    players = list(Player.objects.filter(tenant=tenant).all())
 
+    # rounds for every player from a constant number of queries (vs ~2 each),
+    # and _country_flag is lru_cached so the ~10 distinct countries among the
+    # players are resolved once each rather than per player.
+    rounds_by_player = _scoring.all_player_rounds(tenant, players)
     player_rounds = [
-        {"player": p, "rounds": player_rounds_json(request, p.id), "flag": flags[p]}
+        {"player": p, "rounds": rounds_by_player[p.id], "flag": _country_flag(p.country)}
         for p in players
     ]
 

@@ -78,12 +78,33 @@ def overall_winners(tenant, variables, positions=None, hands=None):
     }
 
 
-def player_rounds(tenant, player):
-    """Per-round info for one player: own seat wind, opponents, schedule, completion flag."""
-    schedule = [
+def player_schedule(tenant):
+    """The round/session rows used by player_rounds, fetched once."""
+    return [
         s for s in Schedule.objects.filter(tenant=tenant).order_by('id')
         if 'Round' in s.name or 'Session' in s.name
     ]
+
+
+def completed_tables(tenant):
+    """Set of (round_nb, table_nb) that have a completion hand recorded."""
+    return {
+        (h.round_nb, h.table_nb)
+        for h in Hand.objects.filter(tenant=tenant, hand_nb=COMPLETION_HAND_NB, pts=1)
+    }
+
+
+def player_rounds(tenant, player, schedule=None, completed=None):
+    """Per-round info for one player: own seat wind, opponents, schedule, completion flag.
+
+    ``schedule`` and ``completed`` are tenant-wide and identical for every player;
+    pass them in when looping over many players to avoid re-querying per player.
+    """
+    if schedule is None:
+        schedule = player_schedule(tenant)
+    if completed is None:
+        completed = completed_tables(tenant)
+
     my_positions = list(Position.objects.filter(tenant=tenant, player=player).order_by('round_nb'))
     if not my_positions:
         return []
@@ -94,11 +115,11 @@ def player_rounds(tenant, player):
                         .select_related('player').order_by('position'),
         key=lambda p: (p.round_nb, p.table_nb),
     )
-    completed = {
-        (h.round_nb, h.table_nb)
-        for h in Hand.objects.filter(tenant=tenant, hand_nb=COMPLETION_HAND_NB, pts=1)
-    }
 
+    return _rounds_for(my_positions, positions_by_rt, schedule, completed)
+
+
+def _rounds_for(my_positions, positions_by_rt, schedule, completed):
     return [
         {
             'other_pos': positions_by_rt[(p.round_nb, p.table_nb)],
@@ -110,6 +131,32 @@ def player_rounds(tenant, player):
         }
         for p in my_positions
     ]
+
+
+def all_player_rounds(tenant, players):
+    """player_rounds for many players in a constant number of queries.
+
+    player_rounds re-queries a large slice of the Position table for every
+    player; over ~168 players that materializes hundreds of thousands of rows.
+    Here every player's positions come from one query, grouped once and sliced
+    per player. Returns {player_id: rounds_list}.
+    """
+    schedule = player_schedule(tenant)
+    completed = completed_tables(tenant)
+
+    all_positions = list(
+        Position.objects.filter(tenant=tenant)
+                        .select_related('player').order_by('round_nb', 'position')
+    )
+    positions_by_rt = _group_by(all_positions, key=lambda p: (p.round_nb, p.table_nb))
+    positions_by_player = _group_by(all_positions, key=lambda p: p.player_id)
+
+    return {
+        player.id: _rounds_for(
+            positions_by_player.get(player.id, []), positions_by_rt, schedule, completed,
+        )
+        for player in players
+    }
 
 
 def player_standings(tenant, variables, check_final=True, force_all=False, positions=None):
