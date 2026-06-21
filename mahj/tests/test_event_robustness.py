@@ -1,4 +1,4 @@
-"""Regression tests for the event-day robustness fixes (docs/event-day-review.md).
+"""Regression tests for the event-day robustness fixes (see review.md history).
 
 E7 — per-player/per-team modals are cached and bust on a real leaderboard write.
 E8 — display standings don't 500 when there are fewer than 12 players.
