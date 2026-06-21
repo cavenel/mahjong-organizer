@@ -1,20 +1,28 @@
-Django>=4.2,<5.0
-channels>=4.0
-channels-redis>=4.0
-psycopg2-binary
-django-redis
-django-sesame
-django-mathfilters
-openpyxl
-pycountry
-simplejson
-Unidecode
-beautifulsoup4
-whitenoise
-python-decouple
-opencv-python-headless
-Pillow
-numpy
-requests
-anthropic
-segno
+Django==4.2.30
+
+# Async/WebSocket stack — pinned to a combination verified against the Redis
+# channel layer. While unpinned, builds resolved a redis-py whose blocking read
+# raised "Timeout reading from redis" and tore down every WebSocket a few
+# seconds after connect (display screens reloaded in a loop). redis-py is pulled
+# transitively by both django-redis and channels-redis, so pin it explicitly.
+channels==4.3.2
+channels-redis==4.3.0
+redis==7.4.0
+
+psycopg2-binary==2.9.12
+django-redis==6.0.0
+django-sesame==3.2.3
+django-mathfilters==1.0.0
+openpyxl==3.1.5
+pycountry==26.2.16
+simplejson==4.1.0
+Unidecode==1.4.0
+beautifulsoup4==4.14.3
+whitenoise==6.12.0
+python-decouple==3.8
+opencv-python-headless==4.13.0.92
+Pillow==12.2.0
+numpy==2.4.6
+requests==2.34.2
+anthropic==0.111.0
+segno==1.6.6
