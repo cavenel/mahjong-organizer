@@ -28,3 +28,8 @@ captures/
 # Node/npm (if used)
 node_modules/
 package-lock.json
+
+# Local-only load-test / query-profiling tooling (not for the repo or image)
+locustfile.py
+test_queries.sh
+test_queries_2.sh

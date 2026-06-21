@@ -1,36 +1,65 @@
-# Deployment Review
+# OEMC 2026 — Deployment & Event-Day Review
 
-Scope: everything that ships when you run
+Two reviews merged into one: (1) deploy/infra hygiene for the prod stack, and (2) live-event
+resilience under the real load pattern — ~10 scorers writing in parallel + parallel scan
+uploads, hundreds of viewers on `/`, projector screens at `/1 /2 …` that nobody can easily
+refresh, and one operator driving displays + the ceremony.
 
-```
-docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d
-```
+Prod stack (`docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build -d`)
+brings up **db** (postgres), **redis**, **redis_bus** (noeviction, channel layer + scan
+queue), **pgbouncer**, **web** (gunicorn/uvicorn, prod settings), **scan_worker** (×2, OCR
+queue consumers), and **nginx**. `certbot` is profile-gated and does not run.
 
-That brings up **db** (postgres), **redis**, **pgbouncer**, **web** (gunicorn/uvicorn,
-prod settings), **scan_worker** (×2, OCR queue consumers), and **nginx**. `certbot` is
-profile-gated and does not run. This review covers the Dockerfile, compose files, nginx
-config, gunicorn config, Django settings, requirements, and the application code reachable
-in that stack.
+**Only open issues are listed below.** Resolved items have been removed; see git history.
+Among them: the unauthenticated `counter_start` timer (now server-authoritative, display-op
+gated), silently-stale projectors on WS drop (auto-reconnect + disconnect banner),
+`detailed_scores` write-on-read + N+1 + caching, `create_hand_points` optimistic-concurrency,
+splitting the durable channel-layer/scan bus onto a `noeviction` Redis, the scan-queue rework,
+broadcast resilience, ceremony-screen hardening, per-player/team modal caching, dependency
+pinning, the nginx cold-start healthcheck, the dead EMA endpoint, the display index guard,
+moving sessions to Postgres + a Redis eviction policy, the dev-only tenant-resolution hacks,
+the OCR `Winner`-nullability schema, dropping the dead WhiteNoise middleware in prod, making
+the `/` microcache cookie-independent + tuning gunicorn `max_requests`, the `manage.py`
+dead-code block, the `models.py` bare `except:`/`Tenant.get_default_pk` bugs, the orphaned
+`apps/static/admin` copy, and the orphaned legacy `timer_options` view/template. The `I#` / `S#` IDs are carried over from the original reviews so
+they stay stable. No 🔴 Critical items remain open.
 
-Findings are grouped by severity. Each item has a concrete fix.
+The three hard invariants all hold:
+1. **Counter never stops/resets except by explicit admin action** — server-authoritative
+   absolute epoch-ms "gong moment" persisted in Postgres; screens are pure renderers.
+2. **Displays never die silently** — capped jittered reconnect + reload-on-reconnect, plus a
+   built-in disconnect banner on every projector after a 4s grace.
+3. **No silent disconnection / write loss** — `update_hand_points` and `create_hand_points`
+   are both version-checked/monotonic (409 on conflict), and the channel layer lives on a
+   `noeviction` Redis so group memberships can't be evicted out from under an open socket.
 
-**Note:** Items resolved since the first pass have been removed from this file; those fixes
-mostly came out of the separate event-day robustness work — see `docs/event-day-review.md`
-(esp. E2, which reworked scanning into a worker queue). Original IDs are kept for the
-remaining items so cross-references stay stable. No 🔴 Critical items remain open.
+---
+
+## Architecture & the two critical lifecycles
+
+- Django + Channels (ASGI), gunicorn + UvicornWorker (8 workers), nginx in front
+  (microcache on `/`, 20s, cookie-independent). Postgres via pgbouncer (transaction pool,
+  `CONN_MAX_AGE=0`). `redis` = LRU cache (`allkeys-lru`, 256mb); `redis_bus` = channel layer
+  + scan queue (`noeviction`). Two `scan_worker` replicas consume a Redis FIFO for OCR.
+- **Counter** = `Variable.counter` (BigInt, persisted in Postgres), an **absolute epoch-ms
+  "gong moment"** (round start). `≤0` = stopped. Reads (`get_counter`) hit the DB directly;
+  writes go through `set_counter` (`.update()` + busts the `variables` cache). Server-
+  authoritative + time-based ⇒ a reload/restart/reconnect recomputes from the persisted value
+  and cannot perturb it.
+- **Display socket** (`mahj/static/js/display_socket.js`): capped jittered backoff reconnect,
+  ping/pong half-open watchdog, reload-on-reconnect to resync, default-on disconnect banner.
+  `TenantConsumer` joins `leaderboard_*` + `display_*`. Broadcasts are best-effort and swallow
+  Redis errors so a messaging blip never 500s a committed write (`signals.py:57`).
 
 ---
 
 ## 🟠 Important — should fix soon
 
-### I5. Containers run as root; bind-mounted data ends up root-owned
-No `USER` in the Dockerfile, so `web` and `scan_worker` (and the migrate/collectstatic
-steps) run as root. The `./captures` bind mount is already `root:root` on the host as a
-result. Standard hardening is to run the app as a non-root UID.
-
-**Fix:** Create an app user in the Dockerfile (`adduser --system app`), `chown` `/app`
-and `/run/gunicorn`, and add `USER app`. Ensure the `captures`/socket volumes are
-writable by that UID.
+### I-E. Nothing auto-heals a hung (not crashed) web container
+`docker-compose.prod.yml:24` healthcheck only tests socket existence to order nginx startup;
+`restart: unless-stopped` recovers a crash/OOM but a wedged gunicorn is left running.
+**Fix:** add an autoheal sidecar or an HTTP healthcheck + external watchdog. Deferrable if an
+operator is watching.
 
 ---
 
@@ -39,56 +68,31 @@ writable by that UID.
 ### S3. Image is fat and keeps build tools at runtime
 Single-stage build keeps `gcc` and `libpq-dev` in the final image, and `COPY . .` pulls
 in `captures/`, `template_old.jpg` (2 MB), `plugins/` (a whole WordPress plugin with
-hundreds of flag SVGs), `MahjongTemplate.xlsx`, tests, `*.sh`, and both `TODO.md`s —
+hundreds of flag SVGs), `MahjongTemplate.xlsx`, tests, `*.sh`, and `TODO.md` —
 none needed at runtime. `.dockerignore` only excludes `.venv/.env/databases/git`.
 **Fix:** multi-stage build (wheels in builder, slim runtime), switch to `psycopg[binary]`
 or drop `libpq-dev`/`gcc` from the final stage, and expand `.dockerignore`
 (`captures/`, `plugins/`, `*_old.*`, `test_*.sh`, `*.md`, `mahj/tests/`,
 `mahj/static/*.xlsx`).
 
-### S5. WhiteNoise is dead weight in prod
-nginx serves `/static/` directly (and the Dockerfile runs `collectstatic` with
-`CompressedStaticFilesStorage`). The `WhiteNoiseMiddleware` in `base.py` then never
-serves anything in production. Harmless but misleading; consider dropping it from the
-prod middleware (it's already stripped in tests).
-
-### S6. Leftover dev hacks in tenant resolution
-`helpers.get_tenant` special-cases `subdomain == "192"` → `"devvarberg"` and
-**auto-creates a Tenant** for any authenticated staff user hitting an unknown subdomain.
-The first is a local-network artifact that shouldn't run in prod; the second silently
-creates tenants from typos. **Fix:** drop the `192` branch (or env-gate it); make tenant
-creation explicit.
-
-### S7. OCR schema contradicts the prompt
-`OCR_SCHEMA` declares `"Winner": {"type": ["integer"]}` (non-nullable, required) while
-`OCR_PROMPT` says "If a hand was not played, set all three to null." The model is told
-to emit null but the schema forbids it for `Winner`. Depending on enforcement this
-errors or forces a bogus value. **Fix:** make `Winner` `["integer","null"]` to match.
+### Scan write paths lack the version guard
+`validate_score_sheet` / `scan_prefill` use `get_or_create` + a full `.save()` (no `version`
+handling) — the same class of issue as the now-fixed `create_hand_points`, but lower risk
+since these run off the scan path rather than under concurrent per-cell editing. Bring them
+in line with `update_hand_points` (`.filter(...).update(version=F('version')+1, …)`) if
+touched.
 
 ---
 
 ## ⚪ Nitpicks / housekeeping
 
-- **Stale data in the repo:** `databases/*.sqlite3` (9 files) and the root `captures/`
-  dir sit in the working tree. They're gitignored/dockerignored, so they don't ship, but
-  they're clutter and easy to leak. Remove them.
-- **Two `TODO.md`** (root + `mahj/`); `test_queries.sh`, `test_queries_2.sh` untracked at
-  root. Decide what's real and commit or delete.
-- **`apps/static/admin/...`** is a committed copy of Django admin static files; `apps`
-  isn't even an installed app, so these are orphaned and regenerated by `collectstatic`.
-  Delete.
-- **`manage.py`** carries a dead `get_ip_address()` / Dropbox-writing block (commented).
-  Remove.
-- **`models.py` bare `except:`** in `win_by_player`/`win_from_player` (lines 101, 110)
-  swallow everything including `KeyboardInterrupt`. Use `except Exception` or be specific.
-- **`models.py` `Tenant.get_default_pk`** calls `get_or_create(title=..., defaults=dict(
-  description=...))` but `Tenant` has no `title`/`description` fields — this path would
-  raise if ever hit. It's the `default=` for every `TenantAwareModel.tenant`, so it's a
-  latent bug if a row is ever created without an explicit tenant.
-- **`max_requests=1000` + `preload_app=True`**: fine, but with preload the workers share
-  the parent's import-time state; just be aware OCR globals initialize per-worker on
-  first request anyway. (See `docs/event-day-review.md` E6: `max_requests` recycling also
-  drops live WebSockets.)
+- **Stale local data:** the root `captures/` dir sits in the working tree. It's
+  gitignored/dockerignored, so it doesn't ship, but it's clutter. Untracked → deletion is
+  irreversible and it may hold local scan data, so not auto-removed. (The 10 stale
+  `databases/*.sqlite3` files have been removed — the app runs on Postgres.)
+- **Loose files at root:** the load-test (`locustfile.py`) and query-profiling
+  (`test_queries.sh`, `test_queries_2.sh`) tooling is kept local-only and gitignored —
+  not committed and not shipped in the image (see also S3's `.dockerignore`).
 
 ---
 
@@ -102,18 +106,72 @@ errors or forces a bogus value. **Fix:** make `Winner` `["integer","null"]` to m
   for ASGI workers, and the pgbouncer tuning is thoughtful.
 - Optimistic concurrency on `Hand` (`version` + `F('version')+1`, 409 on conflict) is a
   nice touch for multi-scorer editing.
-- nginx microcache keyed off the `auth` cookie (set by `AuthCookieMiddleware`) is a neat
-  way to cache anonymous homepage hits while keeping staff live. The heavy per-player /
-  per-team stats modals (which aren't on `/`, so the microcache misses them) are now
-  app-cached in Django, keyed by a `leaderboard_gen` counter that every real write bumps
-  (see event-day-review E7) — so they bust on a write rather than relying on TTL alone.
+- nginx microcache on `/` (20s) absorbs the spectator crowd: it ignores the app's
+  `Vary: Cookie`, so every non-staff viewer — cookie or not — shares one cached entry
+  (~1 origin compute / 20s), while staff bypass via the `auth` cookie. The heavy per-player
+  / per-team stats modals (not on `/`, so the microcache misses them) are app-cached in
+  Django, keyed by a `leaderboard_gen` counter that every real write bumps — so they bust
+  on a write rather than relying on TTL alone.
+- Scan-sheet OCR runs off the request path in dedicated `scan_worker` processes consuming a
+  Redis queue, so a burst of parallel scans can't starve the web workers.
+- Auth/sessions live in Postgres and everything in the LRU Redis is disposable (regenerable
+  cache), while the durable bus (channel layer + scan queue) sits on a separate `noeviction`
+  Redis — so a Redis restart doesn't log staff out, can't fail writes by filling up, and can't
+  silently evict a live socket's group membership.
 - Real test coverage for auth/CSRF on the scorer endpoints and golden scoring tests.
+
+---
+
+## Pre-event test plan (run today, against a STAGING copy only)
+
+1. **Load `/` + modals (locust).** `locustfile.py` is solid (cookie-carrying spectators,
+   fixed scorer count, 409 path). Add: (a) a `DisplayUser` that opens
+   `wss://…/ws/display/<sub>/`, pings every 25s, counts missed broadcasts (~20 of them);
+   (b) a `ScannerUser` that POSTs a real JPEG to `/scan` and polls `/scan_status`. Run
+   `locust --headless -u 300 -r 20 -t 15m --host https://staging…`. **Pass:** `/` mostly
+   `X-Cache: HIT`; modal p95 flat 100→300 users; `/detailed_scores_*` p95 flat too.
+2. **`test_queries.sh`** is a single-request query profiler (good for N+1 on `desktop`). Add a
+   query-count assertion; run cold vs warm to prove the HTML cache works.
+3. **Scan burst + responsiveness.** 10 simultaneous `/scan` uploads while locust drives 200
+   spectators and a real projector is open. **Pass:** projector keeps updating, `/` sub-second,
+   all scans reach `done`/`error` (none `expired`).
+4. **Chaos drills** (pass = screens recover AND counter survives): `restart web` mid-round →
+   counter resumes correct remaining; `restart redis` → staff stay logged in, displays
+   reconnect, note `evicted_keys`; `restart pgbouncer` → writes pause/resume, no 500 storm;
+   `docker kill` one `scan_worker` → in-flight scan `expired` (recoverable), other replica
+   drains; **network bounce a display 30s** → banner appears, then reconnect+reload;
+   **counter-stop attempt** from a spectator console → 403.
+5. **Soak (4h+).** Counter running + idle screens overnight. **Pass:** no drift/reset, no
+   silent freeze, web RSS flat before the daily `max_requests=50000` recycle, `evicted_keys` ~0.
+
+---
+
+## Event-day runbook (one page)
+
+**Golden rule:** never `git pull` / `--build` / `down` during the event. Deps are pinned;
+deploy once, freeze.
+
+| Symptom | Look at | Recovery |
+|---|---|---|
+| A projector frozen / wrong | Disconnect banner | Self-reloads; else F5. Counter screen self-heals on its own clock. |
+| All screens stale | `ps` (web healthy?), `redis-cli info clients` | `restart web` — **safe for the counter** (persisted in PG); screens reconnect+reload. |
+| Counter stopped/jumped | Was it an admin action? | Admin re-issues Start from `/admin?page=display`. **Don't restart to "fix" it** — restarts don't reset it; only an admin `action=start/stop` does. |
+| Scorer "conflict" (409) | Expected on concurrent cell edits | Scorer reloads the sheet, re-enters. Working as designed. |
+| Scans "expired" | `scan_worker` logs; `redis-cli llen scan:queue`; `info stats \| grep evicted` | `restart scan_worker`; the bus is `noeviction`, so rising `evicted_keys` is only the LRU cache. |
+| Site slow under crowd | nginx `X-Cache-Status`; `docker stats` web CPU | Confirm `/` HITs; per-table detail modal is now cached (30s) — confirm it's hitting. |
+| DB issues | `logs pgbouncer db` | `restart pgbouncer` first; `db` only if wedged. |
+
+**Monitor:** `docker stats` (web RSS/CPU), `redis-cli info stats | grep evicted_keys`, nginx
+`X-Cache-Status`, and one real projector + the counter on a screen you can see.
+**Backups:** `pg_dump` hourly off-box (snapshot the `postgres_data` volume on a schedule).
+**Restart without stopping the counter:** `web`, `redis`, `redis_bus`, `pgbouncer`, `nginx`,
+`scan_worker` can all be restarted freely — the counter is a Postgres-persisted absolute
+timestamp and is unaffected. The only things that change it are an admin Start/Reset or a
+`counter_start?action=` write (gated to display operators).
 
 ---
 
 ## Suggested order of operations
 
-1. **S7** (OCR schema `Winner` nullability) — a real scanning bug; one-line fix.
-2. **S6** (drop the `192` / auto-create-tenant dev hacks) before going live.
-3. **I5** (run as non-root), then **S3** (slim image / expand `.dockerignore`) and
-   **S5** (drop WhiteNoise in prod) as time allows.
+1. **S3** (slim image / expand `.dockerignore`).
+2. **I-E** (autoheal for a hung web container) if no operator will be watching screens live.
