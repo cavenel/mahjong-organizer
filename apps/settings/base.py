@@ -124,9 +124,14 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+# Manifest storage hashes each file's name by its content (e.g.
+# display_socket.a1b2c3.js) so {% static %} URLs change whenever a file
+# changes. This is what makes nginx's "immutable, 1y" cache on /static/
+# safe: clients (e.g. tablets) fetch the new URL instead of serving a stale
+# cached copy under the old name.
 STORAGES = {
     'staticfiles': {
-        'BACKEND': 'whitenoise.storage.CompressedStaticFilesStorage',
+        'BACKEND': 'whitenoise.storage.CompressedManifestStaticFilesStorage',
     },
 }
 

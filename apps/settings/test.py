@@ -34,3 +34,13 @@ CHANNEL_LAYERS = {
 }
 
 MIDDLEWARE = [m for m in MIDDLEWARE if 'whitenoise' not in m.lower()]
+
+# base.py uses manifest storage for cache-busting in prod, but that backend
+# raises "Missing staticfiles manifest entry" when {% static %} is rendered
+# without a collectstatic run. Tests don't run collectstatic, so fall back to
+# the plain storage that resolves names directly.
+STORAGES = {
+    'staticfiles': {
+        'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
+    },
+}
