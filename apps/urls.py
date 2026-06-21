@@ -42,7 +42,8 @@ urlpatterns = [
     # Desktop modal endpoints
     path('details_player_<int:id>', views.details_player, name='details_player'),
     path('detailed_scores_<int:round_nb>_<int:table_nb>', views.detailed_scores, name='detailed_scores'),
-    path('details_team_<str:team_name>', views.details_team, name='details_team'),
+    # <path:> (not <str:>) so team names containing "/" (e.g. "France/Italy/Spain") match.
+    path('details_team_<path:team_name>', views.details_team, name='details_team'),
 
     # Display-screen polling
     path('check_page', views.check_page, name='check_page'),

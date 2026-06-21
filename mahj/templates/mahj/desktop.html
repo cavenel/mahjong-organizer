@@ -406,7 +406,7 @@
                     <tr class="hover:bg-amber-50/40 transition-colors">
                       <td class="col-f1 px-3 py-2 text-center font-bold text-amber-600">{{ tr.pos }}</td>
                       <td class="col-f2 px-3 py-2">
-                        <a href="details_team_{{ tr.team }}"
+                        <a href="details_team_{{ tr.team|urlencode }}"
                            class="font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ tr.team }}</a>
                       </td>
                       <td class="px-3 py-2 text-center">

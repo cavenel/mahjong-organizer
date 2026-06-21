@@ -34,7 +34,7 @@
             {% endif %}
             {% if scores_json.team %}
               {% if scores_json.country %}<span class="text-gray-300">·</span>{% endif %}
-              <a href="details_team_{{ scores_json.team }}"
+              <a href="details_team_{{ scores_json.team|urlencode }}"
                 class="text-amber-600 hover:text-amber-700 font-medium truncate">{{ scores_json.team }}</a>
             {% endif %}
           </div>
