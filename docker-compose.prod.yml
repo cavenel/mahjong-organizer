@@ -40,7 +40,12 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx/mahjong.conf:/etc/nginx/conf.d/default.conf:ro
+      # Mount the directory, not the single file: a single-file bind mount pins to
+      # the inode at container start, so editor (atomic-replace) edits never reach
+      # the container and `nginx -s reload` re-reads stale config. With the dir
+      # mounted, edits are live and a reload picks them up. (nginx loads conf.d/*.conf;
+      # the image's default.conf is shadowed by this mount.)
+      - ./nginx:/etc/nginx/conf.d:ro
       - gunicorn_sock:/run/gunicorn
       - static_files:/app/staticfiles:ro
       - letsencrypt:/etc/letsencrypt:ro
