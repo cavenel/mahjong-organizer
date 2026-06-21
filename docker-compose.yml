@@ -17,13 +17,28 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    # Everything in Redis is now disposable (regenerable cache + transient channel
-    # layer; sessions live in Postgres), so cap memory and evict LRU under pressure
-    # instead of the default `noeviction`, which fails writes when full. Default RDB
-    # snapshots stay on, giving a warm cache after a graceful restart.
+    # Django cache only — fully disposable/regenerable (sessions live in Postgres),
+    # so cap memory and evict LRU under pressure instead of the default `noeviction`,
+    # which fails writes when full. Default RDB snapshots stay on, giving a warm
+    # cache after a graceful restart. The channel layer + scan queue do NOT live
+    # here (see redis_bus): LRU must never evict a live socket's group membership.
     command: ["redis-server", "--maxmemory", "256mb", "--maxmemory-policy", "allkeys-lru"]
     volumes:
       - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  redis_bus:
+    image: redis:7-alpine
+    restart: unless-stopped
+    # Channels layer + scan-OCR queue. noeviction: these keys must never be dropped
+    # — evicting a WebSocket group membership would silently strand a projector
+    # (socket stays OPEN, so reconnect/heartbeat never fires), and evicting a queued
+    # scan would lose a job. The data is small and short-lived (transient messages +
+    # active group sets), so it won't approach maxmemory; the cap is just a backstop.
+    command: ["redis-server", "--maxmemory", "128mb", "--maxmemory-policy", "noeviction"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -63,12 +78,15 @@ services:
       DJANGO_SETTINGS_MODULE: apps.settings.dev
       DB_HOST: pgbouncer
       REDIS_URL: redis://redis:6379/1
+      REDIS_BUS_URL: redis://redis_bus:6379/0
     volumes:
       - ./captures:/app/mahj/captures
     depends_on:
       pgbouncer:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      redis_bus:
         condition: service_healthy
     command: sh -c "python manage.py migrate --noinput && exec gunicorn apps.asgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
 
@@ -82,10 +100,11 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: apps.settings.dev
       REDIS_URL: redis://redis:6379/1
+      REDIS_BUS_URL: redis://redis_bus:6379/0
     volumes:
       - ./captures:/app/mahj/captures
     depends_on:
-      redis:
+      redis_bus:
         condition: service_healthy
     command: python manage.py scan_worker
     deploy:

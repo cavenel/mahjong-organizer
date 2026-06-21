@@ -34,9 +34,18 @@ MIDDLEWARE = [
     'apps.middleware.AuthCookieMiddleware',
 ]
 
-# Single source of truth: cache, channel layer, and the scan-OCR work queue
-# all share this Redis.
+# Two Redis roles, deliberately split:
+#   REDIS_URL      — the Django cache. Disposable + regenerable, so it runs with
+#                    allkeys-lru: under memory pressure it sheds whatever's coldest.
+#   REDIS_BUS_URL  — the Channels layer + the scan-OCR work queue. These must NOT
+#                    be evicted: dropping a WebSocket group membership would
+#                    silently strand a projector (the socket stays OPEN, so the
+#                    client's reconnect/heartbeat never fires), and dropping a
+#                    queued scan would lose a job. It runs on a separate noeviction
+#                    Redis so the cache's LRU can't touch it.
+# REDIS_BUS_URL defaults to REDIS_URL so single-instance dev/test is unchanged.
 REDIS_URL = env('REDIS_URL', 'redis://127.0.0.1:6379/1')
+REDIS_BUS_URL = env('REDIS_BUS_URL', REDIS_URL)
 
 CACHES = {
     'default': {
@@ -83,7 +92,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [REDIS_URL],
+            'hosts': [REDIS_BUS_URL],
         },
     }
 }

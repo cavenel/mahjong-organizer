@@ -29,7 +29,9 @@ _client = None
 def _redis():
     global _client
     if _client is None:
-        _client = redis.from_url(settings.REDIS_URL, decode_responses=True)
+        # The work queue lives on the noeviction bus Redis, not the LRU cache, so a
+        # queued/pending job can't be evicted out from under a waiting scan.
+        _client = redis.from_url(settings.REDIS_BUS_URL, decode_responses=True)
     return _client
 
 
