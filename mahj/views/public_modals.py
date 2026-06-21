@@ -129,37 +129,53 @@ def details_team(request, team_name):
 
 def detailed_scores(request, round_nb, table_nb):
     tenant = get_tenant(request)
-    position_vals = Position.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
-    hand_vals = Hand.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
+    subdomain = tenant.subdomain if tenant else ''
+
+    # Public modal hit by the whole crowd (every table cell on the desktop links
+    # here, including unplayed rounds). Cache the rendered HTML briefly, keyed by
+    # the leaderboard generation so a real write busts it; the 30s TTL bounds
+    # staleness for hand edits (which don't bump the generation). Same content for
+    # everyone — no per-user key.
+    cache_key = f'modal_detailed:{subdomain}:{round_nb}:{table_nb}:{leaderboard_gen(subdomain)}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return HttpResponse(cached)
+
+    position_vals = (
+        Position.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb)
+        .select_related('player').order_by('id')
+    )
+    hand_vals = Hand.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')
 
     all_hands = [None for _ in range(17)]
     for hand_val in hand_vals:
-        all_hands[hand_val.hand_nb - 1] = hand_val
+        if 1 <= hand_val.hand_nb <= 17:
+            all_hands[hand_val.hand_nb - 1] = hand_val
 
-    if all_hands[16] is None:
-        h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17, pts=0, win_by=0, win_from=0)
-        h.save()
-
+    # Build the 17-slot grid in memory. Missing slots get an UNSAVED placeholder:
+    # this is a read path, so a spectator opening an unplayed table must not write
+    # rows to the DB. Score entry (admin_scores_per_hand) owns row creation.
     hands_per_wind = []
     for i, wind in enumerate(["East", "South", "West", "North"]):
         hands_per_wind.append([wind, []])
         for j in range(4):
             h = all_hands[i * 4 + j]
             if h is None:
-                h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i * 4 + j + 1, pts=0, win_by=0, win_from=0)
-                h.save()
+                h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+                         hand_nb=i * 4 + j + 1, pts=0, win_by=0, win_from=0)
             hands_per_wind[-1][1].append(h)
 
     scores = [None, None, None, None]
     for position_val in position_vals:
-        scores[position_val.position - 1] = position_val
+        if 1 <= position_val.position <= 4:
+            scores[position_val.position - 1] = position_val
 
     template = loader.get_template('mahj/modal_detailed_scores.html')
-    context = {
+    html = template.render({
         'hands_per_wind': hands_per_wind,
-        'completed': all_hands[16],
         'scores': scores,
         'round_nb': round_nb,
         'table_nb': table_nb,
-    }
-    return HttpResponse(template.render(context, request))
+    }, request)
+    cache.set(cache_key, html, MODAL_CACHE_TTL)
+    return HttpResponse(html)
