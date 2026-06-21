@@ -5,6 +5,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Non-root runtime user. Fixed UID/GID (1000) so the host can chown the
+# bind-mounted ./captures dir to a matching owner (`chown -R 1000:1000 captures`).
+RUN groupadd --gid 1000 app && \
+    useradd --uid 1000 --gid 1000 --create-home --shell /usr/sbin/nologin app
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev gcc curl ca-certificates \
     libglib2.0-0 libgomp1 \
@@ -37,8 +42,14 @@ RUN DJANGO_SETTINGS_MODULE=apps.settings.prod \
     DB_NAME=x DB_USER=x DB_PASSWORD=x \
     python manage.py collectstatic --noinput
 
-# Socket directory — bind-mounted from the gunicorn_sock volume at runtime.
-RUN mkdir -p /run/gunicorn
+# Runtime-writable mountpoints. Creating + chowning these here means a fresh
+# named volume (gunicorn_sock, static_files) inherits app ownership on first use;
+# /app/mahj/captures covers the dev run where ./captures isn't bind-mounted.
+# (Volumes created by an earlier root-only image must be chowned or recreated.)
+RUN mkdir -p /run/gunicorn /static /app/mahj/captures && \
+    chown -R app:app /app /run/gunicorn /static
+
+USER app
 
 EXPOSE 8000
 
