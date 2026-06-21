@@ -16,3 +16,8 @@ CSRF_COOKIE_SECURE = True
 # scheme is HTTPS. Without this, SECURE_SSL_REDIRECT causes a redirect loop.
 SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
+
+# nginx serves /static/ directly in prod, so WhiteNoise would never serve a
+# request here. Drop the middleware to avoid the dead per-request hop.
+# (collectstatic still uses CompressedStaticFilesStorage from base.py.)
+MIDDLEWARE = [m for m in MIDDLEWARE if 'whitenoise' not in m.lower()]
