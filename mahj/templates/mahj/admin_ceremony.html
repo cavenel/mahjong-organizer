@@ -1,0 +1,207 @@
+<div x-data="ceremonyConsole()" x-init="load()" class="space-y-6">
+
+  <div class="flex items-start justify-between gap-4 flex-wrap">
+    <div>
+      <h2 class="text-xl font-bold text-gray-800">Prize-giving console</h2>
+      <p class="text-sm text-gray-500 mt-1">Drives the full-screen reveal on <strong>all display screens</strong>. The public site stays in suspense until you publish.</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <button type="button" @click="blank()"
+              class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Blank screens</button>
+      <button type="button" @click="stop()" :disabled="phase==='idle'"
+              class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">End — back to screens</button>
+      <button type="button" @click="publish()"
+              class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-emerald-600 hover:bg-emerald-700">Publish to everyone &amp; end</button>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-500 -mt-3">
+    <strong>Blank screens</strong> = holding slide on all screens ·
+    <strong>End — back to screens</strong> = stop the ceremony, screens return to their normal scores view (nothing published) ·
+    <strong>Publish to everyone &amp; end</strong> = reveal the full final results on the public site and all screens, then end.
+  </p>
+
+  <!-- Live status -->
+  <div class="rounded-xl border border-gray-200 bg-white p-4 flex items-center gap-4">
+    <span class="text-xs font-semibold uppercase tracking-widest text-gray-400">On screens now</span>
+    <span class="font-semibold text-gray-800" x-text="statusLabel()"></span>
+    <span class="ml-auto text-sm text-gray-500" x-show="!loading && (phase==='teams'||phase==='players')"
+          x-text="'Revealed ' + step + ' / ' + list(phase).length"></span>
+  </div>
+
+  <div x-show="loading" class="text-sm text-gray-500">Loading results…</div>
+
+  <div x-show="!loading" class="grid gap-6 lg:grid-cols-2">
+
+    <!-- TEAMS -->
+    <section class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">Teams — top 3 (prizes)</h3>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
+              x-show="phase==='teams'">live</span>
+      </div>
+      <template x-if="!data.uses_teams">
+        <p class="text-sm text-gray-500">No teams in this tournament.</p>
+      </template>
+      <template x-if="data.uses_teams">
+        <div class="space-y-3">
+          <div class="flex gap-2">
+            <button type="button" @click="start('teams')"
+                    class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Start</button>
+            <button type="button" @click="back('teams')" :disabled="curStep('teams')===0"
+                    class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">◂ Back</button>
+            <button type="button" @click="revealNext('teams')" :disabled="curStep('teams')>=data.teams.length"
+                    class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40">Reveal next ▸</button>
+          </div>
+          <!-- next-up cue -->
+          <div class="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm" x-show="nextEntry('teams')">
+            <span class="text-amber-700 font-semibold">Next to announce:</span>
+            <span class="font-bold text-gray-800">
+              #<span x-text="nextEntry('teams')?.pos"></span> —
+              <span x-text="nextEntry('teams')?.name"></span>
+              (<span x-text="nextEntry('teams')?.tp"></span> / <span x-text="nextEntry('teams')?.mp"></span>)
+            </span>
+            <div class="text-xs text-gray-500 mt-1" x-text="(nextEntry('teams')?.players || []).join(', ')"></div>
+          </div>
+          <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
+               x-show="phase==='teams' && curStep('teams')>=data.teams.length">All 3 teams revealed. 🏆</div>
+          <!-- full list reference -->
+          <ul class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+            <template x-for="t in data.teams" :key="t.pos">
+              <li class="px-3 py-2"
+                  :class="revealedSet('teams').has(t.pos) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                <div class="flex items-center gap-3">
+                  <span class="w-6 font-bold tabular-nums" x-text="t.pos"></span>
+                  <span class="flex-1 truncate font-medium" x-text="t.name"></span>
+                  <span class="tabular-nums font-semibold whitespace-nowrap">
+                    <span x-text="t.tp"></span> / <span x-text="t.mp"></span>
+                  </span>
+                  <span title="prize">🏅</span>
+                </div>
+                <div class="text-xs text-gray-400 pl-9 truncate" x-text="(t.players || []).join(', ')"></div>
+              </li>
+            </template>
+          </ul>
+        </div>
+      </template>
+    </section>
+
+    <!-- PLAYERS -->
+    <section class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="font-bold text-gray-800">Players — top <span x-text="data.players.length"></span></h3>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" x-show="phase==='players'">live</span>
+      </div>
+      <div class="space-y-3">
+        <div class="flex gap-2">
+          <button type="button" @click="start('players')"
+                  class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Start</button>
+          <button type="button" @click="back('players')" :disabled="curStep('players')===0"
+                  class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">◂ Back</button>
+          <button type="button" @click="revealNext('players')" :disabled="curStep('players')>=data.players.length"
+                  class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40">Reveal next ▸</button>
+        </div>
+        <div class="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm" x-show="nextEntry('players')">
+          <span class="text-amber-700 font-semibold">Next to announce:</span>
+          <span class="font-bold text-gray-800">
+            #<span x-text="nextEntry('players')?.pos"></span> —
+            <span x-text="nextEntry('players')?.name"></span>
+            (<span x-text="nextEntry('players')?.total"></span>)
+          </span>
+        </div>
+        <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
+             x-show="phase==='players' && curStep('players')>=data.players.length">All players revealed.</div>
+        <ol class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
+          <template x-for="p in data.players" :key="p.pos">
+            <li class="flex items-center gap-3 px-3 py-1.5"
+                :class="revealedSet('players').has(p.pos) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+              <span class="w-6 font-bold tabular-nums" x-text="p.pos"></span>
+              <span class="flex-1 truncate" x-text="p.name"></span>
+              <span class="tabular-nums font-semibold" x-text="p.total"></span>
+              <span class="tabular-nums text-xs text-gray-400 w-16 text-right"><span x-text="p.mp"></span> MP</span>
+            </li>
+          </template>
+        </ol>
+      </div>
+    </section>
+
+    <!-- STATS -->
+    <section class="rounded-xl border border-gray-200 bg-white p-5 space-y-4 lg:col-span-2">
+      <h3 class="font-bold text-gray-800">Stat highlights</h3>
+      <template x-if="!data.stats.length">
+        <p class="text-sm text-gray-500">No stats available yet.</p>
+      </template>
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <template x-for="s in data.stats" :key="s.key">
+          <button type="button" @click="showStat(s.key)"
+                  :class="phase==='stat' && statKey===s.key ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200 hover:bg-gray-50'"
+                  class="text-left rounded-lg border bg-white p-4">
+            <div class="text-sm font-semibold text-gray-800" x-text="s.title"></div>
+            <div class="text-2xl font-black text-amber-600 mt-1">
+              <span x-text="s.value"></span>
+              <span class="text-sm font-bold text-amber-400" x-text="s.unit"></span>
+            </div>
+            <div class="text-xs text-gray-500 mt-1 truncate"
+                 x-text="s.winners.map(w => w.name).join(', ')"></div>
+          </button>
+        </template>
+      </div>
+    </section>
+
+  </div>
+
+  <script>
+    function ceremonyConsole() {
+      return {
+        data: { teams: [], players: [], stats: [], uses_teams: false, rules: '' },
+        phase: 'idle', step: 0, statKey: '', loading: true,
+
+        load() {
+          fetch('ceremony_data').then(r => r.json()).then(d => {
+            this.data = d;
+            if (d.state) { this.phase = d.state.phase; this.step = d.state.step || 0; this.statKey = d.state.stat_key || ''; }
+            this.loading = false;
+          });
+        },
+        list(phase) { return phase === 'teams' ? this.data.teams : this.data.players; },
+        curStep(phase) { return this.phase === phase ? this.step : 0; },
+        revealedSet(phase) {
+          // positions currently revealed on screen (the curStep highest-pos entries)
+          const l = this.list(phase), k = this.curStep(phase);
+          return new Set(l.slice(l.length - k).map(e => e.pos));
+        },
+        nextEntry(phase) {
+          const l = this.list(phase); if (!l || !l.length) return null;
+          const i = l.length - 1 - this.curStep(phase);
+          return i >= 0 ? l[i] : null;
+        },
+        send(params) {
+          const qs = new URLSearchParams(params).toString();
+          return fetch('ceremony_control?' + qs).then(r => r.json()).then(s => {
+            this.phase = s.phase; this.step = s.step || 0; this.statKey = s.stat_key || '';
+            return s;
+          });
+        },
+        start(phase) { this.send({ phase: phase, step: 0 }); },
+        revealNext(phase) { if (this.curStep(phase) < this.list(phase).length) this.send({ phase: phase, step: this.curStep(phase) + 1 }); },
+        back(phase) { if (this.curStep(phase) > 0) this.send({ phase: phase, step: this.curStep(phase) - 1 }); },
+        showStat(key) { this.send({ phase: 'stat', stat_key: key }); },
+        blank() { this.send({ phase: 'blank' }); },
+        stop() { this.send({ phase: 'idle' }); },
+        publish() { if (confirm('Reveal the full results to everyone and end the ceremony?')) this.send({ action: 'publish' }); },
+        statusLabel() {
+          if (this.loading) return '…';
+          if (this.phase === 'idle') return 'Normal (not in ceremony)';
+          if (this.phase === 'blank') return 'Holding slide';
+          if (this.phase === 'teams') return 'Teams reveal';
+          if (this.phase === 'players') return 'Players reveal';
+          if (this.phase === 'stat') {
+            const s = this.data.stats.find(x => x.key === this.statKey);
+            return 'Stat: ' + (s ? s.title : this.statKey);
+          }
+          return this.phase;
+        },
+      };
+    }
+  </script>
+</div>

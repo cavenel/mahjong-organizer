@@ -165,7 +165,35 @@ class PublishedRound(TenantAwareModel):
 
     def __str__(self):
         return f"R{self.round_nb} published (reveal={self.reveal_level})"
-        
+
+
+class CeremonyState(TenantAwareModel):
+    """Drives the prize-giving ceremony takeover of all display screens.
+
+    Persistent (not cache) so a live ceremony survives a cache eviction or
+    process restart. One row per tenant.
+
+    phase:
+      'idle'    — ceremony off; screens show their configured view.
+      'teams'   — revealing top teams 10->1 (step = how many revealed).
+      'players' — revealing top players 10->1 (step = how many revealed).
+      'stat'    — showing one overall_winners category (stat_key).
+      'blank'   — holding/title slide on all screens.
+    """
+    phase      = models.CharField(max_length=20, default='idle')
+    step       = models.IntegerField(default=0)
+    stat_key   = models.CharField(max_length=40, default='', blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['tenant'], name='unique_ceremony_per_tenant'),
+        ]
+
+    def __str__(self):
+        return f"Ceremony {self.phase} step={self.step} stat={self.stat_key}"
+
+
 class Schedule(TenantAwareModel):
     day          = models.CharField(default="",max_length=70)
     time         = models.CharField(default="",null=True,max_length=70)

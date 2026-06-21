@@ -634,6 +634,12 @@ def options(request, error=None):
             "filled_keys": filled_keys,
         }
         page_content = template2.render(context, request)
+    elif page == "ceremony":
+        template2 = loader.get_template('mahj/admin_ceremony.html')
+        page_content = template2.render({
+            "variables": get_variables(request),
+            "subdomain": tenant.subdomain if tenant else '',
+        }, request)
     else:
         page_content = "None"
 

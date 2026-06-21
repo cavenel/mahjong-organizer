@@ -1,0 +1,144 @@
+"""Prize-giving ceremony: state transitions, screen takeover, and publish."""
+import json
+import types
+
+import pytest
+from django.contrib.auth.models import AnonymousUser, User
+from django.test import Client, RequestFactory
+
+from mahj.models import CeremonyState, Position, PublishedRound, Screen
+from mahj.views import ceremony
+
+
+@pytest.fixture
+def teamed(tournament):
+    """Assign the 16 players to 4 teams of 4."""
+    players = tournament['players']
+    for i, p in enumerate(players):
+        p.team = f'Team {chr(ord("A") + i % 4)}'
+        p.save()
+    return tournament
+
+
+def _request(host='test.mahj.ovh'):
+    rf = RequestFactory()
+    req = rf.get('/', HTTP_HOST=host)
+    req.user = AnonymousUser()
+    return req
+
+
+@pytest.fixture
+def op_client(teamed):
+    c = Client()
+    c.force_login(User.objects.create_user('op', password='pw', is_staff=True))
+    c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+    return c
+
+
+class TestMasterData:
+    def test_only_top_three_teams_with_members_and_both_totals(self, teamed):
+        master = ceremony._ceremony_master(_request())
+        assert master['uses_teams'] is True
+        assert len(master['teams']) == 3                # prize-winning teams only
+        assert [t['pos'] for t in master['teams']] == [1, 2, 3]
+        for t in master['teams']:
+            assert set(t.keys()) == {'pos', 'name', 'flag', 'tp', 'mp', 'players'}
+            assert t['players']                         # member names listed
+            assert all(isinstance(n, str) for n in t['players'])
+
+    def test_players_top_sixteen_carry_tp_and_mp(self, teamed):
+        master = ceremony._ceremony_master(_request())
+        assert len(master['players']) == 16
+        for p in master['players']:
+            assert set(p.keys()) == {'pos', 'name', 'flag', 'total', 'mp'}
+
+
+class TestSlidePayload:
+    def test_teams_reveal_counts_from_the_bottom(self, teamed):
+        master = ceremony._ceremony_master(_request())
+
+        state = types.SimpleNamespace(phase='teams', step=1, stat_key='')
+        payload = ceremony._slide_payload(master, state)
+        # step 1 reveals only the worst of the top 3 (pos 3)
+        assert [e['pos'] for e in payload['entries']] == [3]
+        assert payload['current']['pos'] == 3
+        assert payload['done'] is False
+
+        state.step = 3
+        payload = ceremony._slide_payload(master, state)
+        assert [e['pos'] for e in payload['entries']] == [1, 2, 3]  # sorted 1st-first
+        assert payload['current']['pos'] == 1
+        assert payload['done'] is True
+
+
+class TestControlEndpoint:
+    def test_requires_display_op(self, teamed):
+        resp = Client().get('/ceremony_control?phase=teams', HTTP_HOST='test.mahj.ovh')
+        assert resp.status_code in (302, 403)
+
+    def test_start_and_reveal(self, op_client, teamed):
+        tenant = teamed['tenant']
+        op_client.get('/ceremony_control?phase=teams&step=0')
+        op_client.get('/ceremony_control?phase=teams&step=1')
+        state = CeremonyState.objects.get(tenant=tenant)
+        assert state.phase == 'teams'
+        assert state.step == 1
+
+    def test_stop_returns_to_idle_without_publishing(self, op_client, teamed):
+        tenant = teamed['tenant']
+        op_client.get('/ceremony_control?phase=teams&step=3')
+        # round 3 is partial and was never published by the fixture
+        assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
+
+        op_client.get('/ceremony_control?phase=idle')
+        assert CeremonyState.objects.get(tenant=tenant).phase == 'idle'
+        # exiting the ceremony must not publish anything
+        assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
+
+    def test_publish_reveals_all_rounds_and_ends(self, op_client, teamed):
+        tenant = teamed['tenant']
+        nb_rounds = teamed['variable'].nb_rounds
+        op_client.get('/ceremony_control?phase=teams&step=2')
+
+        resp = op_client.get('/ceremony_control?action=publish')
+        body = json.loads(resp.content)
+        assert body['published'] is True
+        assert body['phase'] == 'idle'
+
+        state = CeremonyState.objects.get(tenant=tenant)
+        assert state.phase == 'idle'
+        for rn in range(1, nb_rounds + 1):
+            assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).reveal_level == 100
+
+    def test_publish_fires_webhook_with_full_final_standings(self, op_client, monkeypatch):
+        """The full final standings reach the webhook only after the ceremony."""
+        sent = []
+        monkeypatch.setattr('mahj.webhook.fire_webhook', lambda payload: sent.append(payload))
+
+        op_client.get('/ceremony_control?action=publish')
+
+        assert len(sent) == 1
+        payload = sent[0]
+        assert payload['event'] == 'round_published'
+        # Standings include every round (no suspense truncation once published).
+        assert any(s['total']['mp'] for s in payload['standings'])
+
+
+class TestScreenTakeover:
+    def test_idle_shows_normal_view(self, teamed):
+        Screen.objects.create(tenant=teamed['tenant'], name='S1', view='scores all')
+        resp = Client().get('/1', HTTP_HOST='test.mahj.ovh')
+        assert resp.status_code == 200
+        assert '<title>Prize-giving</title>' not in resp.content.decode()
+
+    def test_active_takes_over_screen(self, teamed):
+        Screen.objects.create(tenant=teamed['tenant'], name='S1', view='scores all')
+        CeremonyState.objects.create(tenant=teamed['tenant'], phase='teams', step=2)
+        resp = Client().get('/1', HTTP_HOST='test.mahj.ovh')
+        assert resp.status_code == 200
+        html = resp.content.decode()
+        # ceremony template took over (not the normal scores view); the current
+        # slide is embedded for the client to render and patch live over the ws.
+        assert '<title>Prize-giving</title>' in html
+        assert '"phase": "teams"' in html
+        assert '"done": false' in html  # step 2 of 4 — reveal still in progress

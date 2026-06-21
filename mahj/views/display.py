@@ -12,6 +12,7 @@ from django.template import loader
 from ..models import Player, Position, Schedule, Screen
 from ..signals import broadcast_display
 from ..scoring import _last_round_reveal
+from .ceremony import ceremony_active_payload
 from .helpers import get_podium, get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, scores_per_table_json, stat_all_rounds
 
@@ -20,6 +21,18 @@ def index(request, screen_id=None):
     variables = get_variables(request)
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
+
+    # Prize-giving ceremony takes over every screen while it's running,
+    # overriding the screen's configured view. Additive — see views/ceremony.py.
+    _state, ceremony_payload = ceremony_active_payload(request)
+    if ceremony_payload is not None:
+        template = loader.get_template('mahj/display_ceremony.html')
+        return HttpResponse(template.render({
+            'payload_json': json.dumps(ceremony_payload),
+            'variables': variables,
+            'subdomain': subdomain,
+        }, request))
+
     if screen_id:
         try:
             screen = Screen.objects.filter(tenant=tenant).all().order_by('id')[screen_id - 1]

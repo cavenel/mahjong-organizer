@@ -1,0 +1,142 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Prize-giving</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <style>
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.06); } 100% { transform: scale(1); opacity: 1; } }
+    .pop { animation: pop .55s cubic-bezier(.2,.8,.2,1) both; }
+    .medal-1 { background: linear-gradient(135deg,#fde68a,#f59e0b); color:#3a2a00; }
+    .medal-2 { background: linear-gradient(135deg,#e5e7eb,#9ca3af); color:#1f2937; }
+    .medal-3 { background: linear-gradient(135deg,#f0c9a0,#b45309); color:#3a1d00; }
+  </style>
+</head>
+<body class="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+  <div id="ceremony-root" class="h-full flex flex-col"></div>
+
+  <script>
+    // The screen reuses the same vanilla-JS websocket pattern as the other
+    // display screens (no Alpine on display screens). It renders the current
+    // slide, then patches it live on each `ceremony.update` — no full reload
+    // for reveals. Only the return-to-normal (phase 'idle') or an unrelated
+    // display event reloads, so index() re-renders the screen's normal view.
+    const BLANK_PNG = "{% static 'images/blank.png' %}";
+    const LOGO_PNG  = "{% static 'images/mcr_logo.png' %}";
+    const TITLE     = "{{ variables.title|default:variables.fullname|default:'Prize-giving'|escapejs }}";
+    const SUBDOMAIN = "{{ subdomain }}";
+    let slide = {{ payload_json|safe }};
+
+    function esc(s) {
+      const d = document.createElement('div');
+      d.textContent = (s == null ? '' : String(s));
+      return d.innerHTML;
+    }
+    function flagImg(code) {
+      return code ? `<img src="${BLANK_PNG}" class="flag inline-block flag-${esc(code)}" alt="">` : '';
+    }
+
+    function shell(title, done, inner) {
+      return `<div class="flex-1 flex flex-col items-center pt-10 pb-6 px-6">
+          <h1 class="text-5xl font-extrabold tracking-tight mb-2">${esc(title)}</h1>
+          <p class="text-amber-300/80 text-xl mb-8">${done ? 'Final results' : 'Counting down…'}</p>
+          <div class="w-full max-w-4xl flex flex-col gap-3">${inner || '<div class="text-center text-2xl text-white/50 py-16">Ready…</div>'}</div>
+        </div>`;
+    }
+
+    function renderPlayers(s) {
+      const rows = (s.entries || []).map((e, i) => {
+        const medal = e.pos === 1 ? 'medal-1' : e.pos === 2 ? 'medal-2' : e.pos === 3 ? 'medal-3' : 'bg-white/10';
+        const hi = i === 0 ? 'pop ring-2 ring-amber-300' : '';
+        return `<div class="flex items-center gap-5 rounded-2xl px-6 py-4 shadow-lg ${hi} ${medal}">
+            <div class="text-4xl font-black w-16 text-center tabular-nums">${esc(e.pos)}</div>
+            ${flagImg(e.flag)}
+            <div class="flex-1 text-3xl font-bold truncate">${esc(e.name)}</div>
+            <div class="text-right tabular-nums leading-tight">
+              <div class="text-3xl font-black">${esc(e.total)}</div>
+              <div class="text-sm opacity-70">${esc(e.mp)} MP</div>
+            </div>
+          </div>`;
+      }).join('');
+      return shell(s.title, s.done, rows);
+    }
+
+    function renderTeams(s) {
+      const rows = (s.entries || []).map((e, i) => {
+        const medal = e.pos === 1 ? 'medal-1' : e.pos === 2 ? 'medal-2' : 'medal-3';
+        const hi = i === 0 ? 'pop ring-2 ring-amber-300' : '';
+        const members = (e.players || []).map(p =>
+          `<div class="text-2xl font-bold truncate">${esc(p)}</div>`
+        ).join('');
+        return `<div class="rounded-2xl px-6 py-5 shadow-lg ${hi} ${medal}">
+            <div class="flex items-center gap-5">
+              <div class="text-5xl font-black w-16 text-center tabular-nums">${esc(e.pos)}</div>
+              ${flagImg(e.flag)}
+              <div class="flex-1 min-w-0 text-3xl font-black truncate">${esc(e.name)}</div>
+              <div class="text-3xl font-black tabular-nums whitespace-nowrap">${esc(e.tp)} <span class="opacity-70 text-2xl">/ ${esc(e.mp)}</span></div>
+            </div>
+            <div class="grid grid-cols-2 gap-x-10 gap-y-2 mt-4 px-2">${members}</div>
+          </div>`;
+      }).join('');
+      return shell(s.title, s.done, rows);
+    }
+
+    function renderStat(s) {
+      if (!s.slide) return `<div class="flex-1 flex items-center justify-center text-2xl text-white/50">No data for this stat.</div>`;
+      const winners = (s.slide.winners || []).map(w =>
+        `<div class="flex items-center justify-center gap-4 text-3xl font-bold">${flagImg(w.flag)}<span>${esc(w.name)}</span></div>`
+      ).join('');
+      return `<div class="flex-1 flex flex-col items-center justify-center gap-8 px-8 text-center">
+          <div class="flex flex-col items-center gap-8 w-full max-w-4xl">
+            <h1 class="text-5xl font-extrabold tracking-tight">${esc(s.slide.title)}</h1>
+            <div class="text-8xl font-black text-amber-300 tabular-nums">${esc(s.slide.value)}<span class="text-4xl font-bold text-amber-200/70 ml-2">${esc(s.slide.unit)}</span></div>
+            <div class="flex flex-col gap-3 w-full">${winners}</div>
+          </div>
+        </div>`;
+    }
+
+    function renderBlank() {
+      return `<div class="flex-1 flex flex-col items-center justify-center gap-8">
+          <img src="${LOGO_PNG}" class="w-32 h-32 opacity-90" alt="">
+          <h1 class="text-6xl font-extrabold tracking-tight text-center px-8">${esc(TITLE)}</h1>
+        </div>`;
+    }
+
+    function render(s) {
+      let html = '';
+      if (s.phase === 'teams') html = renderTeams(s);
+      else if (s.phase === 'players') html = renderPlayers(s);
+      else if (s.phase === 'stat') html = renderStat(s);
+      else html = renderBlank();
+      document.getElementById('ceremony-root').innerHTML = html;
+    }
+
+    render(slide);
+
+    (function () {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      function connect() {
+        const ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + SUBDOMAIN + '/');
+        ws.onmessage = function (evt) {
+          let msg;
+          try { msg = JSON.parse(evt.data); } catch (e) { location.reload(); return; }
+          if (msg && msg.event === 'ceremony') {
+            if (msg.phase === 'idle') { location.reload(); return; }  // back to normal screen
+            slide = msg;
+            render(slide);                                            // live reveal, no reload
+          } else {
+            location.reload();                                        // unrelated display change
+          }
+        };
+        ws.onclose = function () { setTimeout(connect, 3000); };
+        ws.onerror = function () { ws.close(); };
+      }
+      connect();
+    })();
+  </script>
+</body>
+</html>

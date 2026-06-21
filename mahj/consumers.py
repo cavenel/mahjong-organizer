@@ -42,6 +42,9 @@ class TenantConsumer(AsyncJsonWebsocketConsumer):
     async def counter_update(self, event):
         await self.send_json(event['data'])
 
+    async def ceremony_update(self, event):
+        await self.send_json(event['data'])
+
 
 class ScorersConsumer(AsyncJsonWebsocketConsumer):
     """Consumer for scorer pages: live row sync and publish-toggle sync."""
