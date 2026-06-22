@@ -79,7 +79,7 @@
 
       <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">During tournament</p>
 
-      {% if user.is_staff or user_is_scorer %}
+      {% if user.is_staff or user_is_scorer or user_is_publisher %}
         <a href="admin?page=scoring"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>

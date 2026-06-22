@@ -16,7 +16,7 @@ from django.template import loader
 
 from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
-from .helpers import BASE_DIR, get_counter, get_tenant, get_variables, is_display_op, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
+from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
 from .print_views import _country_flag
 from .scoring import (
     scores_per_player_json,
@@ -526,7 +526,7 @@ def welcome_options(request):
     return HttpResponse(template.render({"welcome": welcome, "variables": variables}, request))
 
 
-@user_passes_test(is_scorer_or_display_op)
+@user_passes_test(can_access_admin)
 def options(request, error=None):
     tenant = get_tenant(request)
     if request.GET.get('logout') == "1":
@@ -540,6 +540,9 @@ def options(request, error=None):
         page = "scoring"
     if is_display_op(request.user) and not request.user.is_staff and page is None:
         page = "display"
+    # Publishers manage publishing from the scoring page.
+    if is_publisher(request.user) and not request.user.is_staff and page is None:
+        page = "scoring"
 
     if page == "welcome" or page is None:
         page = "welcome"
@@ -658,9 +661,10 @@ def options(request, error=None):
             "subdomain": tenant.subdomain if tenant else '',
             "validated_keys": validated_keys,
             "filled_keys": filled_keys,
-            # Only staff may publish/unpublish — the endpoint is staff-only, so
-            # keep the toggle disabled for scorer accounts to avoid a dead control.
-            "can_publish": request.user.is_staff,
+            # Only staff and publishers may publish/unpublish — the endpoint is
+            # gated the same way, so keep the toggle disabled for plain scorer
+            # accounts to avoid a dead control.
+            "can_publish": is_publisher(request.user),
         }
         page_content = template2.render(context, request)
     elif page == "ceremony":
@@ -678,5 +682,6 @@ def options(request, error=None):
         "page_content": page_content,
         "user_is_scorer": is_scorer(request.user),
         "user_is_display_op": is_display_op(request.user),
+        "user_is_publisher": is_publisher(request.user),
     }
     return HttpResponse(template.render(context, request))

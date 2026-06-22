@@ -15,7 +15,7 @@ from ..signals import (
     broadcast_scorer_validation,
     invalidate_leaderboard,
 )
-from .helpers import get_tenant, get_variables, is_scorer
+from .helpers import get_tenant, get_variables, is_publisher, is_scorer
 
 
 WINDS = ['E', 'S', 'W', 'N']
@@ -335,11 +335,12 @@ def update_positions_bulk(request):
     return HttpResponse("")
 
 
-@user_passes_test(lambda u: u.is_staff)
+@user_passes_test(is_publisher)
 def set_round_published(request):
-    """Publish or unpublish a round. Staff-only: publishing locks a round's scores,
-    so scorers must not be able to publish/unpublish (a stray unpublish would reopen
-    finalized scores for editing). Publishing requires all 4 positions of every
+    """Publish or unpublish a round. Restricted to staff and the Publisher role:
+    publishing locks a round's scores, so plain scorers must not be able to
+    publish/unpublish (a stray unpublish would reopen finalized scores for
+    editing). Publishing requires all 4 positions of every
     table in that round to have both minipoints and tablepoints set. On success,
     invalidates the public leaderboard cache and broadcasts a refresh to displays.
     """

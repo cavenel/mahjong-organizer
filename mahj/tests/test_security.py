@@ -64,6 +64,14 @@ def display_op_user(db):
     return u
 
 
+@pytest.fixture
+def publisher_group_user(db):
+    u = User.objects.create_user('publisheronly', password='pw')
+    group, _ = Group.objects.get_or_create(name='Publisher')
+    u.groups.add(group)
+    return u
+
+
 def _counter(tournament):
     return Variable.objects.get(tenant=tournament['tenant']).counter
 
@@ -146,9 +154,10 @@ class TestScorerWriteEndpointsGated:
         assert resp.status_code == 302
 
 
-class TestPublishIsStaffOnly:
-    """Publishing/unpublishing locks scores, so it must be staff-only — a scorer
-    must not be able to unpublish and reopen finalized scores."""
+class TestPublishRestrictedToStaffAndPublisher:
+    """Publishing/unpublishing locks scores, so it is restricted to staff and the
+    'Publisher' role — a plain scorer must not be able to unpublish and reopen
+    finalized scores."""
 
     def test_anonymous_redirected(self, client_, tournament):
         resp = client_.post('/set_round_published',
@@ -170,6 +179,20 @@ class TestPublishIsStaffOnly:
         resp = client_.post('/set_round_published',
                             data=json.dumps({'round_nb': 1, 'published': False}),
                             content_type='application/json')
+        assert resp.status_code == 200
+
+    def test_publisher_group_member_allowed(self, client_, tournament, publisher_group_user):
+        client_.force_login(publisher_group_user)
+        resp = client_.post('/set_round_published',
+                            data=json.dumps({'round_nb': 1, 'published': False}),
+                            content_type='application/json')
+        assert resp.status_code == 200
+
+    def test_publisher_reaches_admin_dashboard(self, client_, tournament, publisher_group_user):
+        # A publisher manages publishing from the scoring page, so they must be
+        # able to open the admin dashboard.
+        client_.force_login(publisher_group_user)
+        resp = client_.get('/options')
         assert resp.status_code == 200
 
 

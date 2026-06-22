@@ -31,8 +31,16 @@ def is_scorer(user):
 def is_display_op(user):
     return user.is_authenticated and (user.is_staff or user.groups.filter(name='Display_op').exists())
 
+def is_publisher(user):
+    return user.is_authenticated and (user.is_staff or user.groups.filter(name='Publisher').exists())
+
 def is_scorer_or_display_op(user):
     return is_scorer(user) or is_display_op(user)
+
+def can_access_admin(user):
+    """Any role with a reason to open the admin dashboard: scorers, display
+    operators and publishers (staff are included via each role check)."""
+    return is_scorer_or_display_op(user) or is_publisher(user)
 
 
 class PositionForm(ModelForm):
