@@ -37,6 +37,7 @@ urlpatterns = [
     path('create_hand_points', views.create_hand_points, name='create_hand_points'),
     path('update_hand_points', views.update_hand_points, name='update_hand_points'),
     path('validate_score_sheet', views.validate_score_sheet, name='validate_score_sheet'),
+    path('clear_score_sheet', views.clear_score_sheet, name='clear_score_sheet'),
 
     # Desktop modal endpoints
     path('details_player_<int:id>', views.details_player, name='details_player'),

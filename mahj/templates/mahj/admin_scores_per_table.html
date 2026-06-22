@@ -83,6 +83,25 @@
 {% with last_round=variables.nb_rounds %}
 <div x-data="{ activeRound: {{ active_round }} }">
 
+  {% if subdomain == "test" %}
+  <!-- Test-only fixtures toolbar (only rendered on the "test" tenant). Generates
+       random but valid data across EVERY round so the leaderboard / ceremony /
+       display views have something to show. Deliberately leaves ~1/3 of the last
+       round's tables blank to exercise the incomplete-round / partial-publish path. -->
+  <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-sm">
+    <span class="font-semibold text-amber-700">🧪 Test data</span>
+    <button type="button" onclick="random_fill_score(true)"
+            class="btn-sheet">Fill all rounds — scores</button>
+    <button type="button" onclick="random_fill_score_sheets(true)"
+            class="btn-sheet">Fill all rounds — score sheets</button>
+    <button type="button" onclick="clear_score(true)"
+            class="btn-sheet">Clear all rounds — scores</button>
+    <button type="button" onclick="clear_score_sheets(true)"
+            class="btn-sheet">Clear all rounds — score sheets</button>
+    <span class="text-xs italic text-amber-600">some last-round scores are left empty on purpose</span>
+  </div>
+  {% endif %}
+
   <!-- Round tabs -->
   <div class="border-b border-gray-200 mb-4">
     <nav class="-mb-px flex gap-2 overflow-x-auto" role="tablist">
@@ -115,7 +134,7 @@
           <span class="publish-label font-medium">Publish round {{ forloop.counter }}</span>
         </label>
         {% if not can_publish %}
-        <span class="text-xs italic text-gray-400">— staff only</span>
+        <span class="text-xs italic text-gray-400">— staff or publisher only</span>
         {% endif %}
         <span class="lock-hint text-xs italic text-gray-400 {% if forloop.counter not in published_rounds %}hidden{% endif %}">— unpublish to edit scores</span>
         {% if forloop.counter == last_round %}
@@ -454,51 +473,143 @@
     }
   })();
 
-  function random_fill_score() {
-    $(".table_row").each(function() {
-      var row = $(this);
-      if (!row.closest(".tab-pane").hasClass("active")) return;
-      if (publishedRounds.has(parseInt(row.attr("data-round-nb")))) return;
+  // The three helpers below are dev/test fixtures. By default they act on the
+  // visible round only (handy from the console); pass allRounds=true (the
+  // "test"-tenant toolbar buttons do) to fill every round at once. When filling
+  // all rounds we stagger the writes so we don't fire hundreds of requests in a
+  // single tick, and we leave ~1/3 of the LAST round's tables blank so the
+  // incomplete-round / partial-publish paths still have something to exercise.
+  var LAST_ROUND = {{ variables.nb_rounds }};
+
+  function _eachTargetRow(allRounds, fn) {
+    var delay = 0;
+    $(".table_row").toArray().forEach(function(el) {
+      var row = $(el);
+      if (!allRounds && !row.closest(".tab-pane").hasClass("active")) return;
+      if (fn(row, delay)) delay += 20;
+    });
+    return delay;
+  }
+
+  // Publish rounds 1..maxRound in order (publishing round N requires 1..N-1 to be
+  // published already, so this can't be parallelised). Continues past failures:
+  // the last round is left incomplete on purpose, so its publish 400s harmlessly.
+  function _publishRoundsSequential(maxRound, after) {
+    var rn = 1;
+    (function step() {
+      if (rn > maxRound) { if (after) after(); return; }
+      var thisRound = rn++;
+      $.ajax({
+        type: "POST", url: "set_round_published",
+        contentType: "application/json",
+        data: JSON.stringify({ round_nb: thisRound, published: true }),
+        headers: { "X-CSRFToken": "{{ csrf_token }}" },
+        complete: function(xhr) {
+          if (xhr.responseJSON && xhr.responseJSON.published_rounds) {
+            publishedRounds = new Set(xhr.responseJSON.published_rounds);
+          }
+          step();
+        },
+      });
+    })();
+  }
+
+  function random_fill_score(allRounds) {
+    // Leave the last two tables of the LAST round empty so it stays incomplete —
+    // exercises the partial-round / can't-publish path. Every other round (and the
+    // rest of the last round) is filled.
+    var lastRoundTables = $('.table_row[data-round-nb="' + LAST_ROUND + '"]').length;
+    var totalDelay = _eachTargetRow(allRounds, function(row, delay) {
+      var rn = parseInt(row.attr("data-round-nb"));
+      if (publishedRounds.has(rn)) return false;
+      if (allRounds && rn === LAST_ROUND && parseInt(row.attr("data-table-nb")) > lastRoundTables - 2) return false;
       var inp = row.find("input[name='minipoints']"), sum = 0;
       for (var i = 0; i < 3; i++) { var v = Math.floor(Math.random()*200)-100; inp[i].value = v; sum += v; }
       inp[3].value = -sum;
-      update_line(row, true); send_ajax(row);
+      update_line(row, true);
+      setTimeout(function() { send_ajax(row); }, delay);
+      return true;
     });
+    if (!allRounds) return;
+    // Once every score write has landed, publishers also publish all rounds
+    // (the incomplete last round simply won't publish).
+    if (canPublish) {
+      setTimeout(function() { _publishRoundsSequential(LAST_ROUND, refreshAllPublishToggles); }, totalDelay + 700);
+    } else {
+      setTimeout(refreshAllPublishToggles, 50);
+    }
   }
 
-  function random_fill_score_sheets() {
+  function random_fill_score_sheets(allRounds) {
     var csrfToken = '{{ csrf_token }}';
-    $(".table_row").each(function() {
-      var row = $(this);
-      if (!row.closest(".tab-pane").hasClass("active")) return;
+    _eachTargetRow(allRounds, function(row, delay) {
       var roundNb = row.attr("data-round-nb");
       var tableNb = row.attr("data-table-nb");
       var data = { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb };
+      // Complete sheets: every one of the 16 hands gets a real result.
       for (var i = 1; i <= 16; i++) {
-        if (Math.random() < 0.1) {
-          data['pts_' + i]  = 0; data['by_' + i] = 0; data['from_' + i] = 0;
-        } else {
-          data['pts_' + i]  = Math.floor(Math.random() * Math.random() * Math.random() * 103) + 8;
-          data['by_' + i]   = Math.floor(Math.random() * 4) + 1;
-          data['from_' + i] = Math.floor(Math.random() * 4) + 1;
-        }
+        data['pts_' + i]  = Math.floor(Math.random() * Math.random() * Math.random() * 103) + 8;
+        data['by_' + i]   = Math.floor(Math.random() * 4) + 1;
+        data['from_' + i] = Math.floor(Math.random() * 4) + 1;
       }
-      $.post('create_hand_points', data, function() {
-        $.post('validate_score_sheet',
-          { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb },
-          function() { row.find('.valid-badge').addClass('active'); }
-        );
-      });
+      setTimeout(function() {
+        $.post('create_hand_points', data, function() {
+          $.post('validate_score_sheet',
+            { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb },
+            function() { row.find('.valid-badge').addClass('active'); }
+          );
+        });
+      }, delay);
+      return true;
     });
   }
 
-  function clear_score() {
-    $(".table_row").each(function() {
-      var row = $(this);
-      if (!row.closest(".tab-pane").hasClass("active")) return;
-      if (publishedRounds.has(parseInt(row.attr("data-round-nb")))) return;
-      row.find("input[name='minipoints']").val("");
-      update_line(row, true); send_ajax(row);
+  function clear_score_sheets(allRounds) {
+    var csrfToken = '{{ csrf_token }}';
+    _eachTargetRow(allRounds, function(row, delay) {
+      var roundNb = row.attr("data-round-nb");
+      var tableNb = row.attr("data-table-nb");
+      setTimeout(function() {
+        $.post('clear_score_sheet',
+          { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb },
+          function() { row.find('.valid-badge').removeClass('active in-progress'); }
+        );
+      }, delay);
+      return true;
     });
+  }
+
+  function clear_score(allRounds) {
+    function doClear() {
+      _eachTargetRow(allRounds, function(row, delay) {
+        if (publishedRounds.has(parseInt(row.attr("data-round-nb")))) return false;
+        row.find("input[name='minipoints']").val("");
+        update_line(row, true);
+        setTimeout(function() { send_ajax(row); }, delay);
+        return true;
+      });
+      if (allRounds) setTimeout(refreshAllPublishToggles, 50);
+    }
+    // A published round's scores are locked, so they can't be cleared until the
+    // round is unpublished. Publishers unpublish first; unpublishing the lowest
+    // published round cascades to every later one (no gaps), so one call clears
+    // them all. Non-publishers fall through and simply skip published rounds.
+    if (allRounds && canPublish && publishedRounds.size > 0) {
+      $.ajax({
+        type: "POST", url: "set_round_published",
+        contentType: "application/json",
+        data: JSON.stringify({ round_nb: Math.min.apply(null, Array.from(publishedRounds)), published: false }),
+        headers: { "X-CSRFToken": "{{ csrf_token }}" },
+        complete: function(xhr) {
+          if (xhr.responseJSON && xhr.responseJSON.published_rounds) {
+            publishedRounds = new Set(xhr.responseJSON.published_rounds);
+          }
+          refreshAllPublishToggles();
+          doClear();
+        },
+      });
+    } else {
+      doClear();
+    }
   }
 </script>

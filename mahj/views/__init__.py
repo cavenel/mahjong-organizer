@@ -23,6 +23,7 @@ from .scoring import (
 )
 from .score_entry import (
     admin_scores_per_hand,
+    clear_score_sheet,
     create_hand_points,
     set_round_published,
     update_hand_points,
