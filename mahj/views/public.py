@@ -6,7 +6,7 @@ from django.template import loader
 
 from ..models import Hand, Position, Schedule
 from ..scoring import team_standings
-from .helpers import get_tenant, get_variables, is_scorer
+from .helpers import can_access_admin, get_tenant, get_variables
 from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, tournament_seating
 
 HTML_CACHE_TTL = LEADERBOARD_TTL  # same TTL as data; also invalidated by signals
@@ -24,9 +24,20 @@ def desktop(request):
     is_admin = request.user.is_staff
     check_final = not is_admin
 
+    # The overflow menu (Admin / Log out / Login) varies by role, but the page is
+    # cached as one HTML blob, so the cache key must capture every menu variant or
+    # the first render leaks its menu to the whole bucket. One token covers both
+    # the data view (is_admin → force_all) and the menu: the anonymous crowd all
+    # share 'anon' (so nginx still microcaches a single `/` entry), while the few
+    # privileged sessions each get their own variant.
+    authenticated = request.user.is_authenticated
+    user_can_access_admin = can_access_admin(request.user)
+    view = ('staff' if is_admin else 'admin' if user_can_access_admin
+            else 'user' if authenticated else 'anon')
+
     # Cache the full rendered HTML — it only changes when scores/variables are written,
     # both of which already call invalidate_leaderboard() which deletes this key.
-    html_key = f'desktop_html:{subdomain}:{is_admin}'
+    html_key = f'desktop_html:{subdomain}:{view}'
     cached_html = cache.get(html_key)
     if cached_html is not None:
         return HttpResponse(cached_html)
@@ -117,7 +128,8 @@ def desktop(request):
         'stat_all': stat_all_data,
         'uses_teams': uses_teams,
         'team_rows': team_rows,
-        'user_is_scorer': is_scorer(request.user),
+        'user_authenticated': authenticated,
+        'user_can_access_admin': user_can_access_admin,
     }
     template = loader.get_template('mahj/desktop.html')
     html = template.render(context, request)

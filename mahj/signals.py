@@ -50,8 +50,10 @@ def _invalidate_leaderboard(subdomain):
     for cf in (True, False):
         for fa in (True, False):
             cache.delete(f'seating_v2:{subdomain}:{cf}:{fa}')
-    for is_admin in (True, False):
-        cache.delete(f'desktop_html:{subdomain}:{is_admin}')
+    # One entry per desktop view token (see views/public.py: anonymous crowd +
+    # the privileged role classes). All are busted on any leaderboard write.
+    for view in ('staff', 'admin', 'user', 'anon'):
+        cache.delete(f'desktop_html:{subdomain}:{view}')
 
 
 def _broadcast(group, event_type, data):
