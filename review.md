@@ -25,9 +25,13 @@ for an operator to restart), and — most recently — the projector CDN depende
 Bootstrap / Alpine / Chart.js are now **vendored into `mahj/static/`** and served from the
 content-hashed `/static/`), the duplicate-`Hand` scoring-corruption risk (now a DB
 `UniqueConstraint`), the scores-screen QR (generated locally with `segno`, no external service),
-the `display_schedule.html` mixed-content load, and the floating dependency tags. The `I#` /
-`S#` / 🟡 IDs are carried over from the original reviews so they stay stable. **No 🔴 Critical
-or 🟠 Important items remain open.**
+the `display_schedule.html` mixed-content load, the floating dependency tags, and — most
+recently — the fat single-stage image (**S3**: now a multi-stage build — wheels built in a
+throwaway builder, slim runtime with no `gcc`/`libpq-dev`/Tailwind binary, deps installed from
+the builder's wheels via a bind-mount so they never bloat a layer; `.dockerignore` expanded to
+drop `captures/`, `plugins/`, `*_old.*`, `mahj/tests/`, `*.md`/`docs/`, and the load-test
+tooling/output). The `I#` / `S#` / 🟡 IDs are carried over from the original reviews so they
+stay stable. **No 🔴 Critical or 🟠 Important items remain open.**
 
 ---
 
@@ -109,16 +113,6 @@ so a projector with no internet still shows a scannable code.)
 ---
 
 ## 🟡 Secondary — quality, robustness, cost
-
-### S3. Image is fat and keeps build tools at runtime
-Single-stage build keeps `gcc` and `libpq-dev` in the final image, and `COPY . .` pulls
-in `captures/`, `template_old.jpg` (2 MB), `plugins/` (a whole WordPress plugin with
-hundreds of flag SVGs), `MahjongTemplate.xlsx`, tests, `*.sh`, and `TODO.md` —
-none needed at runtime. `.dockerignore` only excludes `.venv/.env/databases/git`.
-**Fix:** multi-stage build (wheels in builder, slim runtime), switch to `psycopg[binary]`
-or drop `libpq-dev`/`gcc` from the final stage, and expand `.dockerignore`
-(`captures/`, `plugins/`, `*_old.*`, `test_*.sh`, `*.md`, `mahj/tests/`,
-`mahj/static/*.xlsx`).
 
 ### 🟡-5. `scan_worker` loop doesn't guard `dequeue()` → a `redis_bus` restart crashes the worker
 **Where:** [scan_worker.py:39-43](mahj/management/commands/scan_worker.py#L39) — only `_process`
@@ -286,7 +280,7 @@ timestamp and is unaffected. Only an admin Start/Stop changes it.
 ---
 
 ## Suggested order today
-1. **S3** slim the image / expand `.dockerignore` (biggest hygiene win; do off the event path).
+1. ~~**S3** slim the image / expand `.dockerignore`~~ — done (multi-stage build, expanded ignore).
 2. **🟡-5** wrap `scan_worker` `dequeue` in a reconnect loop.
 3. **🟡-6** set `capacity`/`expiry` on the channel layer.
 4. Redeploy the image with the vendored assets, then run CDN-failure drill #1 against it.

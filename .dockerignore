@@ -1,10 +1,41 @@
+# Python / venv / caches
 .venv
 __pycache__
 *.pyc
 *.pyo
+.pytest_cache
+
+# Secrets & local env
 .env
+
+# Generated at build time (tailwind + collectstatic), never copy stale copies in
 staticfiles
+
+# Local data / backups not needed at runtime
 databases/
 bakup/
+captures/
+
+# Bundled WordPress plugin (hundreds of flag SVGs) — not used by the app
+plugins/
+
+# VCS / docker meta
 .git
 .dockerignore
+
+# Docs & notes (none read at runtime)
+*.md
+docs/
+TODO.md
+
+# Tests
+mahj/tests/
+
+# Superseded assets
+*_old.*
+
+# Local-only load-test / query-profiling tooling and its output
+locustfile.py
+test_*.sh
+run.log
+run_*.csv
