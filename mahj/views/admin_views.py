@@ -672,6 +672,7 @@ def options(request, error=None):
         page_content = template2.render({
             "variables": get_variables(request),
             "subdomain": tenant.subdomain if tenant else '',
+            "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
         }, request)
     else:
         page_content = "None"
