@@ -10,6 +10,7 @@ import os
 
 from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
+from django.db.models import F
 from django.http import JsonResponse
 from django.shortcuts import render
 
@@ -295,6 +296,24 @@ def scan_positions(request):
     })
 
 
+def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
+    """Write a Hand cell under the optimistic-lock convention: bump version
+    atomically on update so a concurrent per-cell update_hand_points sees a
+    version change and gets a 409 instead of being silently clobbered. Falls
+    back to create() for a first-touch row (the unique_hand_per_cell constraint
+    makes the loser of a create race raise rather than double-insert)."""
+    updated = Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
+    ).update(version=F('version') + 1, **fields)
+    if not updated:
+        defaults = {'pts': 0, 'win_by': 0, 'win_from': 0}
+        defaults.update(fields)
+        Hand.objects.create(
+            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
+            **defaults,
+        )
+
+
 @user_passes_test(is_scorer)
 def scan_prefill(request):
     """Write OCR-extracted hand data to DB, mark as valid."""
@@ -331,23 +350,16 @@ def scan_prefill(request):
         winner = entry.get('Winner')
         discarder = entry.get('Discarder')
         confidence = entry.get('Confidence')
-        hand, _ = Hand.objects.get_or_create(
-            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
-            defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
-        )
-        hand.pts = int(value) if value is not None else 0
-        hand.win_by = int(winner) if winner is not None else 0
-        hand.win_from = int(discarder) if discarder is not None else 0
-        hand.confidence = float(confidence) if confidence is not None else 1.0
-        hand.save()
+        fields = {
+            'pts': int(value) if value is not None else 0,
+            'win_by': int(winner) if winner is not None else 0,
+            'win_from': int(discarder) if discarder is not None else 0,
+            'confidence': float(confidence) if confidence is not None else 1.0,
+        }
+        _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
 
     validate = body.get('validate', True)
-    valid_hand, _ = Hand.objects.get_or_create(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
-        defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
-    )
-    valid_hand.pts = 1 if validate else 0
-    valid_hand.save()
+    _write_hand(tenant, round_nb, table_nb, 17, {'pts': 1 if validate else 0})
 
     subdomain = tenant.subdomain if tenant else ''
     if validate:

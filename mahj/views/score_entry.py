@@ -245,12 +245,14 @@ def validate_score_sheet(request):
     tenant = get_tenant(request)
     round_nb = int(request.POST.get('round_nb'))
     table_nb = int(request.POST.get('table_nb'))
-    hand, _ = Hand.objects.get_or_create(
+    updated = Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
-        defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
-    )
-    hand.pts = 1
-    hand.save()
+    ).update(version=F('version') + 1, pts=1)
+    if not updated:
+        Hand.objects.create(
+            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
+            pts=1, win_by=0, win_from=0,
+        )
     broadcast_scorer_validation(tenant.subdomain, {
         'type': 'scorer.validation',
         'round_nb': round_nb,
