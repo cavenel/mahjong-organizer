@@ -513,11 +513,16 @@ def options(request, error=None):
             mode_name = request.POST.get('mode_name')
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             views_list = [str(screen.view) for screen in screens]
-            ScreenMode(tenant=tenant, name=mode_name, views=json.dumps(views_list)).save()
+            mode = ScreenMode(tenant=tenant, name=mode_name, views=json.dumps(views_list))
+            mode.save()
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'id': mode.id, 'name': mode.name})
             return HttpResponseRedirect('admin?page=display')
         elif request.GET.get('rm_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('rm_mode'))
             mode.delete()
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'ok': True})
             return HttpResponseRedirect('admin?page=display')
         elif request.GET.get('set_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('set_mode'))
