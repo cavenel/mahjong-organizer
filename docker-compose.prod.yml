@@ -18,13 +18,24 @@ services:
       - static_files:/static
       - ./captures:/app/mahj/captures
     ports: []    # nginx handles external traffic; web is not exposed directly
-    # Ready once gunicorn has bound the socket (after the static copy + migrations).
-    # The socket is the exact thing nginx proxies to; checking it avoids the
-    # ALLOWED_HOSTS (400) / SECURE_SSL_REDIRECT (301) traps an HTTP probe would hit.
+    # Probe the request path, not just the socket file: a hung gunicorn still owns a
+    # bound socket, so `test -S` would call it healthy forever. curl over the socket
+    # times out iff a worker can't answer. We deliberately omit `-f`: any HTTP reply
+    # proves the worker ran the request, so a SECURE_SSL_REDIRECT 301 or an
+    # ALLOWED_HOSTS 400 still counts as alive (the 301 short-circuits in middleware
+    # before the leaderboard renders, so the probe stays cheap). This still gates
+    # nginx startup, since curl can't connect until the socket is bound. 6 retries ×
+    # 5s ⇒ ~30s of sustained no-response before unhealthy.
+    #
+    # NB: an "unhealthy" mark does NOT restart the container — `restart: unless-stopped`
+    # only fires on process exit. So a wedged (not crashed) gunicorn surfaces as
+    # `(unhealthy)` in `docker ps` for an operator to `restart web` by hand; there is
+    # no automatic watchdog by design (an operator is watching the screens live).
     healthcheck:
-      test: ["CMD-SHELL", "test -S /run/gunicorn/mahjong.sock"]
+      test: ["CMD-SHELL", "curl -s -o /dev/null --max-time 4 --unix-socket /run/gunicorn/mahjong.sock http://localhost/"]
       interval: 5s
-      retries: 10
+      timeout: 5s
+      retries: 6
       start_period: 30s    # absorb migrations on a fresh DB
 
   # OCR workers run prod settings; everything else (build, command, queue,

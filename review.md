@@ -21,8 +21,11 @@ moving sessions to Postgres + a Redis eviction policy, the dev-only tenant-resol
 the OCR `Winner`-nullability schema, dropping the dead WhiteNoise middleware in prod, making
 the `/` microcache cookie-independent + tuning gunicorn `max_requests`, the `manage.py`
 dead-code block, the `models.py` bare `except:`/`Tenant.get_default_pk` bugs, the orphaned
-`apps/static/admin` copy, and the orphaned legacy `timer_options` view/template. The `I#` / `S#` IDs are carried over from the original reviews so
-they stay stable. No 🔴 Critical items remain open.
+`apps/static/admin` copy, and the orphaned legacy `timer_options` view/template, and the hung-but-not-crashed web
+container (the healthcheck now does a real curl-over-socket liveness probe instead of just
+stat-ing the socket, so a wedged gunicorn surfaces as `(unhealthy)` for an operator to
+restart). The `I#` / `S#` IDs are carried over from the original reviews so
+they stay stable. No 🔴 Critical or 🟠 Important items remain open.
 
 The three hard invariants all hold:
 1. **Counter never stops/resets except by explicit admin action** — server-authoritative
@@ -50,16 +53,6 @@ The three hard invariants all hold:
   ping/pong half-open watchdog, reload-on-reconnect to resync, default-on disconnect banner.
   `TenantConsumer` joins `leaderboard_*` + `display_*`. Broadcasts are best-effort and swallow
   Redis errors so a messaging blip never 500s a committed write (`signals.py:57`).
-
----
-
-## 🟠 Important — should fix soon
-
-### I-E. Nothing auto-heals a hung (not crashed) web container
-`docker-compose.prod.yml:24` healthcheck only tests socket existence to order nginx startup;
-`restart: unless-stopped` recovers a crash/OOM but a wedged gunicorn is left running.
-**Fix:** add an autoheal sidecar or an HTTP healthcheck + external watchdog. Deferrable if an
-operator is watching.
 
 ---
 
@@ -140,7 +133,9 @@ touched.
    reconnect, note `evicted_keys`; `restart pgbouncer` → writes pause/resume, no 500 storm;
    `docker kill` one `scan_worker` → in-flight scan `expired` (recoverable), other replica
    drains; **network bounce a display 30s** → banner appears, then reconnect+reload;
-   **counter-stop attempt** from a spectator console → 403.
+   **counter-stop attempt** from a spectator console → 403; **wedge web** (e.g.
+   `docker pause web` ~40s) → healthcheck goes `(unhealthy)` in `docker ps`, operator
+   `restart web`, screens reconnect+reload, counter resumes correct (persisted in PG).
 5. **Soak (4h+).** Counter running + idle screens overnight. **Pass:** no drift/reset, no
    silent freeze, web RSS flat before the daily `max_requests=50000` recycle, `evicted_keys` ~0.
 
@@ -154,7 +149,7 @@ deploy once, freeze.
 | Symptom | Look at | Recovery |
 |---|---|---|
 | A projector frozen / wrong | Disconnect banner | Self-reloads; else F5. Counter screen self-heals on its own clock. |
-| All screens stale | `ps` (web healthy?), `redis-cli info clients` | `restart web` — **safe for the counter** (persisted in PG); screens reconnect+reload. |
+| All screens stale | `docker ps` (web `(unhealthy)`?), `redis-cli info clients` | `restart web` — **safe for the counter** (persisted in PG); screens reconnect+reload. A *wedged* web (process up, not answering) shows `(unhealthy)` in `docker ps` — the healthcheck curls the socket, so this is the signal to `restart web`. |
 | Counter stopped/jumped | Was it an admin action? | Admin re-issues Start from `/admin?page=display`. **Don't restart to "fix" it** — restarts don't reset it; only an admin `action=start/stop` does. |
 | Scorer "conflict" (409) | Expected on concurrent cell edits | Scorer reloads the sheet, re-enters. Working as designed. |
 | Scans "expired" | `scan_worker` logs; `redis-cli llen scan:queue`; `info stats \| grep evicted` | `restart scan_worker`; the bus is `noeviction`, so rising `evicted_keys` is only the LRU cache. |
@@ -174,4 +169,3 @@ timestamp and is unaffected. The only things that change it are an admin Start/R
 ## Suggested order of operations
 
 1. **S3** (slim image / expand `.dockerignore`).
-2. **I-E** (autoheal for a hung web container) if no operator will be watching screens live.
