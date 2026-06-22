@@ -80,7 +80,7 @@
         {% for mode in modes %}
           <div class="relative rounded-xl bg-amber-500 text-white shadow-sm cursor-pointer overflow-hidden
                       hover:bg-amber-600 transition-colors"
-               onclick="location.href='admin?page=display&set_mode={{ mode.id }}'">
+               onclick="applyMode({{ mode.id }})">
             <a href="admin?page=display&rm_mode={{ mode.id }}"
                onclick="event.stopPropagation();"
                class="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-500 hover:bg-rose-600 text-white">
@@ -112,9 +112,11 @@
         {% for screen in screens %}
           <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div class="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-700 flex items-center justify-between gap-2">
-              <span class="truncate">Screen {{ forloop.counter }} <span class="font-normal text-gray-500">— {{ screen.view }}</span></span>
+              <span class="truncate">Screen {{ forloop.counter }} <span class="preview-view font-normal text-gray-500" data-screen-id="{{ screen.id }}">— {{ screen.view }}</span></span>
               <button type="button" title="Enlarge"
                       class="enlarge-preview shrink-0 p-1 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                      data-screen-id="{{ screen.id }}"
+                      data-screen-label="Screen {{ forloop.counter }}"
                       data-src="https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}"
                       data-title="Screen {{ forloop.counter }} — {{ screen.view }}">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
@@ -386,6 +388,26 @@
         $.post(url, { 'csrfmiddlewaretoken': '{{ csrf_token }}' });
       });
     });
+
+    // Apply a saved display mode without reloading the page: the server returns
+    // the new per-screen views, and we update the selects, the preview labels
+    // and (if open) the preview iframes in place — so the previews stay open.
+    window.applyMode = function(id) {
+      $.post("admin?page=display&set_mode=" + id, { 'csrfmiddlewaretoken': '{{ csrf_token }}' }, function(data) {
+        (data.screens || []).forEach(function(s) {
+          $("#select-view-" + s.id).val(s.view);
+          $('.preview-view[data-screen-id="' + s.id + '"]').text('— ' + s.view);
+          $('.enlarge-preview[data-screen-id="' + s.id + '"]').each(function() {
+            $(this).attr('data-title', $(this).attr('data-screen-label') + ' — ' + s.view);
+          });
+        });
+        // Reload any previews that are currently shown so they reflect the new views.
+        var $container = $("#previews-container");
+        if ($container.length && $container.css('display') !== 'none') {
+          $(".preview-iframe").each(function() { this.src = $(this).attr('data-src'); });
+        }
+      }, 'json');
+    };
   </script>
 
 </div>

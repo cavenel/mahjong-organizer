@@ -523,10 +523,16 @@ def options(request, error=None):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('set_mode'))
             views_list = json.loads(mode.views)
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
+            applied = []
             for view, screen in zip(views_list, screens):
                 screen.view = view
                 screen.save()
+                applied.append({'id': screen.id, 'view': screen.view})
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+            # The admin page applies modes via AJAX so it can refresh the
+            # selects/previews in place; other callers (mobile app) get a redirect.
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+                return JsonResponse({'screens': applied})
             return HttpResponseRedirect('admin?page=display')
         screens = Screen.objects.filter(tenant=tenant).order_by('id')
         modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
