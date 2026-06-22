@@ -219,7 +219,9 @@
         closeDetailsModal() {
           try {
             var iframe = document.getElementById('modalDetails-iframe');
-            if (iframe && iframe.contentWindow && iframe.contentWindow.flushPending) iframe.contentWindow.flushPending();
+            var win = iframe && iframe.contentWindow;
+            if (win && win.confirmClose && !win.confirmClose()) return;
+            if (win && win.flushPending) win.flushPending();
           } catch(e) {}
           this.detailsModal.open = false; this.detailsModal.src = '';
         },

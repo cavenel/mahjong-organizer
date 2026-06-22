@@ -212,6 +212,10 @@ function openSheet(round_nb, table_nb) {
   overlay.classList.remove('hidden');
 }
 function closeSheet() {
+  try {
+    var w = overlayFrame.contentWindow;
+    if (w && w.confirmClose && !w.confirmClose()) return;
+  } catch(e) {}
   overlay.classList.add('hidden');
   overlayFrame.src = 'about:blank';
   refreshStatus();   // validation/edits in the sheet may have changed status
