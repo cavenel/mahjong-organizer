@@ -35,7 +35,7 @@ def admin_print_EMA(request):
     else:
         wb = load_workbook(filename=str(BASE_DIR / "files/report_template_Riichi.xlsx"), data_only=True)
         sheet_ranges = wb['Riichi template']
-    scores_json = scores_per_player_json(request, check_final)  # noqa: F821 — preserved legacy behavior
+    scores_json = scores_per_player_json(request, True)
     for row, player in enumerate(scores_json):
         items = [
             variables.fullname,
@@ -385,7 +385,7 @@ def admin_team_draw_save(request):
 @user_passes_test(lambda u: u.is_staff)
 def update_variables(request):
     variables = get_variables(request)
-    for name in ["welcome", "final", "title", "fullname"]:
+    for name in ["welcome", "title", "fullname"]:
         value = request.POST.get(name, default=None)
         if value is not None:
             if "sw_class" in name:
@@ -410,66 +410,6 @@ def update_welcome(request):
     except Exception:
         welcome = "Welcome"
     return HttpResponse(welcome)
-
-
-@user_passes_test(lambda u: u.is_staff)
-def check_final(request):
-    """Read/write the last-round podium reveal level.
-
-    The reveal is stored on the last-round PublishedRound row. If the row
-    doesn't exist yet, this endpoint lazily creates it (reveal_level=0) only
-    when a write is requested — reading without a write still returns 0.
-    """
-    try:
-        tenant = get_tenant(request)
-        variables = get_variables(request)
-        last_round = variables.nb_rounds
-
-        final_param = request.GET.get('final', default=None)
-        final_diff_param = request.GET.get('final_diff', default=None)
-
-        row = PublishedRound.objects.filter(tenant=tenant, round_nb=last_round).first()
-        current = row.reveal_level if row else 0
-        new_val = current
-        write = False
-
-        if final_param is not None:
-            new_val = int(final_param)
-            write = True
-        if final_diff_param is not None:
-            diff = int(final_diff_param)
-            if current > 16 and diff == -1:
-                new_val = 16
-            else:
-                new_val = current + diff
-            if new_val > 16:
-                new_val = 100
-            elif new_val < 0:
-                new_val = 0
-            write = True
-
-        if write:
-            if row is None:
-                row = PublishedRound.objects.create(
-                    tenant=tenant, round_nb=last_round, reveal_level=new_val,
-                )
-            else:
-                row.reveal_level = new_val
-                row.save(update_fields=['reveal_level', 'published_at'])
-            subdomain = tenant.subdomain if tenant else ''
-            invalidate_leaderboard(subdomain)
-            broadcast_publish_state(subdomain, {
-                'published_rounds': list(
-                    PublishedRound.objects.filter(tenant=tenant)
-                        .order_by('round_nb').values_list('round_nb', flat=True)
-                ),
-            })
-            final_val = new_val
-        else:
-            final_val = current
-    except Exception:
-        final_val = 0
-    return HttpResponse(final_val)
 
 
 # The round timer is server-authoritative. `counter` holds an absolute epoch-ms
@@ -555,27 +495,7 @@ def options(request, error=None):
             for var in request.GET.keys():
                 if "variables-" in var:
                     field = var.replace("variables-", "")
-                    if field == "final":
-                        # final is no longer a Variable field — it's reveal_level
-                        # on the last-round PublishedRound row.
-                        try:
-                            new_val = int(request.GET.get(var))
-                        except (TypeError, ValueError):
-                            continue
-                        last_round = variables.nb_rounds
-                        row, _ = PublishedRound.objects.update_or_create(
-                            tenant=tenant, round_nb=last_round,
-                            defaults={'reveal_level': new_val},
-                        )
-                        subdomain = tenant.subdomain if tenant else ''
-                        invalidate_leaderboard(subdomain)
-                        broadcast_publish_state(subdomain, {
-                            'published_rounds': list(
-                                PublishedRound.objects.filter(tenant=tenant)
-                                    .order_by('round_nb').values_list('round_nb', flat=True)
-                            ),
-                        })
-                    elif hasattr(variables, field):
+                    if hasattr(variables, field):
                         setattr(variables, field, request.GET.get(var))
                         touched = True
             if touched:
@@ -610,15 +530,11 @@ def options(request, error=None):
             return HttpResponseRedirect('admin?page=display')
         screens = Screen.objects.filter(tenant=tenant).order_by('id')
         modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
-        last_round_pub = PublishedRound.objects.filter(
-            tenant=tenant, round_nb=variables.nb_rounds,
-        ).first()
         context = {
             "screens": screens,
             "modes": modes,
             "screen_displays": ["black", "scores p. 1", "scores p. 2", "scores all", "scores all, total only", "counter", "schedule"],
             "variables": variables,
-            "final_reveal": last_round_pub.reveal_level if last_round_pub else 0,
         }
         template2 = loader.get_template('mahj/admin_display.html')
         page_content = template2.render(context, request)
@@ -632,7 +548,7 @@ def options(request, error=None):
         scores_json = scores_per_table_json(request)
         all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
         try:
-            nb_rounds = len(scores_per_player_json(request, check_final)[0]["scores"])  # noqa: F821 — preserved legacy behavior
+            nb_rounds = len(scores_per_player_json(request, True)[0]["scores"])
         except Exception:
             nb_rounds = 6
         template2 = loader.get_template('mahj/admin_scores_per_table.html')

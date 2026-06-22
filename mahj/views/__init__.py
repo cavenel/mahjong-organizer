@@ -41,7 +41,6 @@ from .public_modals import (
 from .admin_views import (
     admin_print_EMA,
     admin_upload_from_template,
-    check_final,
     counter_start,
     options,
     randomize,

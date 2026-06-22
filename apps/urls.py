@@ -48,7 +48,6 @@ urlpatterns = [
     # Display-screen polling
     path('check_page', views.check_page, name='check_page'),
     path('check_round', views.check_round, name='check_round'),
-    path('check_final', views.check_final, name='check_final'),
     path('check_variables', views.check_variables, name='check_variables'),
 
     # Scan
