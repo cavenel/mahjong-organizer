@@ -91,9 +91,13 @@ class Hand(TenantAwareModel):
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'round_nb', 'table_nb']),
-            models.Index(fields=['tenant', 'round_nb', 'table_nb', 'hand_nb']),
         ]
-    
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'round_nb', 'table_nb', 'hand_nb'],
+                name='unique_hand_per_cell'),
+        ]
+
     def win_by_player (self):
         try:
             position_vals = Position.objects.using(self._state.db).filter(tenant=self.tenant, round_nb=self.round_nb, table_nb=self.table_nb, position=self.win_by)
