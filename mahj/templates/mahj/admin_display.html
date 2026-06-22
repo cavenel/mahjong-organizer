@@ -53,7 +53,7 @@
     </div>
 
     {% if screens %}
-      <form id="add-mode-form" action="admin?page=display&action=add_mode" method="post" class="mt-4 max-w-xl">
+      <form action="admin?page=display&action=add_mode" method="post" class="mt-4 max-w-xl">
         {% csrf_token %}
         <label for="mode_name" class="block text-sm font-medium text-gray-700 mb-1">
           Save screen configuration as a display mode
@@ -73,15 +73,16 @@
   </section>
 
   <!-- Display modes -->
-  {% if screens %}
-    <section id="modes-section"{% if not modes %} style="display:none;"{% endif %}>
+  {% if modes %}
+    <section>
       <h2 class="text-xl font-bold text-gray-800 mb-3">Display modes</h2>
-      <div id="modes-grid" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
         {% for mode in modes %}
           <div class="relative rounded-xl bg-amber-500 text-white shadow-sm cursor-pointer overflow-hidden
                       hover:bg-amber-600 transition-colors"
-               data-mode-id="{{ mode.id }}" onclick="applyMode({{ mode.id }})">
-            <a href="#" onclick="event.preventDefault();event.stopPropagation();removeMode({{ mode.id }});"
+               onclick="applyMode({{ mode.id }})">
+            <a href="admin?page=display&rm_mode={{ mode.id }}"
+               onclick="event.stopPropagation();"
                class="absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-500 hover:bg-rose-600 text-white">
               <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
             </a>
@@ -405,43 +406,6 @@
         if ($container.length && $container.css('display') !== 'none') {
           $(".preview-iframe").each(function() { this.src = $(this).attr('data-src'); });
         }
-      }, 'json');
-    };
-
-    // Build a display-mode card matching the server-rendered markup. The name is
-    // set with .text() so user input can't inject markup.
-    function buildModeCard(id, name) {
-      var $card = $(
-        '<div class="relative rounded-xl bg-amber-500 text-white shadow-sm cursor-pointer overflow-hidden hover:bg-amber-600 transition-colors">' +
-          '<a href="#" class="rm-mode absolute top-1.5 right-1.5 p-1 rounded-md bg-rose-500 hover:bg-rose-600 text-white">' +
-            '<svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>' +
-          '</a>' +
-          '<div class="px-4 py-6 text-center"><p class="capitalize text-sm font-medium truncate"></p></div>' +
-        '</div>'
-      );
-      $card.attr('data-mode-id', id).attr('onclick', 'applyMode(' + id + ')');
-      $card.find('.rm-mode').attr('onclick', 'event.preventDefault();event.stopPropagation();removeMode(' + id + ');');
-      $card.find('p').text(name);
-      return $card;
-    }
-
-    // Save the current screen configuration as a new mode without reloading: the
-    // server returns the new mode's id/name and we append a card in place.
-    $("#add-mode-form").on('submit', function(e) {
-      e.preventDefault();
-      var $form = $(this);
-      $.post($form.attr('action'), $form.serialize(), function(data) {
-        $("#modes-grid").append(buildModeCard(data.id, data.name));
-        $("#modes-section").show();
-        $form.find('#mode_name').val('');
-      }, 'json');
-    });
-
-    // Delete a mode in place; hide the section once the last card is gone.
-    window.removeMode = function(id) {
-      $.post("admin?page=display&rm_mode=" + id, { 'csrfmiddlewaretoken': '{{ csrf_token }}' }, function() {
-        $('[data-mode-id="' + id + '"]').remove();
-        if ($("#modes-grid").children().length === 0) { $("#modes-section").hide(); }
       }, 'json');
     };
   </script>
