@@ -11,7 +11,9 @@ scans can never starve score entry or the public displays.
 """
 import logging
 import signal
+import time
 
+import redis
 from django.core.management.base import BaseCommand
 
 from mahj import scan_queue
@@ -37,7 +39,15 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS("scan_worker ready; waiting for jobs…"))
 
         while self._running:
-            job = scan_queue.dequeue(timeout=5)
+            try:
+                job = scan_queue.dequeue(timeout=5)
+            except redis.RedisError:
+                # A redis_bus blip (e.g. restart) raises out of blpop. Ride it out
+                # instead of exiting the command: redis-py drops the dead connection
+                # and reconnects on the next dequeue, so the worker self-heals.
+                logger.warning("scan_worker: bus unavailable, retrying")
+                time.sleep(1)
+                continue
             if job is None:
                 continue
             self._process(job)

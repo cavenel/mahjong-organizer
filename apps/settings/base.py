@@ -93,6 +93,11 @@ CHANNEL_LAYERS = {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
             'hosts': [REDIS_BUS_URL],
+            # A wedged/slow display socket would otherwise hold up to the default
+            # 100 messages and keep them for 60s. Drop stale frames fast: a screen
+            # that misses frames resyncs on its next heartbeat/reconnect anyway.
+            'capacity': 300,
+            'expiry': 10,
         },
     }
 }

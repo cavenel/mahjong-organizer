@@ -25,13 +25,20 @@ for an operator to restart), and — most recently — the projector CDN depende
 Bootstrap / Alpine / Chart.js are now **vendored into `mahj/static/`** and served from the
 content-hashed `/static/`), the duplicate-`Hand` scoring-corruption risk (now a DB
 `UniqueConstraint`), the scores-screen QR (generated locally with `segno`, no external service),
-the `display_schedule.html` mixed-content load, the floating dependency tags, and — most
-recently — the fat single-stage image (**S3**: now a multi-stage build — wheels built in a
-throwaway builder, slim runtime with no `gcc`/`libpq-dev`/Tailwind binary, deps installed from
-the builder's wheels via a bind-mount so they never bloat a layer; `.dockerignore` expanded to
-drop `captures/`, `plugins/`, `*_old.*`, `mahj/tests/`, `*.md`/`docs/`, and the load-test
-tooling/output). The `I#` / `S#` / 🟡 IDs are carried over from the original reviews so they
-stay stable. **No 🔴 Critical or 🟠 Important items remain open.**
+the `display_schedule.html` mixed-content load, and the floating dependency tags. Most
+recently:
+- **S3** (fat image): now a multi-stage build — wheels built in a throwaway builder, slim
+  runtime with no `gcc`/`libpq-dev`/Tailwind binary, deps installed from the builder's wheels
+  via a bind-mount so they never bloat a layer; `.dockerignore` expanded to drop `captures/`,
+  `plugins/`, `*_old.*`, `mahj/tests/`, `*.md`/`docs/`, and the load-test tooling/output.
+- **🟡-5** (`scan_worker` crashes on a `redis_bus` blip): the `dequeue`/`blpop` is now wrapped
+  in `try/except redis.RedisError: sleep(1); continue`, so a bus restart no longer exits the
+  command — the worker reconnects and rides it out instead of flapping.
+- **🟡-6** (channel layer untuned): `CHANNEL_LAYERS` now sets `'capacity': 300, 'expiry': 10`,
+  so a slow display socket drops *stale* frames fast rather than holding 100 old ones.
+
+The `I#` / `S#` / 🟡 IDs are carried over from the original reviews so they stay stable.
+**No 🔴 Critical or 🟠 Important items remain open.**
 
 ---
 
@@ -113,25 +120,6 @@ so a projector with no internet still shows a scannable code.)
 ---
 
 ## 🟡 Secondary — quality, robustness, cost
-
-### 🟡-5. `scan_worker` loop doesn't guard `dequeue()` → a `redis_bus` restart crashes the worker
-**Where:** [scan_worker.py:39-43](mahj/management/commands/scan_worker.py#L39) — only `_process`
-is wrapped in try/except ([:54](mahj/management/commands/scan_worker.py#L54)); `scan_queue.dequeue`
-→ `blpop` ([scan_queue.py:69](mahj/scan_queue.py#L69)) is not. A `redis_bus` restart raises
-`ConnectionError` out of the loop, the command exits, and the container restarts.
-**Impact:** recoverable (`restart: unless-stopped`, [docker-compose.yml:98](docker-compose.yml#L98)),
-but in-flight scans become `expired` and the worker flaps for a few seconds. Low risk because
-`scan_status` already surfaces `expired` to the scorer ([scan.py:140-143](mahj/views/scan.py#L140)).
-**Fix:** wrap the `dequeue` call in `try/except redis.RedisError: time.sleep(1); continue` so the
-worker rides out a bus blip without exiting.
-
-### 🟡-6. Channel layer has no `capacity`/`expiry` tuning
-**Where:** [base.py:91-98](apps/settings/base.py#L91) — `CHANNEL_LAYERS` sets only `hosts`.
-`channels_redis` default capacity is 100 msgs/channel. A wedged/slow display socket can backfill
-its channel; `group_send` then raises `ChannelFull`, which `_broadcast` swallows
-([signals.py:77](mahj/signals.py#L77)) → that one screen misses an update and resyncs on its next
-heartbeat/reconnect. Not dangerous, but set `'capacity': 300, 'expiry': 10` explicitly so a slow
-screen drops *stale* frames fast rather than holding 100 old ones.
 
 ### 🟡-7. `scan_prefill` / `validate_score_sheet` write without the version guard
 `validate_score_sheet` / `scan_prefill` use `get_or_create` + a full `.save()` (no `version`
@@ -226,8 +214,9 @@ loser of the race gets an `IntegrityError` and re-fetches instead of inserting a
 - `docker compose restart web` mid-round → counter resumes correct remaining; screens reconnect+reload.
 - `docker compose restart redis` (LRU cache) → staff stay logged in (sessions in PG), displays
   reconnect, note `evicted_keys`.
-- `docker compose restart redis_bus` → displays reconnect; **confirm scan_worker survives** (it
-  currently flaps, 🟡-5) and drains the queue; in-flight scans show `expired` (recoverable).
+- `docker compose restart redis_bus` → displays reconnect; **confirm scan_worker rides it out**
+  (🟡-5 fixed — it now reconnects instead of flapping) and drains the queue; any in-flight scan
+  shows `expired` (recoverable).
 - `docker compose restart pgbouncer` → writes pause then resume, no 500 storm.
 - `docker kill` one `scan_worker` replica → other replica drains the queue.
 - **Network-bounce a display 30 s** → red banner appears within ~5 s, then reconnect + reload.
@@ -281,7 +270,7 @@ timestamp and is unaffected. Only an admin Start/Stop changes it.
 
 ## Suggested order today
 1. ~~**S3** slim the image / expand `.dockerignore`~~ — done (multi-stage build, expanded ignore).
-2. **🟡-5** wrap `scan_worker` `dequeue` in a reconnect loop.
-3. **🟡-6** set `capacity`/`expiry` on the channel layer.
+2. ~~**🟡-5** wrap `scan_worker` `dequeue` in a reconnect loop~~ — done.
+3. ~~**🟡-6** set `capacity`/`expiry` on the channel layer~~ — done.
 4. Redeploy the image with the vendored assets, then run CDN-failure drill #1 against it.
 5. Re-run chaos drills (#6) end to end.
