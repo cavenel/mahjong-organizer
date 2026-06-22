@@ -20,6 +20,23 @@ def teamed(tournament):
     return tournament
 
 
+@pytest.fixture
+def tied_players(teamed):
+    """Force players[0] and players[1] into an exact (mp, tp) tie across the
+    counted rounds, so they share a `pos` in the standings.
+
+    This guards the ceremony console's hard assumption that `pos` is NOT a
+    unique key: tied players share it, so the reveal list must key on
+    `player_id` and track reveals by index, not by `pos`.
+    """
+    tenant = teamed['tenant']
+    a, b = teamed['players'][0], teamed['players'][1]
+    for rn in (1, 2):  # the two completed (counted) rounds
+        Position.objects.filter(tenant=tenant, round_nb=rn, player__in=[a, b]).update(
+            minipoints=120, tablepoints=2.0)
+    return teamed, a, b
+
+
 def _request(host='test.mahj.ovh'):
     rf = RequestFactory()
     req = rf.get('/', HTTP_HOST=host)
@@ -51,6 +68,36 @@ class TestMasterData:
         assert len(master['players']) == 16
         for p in master['players']:
             assert set(p.keys()) == {'pos', 'player_id', 'name', 'flag', 'total', 'mp'}
+
+
+class TestTieHandling:
+    """A tie makes `pos` non-unique. The console keys its reveal list on
+    `player_id` and tracks reveals by index for exactly this reason."""
+
+    def test_tied_players_share_pos_but_keep_a_unique_key(self, tied_players):
+        teamed, a, b = tied_players
+        master = ceremony._ceremony_master(_request())
+        by_id = {p['player_id']: p for p in master['players']}
+
+        # The tie is genuine: the two players share a rank...
+        assert a.id in by_id and b.id in by_id
+        assert by_id[a.id]['pos'] == by_id[b.id]['pos']
+
+        positions = [p['pos'] for p in master['players']]
+        ids = [p['player_id'] for p in master['players']]
+        # ...so `pos` collides (unsafe as an Alpine :key), but player_id stays unique.
+        assert len(set(positions)) < len(positions)
+        assert len(set(ids)) == len(ids)
+
+    def test_reveal_advances_one_entry_at_a_time_across_a_tie(self, tied_players):
+        master = ceremony._ceremony_master(_request())
+        n = len(master['players'])
+        # Each step reveals exactly one more entry (by index), even where two
+        # entries share a pos — never both tied entries in a single step.
+        for step in range(n + 1):
+            state = types.SimpleNamespace(phase='players', step=step, stat_key='')
+            payload = ceremony._slide_payload(master, state)
+            assert len(payload['entries']) == step
 
 
 class TestSlidePayload:
