@@ -5,10 +5,11 @@ re-read of `review.md`. Where I agree with `review.md` I say so briefly; the bul
 risks `review.md` **missed or that have regressed**. Findings are ranked by what will bite us
 live, each with `file:line`, the failure scenario, the user-visible impact, and the minimal fix.
 
-The three hard invariants are addressed explicitly in §A. The headline is that **invariant 2
-is currently violated by a dependency `review.md` never examined**: every projector screen
-loads its JavaScript from public CDNs, and when that fails the screen freezes *without* the
-disconnect banner ever appearing.
+The three hard invariants are addressed explicitly in §A. The headline finding — that **invariant 2
+was violated by a dependency `review.md` never examined**: every projector screen loaded its
+JavaScript from public CDNs, and when that failed the screen froze *without* the disconnect banner
+ever appearing — is now **FIXED** (🔴-1 below): all libraries are vendored into `mahj/static/` and
+served from the existing content-hashed `/static/`.
 
 ---
 
@@ -35,18 +36,17 @@ Traced every read/write:
   that cache key, so it's correct after a start/stop, and the client overwrites it within one RTT
   regardless. Not a defect — just noting the DB is the source of truth, the template value is
   cosmetic.
-- **The real threat to invariant 1 is finding 🔴-1**: if jQuery fails to load, the `$.post` on
-  line 186 throws, the counter never renders or reconnects, and the screen sits frozen at
-  `00:00:00`. The counter *data* is safe in Postgres; the counter *screen* is not.
+- **The prior threat to invariant 1 was finding 🔴-1** (now FIXED): if jQuery had failed to load, the
+  `$.post` on line 186 would throw, the counter would never render or reconnect, and the screen would
+  sit frozen at `00:00:00`. jQuery is now vendored locally, so this is closed. The counter *data* was
+  always safe in Postgres; the counter *screen* is now safe too.
 
-### Invariant 2 (displays never die silently) — **VIOLATED** (see 🔴-1)
+### Invariant 2 (displays never die silently) — **HOLDS** (🔴-1 FIXED)
 The reconnect/backoff/heartbeat/banner machinery in
 [display_socket.js](mahj/static/js/display_socket.js) is genuinely good and covers WS drop,
-half-open sockets, and server restart. **But it only fires if the script runs at all.** Every
-display template loads jQuery (and Bootstrap/Alpine) from a third-party CDN *before* the inline
-script that calls `connectDisplaySocket`. A CDN/DNS/captive-portal failure means the banner code
-never executes → blank or frozen screen, no error shown. This is the exact failure mode the
-invariant forbids.
+half-open sockets, and server restart — **and it now reliably runs**, because every display template
+loads jQuery/Bootstrap/Alpine/Chart.js from local `/static/` rather than a third-party CDN. A
+CDN/DNS/captive-portal failure can no longer prevent the banner code from executing (🔴-1).
 
 ### Invariant 3 (no silent write loss / disconnect) — HOLDS for scorer cell edits
 - `update_hand_points` is version-checked, returns **409** on conflict
@@ -66,8 +66,18 @@ invariant forbids.
 
 ## 🔴 Critical
 
-### 🔴-1. Every projector/display screen loads its JS from public CDNs → silent dead screen on any network hiccup
-**Where:**
+### 🔴-1. Every projector/display screen loads its JS from public CDNs → silent dead screen on any network hiccup — ✅ FIXED
+**Resolution:** Vendored all five libraries into the repo and pointed every template at `{% static %}`:
+`js/jquery-3.7.1.min.js` (single version — the old 3.3.1/3.7.1 split is retired),
+`js/bootstrap-3.3.7.min.js` + `css/bootstrap-3.3.7.min.css` (+ the glyphicon `fonts/` it references),
+`js/chart-3.9.1.min.js`, and `js/alpine-3.14.8.min.js` (pinned — the old floating `3.x.x` tag is gone).
+All 12 affected templates now load from local `/static/`; `grep` confirms zero remaining
+`googleapis`/`unpkg`/`jsdelivr`/`bootstrapcdn`/`code.jquery` references. `collectstatic` runs clean
+(890 files post-processed, Bootstrap's font `url()`s rewritten by the manifest hasher, no
+`MissingFileError`). This also closes 🟠-3 for free. **Still to do before doors open:** rebuild/redeploy
+the image (the running container has static baked in, not volume-mounted) and run CDN-failure drill #1.
+
+**Where (original):**
 - [display_counter.html:11](mahj/templates/mahj/display_counter.html#L11) — `ajax.googleapis.com` jQuery
 - [display_black.html:8](mahj/templates/mahj/display_black.html#L8),
   [display_no_screen.html:8](mahj/templates/mahj/display_no_screen.html#L8),
@@ -162,12 +172,12 @@ class Meta:
 #6) or the migration will fail — which is itself the cheapest way to find out whether you already
 have corruption. **Verify:** the dup-detection query returns zero rows after the migration.
 
-### 🟠-3. `display_schedule.html` loads Bootstrap JS over plain `http://` → blocked as mixed content
-**Where:** [display_schedule.html:13](mahj/templates/mahj/display_schedule.html#L13) —
-`<script src="http://maxcdn.bootstrapcdn.com/...">` on an HTTPS page.
-**Impact:** browsers block active mixed content outright, so even *with* internet the schedule
-screen's Bootstrap JS silently never loads. Subsumed by 🔴-1's fix (vendor locally), but flagged
-separately because it fails even when the CDN is reachable.
+### 🟠-3. `display_schedule.html` loads Bootstrap JS over plain `http://` → blocked as mixed content — ✅ FIXED
+**Resolution:** Closed by the 🔴-1 vendor pass — [display_schedule.html:13](mahj/templates/mahj/display_schedule.html#L13)
+now loads `{% static 'js/bootstrap-3.3.7.min.js' %}` from the local HTTPS `/static/`, so there is no
+longer an `http://` active resource to be blocked as mixed content.
+**Was:** `<script src="http://maxcdn.bootstrapcdn.com/...">` on an HTTPS page — browsers block active
+mixed content outright, so the schedule screen's Bootstrap JS silently never loaded even *with* internet.
 
 ### 🟠-4. Nothing auto-heals a *hung* (not crashed) web container — still open from `review.md` I-E
 **Where:** [docker-compose.prod.yml:24-28](docker-compose.prod.yml#L24) — the web healthcheck only
@@ -241,8 +251,9 @@ them locally — just make sure you vendor a *specific* known-good build.
 On a test projector machine, block the CDNs at the OS/hosts level or DevTools:
 `ajax.googleapis.com unpkg.com cdn.jsdelivr.net maxcdn.bootstrapcdn.com code.jquery.com`.
 Open `/1` (counter), a scores screen, the schedule screen, and `/`.
-**PASS:** every screen renders from local assets; on a WS drop the red banner still appears.
-**FAIL (current state):** counter frozen at 00:00:00 with no banner; `/` blank. → ship the vendor fix, re-run.
+**PASS (expected now that 🔴-1 is fixed):** every screen renders from local assets; on a WS drop the
+red banner still appears. **Still run this against the redeployed image** to confirm the vendored
+assets are actually in the served container (the dev container has static baked in, not mounted).
 
 **2. Load `/` + modals (locust — already built).**
 `locust -f locustfile.py --headless -u 300 -r 20 -t 15m --host https://staging…`
@@ -288,7 +299,8 @@ FROM mahj_hand GROUP BY 1,2,3,4 HAVING count(*) > 1;
 ## C. Event-day runbook (one page)
 
 **Golden rule:** never `git pull` / `--build` / `down` during the event. Deploy once, freeze.
-Vendor the CDN libs (🔴-1) **before** doors open — it is the single highest-value change.
+The CDN libs are now vendored (🔴-1) — make sure that deploy/freeze is the image that **contains the
+vendored assets**, and run CDN-failure drill #1 against it before doors open.
 
 **Monitor continuously:** one real projector + the counter on a screen you can see · `docker stats`
 (web RSS/CPU) · `redis-cli -h redis_bus info stats | grep evicted_keys` (must stay ~0) · nginx
@@ -296,7 +308,7 @@ Vendor the CDN libs (🔴-1) **before** doors open — it is the single highest-
 
 | Symptom | Look at | Recovery |
 |---|---|---|
-| **One projector frozen, no banner** | Did its JS load? (DevTools console: `$ is not defined` / Alpine missing) | Network/CDN issue. F5 the screen. **If 🔴-1 unfixed this is the #1 risk — vendor libs pre-event.** |
+| **One projector frozen, no banner** | Did its JS load? (DevTools console: `$ is not defined` / Alpine missing) | JS now served from local `/static/` (🔴-1 fixed), so this should not recur. If it does, confirm the redeployed image actually contains the vendored assets, then F5. |
 | Projector shows red "DISPLAY DISCONNECTED" banner | It's self-recovering | Leave it; it reconnects+reloads. Only F5 if banner persists >60 s. |
 | All screens stale | web healthy? `redis-cli -h redis_bus ping` | `docker compose restart web` — **safe for counter** (persisted in PG); screens reconnect+reload. |
 | Counter stopped/jumped | Was it an admin Start/Stop? | An admin re-issues Start from `/admin?page=display`. **Never "restart to fix" — restarts can't change it**; only an admin `action=start/stop` POST does. |
@@ -317,8 +329,9 @@ timestamp and is unaffected. Only an admin Start/Stop changes it.
 ---
 
 ## Suggested order today
-1. **🔴-1** vendor the CDN libraries locally + `collectstatic` (also fixes 🟠-3). Re-run test #1.
-2. **🟠-2** audit for duplicate Hands (test #6), dedupe, add the unique constraint + migration.
+1. ✅ **🔴-1** vendored the CDN libraries locally + `collectstatic` (also fixed 🟠-3). **Redeploy the
+   image, then run test #1** against the live container.
+2. ✅ **🟠-2** audited for duplicate Hands (0 found), added the unique constraint + migration.
 3. **🟠-4** add the autoheal sidecar (or commit to live operator watch).
 4. **🟡-5** wrap `scan_worker` `dequeue` in a reconnect loop.
 5. Re-run chaos drills (#5) end to end.
