@@ -102,7 +102,7 @@
   {% endif %}
 
   <div style="position:fixed;bottom: 30px;color:white;right:30px;zoom:1.02;text-align: right;">
-    <img src="https://api.qrserver.com/v1/create-qr-code/?size=123x123&amp;data=http://{{ variables.tenant }}.mahj.ovh" style="margin-bottom: 10px;"><br>
+    {% if qr_svg %}<span style="display:inline-block;margin-bottom:10px;background:white;padding:4px;line-height:0;">{{ qr_svg|safe }}</span><br>{% endif %}
     <span style="font-size:20px;line-height:16px;">Tournament app: https://{{ variables.tenant }}.mahj.ovh</span>
   </div>
 

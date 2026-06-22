@@ -17,6 +17,21 @@ from .helpers import get_podium, get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, scores_per_table_json, stat_all_rounds
 
 
+def _spectator_qr_svg(subdomain):
+    """Inline SVG QR linking to the public spectator site. Generated locally
+    (segno, a pinned dependency) so the projector never depends on an external
+    QR service at render time. Empty string if there's no subdomain or segno
+    isn't installed on this host."""
+    if not subdomain:
+        return ''
+    try:
+        import segno
+    except ImportError:
+        return ''
+    url = f'https://{subdomain}.mahj.ovh'
+    return segno.make(url, error='m').svg_inline(scale=4, border=2)
+
+
 def index(request, screen_id=None):
     variables = get_variables(request)
     tenant = get_tenant(request)
@@ -170,6 +185,7 @@ def scores_per_player(request, ext, page_nb=None):
             "variables": variables,
             "schedule": schedule,
             "subdomain": tenant.subdomain if tenant else '',
+            "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
         }
         return render(request, "mahj/display_scores_per_player_table.html", context)
     elif ext == "tpt":
@@ -217,6 +233,7 @@ def scores_per_player_total_only(request):
         "view_name": "scores all, total only",
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
+        "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
     }
     return render(request, "mahj/display_scores_per_player_total_only.html", context)
 

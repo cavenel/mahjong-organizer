@@ -159,3 +159,33 @@ class TestRoundWinners:
         for rs in rounds:
             mps = [p.minipoints for p in rs['mp_max']]
             assert len(set(mps)) == 1  # all tied at the max
+
+
+class TestSpectatorQr:
+    """The public-site QR on the score displays is generated locally (segno),
+    never fetched from an external service — so a projector behind a captive
+    portal / firewall still shows a scannable code (EVENT_REVIEW finding 🔴-1)."""
+
+    def test_table_view_renders_inline_svg_qr_not_cdn(self, request_):
+        html = views.scores_per_player(request_, "html", 1).content.decode()
+        assert '<svg' in html                      # rendered inline, locally
+        assert 'api.qrserver.com' not in html      # no external QR service
+
+    def test_total_only_view_renders_inline_svg_qr_not_cdn(self, request_):
+        from mahj.views.display import scores_per_player_total_only
+        html = scores_per_player_total_only(request_).content.decode()
+        assert '<svg' in html
+        assert 'api.qrserver.com' not in html
+
+    def test_qr_helper_encodes_https_spectator_url(self):
+        from mahj.views.display import _spectator_qr_svg
+        import segno
+        svg = _spectator_qr_svg('test')
+        assert svg.startswith('<svg')
+        # The encoded payload is the HTTPS public site, matching the visible label.
+        expected = segno.make('https://test.mahj.ovh', error='m').svg_inline(scale=4, border=2)
+        assert svg == expected
+
+    def test_qr_helper_empty_without_subdomain(self):
+        from mahj.views.display import _spectator_qr_svg
+        assert _spectator_qr_svg('') == ''
