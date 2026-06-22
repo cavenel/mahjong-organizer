@@ -94,6 +94,12 @@
           Display on screens
         </a>
 
+        <a href="admin?page=ceremony"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          Ceremony console
+        </a>
+
         <button type="button" @click="livePrintOpen=!livePrintOpen"
                 class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
           <span class="flex items-center gap-3">
@@ -106,12 +112,6 @@
           <li><button type="button" @click="showPrintModal('print_scores')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Scores</button></li>
         </ul>
 
-        <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Prize-giving</p>
-        <a href="admin?page=ceremony"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-          Ceremony console
-        </a>
       {% endif %}
 
       {% if user.is_staff %}
