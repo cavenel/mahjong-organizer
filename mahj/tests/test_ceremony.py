@@ -50,7 +50,7 @@ class TestMasterData:
         master = ceremony._ceremony_master(_request())
         assert len(master['players']) == 16
         for p in master['players']:
-            assert set(p.keys()) == {'pos', 'name', 'flag', 'total', 'mp'}
+            assert set(p.keys()) == {'pos', 'player_id', 'name', 'flag', 'total', 'mp'}
 
 
 class TestSlidePayload:

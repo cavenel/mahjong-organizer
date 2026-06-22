@@ -69,7 +69,7 @@ def _ceremony_master(request):
     id_to_name = {r['player_id']: r['name'] for r in rows}
 
     players = [
-        {'pos': r['pos'], 'name': r['name'], 'flag': r['flag'],
+        {'pos': r['pos'], 'player_id': r['player_id'], 'name': r['name'], 'flag': r['flag'],
          'total': _total(r, rules), 'mp': r['total']['mp']}
         for r in rows[:TOP_N]
     ]

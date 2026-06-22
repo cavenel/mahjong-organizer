@@ -162,9 +162,9 @@
                x-show="phase==='teams' && curStep('teams')>=data.teams.length">All 3 teams revealed. 🏆</div>
           <!-- full list reference -->
           <ul class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-            <template x-for="t in data.teams" :key="t.pos">
+            <template x-for="(t, idx) in data.teams" :key="t.name">
               <li class="px-3 py-2"
-                  :class="revealedSet('teams').has(t.pos) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                  :class="isRevealed('teams', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
                 <div class="flex items-center gap-3">
                   <span class="w-6 font-bold tabular-nums" x-text="t.pos"></span>
                   <span class="flex-1 truncate font-medium" x-text="t.name"></span>
@@ -207,9 +207,9 @@
         <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
              x-show="phase==='players' && curStep('players')>=data.players.length">All players revealed.</div>
         <ol class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-          <template x-for="p in data.players" :key="p.pos">
+          <template x-for="(p, idx) in data.players" :key="p.player_id">
             <li class="flex items-center gap-3 px-3 py-1.5"
-                :class="revealedSet('players').has(p.pos) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                :class="isRevealed('players', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
               <span class="w-6 font-bold tabular-nums" x-text="p.pos"></span>
               <span class="flex-1 truncate" x-text="p.name"></span>
               <span class="tabular-nums font-semibold" x-text="p.total"></span>
@@ -260,10 +260,12 @@
         },
         list(phase) { return phase === 'teams' ? this.data.teams : this.data.players; },
         curStep(phase) { return this.phase === phase ? this.step : 0; },
-        revealedSet(phase) {
-          // positions currently revealed on screen (the curStep highest-pos entries)
+        isRevealed(phase, idx) {
+          // The curStep highest-pos (worst-rank) entries are revealed, by index —
+          // mirrors the server's index-based reveal so tied entries (shared pos)
+          // light up one at a time, not as a group.
           const l = this.list(phase), k = this.curStep(phase);
-          return new Set(l.slice(l.length - k).map(e => e.pos));
+          return idx >= l.length - k;
         },
         nextEntry(phase) {
           const l = this.list(phase); if (!l || !l.length) return null;
