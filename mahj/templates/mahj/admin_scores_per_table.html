@@ -399,6 +399,33 @@
     setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
   });
 
+  // The filter sits before the table, so Tab off the last MP input would fall
+  // through to the browser chrome. Loop it back to the filter instead (filter →
+  // first MP → … → last MP → filter). ":visible" so filtered-out rows are
+  // skipped and the last visible MP is the real end of the list.
+  $(document).on("keydown", "input[name='minipoints']", function(e) {
+    if (e.key !== "Tab" || e.shiftKey) return;
+    var pane = $(this).closest(".tab-pane");
+    var mp = pane.find("input[name='minipoints']:visible");
+    if (mp.length && this === mp[mp.length - 1]) {
+      e.preventDefault();
+      pane.find(".table-filter").focus();
+    }
+  });
+
+  // Show the running sum live as each digit is typed — display only. The table
+  // points, status pip and the save all wait for "change" (blur) so we don't
+  // recompute TP or message other scorers on every keystroke.
+  $(document).on("input", "input[name='minipoints']", function() {
+    var row = $(this).closest(".table_row");
+    var inputs = row.find("input[name='minipoints']"), vals = [];
+    for (var i = 0; i < inputs.length; i++) {
+      if (inputs[i].value === "") { setRowBg(row, ""); return; }
+      vals.push(parseInt(inputs[i].value));
+    }
+    setRowBg(row, _scoreState(vals), vals);
+  });
+
   $(document).on("change", "input[name='minipoints']", function() {
     var row = $(this).closest(".table_row"), rid = row.attr("id");
     var inputs = row.find("input[name='minipoints']"), vals = [], allFilled = true;
@@ -516,7 +543,9 @@
       });
       var syncState = allFilled ? _scoreState(syncVals) : "";
       setRowBg(row, syncState, syncVals);
-      setPip(row, syncState);
+      // The pip tracks sync status, not score balance: "ok" once the synced row
+      // is fully filled (mirrors send_ajax), regardless of whether MP sums to 0.
+      setPip(row, allFilled ? "ok" : "");
       refreshPublishToggle(parseInt(row.attr("data-round-nb")));
     }
   })();
