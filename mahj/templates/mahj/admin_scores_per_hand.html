@@ -11,7 +11,7 @@
   <style>
     /* min-width keeps the columns (esp. the per-player inputs) readable: below
        this the wrapper scrolls horizontally rather than crushing the inputs. */
-    table.review-table { border-collapse: collapse; width: 100%; min-width: 620px; max-width: 640px; margin: 0 auto; }
+    table.review-table { border-collapse: collapse; width: 100%; min-width: 560px; max-width: 640px; margin: 0 auto; }
     /* Horizontal scroll container for the sheet on narrow / mobile screens.
        Vertical padding leaves room for the input focus ring (overflow-x:auto
        would otherwise clip it). */
@@ -68,7 +68,7 @@
         <th class="w-16 py-1">Win</th>
         <th class="w-16 py-1">From</th>
         {% for score in scores %}
-          <th class="py-1 px-1 text-[12px] font-medium" style="width:90px;max-width:90px;">
+          <th class="py-1 px-1 text-[12px] font-medium" style="width:80px;max-width:80px;">
             <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{% if score %}{{ score.player.first_name }}{% else %}P{{ forloop.counter }}{% endif %}</span>
           </th>
         {% endfor %}
