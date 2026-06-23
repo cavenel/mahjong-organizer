@@ -81,16 +81,24 @@ def admin_scores_per_hand(request, round_nb, table_nb):
         all_hands[hand_val.hand_nb - 1] = hand_val
 
     if all_hands[16] is None:
-        h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17, pts=0, win_by=0, win_from=0)
-        h.save()
+        # get_or_create (not save()) so two concurrent first-opens of the same
+        # fresh table — or an open racing a scan_prefill — don't have the loser
+        # 500 on the unique_hand_per_cell constraint; it re-fetches the winner's
+        # row instead. Safe: these are pts=0 placeholders, so no version clobber.
+        h, _ = Hand.objects.get_or_create(
+            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
+            defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
+        )
         all_hands[16] = h
 
     hands = []
     for i in range(16):
         h = all_hands[i]
         if h is None:
-            h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i + 1, pts=0, win_by=0, win_from=0)
-            h.save()
+            h, _ = Hand.objects.get_or_create(
+                tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i + 1,
+                defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
+            )
         # Tint low-confidence (OCR-guessed) cells; manual edits reset confidence to 1.0.
         conf_bg = ''
         if h.confidence is not None and h.confidence < 1.0:
