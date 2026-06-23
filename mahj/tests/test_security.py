@@ -339,6 +339,14 @@ def _json_post(client, url, payload):
     return client.post(url, data=json.dumps(payload), content_type='application/json')
 
 
+def _login_reauthed(client, user, password='pw'):
+    """Log in as a staff user and clear the user-management re-auth ('sudo')
+    gate by confirming their password."""
+    client.force_login(user)
+    resp = _json_post(client, '/user_reauth', {'password': password})
+    assert resp.status_code == 200, resp.content
+
+
 USER_ADMIN_ENDPOINTS = [
     'user_create', 'user_update_roles', 'user_generate_link',
     'user_revoke_links', 'user_delete',
@@ -373,7 +381,7 @@ class TestUserAdminActions:
     """Behaviour of the staff user-management endpoints."""
 
     def test_create_passwordless_user_with_roles(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_create',
                           {'username': 'scorer1', 'roles': ['Scorer']})
         assert resp.status_code == 200
@@ -383,17 +391,17 @@ class TestUserAdminActions:
         assert not u.is_staff
 
     def test_create_with_password(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         _json_post(client_, '/user_create', {'username': 'pwuser', 'password': 'secret123'})
         assert User.objects.get(username='pwuser').has_usable_password()
 
     def test_create_duplicate_username_rejected(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_create', {'username': 'staffer'})
         assert resp.status_code == 400
 
     def test_update_roles_adds_and_removes(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         target = User.objects.create_user('rolet', password='pw')
         _json_post(client_, '/user_update_roles',
                    {'user_id': target.id, 'roles': ['Scorer', 'Publisher'], 'is_staff': False})
@@ -403,7 +411,7 @@ class TestUserAdminActions:
         assert set(target.groups.values_list('name', flat=True)) == {'Display_op'}
 
     def test_cannot_remove_own_staff_flag(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_update_roles',
                           {'user_id': staff_user.id, 'roles': [], 'is_staff': False})
         assert resp.status_code == 400
@@ -412,7 +420,7 @@ class TestUserAdminActions:
 
     def test_generate_link_authenticates(self, client_, tournament, staff_user):
         from sesame.utils import get_user
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         target = User.objects.create_user('linkme')
         target.set_unusable_password(); target.save()
         resp = _json_post(client_, '/user_generate_link', {'user_id': target.id})
@@ -423,7 +431,7 @@ class TestUserAdminActions:
 
     def test_revoke_invalidates_existing_links(self, client_, tournament, staff_user):
         from sesame.utils import get_token, get_user
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         target = User.objects.create_user('revokeme')
         target.set_unusable_password(); target.save()
         token = get_token(target)
@@ -434,24 +442,75 @@ class TestUserAdminActions:
         assert get_user(token) is None              # old link no longer works
 
     def test_delete_user(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         target = User.objects.create_user('deleteme', password='pw')
         resp = _json_post(client_, '/user_delete', {'user_id': target.id})
         assert resp.status_code == 200
         assert not User.objects.filter(username='deleteme').exists()
 
     def test_cannot_delete_self(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_delete', {'user_id': staff_user.id})
         assert resp.status_code == 400
         assert User.objects.filter(pk=staff_user.id).exists()
 
     def test_staff_can_delete_another_staff_when_more_than_one(self, client_, tournament, staff_user):
-        client_.force_login(staff_user)
+        _login_reauthed(client_, staff_user)
         other_staff = User.objects.create_user('staff2', password='pw', is_staff=True)
         resp = _json_post(client_, '/user_delete', {'user_id': other_staff.id})
         assert resp.status_code == 200
         assert not User.objects.filter(username='staff2').exists()
+
+
+class TestUserAdminReauth:
+    """User management asks staff to re-confirm their password ('sudo mode'),
+    so a borrowed/unattended admin session can't reach it."""
+
+    def test_staff_without_reauth_blocked_from_endpoint(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_create', {'username': 'x'})
+        assert resp.status_code == 403
+        assert resp.json()['status'] == 'reauth_required'
+        assert not User.objects.filter(username='x').exists()
+
+    def test_users_page_shows_prompt_before_reauth(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = client_.get('/admin?page=users')
+        assert resp.status_code == 200
+        assert b'Confirm your password' in resp.content
+        assert b'Add a user' not in resp.content
+
+    def test_reauth_wrong_password_rejected(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_reauth', {'password': 'nope'})
+        assert resp.status_code == 403
+        # Still gated afterwards.
+        assert _json_post(client_, '/user_create', {'username': 'x'}).status_code == 403
+
+    def test_reauth_unlocks_page_and_endpoints(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        assert _json_post(client_, '/user_reauth', {'password': 'pw'}).status_code == 200
+        page = client_.get('/admin?page=users')
+        assert b'Add a user' in page.content
+        resp = _json_post(client_, '/user_create', {'username': 'newbie', 'roles': []})
+        assert resp.status_code == 200
+
+    def test_linkonly_staff_blocked(self, client_, tournament):
+        # A staffer with no usable password has nothing to confirm, so user
+        # management is closed to them entirely.
+        u = User.objects.create_user('linkstaff', is_staff=True)
+        u.set_unusable_password()
+        u.save()
+        client_.force_login(u)
+        page = client_.get('/admin?page=users')
+        assert b'Add a user' not in page.content
+        assert b'unavailable' in page.content
+        assert _json_post(client_, '/user_create', {'username': 'viad', 'roles': []}).status_code == 403
+
+    def test_reauth_anonymous_redirected(self, client_, tournament):
+        resp = _json_post(client_, '/user_reauth', {'password': 'pw'})
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
 
 
 class TestSesameLinkLogin:

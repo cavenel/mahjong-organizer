@@ -30,6 +30,7 @@ urlpatterns = [
     path('counter_start', views.counter_start, name='counter_start'),
 
     # User management (staff only)
+    path('user_reauth', views.user_reauth, name='user_reauth'),
     path('user_create', views.user_create, name='user_create'),
     path('user_update_roles', views.user_update_roles, name='user_update_roles'),
     path('user_generate_link', views.user_generate_link, name='user_generate_link'),

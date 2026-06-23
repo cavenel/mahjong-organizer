@@ -21,7 +21,7 @@ from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedu
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
 from .print_views import _country_flag
-from .user_admin import ROLE_GROUPS
+from .user_admin import ROLE_GROUPS, reauth_ok
 from .scoring import (
     scores_per_player_json,
     scores_per_table_json,
@@ -678,6 +678,13 @@ def options(request, error=None):
         # Staff-only: a scorer/display op reaching ?page=users gets nothing.
         if not request.user.is_staff:
             page_content = "None"
+        elif not reauth_ok(request):
+            # Borrowed/unattended session: make staff re-enter their password
+            # before exposing (or letting them touch) user management. Link-only
+            # staff have no password to confirm, so they're shut out entirely.
+            template2 = loader.get_template('mahj/admin_users_reauth.html')
+            page_content = template2.render(
+                {"link_only": not request.user.has_usable_password()}, request)
         else:
             user_rows = []
             for u in User.objects.all().order_by('username').prefetch_related('groups'):

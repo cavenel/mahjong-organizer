@@ -1,0 +1,56 @@
+{% load static %}
+<div class="max-w-md space-y-6">
+
+{% if link_only %}
+  <div>
+    <h2 class="text-xl font-bold text-gray-800">User management unavailable</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      Your account signs in with a login link and has no password to confirm.
+      User management requires a password, so it isn't available here — ask a
+      staff member with a password to make these changes.
+    </p>
+  </div>
+{% else %}
+  <div>
+    <h2 class="text-xl font-bold text-gray-800">Confirm your password</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      User management is sensitive, so we ask for your password again before
+      showing it — even though you're already logged in.
+    </p>
+  </div>
+
+  <form id="reauth-form" class="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+    <label class="flex flex-col text-xs text-gray-500">Password
+      <input type="password" name="password" required autofocus autocomplete="current-password"
+             class="mt-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-800">
+    </label>
+    <p id="reauth-error" class="hidden text-sm text-red-600"></p>
+    <button type="submit"
+            class="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600">
+      Continue
+    </button>
+  </form>
+{% endif %}
+</div>
+
+{% if not link_only %}
+<script>
+(function() {
+  var CSRF = "{{ csrf_token }}";
+  $("#reauth-form").on("submit", function(e) {
+    e.preventDefault();
+    var pw = $(this).find('[name="password"]').val();
+    fetch("user_reauth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ password: pw }),
+    }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) {
+      if (r.ok && j.status === "ok") { location.href = "admin?page=users"; return; }
+      var $err = $("#reauth-error");
+      $err.text((j && j.error) || "Could not confirm password").removeClass("hidden");
+      $("#reauth-form [name='password']").val("").focus();
+    }); });
+  });
+})();
+</script>
+{% endif %}

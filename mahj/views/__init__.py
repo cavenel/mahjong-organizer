@@ -55,6 +55,7 @@ from .user_admin import (
     user_create,
     user_delete,
     user_generate_link,
+    user_reauth,
     user_revoke_links,
     user_update_roles,
 )
