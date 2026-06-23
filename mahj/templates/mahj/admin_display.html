@@ -327,7 +327,10 @@
     })();
 
     fetchStatus();
-    setInterval(updateDisplay, 1000);
+    // Tick through updateButtons (not just updateDisplay) so the status badge
+    // re-evaluates every second — otherwise it stays on "Starting…" after the
+    // lead/countdown elapses until the next 30s poll or a manual refresh.
+    setInterval(updateButtons, 1000);
     setInterval(fetchStatus, 30000);
   })();
   </script>
