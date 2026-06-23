@@ -1,22 +1,5 @@
 - Add Theme variables
 
-
-# Done
-- "Sum of the four Minipoints — must equal 0" - Add an IMPORTANT NOTE here. If there are penalties during a game, the total can be -10, -20 etc. This is not an error. The scorer must check that the difference comes from one or more penalties. The scorer must keep the penalties and the sum different than zero.
-- In the score sheets, add a row before total with 4 int forms, for penalties. They must be integers (+ or -). The sum is then total before penalties + penalties. The Table point is computed on sum after penalties.
-- Fix score sheet edits on mobile (make table larger, keep space for everything, maybe put QR code and Valid AFTER table if not large enough?)
-- Fix score sheet "Entered MP / TP" on two lines instead of one.
-- Fix ceremony Teams and Players list on mobile (don't make page wider, use scroll x)
-- In docs, remove "This is the MCR head-scorer edition (scorer + publisher + display operator). A scorer who only enters scores can use the shorter scorer guide (MCR). Staff tools (importing/preparing the tournament, creating users, EMA export) and the complete reference live in full_admin.md. For a Riichi tournament, use Riichi_head_scorer.md." and any reference to other roles or other docs. This is a documentation I will give to the given role, so that they know their own features. - for head scorer, remove "1. Roles at a glance". Not their problem. They get the roles and can do these things.
-- Remove "(On a Riichi tournament only Minipoints are entered and there's no score sheet — see Riichi_head_scorer.md.)" again this is not relevant for the head scorer, they don't care about other roles or other docs.
-- Remove "~2 seconds after you stop typing (and immediately if you navigate away)" this is too technical.
-- Remove "If a webhook is configured, a round_published event is sent." this is too technical for the head scorer.
-- Remove "How it works (for your peace of mind): the timer is server-authoritative — the server owns the official start instant and every screen renders from it, so screens can't drift apart or be reset by a stray reload. The round length comes from the Total time of a round display setting (below)."
-- Remove occurences of "tenant-wide", we know.
-- Check table "Top-right buttons (apply to the whole ceremony): | Button | Effect | |---|---| | Blank screens | A clean holding slide (logo / title) on every screen | | End — back to screens | Stop the ceremony; screens return to their normal views. Nothing is published. | | Publish to everyone & end | Reveal the full final results on the public site and all screens, then end. Do this once, at the very end. |" it didn't display correctly in the pdf version.
-- In permission recap, remove the long dashes, keep empty if no permission.
-
-
 # Theme variables:
 The core challenge: Tailwind + dynamic colors
 Your tailwind.min.css is a static build. Tailwind purges unused classes at build time, so you can't do bg-{{ variables.primary_color }}-500 and expect it to work — those class names won't be in the CSS.
