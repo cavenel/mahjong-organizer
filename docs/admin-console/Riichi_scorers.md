@@ -82,8 +82,7 @@ As soon as all four seats are filled:
 - The row's **status pip** turns amber ("pending, not yet saved") then green once
   the save lands.
 
-Scores **save automatically** ~2 seconds after you stop typing (and immediately if
-you navigate away). There is no "Save" button.
+Scores **save automatically**. There is no "Save" button.
 
 > ![Filled row](screenshots/11-filled-row.png)<br>
 > 📸 **Screenshot — a filled table row: green sum, four seats filled.**

@@ -160,23 +160,26 @@
           </div>
           <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
                x-show="phase==='teams' && curStep('teams')>=data.teams.length">All 3 teams revealed. 🏆</div>
-          <!-- full list reference -->
-          <ul class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-            <template x-for="(t, idx) in data.teams" :key="t.name">
-              <li class="px-3 py-2"
-                  :class="isRevealed('teams', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
-                <div class="flex items-center gap-3">
-                  <span class="w-6 font-bold tabular-nums" x-text="t.pos"></span>
-                  <span class="flex-1 truncate font-medium" x-text="t.name"></span>
-                  <span class="tabular-nums font-semibold whitespace-nowrap">
-                    <span x-text="t.tp"></span> / <span x-text="t.mp"></span>
-                  </span>
-                  <span title="prize">🏅</span>
-                </div>
-                <div class="text-xs text-gray-400 pl-9 truncate" x-text="(t.players || []).join(', ')"></div>
-              </li>
-            </template>
-          </ul>
+          <!-- full list reference (scrolls sideways on narrow screens instead of
+               widening the page) -->
+          <div class="overflow-x-auto">
+            <ul class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
+              <template x-for="(t, idx) in data.teams" :key="t.name">
+                <li class="px-3 py-2"
+                    :class="isRevealed('teams', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                  <div class="flex items-center gap-3">
+                    <span class="w-6 font-bold tabular-nums" x-text="t.pos"></span>
+                    <span class="flex-1 font-medium whitespace-nowrap" x-text="t.name"></span>
+                    <span class="tabular-nums font-semibold whitespace-nowrap">
+                      <span x-text="t.tp"></span> / <span x-text="t.mp"></span>
+                    </span>
+                    <span title="prize">🏅</span>
+                  </div>
+                  <div class="text-xs text-gray-400 pl-9 whitespace-nowrap" x-text="(t.players || []).join(', ')"></div>
+                </li>
+              </template>
+            </ul>
+          </div>
         </div>
       </template>
     </section>
@@ -206,17 +209,19 @@
         </div>
         <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
              x-show="phase==='players' && curStep('players')>=data.players.length">All players revealed.</div>
-        <ol class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden">
-          <template x-for="(p, idx) in data.players" :key="p.player_id">
-            <li class="flex items-center gap-3 px-3 py-1.5"
-                :class="isRevealed('players', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
-              <span class="w-6 font-bold tabular-nums" x-text="p.pos"></span>
-              <span class="flex-1 truncate" x-text="p.name"></span>
-              <span class="tabular-nums font-semibold" x-text="p.total"></span>
-              <span class="tabular-nums text-xs text-gray-400 w-16 text-right"><span x-text="p.mp"></span> MP</span>
-            </li>
-          </template>
-        </ol>
+        <div class="overflow-x-auto">
+          <ol class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
+            <template x-for="(p, idx) in data.players" :key="p.player_id">
+              <li class="flex items-center gap-3 px-3 py-1.5"
+                  :class="isRevealed('players', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
+                <span class="w-6 font-bold tabular-nums" x-text="p.pos"></span>
+                <span class="flex-1 whitespace-nowrap" x-text="p.name"></span>
+                <span class="tabular-nums font-semibold" x-text="p.total"></span>
+                <span class="tabular-nums text-xs text-gray-400 w-16 text-right whitespace-nowrap"><span x-text="p.mp"></span> MP</span>
+              </li>
+            </template>
+          </ol>
+        </div>
       </div>
     </section>
 

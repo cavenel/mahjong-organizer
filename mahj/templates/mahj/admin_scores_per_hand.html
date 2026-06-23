@@ -25,6 +25,20 @@
     .total-cell { border-top: none !important; }
     .total-cell input { font-weight: 700; font-size: 13px; text-align: right; padding: 1px 4px; color: #1f2937; }
     .sum-cell input { font-weight: 700; font-size: 18px; text-align: center; }
+
+    /* Sheet layout: table beside the QR / Validate column on wide screens,
+       stacked (QR + Validate after the table) on narrow / mobile screens so the
+       table keeps full width and nothing gets squeezed. */
+    .sheet-layout { display: flex; align-items: stretch; justify-content: center; gap: 1.25rem; }
+    .sheet-side { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; }
+    /* Entered MP / TP recap: minipoints on the first line, table points below. */
+    .entered-cell { line-height: 1.15; }
+    .entered-cell .entered-tp { color: #9ca3af; }
+    @media (max-width: 700px) {
+      .sheet-layout { flex-direction: column; align-items: center; gap: 0.75rem; }
+      .sheet-side { flex-direction: row; gap: 1.25rem; align-items: center; }
+      .sheet-side .validate-label { margin-top: 0 !important; padding-top: 0 !important; }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900 p-4">
@@ -32,7 +46,7 @@
 <div class="max-w-4xl mx-auto">
   <h2 class="text-lg font-semibold text-gray-700 mb-3">Round {{ round_nb }} – Table {{ table_nb }}</h2>
 
-  <div class="flex items-stretch justify-center gap-5">
+  <div class="sheet-layout">
     <div class="w-full" style="max-width:640px;">
   <table class="review-table text-xs">
     <thead>
@@ -90,25 +104,25 @@
         <td class="sum-cell"><input id='tp_4' disabled></td>
       </tr>
       <tr class="text-[11px] text-gray-500">
-        <th colspan="4" class="py-1 font-medium text-right pr-2">Entered MP / TP</th>
+        <th colspan="4" class="py-1 font-medium text-right pr-2 leading-tight">Entered<br>MP / TP</th>
         {% for s in scores %}
-          <td class="px-1 py-1 whitespace-nowrap">
-            {% if s.minipoints != None %}{{ s.minipoints }}{% else %}—{% endif %}
-            <span class="text-gray-400">/ {% if s.tablepoints != None %}{{ s.tablepoints }}{% else %}—{% endif %}</span>
+          <td class="px-1 py-1 whitespace-nowrap entered-cell">
+            <div>{% if s.minipoints != None %}{{ s.minipoints }}{% else %}—{% endif %}</div>
+            <div class="entered-tp">/ {% if s.tablepoints != None %}{{ s.tablepoints }}{% else %}—{% endif %}</div>
           </td>
         {% endfor %}
       </tr>
     </tbody>
   </table>
     </div>
-    <div class="flex flex-col items-center shrink-0">
+    <div class="sheet-side">
       {% if qr_svg %}
       <div class="flex flex-col items-center mt-1">
         {{ qr_svg|safe }}
         <span class="text-[10px] text-gray-400 mt-0.5 text-center">Scan to fill<br>on phone</span>
       </div>
       {% endif %}
-      <label class="mt-auto pt-5 inline-flex flex-col items-center gap-2 cursor-pointer select-none rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors text-center">
+      <label class="validate-label mt-auto pt-5 inline-flex flex-col items-center gap-2 cursor-pointer select-none rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors text-center">
         <input type="checkbox" data-hand_nb="17" id="valid_17" {% if completed.pts == 1 %}checked{% endif %}
                class="w-7 h-7 accent-amber-500 cursor-pointer">
         <span class="text-sm font-bold text-amber-700 leading-tight">Validate<br>score sheet</span>

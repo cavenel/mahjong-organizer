@@ -9,14 +9,6 @@ all three non-staff roles: **Scorer**, **Publisher** and **Display operator**. I
 is written to be **read in order**, following the timeline of an event: sign in,
 enter scores, publish rounds, drive the screens, run the ceremony.
 
-> **This is the Riichi head-scorer edition** (scorer + publisher + display
-> operator). On Riichi only the per-player **Minipoints** are entered — there is
-> **no Table Points column** and **no per-hand score sheet / scan tool** (those are
-> MCR-only). A scorer who only enters scores can use the shorter
-> [scorer guide (Riichi)](Riichi_scorers.md). Staff tools and the complete
-> reference live in [full_admin.md](full_admin.md). For an MCR tournament, use
-> [MCR_head_scorer.md](MCR_head_scorer.md).
-
 ## How to use this guide
 
 Each section is marked with a **role callout** telling you which of your roles it
@@ -25,35 +17,11 @@ needs:
 > 🔑 **Who can do this:** *Publishers.*
 
 A head scorer holding all three roles can do every action below. **Roles combine**,
-so if some of your crew hold only one role, hand them the matching section (or the
-single-role [scorer guide](Riichi_scorers.md)).
+so if some of your crew hold only one role, hand them the matching section.
 
 ---
 
-## 1. Roles at a glance
-
-Roles are **Django auth groups**. A user gets a role by being added to the
-matching group (a staff organizer sets this up for you).
-
-| Group name (exact) | What they do |
-|---|---|
-| `Scorer` | Enter & edit scores |
-| `Publisher` | Publish / unpublish rounds to the public leaderboard |
-| `Display_op` | Manage screens, the round timer, display settings, and the ceremony console |
-
-Roles are **additive and combinable**. A pure `Publisher` can open the Scoring
-page and toggle publishing but cannot edit score cells (that needs `Scorer`). A
-head scorer is simply someone in all three groups.
-
-After signing in, each role lands on a **role-appropriate default page**:
-
-- **Scorer** → the *Scoring* page.
-- **Publisher** → the *Scoring* page (where the publish toggles live).
-- **Display operator** → the *Display on screens* page.
-
----
-
-## 2. Accessing the console
+## 1. Accessing the console
 
 Every tournament lives on its own **subdomain**:
 
@@ -62,7 +30,7 @@ https://<tenant>.mahj.ovh/
 ```
 
 For example `https://oemc2026.mahj.ovh/` for a real event, or
-`https://test.mahj.ovh/` for the test tenant (see [§10](#10-rehearsing-on-the-test-tenant)).
+`https://test.mahj.ovh/` for the test tenant (see [§9](#9-rehearsing-on-the-test-tenant)).
 
 | URL | What it is |
 |---|---|
@@ -74,7 +42,7 @@ For example `https://oemc2026.mahj.ovh/` for a real event, or
 
 Open `https://<tenant>.mahj.ovh/admin`. If you are not signed in you are sent to
 the login page; enter your username and password. You then land on your role's
-default page (see [§1](#1-roles-at-a-glance)).
+default page.
 
 > ![Login](screenshots/01-login.png)<br>
 > 📸 **Screenshot — login page.**
@@ -87,7 +55,7 @@ To **log out**, use the avatar menu in the top-right corner → *Log out* (or vi
 
 ---
 
-## 3. Getting around the console
+## 2. Getting around the console
 
 The console is a single shell with a **left sidebar** (sections) and a **top bar**
 (page title + avatar menu). On mobile the sidebar collapses behind the ☰ button.
@@ -138,7 +106,7 @@ current state.
 
 ---
 
-## 4. During the tournament — entering scores
+## 3. During the tournament — entering scores
 
 > 🔑 **Who can do this:** *Scorers.* A **scorer** enters and corrects each table's
 > per-player Minipoints.
@@ -175,8 +143,7 @@ As soon as all four seats are filled:
 - The row's **status pip** turns amber ("pending, not yet saved") then green once
   the save lands.
 
-Scores **save automatically** ~2 seconds after you stop typing (and immediately if
-you navigate away). There is no "Save" button.
+Scores **save automatically**. There is no "Save" button.
 
 > ![Filled row](screenshots/11-filled-row.png)<br>
 > 📸 **Screenshot — a filled table row: green sum, four seats filled.**
@@ -198,7 +165,7 @@ overwritten for a few seconds, so you won't lose your in-progress typing).
 
 ---
 
-## 5. During the tournament — publishing rounds
+## 4. During the tournament — publishing rounds
 
 > 🔑 **Who can do this:** *Publishers.* A **publisher** decides **when each round
 > becomes official** — i.e. visible on the public website and the leaderboard
@@ -238,7 +205,6 @@ On success:
   publishing freezes the official numbers.)
 - The **public leaderboard updates** and all display screens refresh to show the
   newly official standings.
-- If a webhook is configured, a `round_published` event is sent.
 
 > ![Published round](screenshots/31-published-round.png)<br>
 > 📸 **Screenshot — a published (locked) round: green "Published", grey inputs.**
@@ -268,7 +234,7 @@ The publish bar reminds you of this on the last round:
 So the end-of-event flow is:
 
 1. Publish the final round normally (standings stay hidden).
-2. Run the **Ceremony console** (see [§7](#7-the-prize-giving-ceremony)) to reveal
+2. Run the **Ceremony console** (see [§6](#6-the-prize-giving-ceremony)) to reveal
    teams/players place by place, and finally press **Publish to everyone & end** —
    *that* is what makes the complete final results public.
 
@@ -314,13 +280,13 @@ the public leaderboard and the display screens — exactly as the publish bar do
 
 ---
 
-## 6. During the tournament — driving the screens
+## 5. During the tournament — driving the screens
 
 > 🔑 **Who can do this:** *Display operators.* A **display operator** drives
 > everything the audience sees on the room's **projectors / TV screens**: which
 > view each screen shows, the **round timer** (with synchronized start gong), the
 > display settings (zoom, message, round length), and the **prize-giving
-> ceremony** (see [§7](#7-the-prize-giving-ceremony)).
+> ceremony** (see [§6](#6-the-prize-giving-ceremony)).
 >
 > Display operators use these sidebar items: **Display on screens**, **Ceremony
 > console**, and **To print → Scores**.
@@ -418,14 +384,9 @@ to the `counter` view.
   stopped.
 - Resetting a running timer asks for confirmation.
 
-How it works (for your peace of mind): the timer is **server-authoritative** — the
-server owns the official start instant and every screen renders from it, so screens
-can't drift apart or be reset by a stray reload. The round length comes from the
-**Total time of a round** display setting (below).
-
 ### Display settings
 
-The **Display settings** panel holds tenant-wide presentation values. Each field
+The **Display settings** panel holds presentation values. Each field
 saves on change and pushes to the screens live.
 
 > ![Display settings](screenshots/25-display-settings.png)<br>
@@ -446,17 +407,13 @@ between rounds.
 
 ---
 
-## 7. The prize-giving ceremony
+## 6. The prize-giving ceremony
 
 > 🔑 **Who can do this:** *Display operators.*
 
 The **Ceremony console** takes over **all** display screens with a full-screen
 reveal sequence for the awards, while the **public website stays in suspense** until
 you publish at the very end.
-
-> A friendly one-page run-sheet also lives at
-> [`docs/ceremony-brief.md`](../ceremony-brief.md) — hand that to the person
-> announcing. The summary below documents the console controls.
 
 Open **Ceremony console** from the sidebar.
 
@@ -465,12 +422,16 @@ Open **Ceremony console** from the sidebar.
 
 ### Layout
 
-- **Top-right buttons** (apply to the whole ceremony):
-  | Button | Effect |
-  |---|---|
-  | **Blank screens** | A clean holding slide (logo / title) on every screen |
-  | **End — back to screens** | Stop the ceremony; screens return to their normal views. **Nothing is published.** |
-  | **Publish to everyone & end** | Reveal the **full final results** on the public site and all screens, then end. **Do this once, at the very end.** |
+**Top-right buttons** (apply to the whole ceremony):
+
+| Button | Effect |
+|---|---|
+| **Blank screens** | A clean holding slide (logo / title) on every screen |
+| **End — back to screens** | Stop the ceremony; screens return to their normal views. **Nothing is published.** |
+| **Publish to everyone & end** | Reveal the **full final results** on the public site and all screens, then end. **Do this once, at the very end.** |
+
+The rest of the console:
+
 - **On screens now** — a live status line telling you what the audience currently
   sees.
 - **Screen previews** — same live previews as the Display page, so you can watch
@@ -524,22 +485,20 @@ console itself can be reloaded too; it resumes where you left off.
 
 ---
 
-## 8. Permissions recap
+## 7. Permissions recap
 
 | Action | Scorer | Publisher | Display op |
 |---|:--:|:--:|:--:|
-| Enter / edit scores | ✅ | — | — |
-| Publish / unpublish rounds | — | ✅ | — |
-| Manage screens, timer, display settings | — | — | ✅ |
-| Run the ceremony / final "publish to everyone" | — | — | ✅ |
+| Enter / edit scores | ✅ |  |  |
+| Publish / unpublish rounds |  | ✅ |  |
+| Manage screens, timer, display settings |  |  | ✅ |
+| Run the ceremony / final "publish to everyone" |  |  | ✅ |
 
-(Roles combine: a head scorer in all three groups has the union of these.
-Preparation, user management and the EMA export are staff-only — see
-[full_admin.md](full_admin.md).)
+(Roles combine: a head scorer in all three groups has the union of these.)
 
 ---
 
-## 9. Quick reference
+## 8. Quick reference
 
 | Task | Where | Role |
 |---|---|---|
@@ -556,11 +515,11 @@ Preparation, user management and the EMA export are staff-only — see
 | Set round length | Display settings → **Total time of a round** | Display op |
 | Run the awards | **Ceremony console** | Display op |
 | Make final results public | Ceremony console → **Publish to everyone & end** | Display op |
-| Rehearse with fake data | `test.mahj.ovh` → Scoring → **Fill all rounds — scores** | (see §10) |
+| Rehearse with fake data | `test.mahj.ovh` → Scoring → **Fill all rounds — scores** | (see §9) |
 
 ---
 
-## 10. Rehearsing on the test tenant
+## 9. Rehearsing on the test tenant
 
 The **test tenant** is a throwaway tournament for rehearsing the whole system —
 training scorers, checking how the leaderboard/screens look with data, and
@@ -620,12 +579,12 @@ Once the test tenant has data you can exercise the full operator workflow:
 
 1. **Leaderboard / public site** — open `https://test.mahj.ovh/` to see standings,
    seating, and stats render with the fake data.
-2. **Screens** — as a display operator ([§6](#6-during-the-tournament--driving-the-screens)):
+2. **Screens** — as a display operator ([§5](#5-during-the-tournament--driving-the-screens)):
    add a screen, open `https://test.mahj.ovh/1`, and try each view (`scores all`,
    `counter`, `schedule`, …). Practise the **timer** and **display modes**.
-3. **Publishing** — as a publisher ([§5](#5-during-the-tournament--publishing-rounds)):
+3. **Publishing** — as a publisher ([§4](#4-during-the-tournament--publishing-rounds)):
    publish/unpublish rounds, see the lock behaviour and the cascade on unpublish.
 4. **Ceremony** — as a display operator: run the **Ceremony console**
-   ([§7](#7-the-prize-giving-ceremony)) end to end (Teams → Players → Stats →
+   ([§6](#6-the-prize-giving-ceremony)) end to end (Teams → Players → Stats →
    *Publish to everyone & end*). The deliberately incomplete last round lets you
    practise the suspense → reveal flow.

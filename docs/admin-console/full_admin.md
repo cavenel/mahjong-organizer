@@ -626,7 +626,7 @@ can't drift apart or be reset by a stray reload. The round length comes from the
 
 ### Display settings
 
-The **Display settings** panel holds tenant-wide presentation values. Each field
+The **Display settings** panel holds presentation values. Each field
 saves on change and pushes to the screens live.
 
 > ![Display settings](screenshots/25-display-settings.png)<br>
@@ -666,12 +666,16 @@ Open **Ceremony console** from the sidebar.
 
 ### Layout
 
-- **Top-right buttons** (apply to the whole ceremony):
-  | Button | Effect |
-  |---|---|
-  | **Blank screens** | A clean holding slide (logo / title) on every screen |
-  | **End — back to screens** | Stop the ceremony; screens return to their normal views. **Nothing is published.** |
-  | **Publish to everyone & end** | Reveal the **full final results** on the public site and all screens, then end. **Do this once, at the very end.** |
+**Top-right buttons** (apply to the whole ceremony):
+
+| Button | Effect |
+|---|---|
+| **Blank screens** | A clean holding slide (logo / title) on every screen |
+| **End — back to screens** | Stop the ceremony; screens return to their normal views. **Nothing is published.** |
+| **Publish to everyone & end** | Reveal the **full final results** on the public site and all screens, then end. **Do this once, at the very end.** |
+
+The rest of the console:
+
 - **On screens now** — a live status line telling you what the audience currently
   sees.
 - **Screen previews** — same live previews as the Display page, so you can watch
@@ -739,12 +743,12 @@ for ranking submission once the event is finished and all rounds are published.
 
 | Action | Scorer | Publisher | Display op | Staff |
 |---|:--:|:--:|:--:|:--:|
-| Enter / edit scores & score sheets | ✅ | — | — | ✅ |
-| Scan paper score sheets | ✅ | — | — | ✅ |
-| Publish / unpublish rounds | — | ✅ | — | ✅ |
-| Manage screens, timer, display settings | — | — | ✅ | ✅ |
-| Run the ceremony / final "publish to everyone" | — | — | ✅ | ✅ |
-| Preparation (import, draw, print) & EMA export | — | — | — | ✅ |
+| Enter / edit scores & score sheets | ✅ |  |  | ✅ |
+| Scan paper score sheets | ✅ |  |  | ✅ |
+| Publish / unpublish rounds |  | ✅ |  | ✅ |
+| Manage screens, timer, display settings |  |  | ✅ | ✅ |
+| Run the ceremony / final "publish to everyone" |  |  | ✅ | ✅ |
+| Preparation (import, draw, print) & EMA export |  |  |  | ✅ |
 
 (Roles combine: a staff user, or a user in several groups, has the union of these.)
 
