@@ -87,6 +87,14 @@
         </a>
       {% endif %}
 
+      {% if user.is_staff or user_is_publisher %}
+        <a href="admin?page=publisher_overview"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Publisher overview
+        </a>
+      {% endif %}
+
       {% if user.is_staff or user_is_display_op %}
         <a href="admin?page=display"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">

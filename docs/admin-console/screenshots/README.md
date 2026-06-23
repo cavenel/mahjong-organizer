@@ -1,43 +1,32 @@
 # Screenshots
 
-Drop the screenshots referenced by the admin-console docs here, using these exact
-filenames so the existing `![...](screenshots/<file>)` links resolve.
+Drop the screenshots referenced by the admin-console guides here, using these exact
+filenames so the existing `![...](screenshots/<file>)` links resolve. The same
+images are shared by every edition (see [../README.md](../README.md) for the file
+set); the section links below point at the complete reference,
+[../full_admin.md](../full_admin.md).
+
+All of the guide's other screenshots have already been captured and committed. The
+entry below is the only one **still to capture**.
 
 Suggested capture size: a normal desktop browser window (the console is
 responsive); for screen/preview shots a 1920×1080 display view is ideal.
 
-## Overview ([../README.md](../README.md))
-- `00-welcome-dashboard.png` — Welcome dashboard (staff landing page)
-- `01-login.png` — Login page
-- `02-assign-role.png` — Django admin: adding a user to the `Scorer` group
-- `03-sidebar-staff.png` — Sidebar as seen by staff (all sections)
-- `04-sidebar-scorer.png` — Sidebar as seen by a scorer (Scoring only)
-- `05-print-modal.png` — A "To print" preview modal (e.g. player cards)
+> 💡 **Tip:** the links below point at the **test tenant**
+> ([https://test.mahj.ovh/](https://test.mahj.ovh/)) so you can capture everything
+> without touching a real event — sign in as **staff**, run **Import from
+> template**, then **Fill all rounds — scores / — score sheets** so every page has
+> realistic data. (Swap `test` for the real event subdomain if you need shots from
+> a live tournament.) Where a shot needs a specific role, sign in with an account
+> that has that role.
 
-## Scorers ([../scorers.md](../scorers.md))
-- `10-scoring-page.png` — Scoring page: round tabs + table grid
-- `11-filled-row.png` — A filled table row (green sum, TP auto-filled)
-- `12-score-sheet.png` — Per-table score sheet (16 hands)
-- `13-scan-confidence.png` — Scanned sheet with low-confidence pink cells
-- `14-scan-qr.png` — QR code on the score-sheet header
-- `15-scan-page.png` — Mobile scan page
+---
 
-## Display operators ([../display-operators.md](../display-operators.md))
-- `20-display-page.png` — Display on screens page
-- `21-screen-card.png` — A screen card (URL + Current output dropdown)
-- `22-display-modes.png` — Saved display-mode tiles
-- `23-previews.png` — Screen previews row, one enlarged
-- `24-timer.png` — Timer control panel
-- `25-display-settings.png` — Display settings panel
-- `26-ceremony-console.png` — Ceremony console
+## Publishing rounds (§6)
 
-## Publishers ([../publishers.md](../publishers.md))
-- `30-publish-bar.png` — Publish bar on a round
-- `31-published-round.png` — A published (locked) round
-- `32-unpublish-cascade.png` — Unpublishing round 3 cascades to 4–5
-- `33-last-round-hint.png` — Last-round publish bar with the ceremony hint
-
-## Test tenant ([../test-tenant.md](../test-tenant.md))
-- `40-import-template.png` — Import from template page
-- `41-test-toolbar.png` — The "🧪 Test data" toolbar
-- `42-filled-data.png` — Scoring page after "Fill all rounds — scores"
+### `32-publisher-overview.png` — Publisher overview page
+- **Page:** [https://test.mahj.ovh/admin?page=publisher_overview](https://test.mahj.ovh/admin?page=publisher_overview) · guide [§6 → Publisher overview](../full_admin.md#publisher-overview)
+- **Steps:**
+  1. Sign in as **publisher** (or staff) and open **Publisher overview** in the sidebar.
+  2. Make sure the tournament has data (test tenant → *Fill all rounds — scores / — score sheets*) and a few rounds published.
+  3. Capture the table: one row per round with the *Tables scored*, *Sheets in progress*, *Sheets validated* counts and the *Published* toggles.

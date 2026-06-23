@@ -1,0 +1,320 @@
+{% load static %}
+{{ rows|json_script:"overview-data" }}
+
+<style>
+  .po-wrap { max-width: 56rem; }
+  .po-intro h2 { font-size: 18px; font-weight: 600; color: #24292f; }
+  .po-intro p  { font-size: 13px; color: #6b7280; margin-top: 2px; }
+  .po-intro .em { font-weight: 600; color: #b45309; }
+
+  .po-card { border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; margin-top: 16px; }
+  .po-table { width: 100%; border-collapse: collapse; font-size: 13px; color: #24292f; }
+  .po-table thead tr { background: #f6f8fa; border-bottom: 1px solid #d0d7de; }
+  .po-table thead th {
+    padding: 10px 16px; font-size: 11px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .06em; color: #57606a; text-align: center;
+  }
+  .po-table thead th.left { text-align: left; }
+  .po-table tbody tr { border-bottom: 1px solid #eaecef; transition: background .1s; }
+  .po-table tbody tr:last-child { border-bottom: none; }
+  .po-table tbody tr:hover { background: #f9fafb; }
+  .po-table td { padding: 12px 16px; text-align: center; vertical-align: middle; }
+  .po-table td.left { text-align: left; }
+
+  .po-round { font-weight: 600; color: #374151; white-space: nowrap; }
+  .po-scored { font-variant-numeric: tabular-nums; }
+  .po-scored .num { font-weight: 600; color: #1f2937; }
+  .po-scored .den { color: #9ca3af; }
+
+  .po-pill {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 26px; padding: 2px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+    color: #d1d5db; background: transparent;
+  }
+  .po-pill.amber   { color: #b45309; background: #fef3c7; }
+  .po-pill.emerald { color: #047857; background: #d1fae5; }
+
+  .po-publish { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; }
+  .po-publish input { width: 16px; height: 16px; accent-color: #f59e0b; cursor: pointer; }
+  .po-publish input:disabled { cursor: not-allowed; }
+  .po-status { font-size: 12px; font-weight: 500; color: #9ca3af; }
+  .po-status.published { color: #059669; }
+
+  .po-foot { margin-top: 12px; font-size: 12px; color: #9ca3af; font-style: italic; }
+
+  /* Big unpublish warning */
+  .po-warn { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; }
+  .po-warn.open { display: flex; }
+  .po-warn-bg { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
+  .po-warn-box {
+    position: relative; z-index: 10; background: #fff; border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.3); width: 100%; max-width: 32rem; overflow: hidden;
+  }
+  .po-warn-head { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border-bottom: 1px solid #f3f4f6; }
+  .po-warn-icon {
+    flex-shrink: 0; width: 48px; height: 48px; border-radius: 999px;
+    background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center;
+  }
+  .po-warn-head h3 { font-size: 18px; font-weight: 700; color: #111827; }
+  .po-warn-head p  { margin-top: 8px; font-size: 14px; color: #4b5563; }
+  .po-warn-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; background: #f9fafb; }
+  .po-btn { padding: 8px 16px; font-size: 14px; font-weight: 500; border-radius: 8px; cursor: pointer; }
+  .po-btn-cancel  { color: #374151; background: #fff; border: 1px solid #d1d5db; }
+  .po-btn-cancel:hover { background: #f9fafb; }
+  .po-btn-danger  { color: #fff; background: #dc2626; border: 1px solid #dc2626; font-weight: 600; }
+  .po-btn-danger:hover { background: #b91c1c; }
+</style>
+
+<div class="po-wrap">
+  <div class="po-intro">
+    <h2>Publisher overview</h2>
+    <p>
+      One row per round. Counts update live as scorers work. Toggle
+      <span class="em">Published</span> to reveal a round on the public
+      leaderboard — unpublishing a round also unpublishes every later round.
+    </p>
+  </div>
+
+  <div class="po-card">
+    <table class="po-table">
+      <thead>
+        <tr>
+          <th class="left">Round</th>
+          <th>Tables scored</th>
+          <th>Sheets in progress</th>
+          <th>Sheets validated</th>
+          <th>Published</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr class="overview-row" data-round-nb="{{ row.round_nb }}">
+            <td class="left po-round">Round {{ row.round_nb }}</td>
+            <td class="po-scored">
+              <span class="cell-scored num"></span><span class="den"> / {{ row.tables_total }}</span>
+            </td>
+            <td><span class="cell-inprogress po-pill"></span></td>
+            <td><span class="cell-validated po-pill"></span></td>
+            <td>
+              <label class="po-publish">
+                <input type="checkbox" class="publish-toggle">
+                <span class="publish-status po-status"></span>
+              </label>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <p class="po-foot">
+    A round can only be published once all its tables are scored, and rounds must
+    be published in order (round N requires round N−1 published first).
+  </p>
+</div>
+
+<!-- Big unpublish warning -->
+<div id="unpublish-warning" class="po-warn">
+  <div class="po-warn-bg" data-warn-cancel></div>
+  <div class="po-warn-box">
+    <div class="po-warn-head">
+      <div class="po-warn-icon">
+        <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <div>
+        <h3>Unpublish <span id="warn-round-name"></span>?</h3>
+        <p id="warn-body"></p>
+      </div>
+    </div>
+    <div class="po-warn-foot">
+      <button type="button" class="po-btn po-btn-cancel" data-warn-cancel>Cancel</button>
+      <button type="button" class="po-btn po-btn-danger" id="warn-confirm">Yes, unpublish</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var CSRF = "{{ csrf_token }}";
+  var SUBDOMAIN = "{{ subdomain }}";
+
+  // round_nb -> { total, scored:Set, inprog:Set, validated:Set, published:bool }
+  var state = {};
+  (JSON.parse(document.getElementById("overview-data").textContent) || []).forEach(function(r) {
+    state[r.round_nb] = {
+      total: r.tables_total,
+      scored: new Set(r.scored_tables),
+      inprog: new Set(r.inprogress_tables),
+      validated: new Set(r.validated_tables),
+      published: r.published,
+    };
+  });
+
+  function row(roundNb) {
+    return document.querySelector('.overview-row[data-round-nb="' + roundNb + '"]');
+  }
+
+  function pill(el, marker, count, colorClass) {
+    // Keep the marker class so later querySelector calls still match.
+    el.textContent = count;
+    el.className = marker + " po-pill" + (count > 0 ? " " + colorClass : "");
+  }
+
+  function renderRound(roundNb) {
+    var st = state[roundNb], tr = row(roundNb);
+    if (!st || !tr) return;
+    tr.querySelector('.cell-scored').textContent = st.scored.size;
+    pill(tr.querySelector('.cell-inprogress'), "cell-inprogress", st.inprog.size, "amber");
+    pill(tr.querySelector('.cell-validated'), "cell-validated", st.validated.size, "emerald");
+
+    var toggle = tr.querySelector('.publish-toggle');
+    var status = tr.querySelector('.publish-status');
+    var complete = st.total > 0 && st.scored.size === st.total;
+    if (!toggle.dataset.busy) {
+      toggle.checked = st.published;
+      // Can publish only a complete round; can always unpublish a published one.
+      toggle.disabled = !st.published && !complete;
+    }
+    status.textContent = st.published ? "Published" : "Not published";
+    status.className = "publish-status po-status" + (st.published ? " published" : "");
+  }
+
+  function renderAll() { Object.keys(state).forEach(function(r) { renderRound(parseInt(r)); }); }
+  renderAll();
+
+  // --- publish / unpublish ----------------------------------------------------
+  function applyPublished(publishedRounds) {
+    var pub = new Set(publishedRounds);
+    Object.keys(state).forEach(function(r) { state[r].published = pub.has(parseInt(r)); });
+    renderAll();
+  }
+
+  function sendPublish(roundNb, published, toggle) {
+    toggle.dataset.busy = "1";
+    toggle.disabled = true;
+    fetch("set_round_published", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify({ round_nb: roundNb, published: published }),
+    }).then(function(resp) {
+      return resp.json().catch(function() { return {}; }).then(function(data) {
+        return { ok: resp.ok, data: data };
+      });
+    }).then(function(res) {
+      delete toggle.dataset.busy;
+      if (res.ok) {
+        applyPublished(res.data.published_rounds || []);
+      } else {
+        renderAll();
+        var msg = "Could not " + (published ? "publish" : "unpublish") + " round " + roundNb;
+        if (res.data && res.data.error) msg += ":\n" + res.data.error;
+        alert(msg);
+      }
+    }).catch(function() {
+      delete toggle.dataset.busy;
+      renderAll();
+      alert("Network error while updating round " + roundNb + ".");
+    });
+  }
+
+  // --- big unpublish warning --------------------------------------------------
+  var warnEl = document.getElementById("unpublish-warning");
+  var pendingUnpublish = null;  // { roundNb, toggle }
+
+  function openWarning(roundNb, toggle) {
+    pendingUnpublish = { roundNb: roundNb, toggle: toggle };
+    document.getElementById("warn-round-name").textContent = "round " + roundNb;
+    // Later rounds that will also be unpublished (published rounds can't have gaps).
+    var cascade = Object.keys(state).map(Number)
+      .filter(function(r) { return r > roundNb && state[r].published; })
+      .sort(function(a, b) { return a - b; });
+    var body = "Unpublishing hides round " + roundNb + " from the public leaderboard "
+             + "and lets scorers edit its scores again.";
+    if (cascade.length) {
+      body += " It will also unpublish round" + (cascade.length > 1 ? "s " : " ")
+            + cascade.join(", ") + ", because published rounds can't have gaps.";
+    }
+    document.getElementById("warn-body").textContent = body;
+    warnEl.classList.add("open");
+  }
+
+  function closeWarning() {
+    warnEl.classList.remove("open");
+    // Restore checkboxes to their true state (the cancelled box is back to checked).
+    if (pendingUnpublish) renderRound(pendingUnpublish.roundNb);
+    pendingUnpublish = null;
+  }
+
+  warnEl.querySelectorAll("[data-warn-cancel]").forEach(function(el) {
+    el.addEventListener("click", closeWarning);
+  });
+  document.getElementById("warn-confirm").addEventListener("click", function() {
+    if (!pendingUnpublish) return;
+    var p = pendingUnpublish;
+    pendingUnpublish = null;
+    warnEl.classList.remove("open");
+    sendPublish(p.roundNb, false, p.toggle);
+  });
+
+  document.querySelectorAll(".publish-toggle").forEach(function(toggle) {
+    toggle.addEventListener("change", function() {
+      var roundNb = parseInt(toggle.closest(".overview-row").getAttribute("data-round-nb"));
+      if (toggle.checked) sendPublish(roundNb, true, toggle);
+      else openWarning(roundNb, toggle);  // confirm before unpublishing
+    });
+  });
+
+  // --- live updates (shared scorers group) ------------------------------------
+  if (SUBDOMAIN) {
+    var proto = (location.protocol === "https:") ? "wss" : "ws";
+    var url = proto + "://" + location.host + "/ws/scorers/" + SUBDOMAIN + "/";
+    var ws, reconnectTimer = null, retries = 0;
+
+    function scheduleReconnect() {
+      if (reconnectTimer) return;
+      var delay = Math.min(30000, 1000 * Math.pow(2, retries++));
+      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(); }, delay);
+    }
+    function connect() {
+      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+      ws = new WebSocket(url);
+      ws.onopen = function() { retries = 0; };
+      ws.onmessage = function(evt) {
+        var msg; try { msg = JSON.parse(evt.data); } catch (e) { return; }
+        handle(msg);
+      };
+      ws.onclose = function() { scheduleReconnect(); };
+    }
+    window.addEventListener("online", function() {
+      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+      retries = 0; connect();
+    });
+    connect();
+
+    function handle(msg) {
+      if (msg.published_rounds) { applyPublished(msg.published_rounds); return; }
+      var st = (msg.round_nb !== undefined) ? state[msg.round_nb] : null;
+      if (!st) return;
+      var t = msg.table_nb;
+      if (msg.positions) {
+        // scorer.row — a table is "scored" when every position has minipoints.
+        var allFilled = msg.positions.length > 0 &&
+          msg.positions.every(function(p) { return p.mp !== null && p.mp !== undefined; });
+        if (allFilled) st.scored.add(t); else st.scored.delete(t);
+      } else if (msg.type === "scorer.validation") {
+        // Mirror the Scoring page: validated and in-progress are mutually exclusive.
+        if (msg.valid) { st.validated.add(t); st.inprog.delete(t); }
+        else           { st.validated.delete(t); st.inprog.add(t); }
+      } else if (msg.type === "scorer.filled") {
+        if (!st.validated.has(t)) {
+          if (msg.filled) st.inprog.add(t); else st.inprog.delete(t);
+        }
+      } else {
+        return;
+      }
+      renderRound(msg.round_nb);
+    }
+  }
+})();
+</script>

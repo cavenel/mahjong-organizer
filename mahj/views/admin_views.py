@@ -2,6 +2,7 @@ import io
 import os
 import time
 import traceback
+from collections import defaultdict
 from datetime import datetime
 
 import simplejson as json
@@ -24,6 +25,67 @@ from .scoring import (
     stat_all_rounds,
     stat_rounds,
 )
+
+
+def publisher_overview_rows(tenant, variables):
+    """Per-round summary for the Publisher overview page.
+
+    One dict per round 1..nb_rounds with the counts shown in the table and the
+    underlying per-table id lists, so the page can keep the aggregates accurate
+    as it applies the same scorer.* / publish.state WebSocket deltas the Scoring
+    page consumes (rather than re-querying on every keystroke). The sheet state
+    mirrors the Scoring page badge exactly: a validated sheet is never also
+    counted as in-progress (filled_keys already excludes validated tables).
+    """
+    nb_rounds = variables.nb_rounds or 0
+
+    total_per = defaultdict(int)
+    mp_per = defaultdict(int)
+    for rn, tn, mp in Position.objects.filter(tenant=tenant).values_list('round_nb', 'table_nb', 'minipoints'):
+        total_per[(rn, tn)] += 1
+        if mp is not None:
+            mp_per[(rn, tn)] += 1
+
+    tables_per_round = defaultdict(int)
+    scored_tables = defaultdict(list)  # round -> [table_nb] (every position has minipoints)
+    for (rn, tn), total in total_per.items():
+        tables_per_round[rn] += 1
+        if total > 0 and mp_per[(rn, tn)] == total:
+            scored_tables[rn].append(tn)
+
+    validated_keys = set(
+        Hand.objects.filter(tenant=tenant, hand_nb=17, pts=1).values_list('round_nb', 'table_nb')
+    )
+    filled_keys = set(
+        Hand.objects.filter(tenant=tenant, pts__gt=0).exclude(hand_nb=17)
+            .values_list('round_nb', 'table_nb').distinct()
+    ) - validated_keys
+
+    validated_tables = defaultdict(list)
+    for rn, tn in validated_keys:
+        validated_tables[rn].append(tn)
+    inprogress_tables = defaultdict(list)
+    for rn, tn in filled_keys:
+        inprogress_tables[rn].append(tn)
+
+    published = set(
+        PublishedRound.objects.filter(tenant=tenant).values_list('round_nb', flat=True)
+    )
+
+    rows = []
+    for r in range(1, nb_rounds + 1):
+        total = tables_per_round.get(r, 0)
+        scored = sorted(scored_tables.get(r, []))
+        rows.append({
+            'round_nb': r,
+            'tables_total': total,
+            'scored_tables': scored,
+            'inprogress_tables': sorted(inprogress_tables.get(r, [])),
+            'validated_tables': sorted(validated_tables.get(r, [])),
+            'published': r in published,
+            'complete': total > 0 and len(scored) == total,
+        })
+    return rows
 
 
 @user_passes_test(lambda u: u.is_staff)
@@ -596,6 +658,19 @@ def options(request, error=None):
             "subdomain": tenant.subdomain if tenant else '',
             "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
         }, request)
+    elif page == "publisher_overview":
+        # Publisher-only: a plain scorer reaching this page (?page=…) gets nothing.
+        # is_publisher includes staff.
+        if not is_publisher(request.user):
+            page_content = "None"
+        else:
+            variables = get_variables(request)
+            template2 = loader.get_template('mahj/admin_publisher_overview.html')
+            page_content = template2.render({
+                "rows": publisher_overview_rows(tenant, variables),
+                "variables": variables,
+                "subdomain": tenant.subdomain if tenant else '',
+            }, request)
     else:
         page_content = "None"
 

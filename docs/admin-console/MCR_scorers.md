@@ -1,28 +1,62 @@
-# Scorer guide
+# Admin console — scorer guide (MCR)
 
-← back to [admin console overview](README.md)
+**Mahj.OVH** (Mahjong Organizer Virtual Hub) is an all-in-one toolbox for running
+a Mahjong tournament. This short guide covers just the **scorer's** job on an
+**MCR** (Mahjong Competition Rules) tournament: entering and correcting table
+results, filling and validating per-table **score sheets**, and **scanning** paper
+sheets with a phone camera.
 
-A **scorer** enters and corrects table results during the tournament. Scorers
-work on the **Scoring** page, can open a per-table **score sheet** to enter every
-hand, and can **scan a paper score sheet** with a phone camera.
+> **This is the scorer edition for MCR events.** Publishing rounds, driving the
+> screens, and running the ceremony are covered in the
+> [head-scorer guide (MCR)](MCR_head_scorer.md); the complete reference is
+> [full_admin.md](full_admin.md). For a Riichi tournament, use
+> [Riichi_scorers.md](Riichi_scorers.md) instead.
 
-**Who is a scorer?** Any user in the `Scorer` group, or any staff user. When a
-scorer (non-staff) opens `/admin`, they land directly on the Scoring page.
-
-> Scorers **cannot** publish rounds (that's the [Publisher](publishers.md) role)
-> and **cannot** manage screens or the ceremony (the
-> [Display operator](display-operators.md) role). Those controls are hidden or
-> disabled for scorer accounts.
+**Who is a scorer?** Any user in the `Scorer` group (a staff organizer sets this
+up). When a scorer signs in, they land directly on the **Scoring** page.
 
 ---
 
-## 1. The Scoring page
+## 1. Signing in
 
-Open **Scoring** from the sidebar (or just sign in as a scorer). The page shows
-one **tab per round**; click a tab to switch rounds.
+The tournament lives on its own **subdomain**:
 
+```
+https://<tenant>.mahj.ovh/admin
+```
+
+For example `https://oemc2026.mahj.ovh/admin`. If you are not signed in you are
+sent to the login page; enter your username and password. As a scorer you land
+directly on the **Scoring** page.
+
+> ![Login](screenshots/01-login.png)<br>
+> 📸 **Screenshot — login page.**
+
+To **log out**, use the avatar menu in the top-right corner → *Log out*.
+
+> Need an account, or your `Scorer` role added? Ask a **staff organizer**.
+
+The sidebar (☰ on mobile) shows only the section you can use — **Scoring**.
+
+> ![Sidebar scorer](screenshots/04-sidebar-scorer.png)<br>
+> 📸 **Screenshot — sidebar as seen by a scorer (Scoring only).**
+
+### Live updates
+
+Scoring pages stay in sync over WebSockets — you rarely need to refresh. Edits
+made by another scorer appear in your grid within a second, and publish/validation
+state changes show live. If a page ever looks stuck, just refresh the tab — it
+rejoins at the current state.
+
+---
+
+## 2. The Scoring page
+
+Open **Scoring** (or just sign in). The page shows one **tab per round**; click a
+tab to switch rounds.
+
+> ![Scoring page](screenshots/10-scoring-page.png)<br>
 > 📸 **Screenshot — Scoring page: round tabs + table grid for the active round.**
-> `![Scoring page](screenshots/10-scoring-page.png)`
 
 Each round is a grid with **one row per table**:
 
@@ -32,16 +66,14 @@ Each round is a grid with **one row per table**:
 | **Table N** | Table number |
 | **East / South / West / North** | The four seats: player name + score input(s) |
 | **Sum** | Sum of the four Minipoints — must equal **0** |
-| *(MCR only)* **Score sheet** | Opens the per-hand entry sheet, plus a ✓ validation badge |
+| **Score sheet** | Opens the per-hand entry sheet, plus a ✓ validation badge |
 
 ### Entering a table's scores
 
-For each seat you type the player's **Minipoints (MP)** in the large input.
-
-- **MCR:** the smaller **Table Points (TP)** box next to it is **read-only** — the
-  console computes it automatically (4 / 2 / 1 / 0 points by rank, splitting ties
-  by averaging).
-- **Riichi / other rules:** only the MP box is shown; there is no TP.
+For each seat you type the player's **Minipoints (MP)** in the large input. The
+smaller **Table Points (TP)** box next to it is **read-only** — the console
+computes it automatically (4 / 2 / 1 / 0 points by rank, splitting ties by
+averaging).
 
 As soon as all four seats are filled:
 
@@ -53,8 +85,8 @@ As soon as all four seats are filled:
 Scores **save automatically** ~2 seconds after you stop typing (and immediately if
 you navigate away). There is no "Save" button.
 
+> ![Filled row](screenshots/11-filled-row.png)<br>
 > 📸 **Screenshot — a filled table row: green sum, four seats, TP auto-filled.**
-> `![Filled row](screenshots/11-filled-row.png)`
 
 #### Status pip colours
 
@@ -65,7 +97,7 @@ you navigate away). There is no "Save" button.
 | 🟢 green | Saved successfully |
 | 🔴 red | Save failed (e.g. network error, or the round is locked) |
 
-### Live collaboration
+#### Live collaboration
 
 Multiple scorers can work the same round at once. Edits made by another scorer
 appear in your grid within a second (rows you are *actively* editing are not
@@ -73,14 +105,13 @@ overwritten for a few seconds, so you won't lose your in-progress typing).
 
 ---
 
-## 2. The per-table score sheet (MCR)
+## 3. The per-table score sheet
 
-For MCR events each table also has a detailed **score sheet** covering the **16
-hands** played at that table. Click the **Score sheet** button on a table row to
-open it in a modal.
+Each table also has a detailed **score sheet** covering the **16 hands** played at
+that table. Click the **Score sheet** button on a table row to open it in a modal.
 
+> ![Score sheet](screenshots/12-score-sheet.png)<br>
 > 📸 **Screenshot — score sheet modal for one table (16 hands).**
-> `![Score sheet](screenshots/12-score-sheet.png)`
 
 For each hand you enter three numbers:
 
@@ -127,31 +158,31 @@ how *uncertain* the OCR was about that cell. Editing a tinted cell — or simply
 confirming it — clears the tint, so you can quickly eyeball which scanned numbers
 need a human check.
 
+> ![Scan confidence](screenshots/13-scan-confidence.png)<br>
 > 📸 **Screenshot — a scanned score sheet with low-confidence pink cells.**
-> `![Scan confidence](screenshots/13-scan-confidence.png)`
 
 ---
 
-## 3. Scanning a paper score sheet 📷
+## 4. Scanning a paper score sheet 📷
 
-Tables hand in **paper** A4 score sheets. Instead of typing all 16 hands, a scorer
-can photograph the sheet and let the OCR fill it in.
+Tables hand in **paper** A4 score sheets. Instead of typing all 16 hands, you can
+photograph the sheet and let the OCR fill it in.
 
-### Getting to the scan page
+**Getting to the scan page:**
 
-- **Easiest:** open a table's **Score sheet** (MCR) — it shows a **QR code**
-  ("Scan to fill on phone"). Scan it with your phone to open the scan page already
-  filled in with that round & table.
+- **Easiest:** open a table's **Score sheet** — it shows a **QR code** ("Scan to
+  fill on phone"). Scan it with your phone to open the scan page already filled in
+  with that round & table.
 - **Or** go directly to `https://<tenant>.mahj.ovh/scan` (you must be signed in as
   a scorer on the phone).
 
+> ![Scan QR](screenshots/14-scan-qr.png)<br>
 > 📸 **Screenshot — QR code on the score-sheet header.**
-> `![Scan QR](screenshots/14-scan-qr.png)`
 
-### Using the scan page (on a phone)
+**Using the scan page (on a phone):**
 
+> ![Scan page](screenshots/15-scan-page.png)<br>
 > 📸 **Screenshot — the mobile scan page.**
-> `![Scan page](screenshots/15-scan-page.png)`
 
 1. Enter (or confirm) the **Round** and **Table**. The page shows a status badge
    for that table:
@@ -167,29 +198,29 @@ can photograph the sheet and let the OCR fill it in.
    and low-confidence cells are tinted pink so you can verify them.
 5. The Table field clears (Round is kept) so you can shoot the next table.
 
-> Notes for scorers:
-> - Scanning **does not auto-validate** — a human still opens the sheet, checks the
->   pink cells, and ticks **Valid**.
+> Notes:
+> - Scanning **does not auto-validate** — you still open the sheet, check the pink
+>   cells, and tick **Valid**.
 > - If a table already has data, the app asks before overwriting.
 > - The page handles being offline / a lapsed session gracefully and tells you what
 >   to do (reconnect, or reload & sign in again).
 
 ---
 
-## 4. What scorers cannot do
+## 5. What scorers cannot do
 
 - **Publish rounds.** The *Publish round N* checkbox on each round is **disabled**
-  for scorers and labelled *"— staff or publisher only"*. See
-  [publishers.md](publishers.md).
+  for scorers and labelled *"— staff or publisher only"*. A **publisher** does
+  this (see the [head-scorer guide](MCR_head_scorer.md)).
 - **Edit a published round.** Once a round is published its score inputs are
-  **locked** (greyed, "unpublish to edit scores"). A publisher must unpublish it
+  **locked** (greyed, "unpublish to edit scores"). Ask a publisher to unpublish it
   first. Attempting to save a locked round fails with a red pip.
-- **Import players, draw teams, manage screens, run the ceremony, or export the
-  EMA report** — these are staff / display-operator tools.
+- **Import players, manage screens, run the ceremony, or export reports** — these
+  are staff / display-operator tools.
 
 ---
 
-## Quick reference
+## 6. Quick reference
 
 | Task | Where |
 |---|---|
@@ -199,3 +230,31 @@ can photograph the sheet and let the OCR fill it in.
 | Read a paper sheet | **Score sheet → QR**, or `/scan` on a phone |
 | Check a scanned table | Open its score sheet, review pink cells, tick **Valid** |
 | Fix a published round | Ask a **publisher** to unpublish it first |
+
+---
+
+## 7. Practising on the test tenant (optional)
+
+The **test tenant** at `https://test.mahj.ovh/` is a throwaway tournament for
+rehearsing without touching a real event. On it, the **Scoring** page shows an
+extra dashed amber **fake-data toolbar** (rendered only when the subdomain is
+`test`) so you can practise the scoring workflow with realistic data.
+
+> ![Test toolbar](screenshots/41-test-toolbar.png)<br>
+> 📸 **Screenshot — the "🧪 Test data" toolbar above the round tabs.**
+
+| Button | What it does (as a scorer) |
+|---|---|
+| **Fill all rounds — scores** | Fills every table in every round with random Minipoints that sum to zero, auto-computes Table Points, and saves. (Publishing is left to a publisher.) |
+| **Fill all rounds — score sheets** | Generates a full 16-hand score sheet for every table and marks each as **validated**. |
+| **Clear all rounds — scores** | Clears all entered Minipoints/Table Points. |
+| **Clear all rounds — score sheets** | Deletes all per-hand score-sheet data (and validation marks). |
+
+- The tenant must first be set up with players/seating — ask a **staff organizer**
+  to run **Import from template** before you rehearse.
+- You can also try the **QR → scan** path on a phone here.
+- Random fills produce **valid** tables (each table sums to zero), so the
+  cross-checks behave like the real thing.
+
+> ![Filled test data](screenshots/42-filled-data.png)<br>
+> 📸 **Screenshot — round overview after "Fill all rounds — scores": every round filled except the last, which still has 2 tables empty.**
