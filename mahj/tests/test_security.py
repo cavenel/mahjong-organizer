@@ -333,3 +333,143 @@ class TestCsrfEnforcement:
             HTTP_X_CSRFTOKEN=token,
         )
         assert resp.status_code == 200
+
+
+def _json_post(client, url, payload):
+    return client.post(url, data=json.dumps(payload), content_type='application/json')
+
+
+USER_ADMIN_ENDPOINTS = [
+    'user_create', 'user_update_roles', 'user_generate_link',
+    'user_revoke_links', 'user_delete',
+]
+
+
+class TestUserAdminGated:
+    """The user-management endpoints are staff-only (not scorers)."""
+
+    @pytest.mark.parametrize('url', USER_ADMIN_ENDPOINTS)
+    def test_anonymous_redirected(self, client_, tournament, url):
+        resp = _json_post(client_, '/' + url, {})
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    @pytest.mark.parametrize('url', USER_ADMIN_ENDPOINTS)
+    def test_scorer_group_member_redirected(self, client_, tournament, scorer_group_user, url):
+        client_.force_login(scorer_group_user)
+        resp = _json_post(client_, '/' + url, {})
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url
+
+    def test_users_page_hidden_from_scorer(self, client_, tournament, scorer_group_user):
+        client_.force_login(scorer_group_user)
+        resp = client_.get('/admin?page=users')
+        # Non-staff reach the admin shell but the page body renders nothing.
+        assert resp.status_code == 200
+        assert b'User management' not in resp.content
+
+
+class TestUserAdminActions:
+    """Behaviour of the staff user-management endpoints."""
+
+    def test_create_passwordless_user_with_roles(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_create',
+                          {'username': 'scorer1', 'roles': ['Scorer']})
+        assert resp.status_code == 200
+        u = User.objects.get(username='scorer1')
+        assert not u.has_usable_password()        # blank password -> link-only
+        assert u.groups.filter(name='Scorer').exists()
+        assert not u.is_staff
+
+    def test_create_with_password(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        _json_post(client_, '/user_create', {'username': 'pwuser', 'password': 'secret123'})
+        assert User.objects.get(username='pwuser').has_usable_password()
+
+    def test_create_duplicate_username_rejected(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_create', {'username': 'staffer'})
+        assert resp.status_code == 400
+
+    def test_update_roles_adds_and_removes(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        target = User.objects.create_user('rolet', password='pw')
+        _json_post(client_, '/user_update_roles',
+                   {'user_id': target.id, 'roles': ['Scorer', 'Publisher'], 'is_staff': False})
+        assert set(target.groups.values_list('name', flat=True)) == {'Scorer', 'Publisher'}
+        _json_post(client_, '/user_update_roles',
+                   {'user_id': target.id, 'roles': ['Display_op'], 'is_staff': False})
+        assert set(target.groups.values_list('name', flat=True)) == {'Display_op'}
+
+    def test_cannot_remove_own_staff_flag(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_update_roles',
+                          {'user_id': staff_user.id, 'roles': [], 'is_staff': False})
+        assert resp.status_code == 400
+        staff_user.refresh_from_db()
+        assert staff_user.is_staff is True
+
+    def test_generate_link_authenticates(self, client_, tournament, staff_user):
+        from sesame.utils import get_user
+        client_.force_login(staff_user)
+        target = User.objects.create_user('linkme')
+        target.set_unusable_password(); target.save()
+        resp = _json_post(client_, '/user_generate_link', {'user_id': target.id})
+        assert resp.status_code == 200
+        url = resp.json()['url']
+        token = url.split('sesame=')[1]
+        assert get_user(token) == target
+
+    def test_revoke_invalidates_existing_links(self, client_, tournament, staff_user):
+        from sesame.utils import get_token, get_user
+        client_.force_login(staff_user)
+        target = User.objects.create_user('revokeme')
+        target.set_unusable_password(); target.save()
+        token = get_token(target)
+        assert get_user(token) == target            # valid before revoke
+        resp = _json_post(client_, '/user_revoke_links', {'user_id': target.id})
+        assert resp.status_code == 200
+        target.refresh_from_db()
+        assert get_user(token) is None              # old link no longer works
+
+    def test_delete_user(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        target = User.objects.create_user('deleteme', password='pw')
+        resp = _json_post(client_, '/user_delete', {'user_id': target.id})
+        assert resp.status_code == 200
+        assert not User.objects.filter(username='deleteme').exists()
+
+    def test_cannot_delete_self(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        resp = _json_post(client_, '/user_delete', {'user_id': staff_user.id})
+        assert resp.status_code == 400
+        assert User.objects.filter(pk=staff_user.id).exists()
+
+    def test_staff_can_delete_another_staff_when_more_than_one(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        other_staff = User.objects.create_user('staff2', password='pw', is_staff=True)
+        resp = _json_post(client_, '/user_delete', {'user_id': other_staff.id})
+        assert resp.status_code == 200
+        assert not User.objects.filter(username='staff2').exists()
+
+
+class TestSesameLinkLogin:
+    """The sesame middleware logs a user in from a ?sesame=<token> URL."""
+
+    def test_link_authenticates_on_gated_page(self, client_, tournament, scorer_group_user):
+        from sesame.utils import get_token
+        # No prior login; the token alone should grant access to a scorer-gated page.
+        # The middleware logs the user in, then 302-redirects to the same URL with the
+        # token stripped (so it doesn't linger in history/referer); the session cookie
+        # carries the login, so following the redirect lands on the page (200).
+        token = get_token(scorer_group_user)
+        resp = client_.get('/scores_per_hand_1_1?sesame=' + token, follow=True)
+        assert resp.status_code == 200
+        assert resp.redirect_chain                          # a token-stripping redirect happened
+        assert resp.context['user'].is_authenticated
+
+    def test_no_token_still_redirected(self, client_, tournament):
+        resp = client_.get('/scores_per_hand_1_1')
+        assert resp.status_code == 302
+        assert '/accounts/login/' in resp.url

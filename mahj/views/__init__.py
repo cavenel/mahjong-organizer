@@ -51,6 +51,13 @@ from .admin_views import (
     update_welcome,
     welcome_options,
 )
+from .user_admin import (
+    user_create,
+    user_delete,
+    user_generate_link,
+    user_revoke_links,
+    user_update_roles,
+)
 from .display import (
     check_page,
     check_round,

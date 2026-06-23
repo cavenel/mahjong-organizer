@@ -1,0 +1,153 @@
+"""Staff-only user management: create accounts, toggle roles, and mint/revoke
+passwordless login links (django-sesame).
+
+Links are stateless sesame tokens, so two constraints shape this module:
+  * validity is the single global ``SESAME_MAX_AGE`` setting (no per-link TTL);
+  * "revoking" a user's links rotates their password hash, which invalidates
+    every link that user holds at once (per-user, not per-link).
+"""
+
+import json
+
+from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.models import Group, User
+from django.http import JsonResponse
+from sesame.utils import get_token
+
+# The three role groups the console manages. Staff (is_staff) is handled
+# separately as a flag, not a group.
+ROLE_GROUPS = ['Scorer', 'Display_op', 'Publisher']
+
+staff_only = user_passes_test(lambda u: u.is_staff)
+
+
+def _body(request):
+    try:
+        return json.loads(request.body) if request.body else {}
+    except ValueError:
+        return None
+
+
+def _set_roles(user, roles):
+    """Make the user's group membership exactly ``roles`` (restricted to the
+    known role groups; unknown names are ignored)."""
+    wanted = [r for r in roles if r in ROLE_GROUPS]
+    for name in ROLE_GROUPS:
+        group, _ = Group.objects.get_or_create(name=name)
+        if name in wanted:
+            user.groups.add(group)
+        else:
+            user.groups.remove(group)
+
+
+@staff_only
+def user_create(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = _body(request)
+    if data is None:
+        return JsonResponse({'status': 'bad_request'}, status=400)
+
+    username = (data.get('username') or '').strip()
+    if not username:
+        return JsonResponse({'status': 'error', 'error': 'username required'}, status=400)
+    if User.objects.filter(username=username).exists():
+        return JsonResponse({'status': 'error', 'error': 'username already taken'}, status=400)
+
+    user = User(username=username, is_staff=bool(data.get('is_staff')))
+    password = data.get('password') or ''
+    if password:
+        user.set_password(password)
+    else:
+        # Passwordless: the account can only log in via a sesame link.
+        user.set_unusable_password()
+    user.save()
+    _set_roles(user, data.get('roles', []))
+
+    return JsonResponse({'status': 'ok', 'id': user.id, 'username': user.username})
+
+
+@staff_only
+def user_update_roles(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = _body(request)
+    if data is None:
+        return JsonResponse({'status': 'bad_request'}, status=400)
+
+    try:
+        user = User.objects.get(pk=data.get('user_id'))
+    except (User.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'error': 'user not found'}, status=404)
+
+    is_staff = bool(data.get('is_staff'))
+    # Guard: don't let staff strip their own staff flag and lock themselves out.
+    if user.id == request.user.id and not is_staff:
+        return JsonResponse({'status': 'error', 'error': 'you cannot remove your own staff access'}, status=400)
+
+    user.is_staff = is_staff
+    user.save(update_fields=['is_staff'])
+    _set_roles(user, data.get('roles', []))
+
+    return JsonResponse({'status': 'ok'})
+
+
+@staff_only
+def user_generate_link(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = _body(request)
+    if data is None:
+        return JsonResponse({'status': 'bad_request'}, status=400)
+
+    try:
+        user = User.objects.get(pk=data.get('user_id'))
+    except (User.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'error': 'user not found'}, status=404)
+
+    # Land the kiosk straight on the scoring page; the sesame middleware logs the
+    # user in from the token on the way through. token chars are URL-safe.
+    url = request.build_absolute_uri('/admin?page=scoring&sesame=' + get_token(user))
+    return JsonResponse({'status': 'ok', 'url': url})
+
+
+@staff_only
+def user_revoke_links(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = _body(request)
+    if data is None:
+        return JsonResponse({'status': 'bad_request'}, status=400)
+
+    try:
+        user = User.objects.get(pk=data.get('user_id'))
+    except (User.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'error': 'user not found'}, status=404)
+
+    # Rotating the password hash invalidates every existing sesame token for this
+    # user. It also clears any usable password, so the account becomes link-only.
+    user.set_unusable_password()
+    user.save(update_fields=['password'])
+    return JsonResponse({'status': 'ok'})
+
+
+@staff_only
+def user_delete(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = _body(request)
+    if data is None:
+        return JsonResponse({'status': 'bad_request'}, status=400)
+
+    try:
+        user = User.objects.get(pk=data.get('user_id'))
+    except (User.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'error': 'user not found'}, status=404)
+
+    if user.id == request.user.id:
+        return JsonResponse({'status': 'error', 'error': 'you cannot delete your own account'}, status=400)
+    if user.is_staff and User.objects.filter(is_staff=True).count() <= 1:
+        return JsonResponse({'status': 'error', 'error': 'cannot delete the last staff account'}, status=400)
+
+    user.delete()
+    return JsonResponse({'status': 'ok'})

@@ -29,6 +29,13 @@ urlpatterns = [
     path('welcome_options', views.welcome_options, name='welcome_options'),
     path('counter_start', views.counter_start, name='counter_start'),
 
+    # User management (staff only)
+    path('user_create', views.user_create, name='user_create'),
+    path('user_update_roles', views.user_update_roles, name='user_update_roles'),
+    path('user_generate_link', views.user_generate_link, name='user_generate_link'),
+    path('user_revoke_links', views.user_revoke_links, name='user_revoke_links'),
+    path('user_delete', views.user_delete, name='user_delete'),
+
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),
     path('update_position_points', views.update_position_points, name='update_position_points'),

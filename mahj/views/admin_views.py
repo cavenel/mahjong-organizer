@@ -9,8 +9,10 @@ import simplejson as json
 from openpyxl import load_workbook
 from unidecode import unidecode
 
+from django.conf import settings
 from django.contrib.auth import logout
 from django.contrib.auth.decorators import user_passes_test
+from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
 from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
@@ -19,6 +21,7 @@ from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedu
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
 from .print_views import _country_flag
+from .user_admin import ROLE_GROUPS
 from .scoring import (
     scores_per_player_json,
     scores_per_table_json,
@@ -670,6 +673,29 @@ def options(request, error=None):
                 "rows": publisher_overview_rows(tenant, variables),
                 "variables": variables,
                 "subdomain": tenant.subdomain if tenant else '',
+            }, request)
+    elif page == "users":
+        # Staff-only: a scorer/display op reaching ?page=users gets nothing.
+        if not request.user.is_staff:
+            page_content = "None"
+        else:
+            user_rows = []
+            for u in User.objects.all().order_by('username').prefetch_related('groups'):
+                gnames = {g.name for g in u.groups.all()}
+                user_rows.append({
+                    "id": u.id,
+                    "username": u.username,
+                    "is_staff": u.is_staff,
+                    "is_self": u.id == request.user.id,
+                    "last_login": u.last_login,
+                    "has_password": u.has_usable_password(),
+                    "roles": [{"name": n, "active": n in gnames} for n in ROLE_GROUPS],
+                })
+            template2 = loader.get_template('mahj/admin_users.html')
+            page_content = template2.render({
+                "user_rows": user_rows,
+                "role_groups": ROLE_GROUPS,
+                "link_validity_days": settings.SESAME_MAX_AGE // 86400,
             }, request)
     else:
         page_content = "None"

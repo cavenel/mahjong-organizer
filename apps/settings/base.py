@@ -29,6 +29,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Logs a user in when a request carries a valid ?sesame=<token> (link-based
+    # login for kiosk laptops). Must come after Django's AuthenticationMiddleware.
+    'sesame.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.middleware.AuthCookieMiddleware',
@@ -84,6 +87,13 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     'sesame.backends.ModelBackend',
 ]
+
+# django-sesame: passwordless login links for scorer/display kiosk laptops.
+# Tokens are STATELESS (signed, not stored), so validity is a single global TTL —
+# there is no per-link expiry. The token mixes in the user's password hash, so
+# rotating a user's password (set_unusable_password) invalidates ALL their links
+# at once; that is how the User-management console "revokes" a user's links.
+SESAME_MAX_AGE = int(env('SESAME_MAX_AGE', 30 * 24 * 3600))  # seconds; default 30 days
 
 WSGI_APPLICATION = 'apps.wsgi.application'
 ASGI_APPLICATION = 'apps.asgi.application'
