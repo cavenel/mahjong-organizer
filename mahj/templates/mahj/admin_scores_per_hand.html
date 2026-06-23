@@ -25,6 +25,12 @@
     .total-cell { border-top: none !important; }
     .total-cell input { font-weight: 700; font-size: 13px; text-align: right; padding: 1px 4px; color: #1f2937; }
     .sum-cell input { font-weight: 700; font-size: 18px; text-align: center; }
+    /* Penalties row: one editable integer (+/-) per player, just above the total. */
+    table.review-table td.penalty-cell { padding: 3px !important; }
+    table.review-table .penalty-cell input { font-size: 14px; font-weight: 600; padding: 3px 2px; background: #fff7ed; border: 2px solid #fdba74; border-radius: 6px; text-align: center; }
+    table.review-table .penalty-cell input:hover { border-color: #fb923c; background: #ffedd5; }
+    table.review-table .penalty-cell input:focus { background: #fef3c7; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.35); }
+    table.review-table .penalty-cell input:disabled { background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb; }
 
     /* Sheet layout: table beside the QR / Validate column on wide screens,
        stacked (QR + Validate after the table) on narrow / mobile screens so the
@@ -89,8 +95,19 @@
         {% endif %}
       {% endfor %}
 
+      <tr class="bg-orange-50">
+        <th colspan="4" class="py-1 text-sm font-bold text-orange-700 leading-tight">Penalties<br><span class="text-[10px] font-normal text-orange-500">(+/- minipoints)</span></th>
+        {% for s in scores %}
+          <td class="penalty-cell">
+            <input type="number" step="1" class="penalty-input" id='pen_{{ forloop.counter }}'
+                   data-pos-id='{% if s %}{{ s.id }}{% endif %}'
+                   value='{% if s and s.penalty %}{{ s.penalty }}{% endif %}'
+                   placeholder="0"{% if not s %} disabled{% endif %}>
+          </td>
+        {% endfor %}
+      </tr>
       <tr class="bg-gray-100">
-        <th colspan="4" class="py-2 text-sm font-bold text-gray-700">Total</th>
+        <th colspan="4" class="py-2 text-sm font-bold text-gray-700">Total<br><span class="text-[10px] font-normal text-gray-500">(after penalties)</span></th>
         <td class="sum-cell"><input id='total_1' disabled></td>
         <td class="sum-cell"><input id='total_2' disabled></td>
         <td class="sum-cell"><input id='total_3' disabled></td>
@@ -203,6 +220,7 @@
       fd.append('version', version);
       navigator.sendBeacon("update_hand_points", fd);
     }
+    flushPendingPenalties();
   }
   window.addEventListener('beforeunload', flushPending);
   window.addEventListener('pagehide', flushPending);
@@ -277,12 +295,21 @@
     var real_tp = [{% for s in scores %}{% if s.tablepoints != None %}{{ s.tablepoints }}{% else %}0{% endif %},{% endfor %}];
     var real_mp = [{% for s in scores %}{% if s.minipoints  != None %}{{ s.minipoints  }}{% else %}0{% endif %},{% endfor %}];
 
+    // Penalties (integer, +/-) adjust the hand total per player. The "Total" row
+    // shows the after-penalty figure and the Table Points are ranked on it. These
+    // stay on the score sheet only — they never change the player's entered MP/TP.
+    var afterPenalty = [0, 0, 0, 0];
     for (var p = 1; p < 5; p++) {
-      $("#total_" + p).val(total[p-1]);
-      var ok = Math.round(total[p-1]) == Math.round(real_mp[p-1]);
+      var pen = parseInt($("#pen_" + p).val());
+      afterPenalty[p-1] = total[p-1] + (isNaN(pen) ? 0 : pen);
+    }
+
+    for (var p = 1; p < 5; p++) {
+      $("#total_" + p).val(afterPenalty[p-1]);
+      var ok = Math.round(afterPenalty[p-1]) == Math.round(real_mp[p-1]);
       $("#total_" + p).css("background-color", ok ? "#bbf7d0" : "#fecaca");
     }
-    var tp = get_tp(total);
+    var tp = get_tp(afterPenalty);
     for (var p = 1; p < 5; p++) {
       $("#tp_" + p).val(tp[p-1]);
       $("#tp_" + p).css("background-color", tp[p-1] == real_tp[p-1] ? "#bbf7d0" : "#fecaca");
@@ -296,9 +323,15 @@
       $("#by_" + i).prop("disabled", valid);
       $("#from_" + i).prop("disabled", valid);
     }
+    // Validated sheet is read-only; penalty inputs without a backing position stay
+    // disabled regardless (no row to save them to).
+    $(".penalty-input").each(function() {
+      $(this).prop("disabled", valid || !$(this).attr("data-pos-id"));
+    });
   }
 
   $("input").on("input change", function() {
+    if ($(this).hasClass("penalty-input")) return;  // handled separately below
     var row = $(this).attr("data-hand_nb");
     if (row == "17") {
       updateDisabledState();
@@ -309,6 +342,44 @@
     update_scores();
     if (ajax_timeouts[row]) clearTimeout(ajax_timeouts[row]);
     ajax_timeouts[row] = setTimeout(function(){ send_ajax(row); }, 1000);
+  });
+
+  // Penalties are saved per-position (not per-hand) and debounced like the hands.
+  var penalty_timeouts = {};
+
+  // Beacon out any not-yet-saved penalty edits when the sheet/tab is closing.
+  function flushPendingPenalties() {
+    $(".penalty-input").each(function() {
+      var $inp = $(this);
+      var posId = $inp.attr("data-pos-id");
+      if (!posId || !penalty_timeouts[posId]) return;
+      clearTimeout(penalty_timeouts[posId]);
+      delete penalty_timeouts[posId];
+      var val = parseInt($inp.val());
+      if (isNaN(val)) val = 0;
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+      fd.append('id', posId);
+      fd.append('penalty', val);
+      navigator.sendBeacon("update_position_penalty", fd);
+    });
+  }
+
+  $(".penalty-input").on("input change", function() {
+    update_scores();
+    var $inp = $(this);
+    var posId = $inp.attr("data-pos-id");
+    if (!posId) return;
+    if (penalty_timeouts[posId]) clearTimeout(penalty_timeouts[posId]);
+    penalty_timeouts[posId] = setTimeout(function() {
+      var val = parseInt($inp.val());
+      if (isNaN(val)) val = 0;
+      $.post("update_position_penalty", {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'id': posId,
+        'penalty': val,
+      });
+    }, 1000);
   });
 
   update_scores();

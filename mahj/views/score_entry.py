@@ -312,6 +312,31 @@ def update_position_points(request):
 
 
 @user_passes_test(is_scorer)
+def update_position_penalty(request):
+    """Set a single position's penalty (an integer minipoint adjustment, +/-).
+
+    Entered from the MCR score sheet. Like the other per-position edits, it is
+    rejected on a published (locked) round.
+    """
+    tenant = get_tenant(request)
+    try:
+        position = Position.objects.get(tenant=tenant, id=request.POST.get('id'))
+    except Position.DoesNotExist:
+        return JsonResponse({'status': 'not_found'}, status=404)
+
+    if _round_is_published(tenant, position.round_nb):
+        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
+
+    try:
+        position.penalty = int(request.POST.get('penalty'))
+    except (TypeError, ValueError):
+        position.penalty = 0
+    position.save(update_fields=['penalty'])
+
+    return JsonResponse({'status': 'ok'})
+
+
+@user_passes_test(is_scorer)
 def update_positions_bulk(request):
     """Update all 4 positions of a table row in a single request and transaction."""
     tenant = get_tenant(request)

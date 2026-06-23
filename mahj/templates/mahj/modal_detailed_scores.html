@@ -84,8 +84,20 @@
             {% endfor %}
           {% endfor %}
 
-          <!-- Totals -->
+          {% if show_penalties %}
+          <!-- Penalties (only shown when at least one player has one) -->
           <tr class="border-t-2 border-gray-300">
+            <td class="px-2 py-2 border border-gray-200 bg-orange-50 font-bold text-orange-700 text-center">Pen</td>
+            {% for pen in penalties %}
+              <td colspan="2" id="pen_{{ forloop.counter }}"
+                  class="px-2 py-2 border border-gray-200 bg-orange-50 text-center font-semibold text-sm text-orange-600">{% if pen %}{{ pen }}{% endif %}</td>
+            {% endfor %}
+            <td class="border border-gray-200 bg-orange-50"></td>
+          </tr>
+          {% endif %}
+
+          <!-- Totals (after penalties) -->
+          <tr class="{% if not show_penalties %}border-t-2 border-gray-300{% endif %}">
             <td class="px-2 py-2 border border-gray-200 bg-gray-50 font-bold text-gray-600 text-center">Σ</td>
             {% for i in "1234" %}
               <td colspan="2" class="px-2 py-2 border border-gray-200 text-center font-bold text-sm text-gray-800"
@@ -195,6 +207,13 @@
         }
       }
 
+      // Penalties (+/- minipoints) adjust the per-player total; table points are
+      // then ranked on the after-penalty figures. The Pen row is only present when
+      // a penalty exists, so an absent cell reads as 0.
+      for (let p = 1; p <= 4; p++) {
+        const pen = parseInt(txt('pen_' + p));
+        if (!isNaN(pen)) total[p - 1] += pen;
+      }
       for (let p = 1; p <= 4; p++) setTxt('total_' + p, total[p - 1]);
       const tp = getTP(total);
       for (let p = 1; p <= 4; p++) setTxt('tp_' + p, tp[p - 1] !== null ? tp[p - 1].toFixed(2) : '—');

@@ -143,6 +143,13 @@ As soon as all four seats are filled:
 - The row's **status pip** turns amber ("pending, not yet saved") then green once
   the save lands.
 
+> **⚠ IMPORTANT — a non-zero Sum is expected when a game has penalties.** If one
+> or more penalties were applied during a game, the four Minipoints will **not**
+> add up to 0: the **Sum** stays red and shows the penalty total (e.g. `-10`,
+> `-20`). **This is not an error** — leave it. The MP you enter (with the penalty
+> already applied) are the official scores; just confirm the red Sum matches the
+> total of the penalties applied.
+
 Scores **save automatically**. There is no "Save" button.
 
 > ![Filled row](screenshots/11-filled-row.png)<br>

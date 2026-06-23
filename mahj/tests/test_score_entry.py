@@ -136,6 +136,66 @@ class TestCreateHandPoints:
         assert written == 16
 
 
+class TestUpdatePositionPenalty:
+    """Per-player penalty: an integer minipoint adjustment saved from the score
+    sheet. It is a score-sheet-only figure (the leaderboard never reads it) and,
+    like the other position edits, is rejected on a published (locked) round."""
+
+    def _pos(self, tournament, round_nb=3, table_nb=1):
+        # Round 3 is not published in the fixture, so it stays editable.
+        return Position.objects.filter(
+            tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
+        ).order_by('position').first()
+
+    def test_sets_penalty(self, authed_client, tournament):
+        pos = self._pos(tournament)
+        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -10})
+        assert resp.status_code == 200
+        assert json.loads(resp.content)['status'] == 'ok'
+        pos.refresh_from_db()
+        assert pos.penalty == -10
+
+    def test_invalid_penalty_defaults_to_zero(self, authed_client, tournament):
+        pos = self._pos(tournament)
+        pos.penalty = 5
+        pos.save(update_fields=['penalty'])
+        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': 'abc'})
+        assert resp.status_code == 200
+        pos.refresh_from_db()
+        assert pos.penalty == 0
+
+    def test_penalty_does_not_touch_minipoints(self, authed_client, tournament):
+        pos = self._pos(tournament)
+        before_mp, before_tp = pos.minipoints, pos.tablepoints
+        authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -20})
+        pos.refresh_from_db()
+        assert pos.minipoints == before_mp
+        assert pos.tablepoints == before_tp
+
+    def test_rejected_on_published_round(self, authed_client, tournament):
+        pos = self._pos(tournament, round_nb=1)  # published in fixture
+        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -10})
+        assert resp.status_code == 409
+        assert json.loads(resp.content)['status'] == 'locked'
+        pos.refresh_from_db()
+        assert pos.penalty == 0  # write must not have landed
+
+    def test_nonexistent_position_returns_404(self, authed_client):
+        resp = authed_client.post('/update_position_penalty', {'id': 999999, 'penalty': -10})
+        assert resp.status_code == 404
+
+    def test_score_sheet_renders_penalty_inputs(self, authed_client, tournament):
+        pos = self._pos(tournament, round_nb=1, table_nb=1)
+        pos.penalty = -10
+        pos.save(update_fields=['penalty'])
+        body = authed_client.get('/scores_per_hand_1_1').content.decode()
+        # One editable penalty box per seat, pre-filled with the saved value.
+        assert 'class="penalty-input"' in body
+        assert 'id=\'pen_1\'' in body or 'id="pen_1"' in body
+        assert 'update_position_penalty' in body  # the persistence endpoint
+        assert '-10' in body
+
+
 class TestPublishedRoundLock:
     """A published round is read-only: scores can only change after it is
     explicitly unpublished. Rounds 1 & 2 are published in the fixture; round 3

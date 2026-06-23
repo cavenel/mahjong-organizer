@@ -144,6 +144,15 @@ As soon as all four seats are filled:
 - The row's **status pip** turns amber ("pending, not yet saved") then green once
   the save lands.
 
+> **⚠ IMPORTANT — a non-zero Sum is expected when a game has penalties.** If one
+> or more penalties were applied during a game, the four Minipoints will **not**
+> add up to 0: the **Sum** stays red and shows the penalty total (e.g. `-10`,
+> `-20`). **This is not an error** — leave it. The MP you enter (with the penalty
+> already applied) are the official scores. Record each penalty on the **score
+> sheet** (the *Penalties* row) so its after-penalty Total and Table Points match
+> what you entered; it is normal for the score sheet's raw hand total to differ
+> from the entered MP/TP by exactly the penalties.
+
 Scores **save automatically**. There is no "Save" button.
 
 > ![Filled row](screenshots/11-filled-row.png)<br>
@@ -190,6 +199,18 @@ entered on the main Scoring grid:
 
 This is the cross-check that catches data-entry mistakes: a correctly entered
 score sheet should produce green totals that match the grid.
+
+#### Penalties
+
+Just above the **Total** row the sheet has a **Penalties** row — one integer box
+per player. Enter a penalty as a whole number, positive or negative (e.g. `-10`).
+The **Total** row then shows each player's hand total **plus** their penalty, and
+the **Table Points** are ranked on that **after-penalty** total — so the sheet's
+totals line up with the (penalised) MP/TP you entered on the grid.
+
+Penalties live on the score sheet only: they are saved with the sheet and also
+show on the public per-table detail view, but they **never change the player's
+official MP/TP** — those stay exactly as you typed them on the Scoring grid.
 
 #### Validating a sheet
 

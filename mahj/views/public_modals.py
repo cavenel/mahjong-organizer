@@ -170,10 +170,16 @@ def detailed_scores(request, round_nb, table_nb):
         if 1 <= position_val.position <= 4:
             scores[position_val.position - 1] = position_val
 
+    # Per-player penalties only surface here when at least one is non-zero, so a
+    # clean table stays clean.
+    penalties = [s.penalty if s else 0 for s in scores]
+
     template = loader.get_template('mahj/modal_detailed_scores.html')
     html = template.render({
         'hands_per_wind': hands_per_wind,
         'scores': scores,
+        'penalties': penalties,
+        'show_penalties': any(penalties),
         'round_nb': round_nb,
         'table_nb': table_nb,
     }, request)

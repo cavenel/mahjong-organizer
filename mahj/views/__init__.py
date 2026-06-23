@@ -29,6 +29,7 @@ from .score_entry import (
     update_hand_points,
     validate_score_sheet,
     update_position_points,
+    update_position_penalty,
     update_positions_bulk,
 )
 from .ceremony import ceremony_control, ceremony_data

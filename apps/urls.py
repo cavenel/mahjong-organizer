@@ -32,6 +32,7 @@ urlpatterns = [
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),
     path('update_position_points', views.update_position_points, name='update_position_points'),
+    path('update_position_penalty', views.update_position_penalty, name='update_position_penalty'),
     path('update_positions_bulk', views.update_positions_bulk, name='update_positions_bulk'),
     path('set_round_published', views.set_round_published, name='set_round_published'),
     path('create_hand_points', views.create_hand_points, name='create_hand_points'),

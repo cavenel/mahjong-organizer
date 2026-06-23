@@ -4,6 +4,7 @@
       "__model__": "Position",
       "id": 20,
       "minipoints": 155,
+      "penalty": 0,
       "pk": 20,
       "player_id": 16,
       "position": 4,

@@ -54,3 +54,30 @@ class TestDetailedScoresReadOnly:
         # grow with the 4 seated players. Pre-fix this did +1 query per player.
         with django_assert_max_num_queries(5):
             client_.get('/detailed_scores_1_1')
+
+
+class TestDetailedScoresPenalties:
+    """Penalties surface on the public per-table detail only when at least one is
+    non-zero; they are score-sheet figures, never the official MP."""
+
+    def _first_pos(self, tournament, round_nb, table_nb):
+        from mahj.models import Position
+        return Position.objects.filter(
+            tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
+        ).order_by('position').first()
+
+    def test_penalty_row_shown_when_set(self, client_, tournament):
+        from django.core.cache import cache
+        pos = self._first_pos(tournament, 1, 1)
+        pos.penalty = -10
+        pos.save(update_fields=['penalty'])
+        cache.clear()  # the modal caches rendered HTML; render fresh
+        body = client_.get('/detailed_scores_1_1').content.decode()
+        assert 'id="pen_1"' in body
+        assert '-10' in body
+
+    def test_no_penalty_row_when_all_zero(self, client_, tournament):
+        from django.core.cache import cache
+        cache.clear()
+        body = client_.get('/detailed_scores_1_1').content.decode()
+        assert 'id="pen_1"' not in body

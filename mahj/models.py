@@ -67,6 +67,11 @@ class Position(TenantAwareModel):
 
     minipoints  = models.IntegerField(default=None, null=True)
     tablepoints = models.FloatField(default=None, null=True)
+    # Per-player penalty (minipoints), entered on the score sheet. Integer, may be
+    # negative. The table total after penalties = sum of the four hand totals +
+    # this; table points are ranked on that after-penalty total. A non-zero sum of
+    # the four players' minipoints is expected when penalties are applied.
+    penalty     = models.IntegerField(default=0)
 
     class Meta:
         indexes = [

@@ -1,9 +1,9 @@
 - Add Theme variables
-- "Sum of the four Minipoints — must equal 0" - Add an IMPORTANT NOTE here. If there are penalties during a game, the total can be -10, -20 etc. This is not an error. The scorer must check that the difference comes from one or more penalties. The scorer must keep the penalties and the sum different than zero.
-- In the score sheets, add a row before total with 4 int forms, for penalties. They must be integers (+ or -). The sum is then total before penalties + penalties. The Table point is computed on sum after penalties.
 
 
 # Done
+- "Sum of the four Minipoints — must equal 0" - Add an IMPORTANT NOTE here. If there are penalties during a game, the total can be -10, -20 etc. This is not an error. The scorer must check that the difference comes from one or more penalties. The scorer must keep the penalties and the sum different than zero.
+- In the score sheets, add a row before total with 4 int forms, for penalties. They must be integers (+ or -). The sum is then total before penalties + penalties. The Table point is computed on sum after penalties.
 - Fix score sheet edits on mobile (make table larger, keep space for everything, maybe put QR code and Valid AFTER table if not large enough?)
 - Fix score sheet "Entered MP / TP" on two lines instead of one.
 - Fix ceremony Teams and Players list on mobile (don't make page wider, use scroll x)
