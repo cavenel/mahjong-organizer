@@ -106,7 +106,7 @@
   <div class="border-b border-gray-200 mb-4">
     <nav class="-mb-px flex gap-2 overflow-x-auto" role="tablist">
       {% for round_json in scores_json %}
-        <button type="button" role="tab"
+        <button type="button" role="tab" tabindex="-1"
                 @click="activeRound = {{ forloop.counter }}"
                 :class="activeRound === {{ forloop.counter }}
                           ? 'border-amber-500 text-amber-600 bg-amber-50'
@@ -143,6 +143,15 @@
         <span class="ml-auto text-xs publish-status {% if forloop.counter in published_rounds %}published font-semibold text-emerald-600{% endif %}">
           {% if forloop.counter in published_rounds %}Published{% else %}Not published{% endif %}
         </span>
+      </div>
+
+      <!-- Filter by table number -->
+      <div class="flex items-center gap-2 mb-3 text-sm">
+        <label class="font-medium text-gray-600">Filter by table</label>
+        <input type="number" min="1" inputmode="numeric" placeholder="e.g. 23"
+               class="table-filter w-24 px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+               autocomplete="off">
+        <span class="text-xs text-gray-400">press <kbd class="px-1 py-0.5 border border-gray-300 rounded bg-gray-50 font-mono text-[10px]">/</kbd> to focus</span>
       </div>
 
       <div class="score-wrap">
@@ -350,6 +359,33 @@
 
   $(".table_row").each(function() { update_line($(this), false); });
   refreshAllPublishToggles();
+
+  // Filter by table number: typing a number shows only that table (exact match)
+  // across every round; empty shows all. Each round pane has its own filter box,
+  // but they share one value so the filter sticks when switching rounds.
+  function applyTableFilter(q) {
+    q = (q || "").trim();
+    $(".table-filter").val(q);
+    $(".table_row").each(function() {
+      $(this).toggle(q === "" || $(this).attr("data-table-nb") === q);
+    });
+  }
+  $(document).on("input", ".table-filter", function() { applyTableFilter($(this).val()); });
+  // Select the value on focus so the next keystroke overwrites it (matches the
+  // score inputs above). setTimeout defers past the browser's focus handling.
+  $(document).on("focus", ".table-filter", function() {
+    var el = this;
+    setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
+  });
+  // "/" focuses the visible round's table filter — but not while you're already
+  // typing in a field (so it doesn't hijack a keystroke meant for a score input).
+  $(document).on("keydown", function(e) {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+    var t = e.target;
+    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    e.preventDefault();
+    $(".tab-pane.active .table-filter").focus();
+  });
 
   // Tabbing/tapping into a score field selects its value so the next keystroke
   // overwrites it rather than appending — easier than placing the caret on a
