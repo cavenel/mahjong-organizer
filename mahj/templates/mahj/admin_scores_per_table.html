@@ -382,7 +382,10 @@
   $(document).on("keydown", function(e) {
     if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
     var t = e.target;
-    if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    // Don't hijack "/" in free-text fields where it's a real character; number
+    // inputs (the MP cells, the filter itself) don't use it, so allow it there.
+    if (t && (t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+    if (t && t.tagName === "INPUT" && t.type !== "number") return;
     e.preventDefault();
     $(".tab-pane.active .table-filter").focus();
   });
