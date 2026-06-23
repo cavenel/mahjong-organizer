@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev curl ca-certificates \
     libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
     libffi-dev libcairo2 shared-mime-info \
-    fonts-dejavu-core fonts-noto-color-emoji \
+    fonts-dejavu-core fonts-symbola \
     && rm -rf /var/lib/apt/lists/*
 
 # Build a wheel for every prod dependency, then install those wheels (needed so

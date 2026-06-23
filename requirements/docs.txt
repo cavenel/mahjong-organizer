@@ -1,6 +1,6 @@
 # Build-time only: render docs/admin-console/*.md to PDFs (manage.py build_docs_pdf).
 # Installed in the Docker *builder* stage; never reaches the slim runtime image.
 # Needs native libs at build: libpango-1.0-0 libpangocairo-1.0-0
-# libgdk-pixbuf-2.0-0 libffi-dev libcairo2 shared-mime-info + a colour-emoji font.
+# libgdk-pixbuf-2.0-0 libffi-dev libcairo2 shared-mime-info + the Symbola font.
 weasyprint==69.0
 Markdown==3.10.2

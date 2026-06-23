@@ -10,8 +10,8 @@ Local use::
     python manage.py build_docs_pdf            # render every guide
     python manage.py build_docs_pdf --only full_admin MCR_scorers
 
-Requires WeasyPrint's native libraries (Pango/Cairo/GDK-PixBuf) and a colour
-emoji font on the host; the Dockerfile installs both in the builder stage.
+Requires WeasyPrint's native libraries (Pango/Cairo/GDK-PixBuf) and the Symbola
+font on the host; the Dockerfile installs both in the builder stage.
 """
 
 from pathlib import Path
@@ -27,22 +27,16 @@ SKIP = {"readme.md"}
 # diagrams; Noto Color Emoji renders the 📸/🔑/🟢 markers (installed in the
 # builder stage). max-width keeps the 1920px screenshots inside the page.
 CSS = """
-/* Noto Color Emoji also "covers" the ASCII digits 0-9, # and * (they are the
-   bases of keycap emoji like 1️⃣). If it is named plainly in font-family, the
-   text engine grabs it for bare digits and renders them blank. Gating it behind
-   a unicode-range that excludes digits means it is only ever used for real
-   emoji/symbols, so digits stay on DejaVu Sans. */
-@font-face {
-  font-family: "EmojiFallback";
-  src: local("Noto Color Emoji");
-  unicode-range: U+203C, U+2049, U+20E3, U+2122, U+2139, U+2190-21FF,
-    U+2300-23FF, U+2460-24FF, U+25A0-27BF, U+2900-297F, U+2B00-2BFF,
-    U+3030, U+303D, U+3297, U+3299, U+FE00-FE0F, U+1F000-1FAFF;
-}
+/* WeasyPrint mis-positions Noto Color Emoji's bitmap glyphs (they float to the
+   top of the page), so emoji come from Symbola — a monochrome outline font that
+   shapes inline like any other glyph. Colour-carrying emoji (the status pips,
+   ✓ / !) and the ones Symbola lacks are swapped for coloured glyphs in
+   render_html() below; Symbola handles the rest (📸 🔑 ⚠ ☰). Digits stay on
+   DejaVu Sans, which is listed first. */
 @page { size: A4; margin: 1.8cm 1.6cm; }
 html { font-size: 11px; }
 body {
-  font-family: "DejaVu Sans", "Noto Sans", "EmojiFallback", sans-serif;
+  font-family: "DejaVu Sans", "Symbola", sans-serif;
   line-height: 1.45; color: #1a1a1a;
 }
 h1, h2, h3, h4 { line-height: 1.2; break-after: avoid; }
@@ -84,6 +78,23 @@ HTML_TEMPLATE = (
 )
 
 
+# Emoji that carry colour meaning (the status pips) or that Symbola can't render
+# are swapped for reliably-rendered coloured glyphs. ● (U+25CF) and ✔ (U+2714)
+# are covered by DejaVu Sans, so these render inline and in colour. The remaining
+# emoji (📸 🔑 ⚠ ☰ ✓ ✕) are left for Symbola.
+EMOJI_REPLACEMENTS = {
+    "🟢": '<span style="color:#16a34a">●</span>',  # green
+    "🟡": '<span style="color:#d97706">●</span>',  # amber
+    "🟠": '<span style="color:#ea580c">●</span>',  # orange
+    "🔴": '<span style="color:#dc2626">●</span>',  # red
+    "🔵": '<span style="color:#2563eb">●</span>',  # blue
+    "⚪": '<span style="color:#9ca3af">●</span>',  # grey
+    "✅": '<span style="color:#16a34a">✔</span>',
+    "❗": '<span style="color:#dc2626;font-weight:bold">!</span>',
+    "🧪": "⚗",  # Symbola lacks the test-tube; use the alembic it does have
+}
+
+
 def render_html(md_text: str) -> str:
     """Markdown source -> full HTML document string (no native libs needed)."""
     body = markdown.markdown(
@@ -91,6 +102,8 @@ def render_html(md_text: str) -> str:
         extensions=["extra", "sane_lists", "toc"],
         output_format="html5",
     )
+    for char, repl in EMOJI_REPLACEMENTS.items():
+        body = body.replace(char, repl)
     return HTML_TEMPLATE.format(css=CSS, body=body)
 
 
