@@ -351,6 +351,15 @@
   $(".table_row").each(function() { update_line($(this), false); });
   refreshAllPublishToggles();
 
+  // Tabbing/tapping into a score field selects its value so the next keystroke
+  // overwrites it rather than appending — easier than placing the caret on a
+  // phone. setTimeout defers past the browser's focus handling (mobile clears
+  // the selection otherwise).
+  $(document).on("focus", "input[name='minipoints']:not(:disabled):not([readonly])", function() {
+    var el = this;
+    setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
+  });
+
   $(document).on("change", "input[name='minipoints']", function() {
     var row = $(this).closest(".table_row"), rid = row.attr("id");
     var inputs = row.find("input[name='minipoints']"), vals = [], allFilled = true;
