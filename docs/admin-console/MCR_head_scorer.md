@@ -173,6 +173,14 @@ Multiple scorers can work the same round at once. Edits made by another scorer
 appear in your grid within a second (rows you are *actively* editing are not
 overwritten for a few seconds, so you won't lose your in-progress typing).
 
+#### Finding a table
+
+A **Filter by table** box sits just above the grid. Type a table number to show
+only that table (exact match); clear it to show every table again. The value
+carries across round tabs, so the filter sticks when you switch rounds. Press
+<kbd>/</kbd> anywhere on the page (even from a score input) to jump to it, and
+**Tab** off the last seat loops back to the filter.
+
 ### The per-table score sheet
 
 Each table also has a detailed **score sheet** covering the **16 hands** played at

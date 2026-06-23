@@ -98,8 +98,9 @@ default page (see [§1](#1-roles-at-a-glance)).
 > 📸 **Screenshot — login page.**
 
 To **log out**, use the avatar menu in the top-right corner → *Log out* (or visit
-`/admin?logout=1`). The avatar menu also shows the signed-in username and a
-*Database administration* link (`/admin_db/`, useful only to staff).
+`/admin?logout=1`). The avatar menu also shows the signed-in username and — for
+**staff** accounts only — a *Database administration* link (`/admin_db/`);
+scorers and publishers don't see it.
 
 ### Creating users and assigning roles
 
@@ -289,6 +290,20 @@ you navigate away). There is no "Save" button.
 Multiple scorers can work the same round at once. Edits made by another scorer
 appear in your grid within a second (rows you are *actively* editing are not
 overwritten for a few seconds, so you won't lose your in-progress typing).
+
+#### Finding a table
+
+A **Filter by table** box sits between the publish bar and the grid. Type a table
+number to show only that table (exact match); clear it to show every table again.
+The value is shared across round tabs, so the filter sticks when you switch
+rounds.
+
+- Press <kbd>/</kbd> anywhere on the page — even from a score input — to jump
+  straight to the filter; it selects its contents so your next keystrokes
+  overwrite it.
+- **Tab** runs filter → first seat → … → last seat and then loops back to the
+  filter (skipping rows hidden by the filter), so you can enter table after table
+  from the keyboard alone.
 
 ### The per-table score sheet (MCR)
 
