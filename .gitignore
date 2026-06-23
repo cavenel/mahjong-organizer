@@ -33,3 +33,6 @@ package-lock.json
 locustfile.py
 test_queries.sh
 test_queries_2.sh
+
+# Generated at build time by `manage.py build_docs_pdf` (collected into staticfiles)
+mahj/static/docs/

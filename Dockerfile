@@ -11,17 +11,25 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 
 # Build toolchain — only needed to compile any sdist-only wheels. Discarded with
-# this stage, so gcc/libpq-dev never reach the runtime image.
+# this stage, so gcc/libpq-dev never reach the runtime image. The Pango/Cairo/
+# GDK-PixBuf libs + emoji font are WeasyPrint's runtime deps, used only to render
+# the docs PDFs below; they too stay in this discarded stage.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc libpq-dev curl ca-certificates \
+    libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf-2.0-0 \
+    libffi-dev libcairo2 shared-mime-info \
+    fonts-dejavu-core fonts-noto-color-emoji \
     && rm -rf /var/lib/apt/lists/*
 
 # Build a wheel for every prod dependency, then install those wheels (needed so
 # collectstatic below can run). The /wheels dir is bind-mounted into the runtime
 # stage so it can install with no compiler present.
-COPY requirements/base.txt requirements/prod.txt ./requirements/
+COPY requirements/base.txt requirements/prod.txt requirements/docs.txt ./requirements/
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements/prod.txt \
  && pip install --no-cache-dir --no-index --find-links=/wheels -r requirements/prod.txt
+# Build-time-only deps (WeasyPrint + Markdown) for build_docs_pdf. Not wheeled
+# into /wheels, so they never get installed into the runtime stage.
+RUN pip install --no-cache-dir -r requirements/docs.txt
 
 # Standalone Tailwind CLI (no Node toolchain). Build-time only — kept under /opt
 # so it never lands on the runtime PATH.
@@ -41,6 +49,14 @@ RUN /opt/tailwindcss -c tailwind.config.js \
                      -i mahj/static/css/tailwind.src.css \
                      -o mahj/static/css/tailwind.min.css \
                      --minify
+
+# Render the admin-console Markdown guides to PDFs under mahj/static/docs/ so the
+# collectstatic below picks them up (served at /static/docs/<name>.pdf).
+RUN DJANGO_SETTINGS_MODULE=apps.settings.prod \
+    DJANGO_SECRET_KEY=dummy-build-docs \
+    ALLOWED_HOSTS=localhost \
+    DB_NAME=x DB_USER=x DB_PASSWORD=x \
+    python manage.py build_docs_pdf
 
 RUN DJANGO_SETTINGS_MODULE=apps.settings.prod \
     DJANGO_SECRET_KEY=dummy-collectstatic \

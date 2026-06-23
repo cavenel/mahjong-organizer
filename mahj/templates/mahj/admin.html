@@ -157,6 +157,19 @@
             <p class="font-semibold text-gray-800">{{ username }}</p>
             <p class="text-xs text-gray-500">Admin</p>
           </div>
+          {% if user.is_staff %}
+          <div class="border-b border-gray-100 py-1">
+            <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guides (PDF)</p>
+            <a target="_blank" href="/static/docs/full_admin.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Full guide — all roles
+            </a>
+            <a target="_blank" href="/static/docs/MCR_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — head scorer</a>
+            <a target="_blank" href="/static/docs/MCR_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — scorer</a>
+            <a target="_blank" href="/static/docs/Riichi_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — head scorer</a>
+            <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
+          </div>
+          {% endif %}
           <a target="_blank" href="admin_db" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
             Database administration

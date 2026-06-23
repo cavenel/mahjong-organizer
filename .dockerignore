@@ -27,6 +27,10 @@ plugins/
 *.md
 docs/
 TODO.md
+# …except the admin-console guides + screenshots, which the builder renders to
+# PDF via `manage.py build_docs_pdf` before collectstatic.
+!docs/admin-console
+!docs/admin-console/**
 
 # Tests
 mahj/tests/
