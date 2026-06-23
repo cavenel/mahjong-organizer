@@ -24,9 +24,14 @@
         <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
           Invalid username or password.
         </div>
+      {% elif request.GET.expired %}
+        <div class="mb-4 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+          Your session expired — please sign in again.
+        </div>
       {% endif %}
 
-      <form method="post" action="/accounts/login/?next={{ next }}">
+      <form method="post" action="/accounts/login/?next={{ next }}"
+            onsubmit="var m=document.cookie.match(/(?:^|;\s*)csrftoken=([^;]+)/);if(m){this.csrfmiddlewaretoken.value=m[1];}">
         {% csrf_token %}
         <div class="space-y-4">
           <div>

@@ -162,4 +162,9 @@ LOGGING = {
 }
 
 CSRF_TRUSTED_ORIGINS = ['https://mahj.ovh', 'https://*.mahj.ovh']
+
+# A home-screen app (Android) resumes a stale login page whose CSRF token no
+# longer matches the rotated cookie; this handler redirects that failed login
+# POST to a fresh login form instead of a dead-end 403. See apps/csrf.py.
+CSRF_FAILURE_VIEW = 'apps.csrf.csrf_failure'
 X_FRAME_OPTIONS = 'SAMEORIGIN'
