@@ -27,10 +27,22 @@ SKIP = {"readme.md"}
 # diagrams; Noto Color Emoji renders the 📸/🔑/🟢 markers (installed in the
 # builder stage). max-width keeps the 1920px screenshots inside the page.
 CSS = """
+/* Noto Color Emoji also "covers" the ASCII digits 0-9, # and * (they are the
+   bases of keycap emoji like 1️⃣). If it is named plainly in font-family, the
+   text engine grabs it for bare digits and renders them blank. Gating it behind
+   a unicode-range that excludes digits means it is only ever used for real
+   emoji/symbols, so digits stay on DejaVu Sans. */
+@font-face {
+  font-family: "EmojiFallback";
+  src: local("Noto Color Emoji");
+  unicode-range: U+203C, U+2049, U+20E3, U+2122, U+2139, U+2190-21FF,
+    U+2300-23FF, U+2460-24FF, U+25A0-27BF, U+2900-297F, U+2B00-2BFF,
+    U+3030, U+303D, U+3297, U+3299, U+FE00-FE0F, U+1F000-1FAFF;
+}
 @page { size: A4; margin: 1.8cm 1.6cm; }
 html { font-size: 11px; }
 body {
-  font-family: "DejaVu Sans", "Noto Sans", "Noto Color Emoji", sans-serif;
+  font-family: "DejaVu Sans", "Noto Sans", "EmojiFallback", sans-serif;
   line-height: 1.45; color: #1a1a1a;
 }
 h1, h2, h3, h4 { line-height: 1.2; break-after: avoid; }
@@ -55,7 +67,10 @@ blockquote {
   margin: .8em 0; padding: .1em .9em; color: #444;
   border-left: 4px solid #c9c9c9; background: #fafafa; break-inside: avoid;
 }
-img { max-width: 100%; height: auto; border: 1px solid #e0e0e0; border-radius: 4px; }
+/* Cap figures at ~1/3 of the A4 page height (29.7cm) so a tall screenshot can't
+   dominate a page; max-width + max-height + auto keep the aspect ratio. */
+img { max-width: 100%; max-height: 9.5cm; height: auto;
+      border: 1px solid #e0e0e0; border-radius: 4px; }
 table { border-collapse: collapse; width: 100%; margin: .8em 0; break-inside: avoid; }
 th, td { border: 1px solid #d0d0d0; padding: .35em .55em; text-align: left;
          vertical-align: top; }
