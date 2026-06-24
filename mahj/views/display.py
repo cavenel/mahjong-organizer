@@ -14,7 +14,7 @@ from ..signals import broadcast_display
 from ..scoring import _last_round_reveal
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, is_display_op
-from .scoring import scores_per_player_json, scores_per_table_json, stat_all_rounds
+from .scoring import scores_per_player_json, scores_per_table_json
 
 
 def _spectator_qr_svg(subdomain):
@@ -147,13 +147,14 @@ def scores_per_player(request, ext, page_nb=None):
     prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
     check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
-    stats = stat_all_rounds(request)
     try:
         nb_rounds = len(scores_json[0]["scores"])
     except (IndexError, KeyError):
         nb_rounds = 0
     nb_pages = math.ceil(len(scores_json) / variables.score_lines)
-    if page_nb and len(scores_json) > 11 and scores_json[11]["visible"]:
+    # A fixed page ("scores p. N") slices to that page; "scores all" (page_nb is
+    # None) keeps every row and the template rotates through the groups.
+    if page_nb:
         min_line = (page_nb - 1) * variables.score_lines
         max_line = page_nb * variables.score_lines
         scores_json = scores_json[min_line:max_line]
@@ -168,7 +169,6 @@ def scores_per_player(request, ext, page_nb=None):
             "scores_json_groups": scores_json_groups,
             "rounds": range(1, 1 + nb_rounds),
             "max_round": nb_rounds,
-            "stats": stats,
             "page": page_nb,
             "nb_pages": nb_pages,
             "view_name": "scores p. " + str(page_nb) if page_nb else "scores all",

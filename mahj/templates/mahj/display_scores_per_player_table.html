@@ -111,30 +111,6 @@ tr.info > td { background-color: #d9edf7; }
                         <br/><center style="color:#aaa;font-size: 21px;">Page {{forloop.counter}} / {{ scores_json_groups|length }}</center>
                     {% endif %}
                 {% endif %}
-                {% if page == 2 or forloop.last %}
-                    <br/>
-                    {% if stats.hand_max|length > 0 %}
-                        <div style="display:inline-block;width: 33%;vertical-align: top;"><center><span style="font-size:25px; color:white;">Biggest hand:<br/>
-                            {% for hand in stats.hand_max %}
-                                <b>{{hand.win_by_player.full_name}}</b><br/><small>({{hand.pts}} points, round {{hand.round_nb}})</small><br/>
-                            {% endfor %}
-                        </span></center></div>
-                    {% endif %}
-                    {% if stats.nb_win_max|length > 0 %}
-                        <div style="display:inline-block;width: 33%;vertical-align: top;"><center><span style="font-size:25px; color:white;">Highest number of mahjongs:<br/>
-                            {% for pos in stats.nb_win_max %}
-                                <b>{{pos.player.full_name}}</b><br/><small>({{pos.nb_win}} mahjongs, round {{pos.pos.round_nb}})</small><br/>
-                            {% endfor %}
-                        </span></center></div>
-                    {% endif %}
-                    {% if stats.mp_max|length > 0 %}
-                        <div style="display:inline-block;width: 33%;vertical-align: top;"><center><span style="font-size:25px; color:white;">Maximum points per round:<br/>
-                            {% for pos in stats.mp_max %}
-                                <b>{{pos.player.full_name}}</b><br/><small>({{pos.minipoints}} points, round {{pos.round_nb}})</small><br/>
-                            {% endfor %}
-                        </span></center></div>
-                    {% endif %}
-                {% endif %}
             </div>
             {% endfor %}
             {% if scores_json_groups|length > 1 %}
