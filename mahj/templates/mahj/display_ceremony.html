@@ -15,6 +15,11 @@
     .medal-1 { background: linear-gradient(135deg,#fde68a,#f59e0b); color:#3a2a00; }
     .medal-2 { background: linear-gradient(135deg,#e5e7eb,#9ca3af); color:#1f2937; }
     .medal-3 { background: linear-gradient(135deg,#f0c9a0,#b45309); color:#3a1d00; }
+    /* The flags.css drop-shadow renders as a black halo on the Pi 3 GPU; on the
+       projector screens use a plain 1px border (no filter compositing). The box
+       is 4:3 (matching the flag SVGs) with background-size:cover so the flag
+       fills it edge-to-edge and the border hugs it with no letterbox padding. */
+    .flag { filter: none; border: 1px solid #999; width: 32px; height: 24px; margin: 0; vertical-align: middle; background-size: cover; }
   </style>
 </head>
 <body class="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">

@@ -25,6 +25,11 @@
     }
     table > tbody > tr > td { border: 1px solid #aaa; padding: 2px 5px; }
     th { text-align: center; background-color: black; color: white; }
+    /* The flags.css drop-shadow renders as a black halo on the Pi 3 GPU; on the
+       projector screens use a plain 1px border (no filter compositing). The box
+       is 4:3 (matching the flag SVGs) with background-size:cover so the flag
+       fills it edge-to-edge and the border hugs it with no letterbox padding. */
+    .flag { filter: none; border: 1px solid #999; width: 32px; height: 24px; margin: 0; vertical-align: middle; background-size: cover; }
   </style>
 </head>
 <body>
