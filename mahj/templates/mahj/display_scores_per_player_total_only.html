@@ -7,11 +7,13 @@
   <meta charset="utf-8">
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
-  <link rel="stylesheet" href="{% static 'css/bootstrap-3.3.7.min.css' %}">
-  <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
   <style>
+    /* This page used no Bootstrap classes, only its global resets — keep those
+       (border-box + sans-serif) and skip the 121 KB Bootstrap stylesheet. */
+    * { box-sizing: border-box; }
     body, html {
       background-color: black;
+      font-family: Helvetica, Arial, sans-serif;
       zoom: {{ variables.zoom|mul:1.2 }};
     }
     .scores_page {
@@ -91,13 +93,15 @@
 
   {% if pages|length > 1 %}
     <script>
-      setInterval(function() {
-        var currentPage = $(".scores_page:visible").attr("id").split("_")[2];
-        $(".scores_page").hide();
-        var nextPage = parseInt(currentPage) + 1;
-        if (nextPage > {{ pages|length }}) { nextPage = 1; }
-        $("#scores_page_" + nextPage).show();
-      }, 10000);
+      (function() {
+        var pages = document.querySelectorAll('.scores_page');
+        var cur = 0;
+        setInterval(function() {
+          pages[cur].style.display = 'none';
+          cur = (cur + 1) % pages.length;
+          pages[cur].style.display = '';
+        }, 10000);
+      })();
     </script>
   {% endif %}
 

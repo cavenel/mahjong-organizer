@@ -13,7 +13,7 @@ from ..models import Player, Position, Schedule, Screen
 from ..signals import broadcast_display
 from ..scoring import _last_round_reveal
 from .ceremony import ceremony_active_payload
-from .helpers import get_podium, get_tenant, get_variables, is_display_op
+from .helpers import get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, scores_per_table_json, stat_all_rounds
 
 
@@ -68,12 +68,6 @@ def index(request, screen_id=None):
         elif view == "scores all":
             return scores_per_player(request, "html", None)
         elif view == "scores all, total only":
-            # During the final podium reveal, the "total only" grid would only
-            # show the top row — switch to the page-1 view so the reveal is
-            # actually legible. Flip back once the reveal is complete.
-            reveal = _last_round_reveal(tenant, variables.nb_rounds)
-            if reveal is not None and reveal != 0 and reveal <= 14:
-                return scores_per_player(request, "html", 1)
             return scores_per_player_total_only(request)
         elif view == "counter":
             return counter(request)
@@ -145,14 +139,14 @@ def scores_per_player(request, ext, page_nb=None):
     tenant = get_tenant(request)
     variables = get_variables(request)
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    # Display screens aren't authenticated but still need to show the
-    # podium reveal when it's in progress. During the reveal, fall through
-    # to admin-style standings (which set the per-row `visible` flag).
-    reveal = _last_round_reveal(tenant, variables.nb_rounds)
-    in_reveal = reveal is not None and reveal <= 11
-    check_final = False if in_reveal else not request.user.is_staff
+    # Display screens aren't authenticated but, while the last round is in the
+    # pre-publish state (prepared for the ceremony but not yet released to the
+    # public), screens show the masked standings (per-row `visible` flag). The
+    # view is identical whether or not the browser is logged in as staff, so a
+    # projector and the admin preview render the same thing.
+    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
+    check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
-    podium = get_podium(scores_json)
     stats = stat_all_rounds(request)
     try:
         nb_rounds = len(scores_json[0]["scores"])
@@ -163,8 +157,6 @@ def scores_per_player(request, ext, page_nb=None):
         min_line = (page_nb - 1) * variables.score_lines
         max_line = page_nb * variables.score_lines
         scores_json = scores_json[min_line:max_line]
-
-    final_val = _last_round_reveal(tenant, variables.nb_rounds) or 0
 
     if ext == "json":
         return HttpResponse(json.dumps(scores_json))
@@ -177,8 +169,6 @@ def scores_per_player(request, ext, page_nb=None):
             "rounds": range(1, 1 + nb_rounds),
             "max_round": nb_rounds,
             "stats": stats,
-            "final": final_val,
-            "podium": podium,
             "page": page_nb,
             "nb_pages": nb_pages,
             "view_name": "scores p. " + str(page_nb) if page_nb else "scores all",
@@ -202,11 +192,10 @@ def scores_per_player(request, ext, page_nb=None):
 def scores_per_player_total_only(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
-    # See scores_per_player for the same rationale: display screens need the
-    # reveal progression even without a logged-in user.
-    reveal = _last_round_reveal(tenant, variables.nb_rounds)
-    in_reveal = reveal is not None and reveal <= 11
-    check_final = False if in_reveal else True #not request.user.is_staff
+    # See scores_per_player for the same rationale: while the last round is in
+    # the pre-publish state, display screens show the masked standings.
+    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
+    check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
     try:
         nb_rounds = len(scores_json[0]["scores"])

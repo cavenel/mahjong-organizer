@@ -8,7 +8,6 @@
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
 
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
-  <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
 <style>
 body {
     zoom:{{ variables.zoom|mul:0.6 }};
@@ -58,6 +57,8 @@ body {
     font-size:260px;
     color:white;
     text-align: center;
+    opacity: 1;
+    transition: opacity 0.6s ease;
 }
 </style>
 <style>
@@ -108,27 +109,104 @@ var LEAD_MS = 1000;
 var COUNTDOWN_MS = 3000;
 var TOTAL_TIME = {{ variables.total_time }};
 var GONG_SRC = '{% static "sounds/gong.mp3" %}';
+var CSRF = '{{ csrf_token }}';
 
 var goTime = parseInt('{{ counter }}', 10) || -1;
 var clockOffset = 0;          // serverNow - localNow; refreshed from every server reply
-var startGongPlayed = true;   // flipped false only when we witness a live start
-var endGongPlayed = true;
+var startGongPlayed = true;   // start gong handled (scheduled, already played, or in the past)
+var endGongPlayed = true;     // end gong handled
+var goShown = true;           // "Go" overlay already shown for this round
 var loop = null;
 
-function serverNow() { return Date.now() + clockOffset; }
-function playGong() { try { new Audio(GONG_SRC).play(); } catch (e) {} }
+// Cache the timer DOM nodes once — the tick runs ~7×/s and a slow Pi shouldn't
+// re-query the document every frame.
+var el = {
+    h1: document.getElementById('hours_1'),
+    h2: document.getElementById('hours_2'),
+    m1: document.getElementById('minutes_1'),
+    m2: document.getElementById('minutes_2'),
+    s1: document.getElementById('seconds_1'),
+    s2: document.getElementById('seconds_2'),
+    countdown: document.getElementById('countdown'),
+    noSound: document.getElementById('no_sound'),
+};
 
+function serverNow() { return Date.now() + clockOffset; }
+
+// ── Audio ───────────────────────────────────────────────────────────────────
+// Two layers, both kept because sound can stay locked until a user gesture:
+//   • Web Audio  — the gong is decoded ONCE into a buffer and scheduled on the
+//     audio-hardware clock, so it fires sample-accurately at the exact instant
+//     even if the main thread is busy/GC'ing. This is what makes "Go" precise.
+//   • HTML5 <audio> fallback — used only when Web Audio isn't ready (sound still
+//     locked, or no AudioContext support); played from the render tick like before.
+var AC = window.AudioContext || window.webkitAudioContext;
+var audioCtx = AC ? new AC() : null;
+var gongBuffer = null;
+var scheduledSources = [];
+
+function audioReady() { return !!(audioCtx && audioCtx.state === 'running' && gongBuffer); }
+
+function decodeGong() {
+    if (!audioCtx || gongBuffer) return;
+    // decodeAudioData works while the context is still suspended, so we can have
+    // the buffer ready before sound is unlocked — only playback needs the gesture.
+    fetch(GONG_SRC).then(function (r) { return r.arrayBuffer(); })
+        .then(function (buf) { return audioCtx.decodeAudioData(buf); })
+        .then(function (b) { gongBuffer = b; scheduleGongs(); })
+        .catch(function () {});
+}
+
+function playGongFallback() { try { new Audio(GONG_SRC).play(); } catch (e) {} }
+
+function cancelScheduledGongs() {
+    for (var i = 0; i < scheduledSources.length; i++) {
+        try { scheduledSources[i].stop(); } catch (e) {}
+    }
+    scheduledSources = [];
+}
+
+function scheduleGongAt(msFromNow) {
+    var src = audioCtx.createBufferSource();
+    src.buffer = gongBuffer;
+    src.connect(audioCtx.destination);
+    // At this instant audioCtx.currentTime corresponds to serverNow(), so we map
+    // the server moment onto the audio clock by offsetting from "now".
+    src.start(audioCtx.currentTime + Math.max(0, msFromNow) / 1000);
+    scheduledSources.push(src);
+}
+
+// Arm the start/end gongs on the audio clock. Only future moments are scheduled,
+// so a screen that loads/reconnects mid-round never replays a gong. Marking the
+// gongs handled here stops the tick fallback from double-firing them.
+function scheduleGongs() {
+    cancelScheduledGongs();
+    if (!audioReady() || goTime <= 0) return;
+    var now = serverNow();
+    if (goTime > now) scheduleGongAt(goTime - now);
+    startGongPlayed = true;
+    var endTime = goTime + TOTAL_TIME * 1000;
+    if (endTime > now) scheduleGongAt(endTime - now);
+    endGongPlayed = true;
+}
+
+// ── Rendering ─────────────────────────────────────────────────────────────
 function renderTimer(remaining) {
     if (remaining < 0) remaining = 0;
     var hours = Math.floor(remaining / 3600);
     var minutes = Math.floor((remaining % 3600) / 60);
     var seconds = remaining % 60;
-    $("#hours_1").text(Math.floor(hours / 10));
-    $("#hours_2").text(hours % 10);
-    $("#minutes_1").text(Math.floor(minutes / 10));
-    $("#minutes_2").text(minutes % 10);
-    $("#seconds_1").text(Math.floor(seconds / 10));
-    $("#seconds_2").text(seconds % 10);
+    el.h1.textContent = Math.floor(hours / 10);
+    el.h2.textContent = hours % 10;
+    el.m1.textContent = Math.floor(minutes / 10);
+    el.m2.textContent = minutes % 10;
+    el.s1.textContent = Math.floor(seconds / 10);
+    el.s2.textContent = seconds % 10;
+}
+
+function showCountdown(text) {
+    el.countdown.textContent = text;
+    el.countdown.style.opacity = '1';
 }
 
 function tick() {
@@ -140,51 +218,77 @@ function tick() {
     if (elapsed > TOTAL_TIME) elapsed = TOTAL_TIME;
     renderTimer(TOTAL_TIME - elapsed);
 
+    // End gong: HTML5 fallback only (the Web Audio path is pre-scheduled).
     if (running && elapsed >= TOTAL_TIME && !endGongPlayed) {
         endGongPlayed = true;
-        playGong();
+        playGongFallback();
     }
 
-    // Start overlay: lead window (blank) → 3 → 2 → 1 → Go + gong.
-    if (goTime <= 0) {
-        $("#countdown").text("");
-        return;
-    }
+    // Start overlay: lead window (blank) → 3 → 2 → 1 → Go.
+    if (goTime <= 0) { showCountdown(''); return; }
+
     var remMs = goTime - now;
     if (remMs > COUNTDOWN_MS) {
-        $("#countdown").text("");                                       // lead buffer
+        showCountdown('');                                  // lead buffer
     } else if (remMs > 0) {
-        $("#countdown").show().text(String(Math.ceil(remMs / 1000)));   // 3, 2, 1
-    } else if (!startGongPlayed) {
-        startGongPlayed = true;
-        $("#countdown").show().text("Go");
-        playGong();
-        setTimeout(function () { $("#countdown").fadeOut("slow"); }, 2000);
+        showCountdown(String(Math.ceil(remMs / 1000)));     // 3, 2, 1
+    } else {
+        // Round has started. The "Go" visual is independent of the gong sound:
+        // the gong may have fired precisely off the audio clock already.
+        if (!goShown) {
+            goShown = true;
+            showCountdown('Go');
+            setTimeout(function () { el.countdown.style.opacity = '0'; }, 2000);  // CSS fade
+        }
+        // Start gong: HTML5 fallback only (skipped when Web Audio scheduled it).
+        if (!startGongPlayed) {
+            startGongPlayed = true;
+            playGongFallback();
+        }
     }
 }
 
 function restartLoop() {
     clearInterval(loop);
     tick();
-    // Fast tick so every screen flips 3→2→1→GONG on the same wall-clock boundary,
-    // not on each screen's own 1s phase.
+    // Drives only the on-screen digits/countdown text. The gong is scheduled on
+    // the audio clock, so its timing is independent of this interval — the worst
+    // a slow tick can cause is the text lagging up to 150 ms.
     loop = setInterval(tick, 150);
 }
 
-function applyCounterState(data) {
+function applyCounterState(data, rttMs) {
     goTime = parseInt(data.counter, 10) || -1;
-    if (data.server_now != null) clockOffset = parseInt(data.server_now, 10) - Date.now();
-    // Sound the gongs only if we're witnessing them live; a screen that loads or
-    // reconnects mid-round must not replay the start gong.
+    if (data.server_now != null) {
+        // Correct for one-way latency (≈ rtt/2) so every screen agrees with the
+        // server, and with each other, to a few ms. WS pushes carry no rtt
+        // measurement → downstream-only (same as before).
+        var half = rttMs ? rttMs / 2 : 0;
+        clockOffset = parseInt(data.server_now, 10) + half - Date.now();
+    }
+    // Gongs/overlay only fire if we're witnessing them live (moment still ahead);
+    // a screen loading or reconnecting mid-round must not replay them.
     var now = serverNow();
     startGongPlayed = !(goTime > 0 && now < goTime);
     endGongPlayed = !(goTime > 0 && now < goTime + TOTAL_TIME * 1000);
+    goShown = !(goTime > 0 && now < goTime);
+    scheduleGongs();   // re-arm the audio-clock gongs (no-op if audio not ready)
     restartLoop();
 }
 
-// Pull current state immediately on load; don't wait for a WS push.
-$.post("counter_start", { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-       function (data) { applyCounterState(data); }, 'json');
+// Pull current state immediately on load; don't wait for a WS push. Time the
+// round-trip so the very first clock sync is already latency-corrected.
+(function () {
+    var t0 = Date.now();
+    fetch('counter_start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'csrfmiddlewaretoken=' + encodeURIComponent(CSRF)
+    })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { applyCounterState(data, Date.now() - t0); })
+        .catch(function () {});
+})();
 
 // Reload only if the timer isn't counting down or running (avoids flicker
 // mid-round). goTime + clockOffset are reconstructed from the next server reply,
@@ -196,7 +300,7 @@ function reloadUnlessRunning() {
 
 connectDisplaySocket({
     subdomain: '{{ subdomain }}',
-    onUpdate: function(msg) {
+    onUpdate: function (msg) {
         if (msg.event === 'counter_update') {
             applyCounterState(msg);
         } else if (msg.event === 'screen_update') {
@@ -209,20 +313,28 @@ connectDisplaySocket({
     onReconnect: reloadUnlessRunning,
 });
 
-const tryToPlay = setInterval(() => {
-    const audio = new Audio('{% static "sounds/gong.mp3" %}');
+// Decode the gong as early as possible (works on a suspended context).
+decodeGong();
+
+// ── Sound-unlock probe ───────────────────────────────────────────────────
+// Browsers block audio until a user gesture. Keep probing: a silent HTML5 play
+// detects the moment sound is unlocked (hides the 🔇), and we resume the Web
+// Audio context at the same instant so every later gong uses the precise path.
+var tryToPlay = setInterval(function () {
+    var audio = new Audio(GONG_SRC);
     audio.volume = 0;
     audio.play()
-        .then(() => {
+        .then(function () {
             clearInterval(tryToPlay);
-            $("#no_sound").hide();
+            el.noSound.style.display = 'none';
+            if (audioCtx && audioCtx.state !== 'running') {
+                audioCtx.resume().then(scheduleGongs).catch(function () {});
+            }
+            decodeGong();
         })
-        .catch(error => {
-            console.info('User has not interacted with document yet.');
-            $("#no_sound").show();
+        .catch(function () {
+            el.noSound.style.display = 'block';
         });
 }, 1000);
-
-tryToPlay;
 </script>
 </body>

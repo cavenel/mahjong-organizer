@@ -37,8 +37,9 @@ def round_winners(tenant, variables, check_final=False, positions=None, hands=No
     if check_final:
         round_max = _last_published_round(tenant)
         reveal = _last_round_reveal(tenant, variables.nb_rounds)
-        # Last round published but podium reveal still in progress — hide everything.
-        if round_max == variables.nb_rounds and (reveal is None or reveal <= 11):
+        # Last round prepared but not yet published to everyone (pre-publish /
+        # ceremony pending) — hide the end-of-tournament stats.
+        if round_max == variables.nb_rounds and reveal != 100:
             return []
     else:
         round_max = _last_complete_round(tenant, variables)
@@ -185,11 +186,12 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     if check_final and not force_all:
         round_max = min(round_max, last_published)
 
-    # End-of-tournament suspense: last round published but podium reveal <= 11.
-    # Public viewers see standings through round_max-1 only during the ceremony.
+    # End-of-tournament suspense: the last round is in the pre-publish state
+    # (reveal == 0) — prepared for the ceremony but withheld from the public.
+    # Public viewers see standings through round_max-1 until it's published.
     end_of_tournament = (
         round_max == variables.nb_rounds and not force_all
-        and reveal is not None and reveal <= 11
+        and reveal == 0
     )
     if end_of_tournament and check_final:
         round_max = max(0, round_max - 1)
@@ -217,12 +219,13 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     for r in ranked:
         r['history_pos'] = history[r['player_id']]
 
-    # Admin viewers (check_final=False) still get the full standings,
-    # but rows outside the revealed podium window are marked not visible.
+    # Admin/display viewers (check_final=False) get the full standings, but
+    # every row is masked while the last round is unpublished. The reveal
+    # animation is the ceremony page's job, so these rows stay hidden until
+    # the results are published.
     if end_of_tournament and not check_final:
-        reveal_lvl = reveal or 0
         for r in ranked:
-            r['visible'] = 10 - (reveal_lvl - 1) < r['pos'] <= 10
+            r['visible'] = False
 
     return ranked
 
@@ -288,7 +291,7 @@ def tournament_seating(tenant, variables, check_final=True, force_all=False, val
     reveal = pub_rows.get(variables.nb_rounds)
     end_of_tournament = (
         last_complete == variables.nb_rounds and not force_all
-        and reveal is not None and reveal <= 11
+        and reveal == 0
     )
     hide_scores_round = last_complete if (end_of_tournament and check_final) else None
 
@@ -539,12 +542,16 @@ def _last_published_round(tenant):
 
 
 def _last_round_reveal(tenant, nb_rounds):
-    """reveal_level of the last-round PublishedRound row, or None if not published.
+    """Publish state of the last round, read from its PublishedRound row.
 
-    Replaces `variables.final`. Semantic mapping:
-      None  → last round not published (today's final == 0: hide it from public)
-      0..11 → progressive podium reveal (positions 10 → 1)
-      >11   → fully revealed
+    One of three values:
+      None → last round not published at all
+      0    → pre-publish: results prepared for the ceremony but withheld from
+             the public (standings stay masked)
+      100  → published to everyone (results public)
+
+    The live podium animation is driven by the ceremony page; this is only the
+    publish flag, so 0 and 100 are the only non-None values that occur.
     """
     row = PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
     return row.reveal_level if row else None

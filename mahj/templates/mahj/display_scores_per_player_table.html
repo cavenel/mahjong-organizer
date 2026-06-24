@@ -8,14 +8,22 @@
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
 
 <link rel="stylesheet" href="{% static "images/flags.css" %}">
-<link rel="stylesheet" href="{% static 'css/bootstrap-3.3.7.min.css' %}">
-  <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
 <style>
 
+/* Bootstrap was only used by the rounds==0 schedule fallback below (col-sm-6 /
+   .table / .info) plus its global border-box + sans-serif defaults. Reproduce
+   just those so the Pi doesn't load the 121 KB Bootstrap stylesheet or jQuery. */
+* { box-sizing: border-box; }
 body, html {
     background-color:black;
+    font-family: Helvetica, Arial, sans-serif;
     zoom:{{ variables.zoom|mul:1.2 }};
 }
+.col-sm-6 { float: left; width: 50%; padding: 0 15px; }
+#schedule::after { content: ""; display: table; clear: both; }
+table.table { width: 100%; max-width: 100%; margin-bottom: 20px; border-collapse: collapse; }
+table.table > tbody > tr > td { padding: 8px; line-height: 1.42857; vertical-align: top; border: 0; border-top: 1px solid #ddd; }
+tr.info > td { background-color: #d9edf7; }
 </style>
 </head>
 <body> 
@@ -37,63 +45,14 @@ body, html {
                 background-color:black;
                 color:white;
             }
-            .podium_name {
-                color:#aaa;
-                z-index:100;
-                font-size:25px;
-                font-weight:bold;
-                text-transform: uppercase;
-                position:absolute;
-                /*border:1px solid white;*/
-                transform: skewY(-12deg);
-                text-align: center;
-            }
-            h1.skew {
-                font-family: 'times new roman', serif;
-                padding: 0;
-                margin: 0px 0 0 0px;
-                position: relative;
-                color: #fff;
-                /*font-size: 100px;*/
-                text-shadow: -1px -0.5px 0 #f8f8f8, -1px -0.5px 0 #f0f0f0, -1.5px -1px 0 #e8e8e8, -2px -1px 0 #e0e0e0;
-                -moz-transform-origin: bottom left;
-                -webkit-transform-origin: bottom left;
-                -ms-transform-origin: bottom left;
-                transform-origin: bottom left;
-                bottom: 0px;
-                z-index: 100;
-            }
-            .skew:before {
-                content: attr(title);
-                color: transparent;
-                position: absolute;
-                left: auto;
-                bottom: 0;
-                text-shadow: 0 0 5px rgba(0,0,0,.65);
-                -moz-transform-origin: bottom center;
-                -webkit-transform-origin: bottom center;
-                -ms-transform-origin: bottom center;
-                transform-origin: bottom center;
-                -moz-transform: skewX(60deg);
-                -webkit-transform: skewX(60deg);
-                -ms-transform: skewX(60deg);
-                -o-transform: skewX(60deg);
-                transform: skewX(60deg);
-                z-index: -1;
-            }
         </style>
-        <!-- If last round finished, displaying an image -->
 
-        {% if page == 1 and rounds|length == variables.nb_rounds and final == 0 %}    
-            <div style="opacity:0.85;position:absolute;left:0px;top:0px;width:100%;height:100%;background-position-x: center;background-repeat: repeat-x;background-size: contain;background-image:url(/static/images/Victory_podium.png);"></div>
-        {% endif %}
-
-        <!-- If not last round or displaying finale -->
-        {% if rounds|length != variables.nb_rounds or final >= 1 %}
+        <!-- Standings. While the last round is in the pre-publish state the rows
+             are masked (grey bars); the live reveal happens on the ceremony page. -->
             <center><h1 style="color:white;">Scores after round {{ rounds|length }}</h1></center><br/>
             {% for scores_json in scores_json_groups %}
-            <div class="scores_page" "" id="scores_page_{{forloop.counter}}" {% if not forloop.first %}style="display:none;"{% endif %}>
-                {% if scores_json|length > 0 and final < 12 or final > 14%}
+            <div class="scores_page" id="scores_page_{{forloop.counter}}" {% if not forloop.first %}style="display:none;"{% endif %}>
+                {% if scores_json|length > 0 %}
                     <table style="zoom: 1.4;">
                     <thead>
                     <tr>
@@ -145,14 +104,14 @@ body, html {
                         </tr> 
                     {% endfor %}
                     </table>
-                    {% if page and nb_pages > 1 %}{% if final < 1 or final > 11 %}
+                    {% if page and nb_pages > 1 %}
                         <br/><center style="color:#aaa;font-size: 21px;">Page {{page}} / {{ nb_pages }}</center>
-                    {% endif %}{% endif %}
-                    {% if scores_json_groups|length > 1 %}{% if final < 1 or final > 11 %}
+                    {% endif %}
+                    {% if scores_json_groups|length > 1 %}
                         <br/><center style="color:#aaa;font-size: 21px;">Page {{forloop.counter}} / {{ scores_json_groups|length }}</center>
-                    {% endif %}{% endif %}
+                    {% endif %}
                 {% endif %}
-                {% if page == 2 or forloop.last or final >= 12 and final <= 14 %}
+                {% if page == 2 or forloop.last %}
                     <br/>
                     {% if stats.hand_max|length > 0 %}
                         <div style="display:inline-block;width: 33%;vertical-align: top;"><center><span style="font-size:25px; color:white;">Biggest hand:<br/>
@@ -178,60 +137,20 @@ body, html {
                 {% endif %}
             </div>
             {% endfor %}
-            {% if scores_json_groups|length > 1 %}{% if final <= 1 or final > 11 %}
+            {% if scores_json_groups|length > 1 %}
                 <script>
-                    setInterval(function() {
-                        // Check which page is currently displayed
-                        var currentPage = $(".scores_page:visible").attr("id").split("_")[2];
-                        // Hide the current page
-                        $(".scores_page").hide();
-                        // Show the next page
-                        var nextPage = parseInt(currentPage) + 1;
-                        if (nextPage > {{ scores_json_groups|length }}) {
-                            nextPage = 1;
-                        }
-                        $("#scores_page_" + nextPage).show();
-
-                    },10000)
+                    (function() {
+                        var pages = document.querySelectorAll(".scores_page");
+                        var cur = 0;
+                        setInterval(function() {
+                            pages[cur].style.display = "none";
+                            cur = (cur + 1) % pages.length;
+                            pages[cur].style.display = "";
+                        }, 10000);
+                    })();
                 </script>
-            {% endif %}{% endif %}
-            
-        {% endif %}
+            {% endif %}
     {% endif %}
-    
-    {% if rounds|length == variables.nb_rounds and final <= -11 and page == 2 %}
-        <div style="zoom: 1.08;position: fixed;margin-left: -350px;width: 700px;height: 565px;left: 50%;bottom: 0px;">
-            <img style="position: absolute; width: 100%; top: 106px;" src="{% static "images/podium.png" %}"/>
-            <span class="podium_name" style="bottom: 280px; left: 92px; width: 204px; ">
-                {% if podium.1.0.visible %}
-                <h1 style="font-size: 32px;" class="skew" title="{{ scores_json.1.first_name }}">
-                    {% for s in podium.1 %}
-                        {{ s.first_name }}<br/>
-                    {% endfor %}
-                </h1>
-                {% endif %}
-            </span>
-            <span class="podium_name" style="bottom: 360px; left: 535px; width: 167px; transform: skewY(-14deg);">
-                {% if podium.2.0.visible %}
-                <h1 style="font-size: 26px; " class="skew" title="{{ scores_json.2.first_name }}">
-                    {% for s in podium.2 %}
-                        {{ s.first_name }}<br/>
-                    {% endfor %}
-                </h1>
-                {% endif %}
-            </span>
-            <span class="podium_name" style="bottom: 419px;left: 299px;width: 231px;transform: skewY(-11deg);">
-                {% if podium.0.0.visible %}
-                <h1 style="font-size: 38px;" class="skew" title="{{ scores_json.0.first_name }}">
-                    {% for s in podium.0 %}
-                        {{ s.first_name }}<br/>
-                    {% endfor %}
-                </h1>
-                {% endif %}
-            </span>
-        </div>
-    {% endif %}
-    <!--{{rounds|length}} - {{scores_json|length}}-->
     {% if rounds|length == 0 %}
         <style>
             body,
@@ -303,7 +222,6 @@ var getUrlParameter = function getUrlParameter() {
     return window.location.href.substring(window.location.href.lastIndexOf('/') + 1)
 };
 
-console.log({{final}}, {{scores_json_groups|length}}, {{rounds|length}}, {{variables.nb_rounds}});
 connectDisplaySocket({
     subdomain: '{{ subdomain }}',
     onUpdate: function() { location.reload(); },
