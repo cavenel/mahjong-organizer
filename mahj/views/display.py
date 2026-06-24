@@ -57,18 +57,12 @@ def index(request, screen_id=None):
         screen = None
 
     if screen:
-        view = screen.view
-        if view == "" or view == "black" or view == "null":
+        view = screen.view or "black"
+        # Grammar: "black" | "counter" | "schedule" | "scores:<density>:<page>"
+        # where density is detailed|totals and page is all|<N>.
+        if view in ("", "black", "null"):
             template = loader.get_template('mahj/display_black.html')
             return HttpResponse(template.render({'subdomain': subdomain}, request))
-        elif view == "scores p. 1":
-            return scores_per_player(request, "html", 1)
-        elif view == "scores p. 2":
-            return scores_per_player(request, "html", 2)
-        elif view == "scores all":
-            return scores_per_player(request, "html", None)
-        elif view == "scores all, total only":
-            return scores_per_player_total_only(request)
         elif view == "counter":
             return counter(request)
         elif view == "schedule":
@@ -76,7 +70,15 @@ def index(request, screen_id=None):
             schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
             context = {"schedule": schedule, "variables": variables, "subdomain": subdomain}
             return HttpResponse(template.render(context, request))
-        return HttpResponse("")
+        elif view.startswith("scores:"):
+            parts = view.split(":")
+            density = parts[1] if len(parts) > 1 and parts[1] in (DETAILED, TOTALS) else DETAILED
+            page = parts[2] if len(parts) > 2 else "all"
+            page_nb = int(page) if page.isdigit() else None
+            return render_scores(request, density, page_nb)
+        # Unknown view → blank screen rather than an empty body.
+        template = loader.get_template('mahj/display_black.html')
+        return HttpResponse(template.render({'subdomain': subdomain}, request))
     else:
         template = loader.get_template('mahj/display_no_screen.html')
         return HttpResponse(template.render({'subdomain': subdomain}, request))
@@ -135,15 +137,29 @@ def scores_per_table(request, ext):
     return HttpResponseNotFound('<h1>Page not found</h1>')
 
 
-def scores_per_player(request, ext, page_nb=None):
+DETAILED = "detailed"   # one wide table, per-round columns
+TOTALS = "totals"       # compact rows, several columns side by side
+
+
+def _score_columns(rows, columns, score_lines):
+    """Split standings rows into `columns` columns of up to `score_lines` rows."""
+    return [rows[j:j + score_lines] for j in range(0, len(rows), score_lines)] or [[]]
+
+
+def render_scores(request, density, page_nb=None):
+    """Unified projector standings.
+
+    density: DETAILED (per-round breakdown, one column) or TOTALS (compact,
+    `variables.total_columns` columns). page_nb: a 1-based page to pin, or None
+    to show every page and rotate. An out-of-range page clamps to the last one.
+    The view is identical whether or not the browser is logged in as staff.
+    """
     tenant = get_tenant(request)
     variables = get_variables(request)
-    schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    # Display screens aren't authenticated but, while the last round is in the
-    # pre-publish state (prepared for the ceremony but not yet released to the
-    # public), screens show the masked standings (per-row `visible` flag). The
-    # view is identical whether or not the browser is logged in as staff, so a
-    # projector and the admin preview render the same thing.
+    columns = 1 if density == DETAILED else max(1, variables.total_columns)
+    show_rounds = density == DETAILED
+    score_lines = variables.score_lines
+
     prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
     check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
@@ -151,80 +167,60 @@ def scores_per_player(request, ext, page_nb=None):
         nb_rounds = len(scores_json[0]["scores"])
     except (IndexError, KeyError):
         nb_rounds = 0
-    nb_pages = math.ceil(len(scores_json) / variables.score_lines)
-    # A fixed page ("scores p. N") slices to that page; "scores all" (page_nb is
-    # None) keeps every row and the template rotates through the groups.
+
+    per_page = score_lines * columns
+    nb_pages = max(1, math.ceil(len(scores_json) / per_page)) if scores_json else 1
+
     if page_nb:
-        min_line = (page_nb - 1) * variables.score_lines
-        max_line = page_nb * variables.score_lines
-        scores_json = scores_json[min_line:max_line]
-
-    if ext == "json":
-        return HttpResponse(json.dumps(scores_json))
-    elif ext == "html":
-        scores_json_groups = list(
-            itertools.zip_longest(*([iter(scores_json)] * variables.score_lines), fillvalue=None)
-        ) or [[]]
-        context = {
-            "scores_json_groups": scores_json_groups,
-            "rounds": range(1, 1 + nb_rounds),
-            "max_round": nb_rounds,
-            "page": page_nb,
-            "nb_pages": nb_pages,
-            "view_name": "scores p. " + str(page_nb) if page_nb else "scores all",
-            "variables": variables,
-            "schedule": schedule,
-            "subdomain": tenant.subdomain if tenant else '',
-            "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
-        }
-        return render(request, "mahj/display_scores_per_player_table.html", context)
-    elif ext == "tpt":
-        context = {
-            "scores_json": scores_json,
-            "rounds": range(1, 1 + nb_rounds),
-            "max_round": nb_rounds,
-            "variables": variables,
-        }
-        return render(request, "mahj/mobile_scores_per_player_list.html", context)
-    return HttpResponseNotFound('<h1>Page not found</h1>')
-
-
-def scores_per_player_total_only(request):
-    tenant = get_tenant(request)
-    variables = get_variables(request)
-    # See scores_per_player for the same rationale: while the last round is in
-    # the pre-publish state, display screens show the masked standings.
-    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
-    check_final = False if prepublish else True
-    scores_json = scores_per_player_json(request, check_final)
-    try:
-        nb_rounds = len(scores_json[0]["scores"])
-    except (IndexError, KeyError):
-        nb_rounds = 0
-
-    lines_per_col = variables.score_lines
-    players_per_page = lines_per_col * 3
-    pages = []
-    for i in range(0, len(scores_json), players_per_page):
-        chunk = scores_json[i:i + players_per_page]
-        cols = [chunk[j:j + lines_per_col] for j in range(0, len(chunk), lines_per_col)]
-        pages.append(cols)
-    if not pages:
-        pages = [[]]
-
-    final_val = _last_round_reveal(tenant, variables.nb_rounds) or 0
+        page_nb = min(max(1, page_nb), nb_pages)   # clamp to a real page
+        chunk = scores_json[(page_nb - 1) * per_page:page_nb * per_page]
+        pages = [_score_columns(chunk, columns, score_lines)]
+    else:
+        pages = [
+            _score_columns(scores_json[i:i + per_page], columns, score_lines)
+            for i in range(0, len(scores_json), per_page)
+        ] or [[[]]]
 
     context = {
         "pages": pages,
         "rounds": range(1, 1 + nb_rounds),
-        "max_round": nb_rounds,
-        "final": final_val,
-        "view_name": "scores all, total only",
+        "show_rounds": show_rounds,
+        "col_span": 4 + (nb_rounds if show_rounds else 0),
+        "rotate": page_nb is None and len(pages) > 1,
+        "page_nb": page_nb,
+        "nb_pages": nb_pages,
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
     }
-    return render(request, "mahj/display_scores_per_player_total_only.html", context)
+    return render(request, "mahj/display_scores.html", context)
+
+
+def scores_per_player(request, ext):
+    """Public data endpoints: JSON standings and the mobile (tpt) list. The
+    projector screens render via render_scores()."""
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
+    check_final = False if prepublish else True
+    scores_json = scores_per_player_json(request, check_final)
+
+    if ext == "json":
+        return HttpResponse(json.dumps(scores_json))
+    elif ext == "tpt":
+        try:
+            nb_rounds = len(scores_json[0]["scores"])
+        except (IndexError, KeyError):
+            nb_rounds = 0
+        return render(request, "mahj/mobile_scores_per_player_list.html", {
+            "scores_json": scores_json,
+            "rounds": range(1, 1 + nb_rounds),
+            "max_round": nb_rounds,
+            "variables": variables,
+        })
+    elif ext == "html":
+        return render_scores(request, DETAILED, None)
+    return HttpResponseNotFound('<h1>Page not found</h1>')
 
 
 @user_passes_test(is_display_op)

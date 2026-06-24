@@ -1,47 +1,30 @@
 {% load static %}
 {% load mathfilters %}
-
 <html>
 <head>
-  <title>Swedish Open MCR Mahjong Championship 2019</title>
+  <title>Mahjong Championship</title>
   <meta charset="utf-8">
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
   <style>
-    /* This page used no Bootstrap classes, only its global resets — keep those
-       (border-box + sans-serif) and skip the 121 KB Bootstrap stylesheet. */
     * { box-sizing: border-box; }
     body, html {
       background-color: black;
       font-family: Helvetica, Arial, sans-serif;
       zoom: {{ variables.zoom|mul:1.2 }};
     }
-    .scores_page {
-      text-align: center;
-    }
-    .scores_cols {
-      display: flex;
-      justify-content: space-evenly; 
-      vertical-align: top;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    table.total_only {
+    .scores_page { text-align: center; }
+    .scores_cols { display: flex; justify-content: space-evenly; align-items: flex-start; margin: 0 auto; }
+    table {
       background-color: white;
       white-space: nowrap;
       border-collapse: collapse;
       font-size: 11px;
       zoom: 1.4;
+      margin: 5px;
     }
-    table.total_only > tbody > tr > td {
-      border: 1px solid #aaa;
-      padding: 2px 5px;
-    }
-    table.total_only th {
-      text-align: center;
-      background-color: black;
-      color: white;
-    }
+    table > tbody > tr > td { border: 1px solid #aaa; padding: 2px 5px; }
+    th { text-align: center; background-color: black; color: white; }
   </style>
 </head>
 <body>
@@ -51,20 +34,21 @@
     <div class="scores_page" id="scores_page_{{ forloop.counter }}" {% if not forloop.first %}style="display:none;"{% endif %}>
       <div class="scores_cols">
         {% for col in page %}
-          <table class="total_only">
+          <table>
             <thead>
               <tr>
                 <th style="width: 25px;">Pos</th>
                 <th style="width: 150px;">Player</th>
                 <th style="width: 25px;">Ctry</th>
                 <th style="width: 65px;">Total</th>
+                {% if show_rounds %}{% for r in rounds %}<th style="width: 60px;">Round {{ r }}</th>{% endfor %}{% endif %}
               </tr>
             </thead>
             <tbody>
               {% for s in col %}
                 <tr>
                   {% if not s.visible and s.pos <= 10 %}
-                    <td colspan="4" style="padding-top:3px;background-color:#aaaaaa;">&nbsp;</td>
+                    <td colspan="{{ col_span }}" style="padding-top:3px;background-color:#aaaaaa;">&nbsp;</td>
                   {% endif %}
                   {% if s.visible %}
                     <td style="text-align:center;">{{ s.pos }}</td>
@@ -78,6 +62,18 @@
                         <span style="line-height: 14px;"><b>{{ s.total.mp }}</b></span>
                       {% endif %}
                     </td>
+                    {% if show_rounds %}
+                      {% for r in s.scores %}
+                        <td>
+                          {% if variables.rules == "MCR" %}
+                            <span style="float:left;padding-right:10px;">{{ r.tp|floatformat:-2 }}</span>
+                            <span style="float:right;font-size: 0.8em;line-height: 14px;color:#777;"><i>{{ r.mp }}</i></span>
+                          {% else %}
+                            <span><b>{{ r.mp }}</b></span>
+                          {% endif %}
+                        </td>
+                      {% endfor %}
+                    {% endif %}
                   {% endif %}
                 </tr>
               {% endfor %}
@@ -85,21 +81,23 @@
           </table>
         {% endfor %}
       </div>
-      {% if pages|length > 1 %}
+      {% if rotate %}
         <br/><center style="color:#aaa;font-size: 21px;">Page {{ forloop.counter }} / {{ pages|length }}</center>
+      {% elif page_nb and nb_pages > 1 %}
+        <br/><center style="color:#aaa;font-size: 21px;">Page {{ page_nb }} / {{ nb_pages }}</center>
       {% endif %}
     </div>
   {% endfor %}
 
-  {% if pages|length > 1 %}
+  {% if rotate %}
     <script>
       (function() {
-        var pages = document.querySelectorAll('.scores_page');
+        var pages = document.querySelectorAll(".scores_page");
         var cur = 0;
         setInterval(function() {
-          pages[cur].style.display = 'none';
+          pages[cur].style.display = "none";
           cur = (cur + 1) % pages.length;
-          pages[cur].style.display = '';
+          pages[cur].style.display = "";
         }, 10000);
       })();
     </script>

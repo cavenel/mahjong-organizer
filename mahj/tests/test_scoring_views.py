@@ -166,14 +166,13 @@ class TestSpectatorQr:
     never fetched from an external service — so a projector behind a captive
     portal / firewall still shows a scannable code (EVENT_REVIEW finding 🔴-1)."""
 
-    def test_table_view_renders_inline_svg_qr_not_cdn(self, request_):
-        html = views.scores_per_player(request_, "html", 1).content.decode()
+    def test_detailed_view_renders_inline_svg_qr_not_cdn(self, request_):
+        html = views.render_scores(request_, "detailed", 1).content.decode()
         assert '<svg' in html                      # rendered inline, locally
         assert 'api.qrserver.com' not in html      # no external QR service
 
-    def test_total_only_view_renders_inline_svg_qr_not_cdn(self, request_):
-        from mahj.views.display import scores_per_player_total_only
-        html = scores_per_player_total_only(request_).content.decode()
+    def test_totals_view_renders_inline_svg_qr_not_cdn(self, request_):
+        html = views.render_scores(request_, "totals", None).content.decode()
         assert '<svg' in html
         assert 'api.qrserver.com' not in html
 

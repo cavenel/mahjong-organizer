@@ -38,14 +38,22 @@
               https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}
             </a>
             <div>
-              <label for="select-view-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Current output</label>
-              <select id="select-view-{{ screen.id }}" data-id="{{ screen.id }}"
-                      class="select-view w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
+              <label for="select-output-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Output</label>
+              <select id="select-output-{{ screen.id }}" data-id="{{ screen.id }}" data-view="{{ screen.view }}"
+                      class="select-output w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
                              focus:outline-none focus:ring-2 focus:ring-amber-300">
-                {% for choice in screen_displays %}
-                  <option value="{{ choice }}" {% if choice == screen.view %}selected{% endif %}>{{ choice }}</option>
-                {% endfor %}
+                <option value="black">Blank</option>
+                <option value="counter">Counter</option>
+                <option value="schedule">Schedule</option>
+                <option value="scores:detailed">Standings — detailed</option>
+                <option value="scores:totals">Standings — totals</option>
               </select>
+            </div>
+            <div class="page-wrap" id="page-wrap-{{ screen.id }}" style="display:none;">
+              <label for="select-page-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Pages</label>
+              <select id="select-page-{{ screen.id }}" data-id="{{ screen.id }}"
+                      class="select-page w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
+                             focus:outline-none focus:ring-2 focus:ring-amber-300"></select>
             </div>
           </div>
         </div>
@@ -354,6 +362,12 @@
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
+          <label for="variables-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout</label>
+          <input id="variables-total_columns" type="number" placeholder="3" value="{{ variables.total_columns }}" step="1" min="1"
+                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+                        focus:outline-none focus:ring-2 focus:ring-amber-300">
+        </div>
+        <div>
           <label for="variables-welcome" class="block text-xs font-medium text-gray-600 mb-1">Counter message</label>
           <input id="variables-welcome" type="text" placeholder="Welcome" value="{{ variables.welcome }}"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
@@ -383,32 +397,119 @@
         success: function() { console.log("success"); }
       });
     });
-    $(".select-view").each(function() {
-      var view_id = $(this).attr("data-id");
-      $(this).change(function () {
-        var view = $(this).val();
-        var url = "update_screen_view?id=" + view_id + "&view=" + view;
-        $.post(url, { 'csrfmiddlewaretoken': '{{ csrf_token }}' });
+    // ── Double-select per screen ────────────────────────────────────────────
+    // A screen's stored view is "black" | "counter" | "schedule" |
+    // "scores:<density>:<page>". The Output select picks the first three or a
+    // standings density; the Pages select (shown only for standings) picks a
+    // fixed page or "all" (rotating). Every change applies immediately, with
+    // "all" as the default page, so a layout pick is never an incomplete state.
+    var NB_PLAYERS = {{ nb_players }};
+
+    function isScores(output) { return output === 'scores:detailed' || output === 'scores:totals'; }
+    function scoreLines() { return parseInt(document.getElementById('variables-score_lines').value, 10) || 20; }
+    function totalCols() { return parseInt(document.getElementById('variables-total_columns').value, 10) || 3; }
+
+    // Page count is derived live from players, rows-per-page and (for totals)
+    // the column count — never stored — so it tracks those settings as they change.
+    function nbPages(output) {
+      var perPage = scoreLines() * (output === 'scores:totals' ? totalCols() : 1);
+      return Math.max(1, Math.ceil(NB_PLAYERS / Math.max(1, perPage)));
+    }
+
+    function buildPageOptions(sel, output, current) {
+      var n = nbPages(output);
+      sel.innerHTML = '';
+      sel.add(new Option('All (rotating)', 'all'));
+      for (var p = 1; p <= n; p++) sel.add(new Option('Page ' + p, String(p)));
+      var want = current || 'all';
+      if (want !== 'all' && parseInt(want, 10) > n) want = String(n); // clamp to last
+      sel.value = want;
+      if (!sel.value) sel.value = 'all';
+    }
+
+    function prettyView(view) {
+      if (!view || view === 'black') return 'Blank';
+      if (view === 'counter') return 'Counter';
+      if (view === 'schedule') return 'Schedule';
+      if (view.indexOf('scores:') === 0) {
+        var p = view.split(':');
+        var dens = p[1] === 'totals' ? 'totals' : 'detailed';
+        var page = (p[2] && p[2] !== 'all') ? 'page ' + p[2] : 'all (rotating)';
+        return 'Standings — ' + dens + ', ' + page;
+      }
+      return view;
+    }
+
+    function composeView(id) {
+      var output = document.getElementById('select-output-' + id).value;
+      if (!isScores(output)) return output;
+      return output + ':' + (document.getElementById('select-page-' + id).value || 'all');
+    }
+
+    // Reflect a screen's view in its selects + preview labels (no server write).
+    function syncControls(id, view) {
+      var out = document.getElementById('select-output-' + id);
+      var pageSel = document.getElementById('select-page-' + id);
+      var wrap = document.getElementById('page-wrap-' + id);
+      if (!out) return;
+      var output = view, page = 'all';
+      if ((view || '').indexOf('scores:') === 0) {
+        var parts = view.split(':');
+        output = 'scores:' + (parts[1] || 'detailed');
+        page = parts[2] || 'all';
+      }
+      out.value = output;
+      if (isScores(output)) { buildPageOptions(pageSel, output, page); wrap.style.display = ''; }
+      else { wrap.style.display = 'none'; }
+      $('.preview-view[data-screen-id="' + id + '"]').text('— ' + prettyView(view));
+      $('.enlarge-preview[data-screen-id="' + id + '"]').attr(
+        'data-title', $('.enlarge-preview[data-screen-id="' + id + '"]').attr('data-screen-label') + ' — ' + prettyView(view));
+    }
+
+    // Write the screen's new view and update the admin-page caption. The preview
+    // iframe is the live display page and reloads itself off the screen_update
+    // broadcast, so it isn't touched here.
+    function applyView(id) {
+      var view = composeView(id);
+      $.post("update_screen_view?id=" + id + "&view=" + encodeURIComponent(view),
+             { 'csrfmiddlewaretoken': '{{ csrf_token }}' });
+      $('.preview-view[data-screen-id="' + id + '"]').text('— ' + prettyView(view));
+      $('.enlarge-preview[data-screen-id="' + id + '"]').attr(
+        'data-title', $('.enlarge-preview[data-screen-id="' + id + '"]').attr('data-screen-label') + ' — ' + prettyView(view));
+    }
+
+    // Initialise every screen from its stored view.
+    document.querySelectorAll('.select-output').forEach(function(out) {
+      syncControls(out.getAttribute('data-id'), out.getAttribute('data-view') || 'black');
+    });
+
+    $(document).on('change', '.select-output', function() {
+      var id = this.getAttribute('data-id');
+      var wrap = document.getElementById('page-wrap-' + id);
+      var pageSel = document.getElementById('select-page-' + id);
+      if (isScores(this.value)) { buildPageOptions(pageSel, this.value, pageSel.value); wrap.style.display = ''; }
+      else { wrap.style.display = 'none'; }
+      applyView(id);
+    });
+
+    $(document).on('change', '.select-page', function() { applyView(this.getAttribute('data-id')); });
+
+    // Rows-per-page / column count drive the page count: rebuild the Pages
+    // options for every standings screen when either changes.
+    $(document).on('input change', '#variables-score_lines, #variables-total_columns', function() {
+      document.querySelectorAll('.select-output').forEach(function(out) {
+        if (!isScores(out.value)) return;
+        var pageSel = document.getElementById('select-page-' + out.getAttribute('data-id'));
+        buildPageOptions(pageSel, out.value, pageSel.value);
       });
     });
 
-    // Apply a saved display mode without reloading the page: the server returns
-    // the new per-screen views, and we update the selects, the preview labels
-    // and (if open) the preview iframes in place — so the previews stay open.
+    // Apply a saved display mode: the server returns the new per-screen views;
+    // sync each screen's selects + caption in place. The preview iframes reload
+    // themselves off the screen_update broadcast.
     window.applyMode = function(id) {
       $.post("admin?page=display&set_mode=" + id, { 'csrfmiddlewaretoken': '{{ csrf_token }}' }, function(data) {
-        (data.screens || []).forEach(function(s) {
-          $("#select-view-" + s.id).val(s.view);
-          $('.preview-view[data-screen-id="' + s.id + '"]').text('— ' + s.view);
-          $('.enlarge-preview[data-screen-id="' + s.id + '"]').each(function() {
-            $(this).attr('data-title', $(this).attr('data-screen-label') + ' — ' + s.view);
-          });
-        });
-        // Reload any previews that are currently shown so they reflect the new views.
-        var $container = $("#previews-container");
-        if ($container.length && $container.css('display') !== 'none') {
-          $(".preview-iframe").each(function() { this.src = $(this).attr('data-src'); });
-        }
+        (data.screens || []).forEach(function(s) { syncControls(s.id, s.view || 'black'); });
       }, 'json');
     };
   </script>

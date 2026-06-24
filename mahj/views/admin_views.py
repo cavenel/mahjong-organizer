@@ -604,7 +604,7 @@ def options(request, error=None):
         context = {
             "screens": screens,
             "modes": modes,
-            "screen_displays": ["black", "scores p. 1", "scores p. 2", "scores all", "scores all, total only", "counter", "schedule"],
+            "nb_players": Player.objects.filter(tenant=tenant).count(),
             "variables": variables,
         }
         template2 = loader.get_template('mahj/admin_display.html')

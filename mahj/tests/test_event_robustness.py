@@ -9,7 +9,7 @@ from django.test import RequestFactory, override_settings
 
 from mahj import signals
 from mahj.models import Player, Position
-from mahj.views import details_player, details_team, scores_per_player
+from mahj.views import details_player, details_team, render_scores
 
 LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
 
@@ -74,5 +74,5 @@ def test_scores_per_player_page_with_under_12_players(tournament):
         id__in=keep
     ).delete()
 
-    resp = scores_per_player(_req(), 'html', 1)  # page_nb=1 hits the guard
+    resp = render_scores(_req(), 'detailed', 1)  # fixed page with few players
     assert resp.status_code == 200
