@@ -592,10 +592,15 @@ def options(request, error=None):
     elif page == "display":
         variables = get_variables(request)
         if request.GET.get('action') == "set_variable":
+            # Staff-only fields: display operators may tune the layout, but not the
+            # round length (changing it mid-round would desync every screen's timer).
+            staff_only_fields = {"total_time"}
             touched = False
             for var in request.GET.keys():
                 if "variables-" in var:
                     field = var.replace("variables-", "")
+                    if field in staff_only_fields and not request.user.is_staff:
+                        continue
                     if hasattr(variables, field):
                         setattr(variables, field, request.GET.get(var))
                         touched = True
