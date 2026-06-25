@@ -200,8 +200,8 @@ def render_scores(request, density, page_nb=None):
 
 
 def scores_per_player(request, ext):
-    """Public data endpoints: JSON standings and the mobile (tpt) list. The
-    projector screens render via render_scores()."""
+    """Public data endpoints: JSON standings. The projector screens render via
+    render_scores()."""
     tenant = get_tenant(request)
     variables = get_variables(request)
     prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
@@ -210,17 +210,6 @@ def scores_per_player(request, ext):
 
     if ext == "json":
         return HttpResponse(json.dumps(scores_json))
-    elif ext == "tpt":
-        try:
-            nb_rounds = len(scores_json[0]["scores"])
-        except (IndexError, KeyError):
-            nb_rounds = 0
-        return render(request, "mahj/mobile_scores_per_player_list.html", {
-            "scores_json": scores_json,
-            "rounds": range(1, 1 + nb_rounds),
-            "max_round": nb_rounds,
-            "variables": variables,
-        })
     elif ext == "html":
         return render_scores(request, DETAILED, None)
     return HttpResponseNotFound('<h1>Page not found</h1>')

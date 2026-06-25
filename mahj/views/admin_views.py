@@ -501,18 +501,6 @@ def update_logo(request):
     return HttpResponse("OK")
 
 
-def update_welcome(request):
-    try:
-        variables = get_variables(request)
-        if request.GET.get('welcome', default=None) is not None:
-            variables.welcome = request.GET.get('welcome')
-            variables.save()
-        welcome = variables.welcome
-    except Exception:
-        welcome = "Welcome"
-    return HttpResponse(welcome)
-
-
 # The round timer is server-authoritative. `counter` holds an absolute epoch-ms
 # "gong moment": the instant the round starts (and the start gong sounds). Before
 # it, screens render a synchronized lead window + 3-2-1 countdown; after it, the
@@ -555,16 +543,6 @@ def counter_start(request):
         'counter': get_counter(tenant),
         'server_now': int(time.time() * 1000),
     })
-
-
-def welcome_options(request):
-    variables = get_variables(request)
-    try:
-        welcome = variables.welcome
-    except Exception:
-        welcome = "Welcome"
-    template = loader.get_template('mahj/welcome_options.html')
-    return HttpResponse(template.render({"welcome": welcome, "variables": variables}, request))
 
 
 @user_passes_test(can_access_admin)

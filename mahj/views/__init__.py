@@ -50,8 +50,6 @@ from .admin_views import (
     admin_team_draw_save,
     update_logo,
     update_variables,
-    update_welcome,
-    welcome_options,
 )
 from .user_admin import (
     user_create,
