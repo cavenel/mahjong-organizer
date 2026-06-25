@@ -152,6 +152,11 @@ class Variable(TenantAwareModel):
     score_lines  = models.IntegerField(default=20,null=False)
     total_columns = models.IntegerField(default=3,null=False)  # columns in the "totals" standings layout
     counter      = models.BigIntegerField(default=-1,null=False)  # -1 = never started; survives restarts
+    # Optional staff-uploaded PNG logo (KBs), shown in place of the static mcr_logo
+    # on on-screen surfaces. logo_etag is the md5 of the bytes, used to cache-bust
+    # the served URL so projector screens refresh when the logo changes.
+    logo         = models.BinaryField(null=True, blank=True, default=None, editable=True)
+    logo_etag    = models.CharField(default="", max_length=32, blank=True)
     #sw_class_1   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
     #sw_class_2   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
     #sw_class_3   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)

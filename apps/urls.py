@@ -27,6 +27,8 @@ urlpatterns = [
     path('update_variables', views.update_variables, name='update_variables'),
     path('update_welcome', views.update_welcome, name='update_welcome'),
     path('welcome_options', views.welcome_options, name='welcome_options'),
+    path('logo', views.logo, name='logo'),
+    path('update_logo', views.update_logo, name='update_logo'),
     path('counter_start', views.counter_start, name='counter_start'),
 
     # User management (staff only)

@@ -32,7 +32,7 @@
   <!-- ── Top bar ──────────────────────────────────────────────── -->
   <header class="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
     <div class="max-w-screen-xl mx-auto px-4 flex items-center h-14 gap-4">
-      <img src="{% static 'images/OEMC-2026-Uppsala_logo.png' %}" class="w-24 shrink-0">
+      <img src="{{ site_logo_url }}" class="h-10 w-auto shrink-0">
       <div class="flex-1 min-w-0 hidden sm:block">
         <div class="font-semibold text-gray-800 truncate text-sm">{{ variables.fullname|default:variables.title }}</div>
         <div class="text-xs text-gray-500 truncate">{{ variables.period }}</div>

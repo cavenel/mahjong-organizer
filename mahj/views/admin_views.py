@@ -1,3 +1,4 @@
+import hashlib
 import io
 import os
 import time
@@ -14,7 +15,7 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
-from django.http import HttpResponse, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
 
 from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
@@ -463,6 +464,41 @@ def update_variables(request):
                 setattr(variables, name, value)
     variables.save()
     return HttpResponse(str(variables))
+
+
+# Public (display screens are public, like /scan and counter_start): serve the
+# tenant's uploaded logo. Templates fall back to the static mcr_logo when unset,
+# so this is only hit when a logo exists.
+def logo(request):
+    variables = get_variables(request)
+    if not variables.logo:
+        raise Http404
+    resp = HttpResponse(bytes(variables.logo), content_type="image/png")
+    resp["Cache-Control"] = "public, max-age=86400"
+    resp["ETag"] = f'"{variables.logo_etag}"'
+    return resp
+
+
+@user_passes_test(lambda u: u.is_staff)
+def update_logo(request):
+    variables = get_variables(request)
+    if request.POST.get("reset") == "1":
+        variables.logo = None
+        variables.logo_etag = ""
+    else:
+        f = request.FILES.get("logo")
+        if f is None:
+            return HttpResponseBadRequest("No file uploaded")
+        if f.size > 2 * 1024 * 1024:
+            return HttpResponseBadRequest("Logo too large (max 2 MB)")
+        data = f.read()
+        # Trust the bytes, not the extension: must be a real PNG.
+        if data[:8] != b"\x89PNG\r\n\x1a\n":
+            return HttpResponseBadRequest("PNG files only")
+        variables.logo = data
+        variables.logo_etag = hashlib.md5(data).hexdigest()
+    variables.save()  # signals.py invalidates the cached Variable
+    return HttpResponse("OK")
 
 
 def update_welcome(request):
