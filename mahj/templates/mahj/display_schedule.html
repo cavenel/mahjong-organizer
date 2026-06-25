@@ -1,72 +1,46 @@
 {% load static %}
 {% load mathfilters %}
-
-<html>
+<!DOCTYPE html>
+<html lang="en">
 
 <head>
+    <meta charset="utf-8">
     <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-    <title>Swedish Open MCR Mahjong Championship {{ year }}</title>
+    <title>Schedule</title>
     <meta name="viewport" content="user-scalable=no" />
-    <style>
-        /* Hand-rolled replacements for the handful of Bootstrap classes this page
-           used (col-sm-6 / .table / .info) plus the global resets Bootstrap was
-           silently providing (border-box + a sans-serif body font). Saves loading
-           the 121 KB Bootstrap stylesheet + jQuery + Bootstrap JS on the Pi. */
-        * { box-sizing: border-box; }
-        body {
-            font-family: Helvetica, Arial, sans-serif;
-            zoom:{{ variables.zoom|mul:1.3 }};
-            overflow: hidden;
-        }
-        body,
-        html {
-            background-color: black;
-        }
-
-        h2 {
-            color: white;
-        }
-
-        div#schedule {
-            width: 900px;
-            margin-left: auto;
-            margin-right: auto;
-            background-color: white;
-            display: table;
-            zoom:1.3;
-        }
-
-        .col-sm-6 { float: left; width: 50%; padding: 0 15px; }
-        #schedule::after { content: ""; display: table; clear: both; }
-        table.table { width: 100%; max-width: 100%; margin-bottom: 20px; border-collapse: collapse; }
-        table.table > tbody > tr > td { padding: 8px; line-height: 1.42857; vertical-align: top; border-top: 1px solid #ddd; }
-        tr.info > td { background-color: #d9edf7; }
-    </style>
+    <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
 </head>
 
-<body>
-    <center>
-        <h2>Schedule</h2>
-    </center>
+<body class="min-h-screen overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200 px-14 py-11"
+      style="zoom: {{ variables.zoom|mul:1.3 }};">
 
-    <div id="schedule" style="zoom:1.0;">
+    <header class="text-center mb-10">
+        {% if variables.title or variables.fullname %}
+            <div class="text-lg font-semibold tracking-[0.2em] uppercase text-amber-400 mb-2">{{ variables.title|default:variables.fullname }}</div>
+        {% endif %}
+        <h1 class="text-5xl font-extrabold tracking-tight text-white">Schedule</h1>
+    </header>
+
+    <div class="grid grid-cols-[repeat(auto-fit,minmax(360px,1fr))] gap-6 items-start max-w-[1500px] mx-auto">
         {% regroup schedule by day as days_list %}
         {% for day in days_list %}
-        <div class="col-sm-6">
-          <h3>{{ day.grouper }}</h3>
-          <table class="table">
-            <tbody>
-                {% for item in day.list %}
-                    <tr {% if 'Round ' in item.name %}class="info"{% endif %}>
-                        <td width="120px">{{ item.time }}</td>
-                        <td>{{ item.name }}</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-          </table>
-        </div>
-      {% endfor %}
+            <section class="rounded-2xl bg-slate-800/70 ring-1 ring-white/10 overflow-hidden">
+                <div class="bg-gradient-to-r from-amber-500 to-amber-600 text-amber-950 px-6 py-3.5 text-2xl font-extrabold">
+                    {{ day.grouper }}
+                </div>
+                <div class="divide-y divide-white/5">
+                    {% for item in day.list %}
+                        <div class="flex items-baseline gap-4 px-6 py-3 text-xl
+                                    {% if 'Round ' in item.name %}bg-amber-500/10 border-l-4 border-amber-500 pl-5{% endif %}">
+                            <span class="tabular-nums font-semibold text-amber-300 min-w-[88px] shrink-0">{{ item.time }}</span>
+                            <span class="{% if 'Round ' in item.name %}text-white font-bold{% else %}text-slate-300{% endif %}">{{ item.name }}</span>
+                        </div>
+                    {% endfor %}
+                </div>
+            </section>
+        {% endfor %}
     </div>
+
     <script src="{% static 'js/display_socket.js' %}"></script>
     <script>
         connectDisplaySocket({
