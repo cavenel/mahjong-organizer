@@ -37,23 +37,26 @@
               <svg class="w-3 h-3 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
               https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}
             </a>
-            <div>
-              <label for="select-output-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Output</label>
-              <select id="select-output-{{ screen.id }}" data-id="{{ screen.id }}" data-view="{{ screen.view }}"
-                      class="select-output w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
-                             focus:outline-none focus:ring-2 focus:ring-amber-300">
-                <option value="black">Blank</option>
-                <option value="counter">Counter</option>
-                <option value="schedule">Schedule</option>
-                <option value="scores:detailed">Standings — detailed</option>
-                <option value="scores:totals">Standings — totals</option>
-              </select>
-            </div>
-            <div class="page-wrap" id="page-wrap-{{ screen.id }}" style="display:none;">
-              <label for="select-page-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Pages</label>
-              <select id="select-page-{{ screen.id }}" data-id="{{ screen.id }}"
-                      class="select-page w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
-                             focus:outline-none focus:ring-2 focus:ring-amber-300"></select>
+            <div class="flex gap-2">
+              <div class="flex-1 min-w-0">
+                <label for="select-output-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Output</label>
+                <select id="select-output-{{ screen.id }}" data-id="{{ screen.id }}" data-view="{{ screen.view }}"
+                        class="select-output w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
+                               focus:outline-none focus:ring-2 focus:ring-amber-300">
+                  <option value="black">Blank</option>
+                  <option value="counter">Counter</option>
+                  <option value="schedule">Schedule</option>
+                  <option value="scores:detailed">Standings — detailed</option>
+                  <option value="scores:totals">Standings — totals</option>
+                </select>
+              </div>
+              <div class="flex-1 min-w-0">
+                <label for="select-page-{{ screen.id }}" class="block text-xs font-medium text-gray-600 mb-1">Pages</label>
+                <select id="select-page-{{ screen.id }}" data-id="{{ screen.id }}"
+                        class="select-page w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
+                               focus:outline-none focus:ring-2 focus:ring-amber-300
+                               disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed"></select>
+              </div>
             </div>
           </div>
         </div>
@@ -446,11 +449,22 @@
       return output + ':' + (document.getElementById('select-page-' + id).value || 'all');
     }
 
+    // The Pages select stays on the row always; it's enabled with the right
+    // options for a standings layout, or greyed out (disabled) otherwise.
+    function setPageSelect(id, output, current) {
+      var pageSel = document.getElementById('select-page-' + id);
+      if (isScores(output)) {
+        pageSel.disabled = false;
+        buildPageOptions(pageSel, output, current);
+      } else {
+        pageSel.disabled = true;
+        pageSel.innerHTML = '<option>—</option>';
+      }
+    }
+
     // Reflect a screen's view in its selects + preview labels (no server write).
     function syncControls(id, view) {
       var out = document.getElementById('select-output-' + id);
-      var pageSel = document.getElementById('select-page-' + id);
-      var wrap = document.getElementById('page-wrap-' + id);
       if (!out) return;
       var output = view, page = 'all';
       if ((view || '').indexOf('scores:') === 0) {
@@ -459,8 +473,7 @@
         page = parts[2] || 'all';
       }
       out.value = output;
-      if (isScores(output)) { buildPageOptions(pageSel, output, page); wrap.style.display = ''; }
-      else { wrap.style.display = 'none'; }
+      setPageSelect(id, output, page);
       $('.preview-view[data-screen-id="' + id + '"]').text('— ' + prettyView(view));
       $('.enlarge-preview[data-screen-id="' + id + '"]').attr(
         'data-title', $('.enlarge-preview[data-screen-id="' + id + '"]').attr('data-screen-label') + ' — ' + prettyView(view));
@@ -485,10 +498,7 @@
 
     $(document).on('change', '.select-output', function() {
       var id = this.getAttribute('data-id');
-      var wrap = document.getElementById('page-wrap-' + id);
-      var pageSel = document.getElementById('select-page-' + id);
-      if (isScores(this.value)) { buildPageOptions(pageSel, this.value, pageSel.value); wrap.style.display = ''; }
-      else { wrap.style.display = 'none'; }
+      setPageSelect(id, this.value, document.getElementById('select-page-' + id).value);
       applyView(id);
     });
 
