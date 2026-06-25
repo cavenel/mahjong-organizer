@@ -12,14 +12,16 @@ guide they need — based on the **tournament's rule set** (MCR or Riichi) and t
 
 | Person's role | MCR tournament | Riichi tournament |
 |---|---|---|
-| **Scorer** (enters scores only) | [MCR_scorers.md](MCR_scorers.md) | [Riichi_scorers.md](Riichi_scorers.md) |
-| **Head scorer** (scorer + publisher + display operator) | [MCR_head_scorer.md](MCR_head_scorer.md) | [Riichi_head_scorer.md](Riichi_head_scorer.md) |
+| **Scorer** (enters scores only) | [MCR_scorers.md](MCR_scorers.md) · [cheat sheet](MCR_scorer_cheat_sheet.md) | [Riichi_scorers.md](Riichi_scorers.md) |
+| **Head scorer** (scorer + publisher + display operator) | [MCR_head_scorer.md](MCR_head_scorer.md) · [cheat sheet](MCR_head_scorer_cheat_sheet.md) | [Riichi_head_scorer.md](Riichi_head_scorer.md) |
 | **Staff / organizer** (everything, both rule sets) | [full_admin.md](full_admin.md) | [full_admin.md](full_admin.md) |
 
 - **Scorer** editions cover just the Scoring page (and, on MCR, the score sheet and
-  the phone scan tool).
+  the phone scan tool). The MCR scorer also has a printable one-page
+  [cheat sheet](MCR_scorer_cheat_sheet.md) recapping the score-entry steps.
 - **Head scorer** editions add publishing rounds, driving the screens, and running
-  the ceremony.
+  the ceremony. The MCR head scorer also has a printable one-page
+  [cheat sheet](MCR_head_scorer_cheat_sheet.md) covering those extra jobs.
 - **full_admin** is the complete reference: all four roles (incl. staff
   preparation, user management and the EMA export) and both rule sets.
 
