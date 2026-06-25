@@ -26,6 +26,16 @@ from .scoring import scores_per_player_json, stat_all_rounds
 TOP_N = 16        # players revealed
 TOP_TEAMS = 3     # only the prize-winning teams
 
+# European country flag codes (ISO alpha-2, lowercase to match _country_flag's
+# output). "Best European" is just the top-ranked player whose flag is in here —
+# no continent lookup or extra model field needed.
+EUROPE = frozenset({
+    'al', 'ad', 'at', 'by', 'be', 'ba', 'bg', 'hr', 'cy', 'cz', 'dk', 'ee',
+    'fi', 'fr', 'de', 'gr', 'hu', 'is', 'ie', 'it', 'xk', 'lv', 'li', 'lt',
+    'lu', 'mt', 'md', 'mc', 'me', 'nl', 'mk', 'no', 'pl', 'pt', 'ro', 'ru',
+    'sm', 'rs', 'sk', 'si', 'es', 'se', 'ch', 'ua', 'gb', 'va',
+})
+
 # (overall_winners key, slide title, value unit) — order = order shown in the console.
 STAT_META = [
     ('mp_max',        'Highest score in a round',      'points'),
@@ -87,6 +97,16 @@ def _ceremony_master(request):
         if winners:
             stats.append({'key': key, 'title': title, 'unit': unit,
                           'value': winners[0]['value'], 'winners': winners})
+
+    # Best European: top-ranked player whose flag is a European code. rows are
+    # already sorted by rank, so the first match is the winner.
+    best_eu = next((r for r in rows if (r['flag'] or '') in EUROPE), None)
+    if best_eu:
+        value = _total(best_eu, rules)
+        stats.append({'key': 'euro', 'title': 'Best European',
+                      'unit': 'TP' if rules == 'MCR' else 'points', 'value': value,
+                      'winners': [{'value': value, 'name': best_eu['name'],
+                                   'flag': best_eu['flag']}]})
 
     return {'rules': rules, 'teams': teams, 'players': players,
             'stats': stats, 'uses_teams': bool(teams)}
