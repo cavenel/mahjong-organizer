@@ -59,6 +59,25 @@ class TestScanPrefill:
         valid = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=17)
         assert valid.pts == 0
 
+    def test_filled_table_conflicts_for_anonymous_no_force(self, client_, tournament):
+        """A filled table is never overwritten by a scan — there is no `force`
+        escape, and no login is required to be refused."""
+        tenant = tournament['tenant']
+        h = Hand.objects.create(
+            tenant=tenant, round_nb=3, table_nb=3, hand_nb=1,
+            pts=20, win_by=1, win_from=2, confidence=1.0,
+        )
+        body = {
+            'round_nb': 3, 'table_nb': 3, 'validate': False, 'force': True,
+            'scores': [{'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 1.0}],
+        }
+        resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
+        assert resp.status_code == 409
+        assert resp.json()['conflict'] is True
+        # `force` is ignored; the original row is intact.
+        h.refresh_from_db()
+        assert h.pts == 20
+
     def test_manual_edit_resets_confidence(self, client_, tournament, scorer):
         client_.force_login(scorer)
         tenant = tournament['tenant']
@@ -83,6 +102,13 @@ class TestScanPrefillPage:
         # round_nb / table_nb reach the template context for client-side pre-fill.
         assert "ctxRound = '2'" in html
         assert "ctxTable = '3'" in html
+        # A scorer can open the score sheet inline.
+        assert "canOpenSheet = true" in html
+
+    def test_anonymous_page_cannot_open_sheet(self, client_, tournament):
+        html = client_.get('/scan').content.decode()
+        # Not signed in as a scorer → pointed to the admin console instead.
+        assert "canOpenSheet = false" in html
 
 
 class TestScanEnqueue:

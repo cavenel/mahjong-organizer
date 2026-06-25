@@ -6,10 +6,9 @@ import os
 
 # Heavy, optional dependencies (anthropic, cv2, numpy, Pillow) are imported lazily
 # inside the functions that need them. This keeps the URLconf importable — and the
-# auth-gated endpoints testable — on hosts where the OCR stack isn't installed.
+# endpoints testable — on hosts where the OCR stack isn't installed.
 
 from django.conf import settings
-from django.contrib.auth.decorators import user_passes_test
 from django.db.models import F
 from django.http import JsonResponse
 from django.shortcuts import render
@@ -100,7 +99,6 @@ def _encode_crop(aligned, bbox):
     return base64.standard_b64encode(buf.tobytes()).decode('ascii')
 
 
-@user_passes_test(is_scorer)
 def scan_page(request, round_nb=None, table_nb=None):
     if request.method == "POST":
         # Stage the image and hand OCR off to a scan_worker via the queue, then
@@ -126,10 +124,15 @@ def scan_page(request, round_nb=None, table_nb=None):
                 {"ok": False, "error": "Scan service is unavailable. Try again."}, status=503)
         return JsonResponse({"ok": True, "job_id": job_id})
 
-    return render(request, "mahj/scan.html", {"round_nb": round_nb, "table_nb": table_nb})
+    # Scorers get an inline "Open score sheet" overlay; everyone else (the page is
+    # public) is pointed to the admin console instead, since the sheet is gated.
+    return render(request, "mahj/scan.html", {
+        "round_nb": round_nb,
+        "table_nb": table_nb,
+        "can_open_sheet": is_scorer(request.user),
+    })
 
 
-@user_passes_test(is_scorer)
 def scan_status(request):
     """Poll a queued OCR job: pending / done(scores) / error / expired."""
     from .. import scan_queue
@@ -256,7 +259,6 @@ def run_scan(image_bgr):
 WINDS = ['E', 'S', 'W', 'N']
 
 
-@user_passes_test(is_scorer)
 def scan_positions(request):
     """Return positions (players, MP, TP) for a given round/table."""
     tenant = get_tenant(request)
@@ -314,7 +316,6 @@ def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
         )
 
 
-@user_passes_test(is_scorer)
 def scan_prefill(request):
     """Write OCR-extracted hand data to DB, mark as valid."""
     if request.method != 'POST':
@@ -330,12 +331,14 @@ def scan_prefill(request):
     table_nb = int(body['table_nb'])
     scores = body.get('scores', [])
 
-    force = body.get('force', False)
+    # A filled table is never overwritten by a scan: anyone (including
+    # unregistered users) may scan an empty table, but existing data can only be
+    # changed on the score sheet. Clear it there to re-scan.
     existing = Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb,
     ).exclude(hand_nb=17)
     already_filled = existing.filter(pts__gt=0).exists()
-    if already_filled and not force:
+    if already_filled:
         return JsonResponse({
             "ok": False,
             "conflict": True,

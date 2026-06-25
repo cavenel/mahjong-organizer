@@ -196,45 +196,43 @@ class TestPublishRestrictedToStaffAndPublisher:
         assert resp.status_code == 200
 
 
-class TestScanEndpointsGated:
-    """The /scan OCR endpoints require is_staff OR membership in 'Scorer'.
+class TestScanEndpointsPublic:
+    """The /scan endpoints are public: anyone (no login) may scan an empty table,
+    so data entry can be crowdsourced at the venue.
 
-    Regression guard: these decorators were once commented out, exposing an
-    unauthenticated surface that calls the (paid) Anthropic API and writes/validates
-    Hand rows for whatever tenant the Host header resolves to.
+    The one hard rule is no overwrite — a table that already has hands is refused
+    with a 409, for everyone, registered or not. Existing data can only be changed
+    on the score sheet.
     """
 
-    PREFILL_BODY = '{"round_nb": 1, "table_nb": 1, "scores": []}'
+    def test_scan_page_anonymous_ok(self, client_, tournament):
+        assert client_.get('/scan').status_code == 200
 
-    def test_scan_page_anonymous_redirected(self, client_, tournament):
-        resp = client_.get('/scan')
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
-
-    def test_scan_positions_anonymous_redirected(self, client_, tournament):
-        resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
-
-    def test_scan_prefill_anonymous_redirected(self, client_, tournament):
-        resp = client_.post('/scan_prefill', data=self.PREFILL_BODY, content_type='application/json')
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
-
-    def test_scan_page_non_scorer_redirected(self, client_, tournament, anonymous_user):
-        client_.force_login(anonymous_user)
-        resp = client_.get('/scan')
-        assert resp.status_code == 302
-
-    def test_scan_prefill_non_scorer_redirected(self, client_, tournament, anonymous_user):
-        client_.force_login(anonymous_user)
-        resp = client_.post('/scan_prefill', data=self.PREFILL_BODY, content_type='application/json')
-        assert resp.status_code == 302
-
-    def test_scan_positions_scorer_allowed(self, client_, tournament, scorer_group_user):
-        client_.force_login(scorer_group_user)
+    def test_scan_positions_anonymous_ok(self, client_, tournament):
         resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
         assert resp.status_code == 200
+
+    def test_scan_prefill_empty_table_anonymous_writes(self, client_, tournament):
+        tenant = tournament['tenant']
+        # Round 3 has positions but no hands seeded — an empty table, no conflict.
+        body = {'round_nb': 3, 'table_nb': 1, 'validate': False,
+                'scores': [{'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 0.5}]}
+        resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
+        assert resp.status_code == 200 and resp.json()['ok'] is True
+        h = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
+        assert h.pts == 20 and h.win_by == 1 and h.win_from == 2
+
+    def test_scan_prefill_filled_table_anonymous_conflicts(self, client_, tournament):
+        tenant = tournament['tenant']
+        # Round 1 table 1 is fully seeded — must never be overwritten by a scan.
+        before = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).pts
+        body = {'round_nb': 1, 'table_nb': 1, 'validate': False,
+                'scores': [{'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 1.0}]}
+        resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
+        assert resp.status_code == 409 and resp.json()['conflict'] is True
+        # Original data is untouched.
+        after = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).pts
+        assert after == before
 
 
 class TestCounterTimerGated:

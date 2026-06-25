@@ -205,8 +205,8 @@ photograph the sheet and let the OCR fill it in.
 - **Easiest:** open a table's **Score sheet** — it shows a **QR code** ("Scan to
   fill on phone"). Scan it with your phone to open the scan page already filled in
   with that round & table.
-- **Or** go directly to `https://<tenant>.mahj.ovh/scan` (you must be signed in as
-  a scorer on the phone).
+- **Or** go directly to `https://<tenant>.mahj.ovh/scan`. The scan page needs **no
+  login** — anyone can scan, so players can fill in their own table's sheet.
 
 > ![Scan QR](screenshots/14-scan-qr.png)<br>
 > 📸 **Screenshot — QR code on the score-sheet header.**
@@ -219,8 +219,8 @@ photograph the sheet and let the OCR fill it in.
 1. Enter (or confirm) the **Round** and **Table**. The page shows a status badge
    for that table:
    - 🟢 **Empty — ready to scan**
-   - 🟠 **Pre-filled but not valid — scanning will overwrite**
-   - 🔵 **Already validated — locked** (edit it from the score sheet instead)
+   - 🔵 **Already has data — locked** (a scan never overwrites; edit it from the
+     score sheet instead)
    - 🟡 **No positions found** (you can still scan)
 2. Tap **Take photo** and shoot the **whole sheet**, flat and well-lit.
 3. The photo is aligned to the template and read by OCR (this runs on the server;
@@ -233,9 +233,10 @@ photograph the sheet and let the OCR fill it in.
 > Notes:
 > - Scanning **does not auto-validate** — you still open the sheet, check the pink
 >   cells, and tick **Valid**.
-> - If a table already has data, the app asks before overwriting.
-> - The page handles being offline / a lapsed session gracefully and tells you what
->   to do (reconnect, or reload & sign in again).
+> - A scan **never overwrites** a table that already has data. To re-scan, clear it
+>   on the score sheet first.
+> - The page handles being offline gracefully and tells you what to do (reconnect
+>   and try again — your data was not sent).
 
 ---
 

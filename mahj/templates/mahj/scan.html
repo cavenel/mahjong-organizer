@@ -117,6 +117,8 @@ async function requestJSON(url, options) {
 /* Pre-fill: context (QR deep-link) wins, else remembered round from localStorage. */
 const ctxRound = '{{ round_nb|default_if_none:"" }}';
 const ctxTable = '{{ table_nb|default_if_none:"" }}';
+/* Scorers can open the (scorer-gated) score sheet inline; others go to /admin. */
+const canOpenSheet = {{ can_open_sheet|yesno:"true,false" }};
 roundEl.value = ctxRound || localStorage.getItem('scan_round') || '';
 tableEl.value = ctxTable || '';
 
@@ -158,12 +160,10 @@ async function refreshStatus() {
     if (!data.ok || data.positions.length === 0) {
       setStatus('bg-yellow-100 text-yellow-800', 'No positions found for this round/table.');
       setScanEnabled(true);   // allow scan anyway (positions may not be seeded yet)
-    } else if (data.validated) {
-      setStatus('bg-blue-100 text-blue-800', 'Already validated — locked. Edit on the score sheet.');
+    } else if (data.validated || data.has_hands) {
+      // A filled table is never overwritten by a scan — clear it on the score sheet to re-scan.
+      setStatus('bg-blue-100 text-blue-800', 'Already has data — locked. Edit on the score sheet.');
       setScanEnabled(false);
-    } else if (data.has_hands) {
-      setStatus('bg-amber-100 text-amber-800', 'Pre-filled but not valid — scanning will overwrite.');
-      setScanEnabled(true);
     } else {
       setStatus('bg-green-100 text-green-800', 'Empty — ready to scan.');
       setScanEnabled(true);
@@ -186,13 +186,17 @@ tableEl.addEventListener('input', refreshStatus);
 function addResult(round_nb, table_nb, ok, msg) {
   const div = document.createElement('div');
   if (ok) {
+    // Scorers open the score sheet inline; everyone else is sent to the admin
+    // console (the score sheet itself is scorer-only).
+    const label = canOpenSheet ? 'Open score sheet' : 'Open in the admin console';
     div.className = 'flex items-center gap-3 rounded-lg px-4 py-3 bg-green-50 text-green-800';
     div.innerHTML =
       `<span class="text-lg">✅</span>` +
       `<div class="flex flex-col min-w-0"><span class="text-sm font-medium">R${round_nb} T${table_nb}</span>` +
       `<span class="text-xs opacity-70">Saved (not valid)</span></div>` +
-      `<button class="ml-auto px-3 py-1 rounded text-xs font-semibold bg-green-600 text-white hover:bg-green-700">Open score sheet</button>`;
-    div.querySelector('button').addEventListener('click', () => openSheet(round_nb, table_nb));
+      `<button class="ml-auto px-3 py-1 rounded text-xs font-semibold bg-green-600 text-white hover:bg-green-700">${label}</button>`;
+    div.querySelector('button').addEventListener('click', () =>
+      canOpenSheet ? openSheet(round_nb, table_nb) : window.open('admin', '_blank'));
   } else {
     div.className = 'flex items-center gap-3 rounded-lg px-4 py-3 bg-red-50 text-red-700';
     div.innerHTML = `<span class="text-lg">❌</span><span class="text-xs truncate">R${round_nb} T${table_nb}: ${msg}</span>`;
@@ -225,18 +229,13 @@ document.getElementById('overlay-close').addEventListener('click', closeSheet);
 /* ====== SCAN ====== */
 
 fileEl.addEventListener('click', function (e) {
-  // Guard before the camera opens: require round/table, confirm overwrite.
+  // Guard before the camera opens: require round/table.
   const round_nb = roundEl.value;
   const table_nb = tableEl.value;
   if (!round_nb || !table_nb) {
     e.preventDefault();
     alert('Enter a round and table first.');
     return;
-  }
-  if (currentStatus && currentStatus.has_hands && !currentStatus.validated) {
-    if (!confirm(`Round ${round_nb} Table ${table_nb} already has data. Overwrite it?`)) {
-      e.preventDefault();
-    }
   }
 });
 
@@ -266,7 +265,6 @@ fileEl.addEventListener('change', async function () {
 
   const round_nb = parseInt(roundEl.value);
   const table_nb = parseInt(tableEl.value);
-  const force = !!(currentStatus && currentStatus.has_hands);
 
   progressText.textContent = `Reading R${round_nb} T${table_nb}…`;
   progress.classList.remove('hidden');
@@ -288,7 +286,7 @@ fileEl.addEventListener('change', async function () {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
       body: JSON.stringify({
-        round_nb, table_nb, scores, validate: false, force,
+        round_nb, table_nb, scores, validate: false,
       }),
     });
     if (!pdata.ok) throw new Error(pdata.error || 'Save failed.');
