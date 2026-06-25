@@ -1,14 +1,21 @@
 {% load static %} 
 {% load mathfilters %}
 
-<html style="background-color:black;">
+<html>
 <head>
-  <title>Swedish Open MCR Mahjong Championship 2018</title>
+  <title>{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}</title>
   <meta charset="utf-8">
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
 
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
 <style>
+/* Dark slate gradient matching the schedule/ceremony screens. Painted on <html>
+   (background-attachment: fixed) so it fills the viewport regardless of the
+   body zoom below, which scales only the content. */
+html {
+    background: #020617 linear-gradient(to bottom, #1e293b, #0f172a, #020617) fixed;
+    min-height: 100vh;
+}
 body {
     zoom:{{ variables.zoom|mul:0.6 }};
     overflow: hidden;
@@ -20,7 +27,7 @@ body {
 #welcome {
     text-align:center;
     width:100%;
-    color: #ccc;
+    color: #cbd5e1;
     font-size: 50px;
     font-family: sans-serif;
 }
@@ -55,7 +62,7 @@ body {
 }
 #countdown {
     font-size:260px;
-    color:white;
+    color:#fcd34d;
     text-align: center;
     opacity: 1;
     transition: opacity 0.6s ease;
