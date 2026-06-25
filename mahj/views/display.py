@@ -29,7 +29,7 @@ def _spectator_qr_svg(subdomain):
     except ImportError:
         return ''
     url = f'https://{subdomain}.mahj.ovh'
-    return segno.make(url, error='m').svg_inline(scale=4, border=2)
+    return segno.make(url, error='m').svg_inline(scale=3, border=2)
 
 
 def index(request, screen_id=None):
@@ -192,6 +192,9 @@ def render_scores(request, density, page_nb=None):
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
+        # Last round published but withheld for the ceremony: every row is masked,
+        # so show a holding message instead of an all-blank table.
+        "awaiting_ceremony": prepublish,
     }
     return render(request, "mahj/display_scores.html", context)
 
