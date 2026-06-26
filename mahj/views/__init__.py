@@ -74,4 +74,5 @@ from .print_views import (
     print_schedule,
     print_scores,
     table_posters,
+    team_names,
 )

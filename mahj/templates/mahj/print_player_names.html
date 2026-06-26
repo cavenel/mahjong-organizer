@@ -200,11 +200,11 @@ h2 {
 </head>
 <body>
     
-    {% for players_chunk in players|chunked:50 %}
+    {% for names_chunk in names|chunked:50 %}
         <page size="A4">
             <div class='page_table'>
-                {% for player in players_chunk%}<div class='page_td'>
-                    {{player}}
+                {% for name in names_chunk %}<div class='page_td'>
+                    {{name}}
                 </div>{% endfor %}
             </div>
         </page>

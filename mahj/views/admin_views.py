@@ -773,5 +773,6 @@ def options(request, error=None):
         "user_is_scorer": is_scorer(request.user),
         "user_is_display_op": is_display_op(request.user),
         "user_is_publisher": is_publisher(request.user),
+        "uses_teams": Player.objects.filter(tenant=tenant).exclude(team="").exists(),
     }
     return HttpResponse(template.render(context, request))

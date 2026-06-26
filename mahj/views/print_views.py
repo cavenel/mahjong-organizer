@@ -105,12 +105,23 @@ def player_cards(request):
     return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
 
 
-@user_passes_test(lambda u: u.is_staff)
 def player_names(request):
     tenant = get_tenant(request)
     players = Player_data.objects.filter(tenant=tenant).all()
     template = loader.get_template('mahj/print_player_names.html')
-    return HttpResponse(template.render({"players": players}, request))
+    return HttpResponse(template.render({"names": players}, request))
+
+
+def team_names(request):
+    tenant = get_tenant(request)
+    teams = sorted(
+        Player.objects.filter(tenant=tenant)
+                      .exclude(team='')
+                      .values_list('team', flat=True)
+                      .distinct()
+    )
+    template = loader.get_template('mahj/print_player_names.html')
+    return HttpResponse(template.render({"names": teams}, request))
 
 
 @user_passes_test(lambda u: u.is_staff)

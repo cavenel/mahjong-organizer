@@ -67,6 +67,7 @@ urlpatterns = [
     path('print_scores', views.print_scores, name='print_scores'),
     path('player_cards', views.player_cards, name='player_cards'),
     path('player_names', views.player_names, name='player_names'),
+    path('team_names', views.team_names, name='team_names'),
     path('print_schedule', views.print_schedule, name='print_schedule'),
     path('table_posters', views.table_posters, name='table_posters'),
     path('cross_positions', views.cross_positions, name='cross_positions'),
