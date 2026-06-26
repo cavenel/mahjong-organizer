@@ -118,7 +118,48 @@ class TestSlidePayload:
         assert payload['done'] is True
 
 
+class TestStatRoundLabel:
+    def test_uniform_round_and_table_gives_a_label(self):
+        winners = [{'round_nb': 3, 'table_nb': 5}, {'round_nb': 3, 'table_nb': 5}]
+        assert ceremony._round_label(winners) == 'Round 3 · Table 5'
+
+    def test_winners_from_different_spots_have_no_label(self):
+        winners = [{'round_nb': 3, 'table_nb': 5}, {'round_nb': 4, 'table_nb': 1}]
+        assert ceremony._round_label(winners) == ''
+
+    def test_overall_stat_without_a_round_has_no_label(self):
+        assert ceremony._round_label([{'round_nb': None, 'table_nb': None}]) == ''
+
+
+class TestStatTwoStepReveal:
+    def test_step_flows_into_the_stat_slide_payload(self, teamed):
+        """The slide carries the reveal step so the screen can show title-only
+        (step 0) then value + winners (step 1)."""
+        master = ceremony._ceremony_master(_request())
+        key = master['stats'][0]['key'] if master['stats'] else 'mp_max'
+
+        for step in (0, 1):
+            state = types.SimpleNamespace(phase='stat', step=step, stat_key=key)
+            payload = ceremony._slide_payload(master, state)
+            assert payload['step'] == step
+            assert payload['stat_key'] == key
+
+
 class TestControlEndpoint:
+    def test_stat_reveal_step_is_stored(self, op_client, teamed):
+        tenant = teamed['tenant']
+        master = ceremony._ceremony_master(_request())
+        key = master['stats'][0]['key'] if master['stats'] else 'mp_max'
+
+        op_client.get(f'/ceremony_control?phase=stat&stat_key={key}&step=0')
+        state = CeremonyState.objects.get(tenant=tenant)
+        assert (state.phase, state.stat_key, state.step) == ('stat', key, 0)
+
+        op_client.get(f'/ceremony_control?phase=stat&stat_key={key}&step=1')
+        state.refresh_from_db()
+        assert state.step == 1  # second click reveals the value
+
+
     def test_requires_display_op(self, teamed):
         resp = Client().get('/ceremony_control?phase=teams', HTTP_HOST='test.mahj.ovh')
         assert resp.status_code in (302, 403)
