@@ -1,8 +1,18 @@
+# Cap every container's stdout/stderr logs: the default json-file driver is
+# unbounded, so over a multi-day event logs would grow until the disk fills and
+# Postgres writes start failing. 20m × 5 files ⇒ ~100m hard ceiling per service.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
 services:
 
   db:
     image: postgres:16-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
@@ -17,6 +27,7 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     # Django cache only — fully disposable/regenerable (sessions live in Postgres),
     # so cap memory and evict LRU under pressure instead of the default `noeviction`,
     # which fails writes when full. Default RDB snapshots stay on, giving a warm
@@ -33,6 +44,7 @@ services:
   redis_bus:
     image: redis:7-alpine
     restart: unless-stopped
+    logging: *default-logging
     # Channels layer + scan-OCR queue. noeviction: these keys must never be dropped
     # — evicting a WebSocket group membership would silently strand a projector
     # (socket stays OPEN, so reconnect/heartbeat never fires), and evicting a queued
@@ -47,6 +59,7 @@ services:
   pgbouncer:
     image: edoburu/pgbouncer:latest
     restart: unless-stopped
+    logging: *default-logging
     environment:
       DB_HOST: db
       DB_PORT: 5432
@@ -73,6 +86,7 @@ services:
   web:
     build: .
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: apps.settings.dev
@@ -96,6 +110,7 @@ services:
   scan_worker:
     build: .
     restart: unless-stopped
+    logging: *default-logging
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: apps.settings.dev
@@ -108,7 +123,10 @@ services:
         condition: service_healthy
     command: python manage.py scan_worker
     deploy:
-      replicas: 2
+      # 4 workers drain a round-end burst (5-10 sheets shot at once) ~2x faster
+      # than 2. They share one FIFO queue (no double-processing), and ~0.5 GB each
+      # under load stays well within the box's memory headroom.
+      replicas: 4
 
 volumes:
   postgres_data:

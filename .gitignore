@@ -1,6 +1,7 @@
 # Credentials — never commit
 certbot/ovh.ini
 .env
+scripts/backup_db.env
 
 # Python
 __pycache__/

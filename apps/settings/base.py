@@ -158,7 +158,7 @@ LOGGING = {
         'console': {'class': 'logging.StreamHandler'},
     },
     'loggers': {
-        'mahj.views.scan': {'handlers': ['console'], 'level': 'DEBUG'},
+        'mahj.views.scan': {'handlers': ['console'], 'level': 'INFO'},
     },
 }
 

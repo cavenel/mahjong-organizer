@@ -47,6 +47,13 @@ services:
   nginx:
     image: nginx:alpine
     restart: unless-stopped
+    # Bound access/error logs (anchors don't cross compose files; mirror the base
+    # file's x-logging cap). 20m × 5 ⇒ ~100m ceiling on a busy multi-day event.
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
     ports:
       - "80:80"
       - "443:443"
