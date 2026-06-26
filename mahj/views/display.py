@@ -66,10 +66,7 @@ def index(request, screen_id=None):
         elif view == "counter":
             return counter(request)
         elif view == "schedule":
-            template = loader.get_template('mahj/display_schedule.html')
-            schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-            context = {"schedule": schedule, "variables": variables, "subdomain": subdomain}
-            return HttpResponse(template.render(context, request))
+            return _render_schedule(request, tenant, variables, subdomain)
         elif view.startswith("scores:"):
             parts = view.split(":")
             density = parts[1] if len(parts) > 1 and parts[1] in (DETAILED, TOTALS) else DETAILED
@@ -82,6 +79,13 @@ def index(request, screen_id=None):
     else:
         template = loader.get_template('mahj/display_no_screen.html')
         return HttpResponse(template.render({'subdomain': subdomain}, request))
+
+
+def _render_schedule(request, tenant, variables, subdomain):
+    template = loader.get_template('mahj/display_schedule.html')
+    schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
+    context = {"schedule": schedule, "variables": variables, "subdomain": subdomain}
+    return HttpResponse(template.render(context, request))
 
 
 def overview(request):
@@ -150,6 +154,11 @@ def render_scores(request, density, page_nb=None):
         nb_rounds = len(scores_json[0]["scores"])
     except (IndexError, KeyError):
         nb_rounds = 0
+
+    # No rounds scored yet: "Scores after round 0" with an all-zero table is
+    # meaningless, so fall back to the schedule screen until results exist.
+    if nb_rounds == 0 and not prepublish:
+        return _render_schedule(request, tenant, variables, tenant.subdomain if tenant else '')
 
     per_page = score_lines * columns
     nb_pages = max(1, math.ceil(len(scores_json) / per_page)) if scores_json else 1

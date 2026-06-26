@@ -161,6 +161,36 @@ class TestRoundWinners:
             assert len(set(mps)) == 1  # all tied at the max
 
 
+class TestNoRoundsFallback:
+    """Before any round is scored, the standings would read "Scores after round 0"
+    over an all-zero table — meaningless, so the view falls back to the schedule."""
+
+    @pytest.fixture
+    def unscored_tournament(self, tournament):
+        # Wipe every scored round: no hands, and Positions carry no points.
+        Hand.objects.filter(tenant=tournament['tenant']).delete()
+        Position.objects.filter(tenant=tournament['tenant']).update(
+            minipoints=None, tablepoints=None,
+        )
+        PublishedRound.objects.filter(tenant=tournament['tenant']).delete()
+        return tournament
+
+    def test_detailed_falls_back_to_schedule(self, request_, unscored_tournament):
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert '<title>Schedule</title>' in html
+        assert 'Scores after round' not in html
+
+    def test_totals_falls_back_to_schedule(self, request_, unscored_tournament):
+        html = views.render_scores(request_, "totals", 1).content.decode()
+        assert '<title>Schedule</title>' in html
+        assert 'Scores after round' not in html
+
+    def test_scores_render_normally_once_a_round_is_scored(self, request_, tournament):
+        # The seeded fixture has two complete rounds, so scores still show.
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert '<title>Scores</title>' in html
+
+
 class TestSpectatorQr:
     """The public-site QR on the score displays is generated locally (segno),
     never fetched from an external service — so a projector behind a captive
