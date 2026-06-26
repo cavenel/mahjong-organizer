@@ -240,6 +240,7 @@
             <div class="text-2xl font-black text-amber-600 mt-1">
               <span x-text="s.value"></span>
               <span class="text-sm font-bold text-amber-400" x-text="s.unit"></span>
+              <span class="text-sm font-bold text-amber-400" x-show="s.mp != null">/ <span x-text="s.mp"></span> MP</span>
               <span class="text-xs font-medium text-gray-400 ml-1" x-show="s.round_label" x-text="s.round_label"></span>
             </div>
             <div class="text-xs text-gray-500 mt-1 truncate"

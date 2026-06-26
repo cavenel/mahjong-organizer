@@ -120,11 +120,16 @@ def _ceremony_master(request):
     best_eu = next((r for r in rows if (r['flag'] or '') in EUROPE), None)
     if best_eu:
         value = _total(best_eu, rules)
-        stats.append({'key': 'euro', 'title': 'Best European',
-                      'unit': 'TP' if rules == 'MCR' else 'points', 'value': value,
-                      'round_label': '',  # overall standing, not a single round
-                      'winners': [{'value': value, 'name': best_eu['name'],
-                                   'flag': best_eu['flag']}]})
+        euro = {'key': 'euro', 'title': 'Best European',
+                'unit': 'TP' if rules == 'MCR' else 'points', 'value': value,
+                'round_label': '',  # overall standing, not a single round
+                'winners': [{'value': value, 'name': best_eu['name'],
+                             'flag': best_eu['flag']}]}
+        # MCR ranks on TP but MP is the tie-breaker — show both on this standing-
+        # based stat (Riichi has no TP, so `value` is already the MP total).
+        if rules == 'MCR':
+            euro['mp'] = best_eu['total']['mp']
+        stats.append(euro)
 
     return {'rules': rules, 'teams': teams, 'players': players,
             'stats': stats, 'uses_teams': bool(teams)}
@@ -143,6 +148,7 @@ def _slide_payload(master, state):
         # Reveal from the worst rank upward: step k reveals the k highest-pos entries.
         revealed = entries[top_count - step:] if step else []
         payload['title'] = 'Teams' if phase == 'teams' else 'Players'
+        payload['rules'] = master['rules']  # so the screen labels the total TP vs MP
         payload['entries'] = sorted(revealed, key=lambda e: e['pos'])  # 1st at top
         payload['current'] = entries[top_count - step] if step else None
         payload['done'] = step >= top_count and top_count > 0
