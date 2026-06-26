@@ -31,6 +31,64 @@ from .scoring import (
 )
 
 
+def _pretty_view(view):
+    """Human label for a stored screen view string. Mirrors the prettyView()
+    used client-side on the display admin page, so a mode's saved views read the
+    same whether rendered by Django or refreshed live by JS.
+    Grammar: "black" | "counter" | "schedule" | "scores:<density>:<page>"."""
+    if not view or view in ("black", "null"):
+        return "Blank"
+    if view == "counter":
+        return "Counter"
+    if view == "schedule":
+        return "Schedule"
+    if view.startswith("scores:"):
+        parts = view.split(":")
+        density = "totals" if len(parts) > 1 and parts[1] == "totals" else "detailed"
+        page = parts[2] if len(parts) > 2 else "all"
+        page_label = "all (rotating)" if page in ("", "all") else "page " + page
+        return f"Standings — {density}, {page_label}"
+    return view
+
+
+def _mode_breakdowns(modes, screens):
+    """Decorate each saved mode with the per-screen views it would apply, so the
+    admin can show what clicking a mode does.
+
+    `views` is a JSON list of view strings in screen order. Applying a mode pairs
+    them with the screens via zip(), so a mode saved with fewer views than there
+    are screens leaves the surplus screens untouched (shown here as "unchanged"),
+    and surplus views (more views than screens) are dropped. is_active mirrors
+    that: it matches over the covered screens only — the shorter of the two —
+    so a mode reads as active exactly when re-clicking it would be a no-op.
+    (Initial paint only; JS keeps the highlight current after live edits.)"""
+    current = [str(s.view) or "black" for s in screens]
+    out = []
+    for mode in modes:
+        try:
+            views = json.loads(mode.views)
+        except (ValueError, TypeError):
+            views = []
+        normalised = [v or "black" for v in views]
+        rows = []
+        for i in range(len(current)):
+            if i < len(normalised):
+                rows.append({"label": f"Screen {i + 1}",
+                             "pretty": _pretty_view(normalised[i]), "unchanged": False})
+            else:
+                rows.append({"label": f"Screen {i + 1}",
+                             "pretty": "unchanged", "unchanged": True})
+        covered = min(len(current), len(normalised))
+        out.append({
+            "id": mode.id,
+            "name": mode.name,
+            "rows": rows,
+            "views_json": json.dumps(normalised, separators=(',', ':')),
+            "is_active": covered > 0 and current[:covered] == normalised[:covered],
+        })
+    return out
+
+
 def publisher_overview_rows(tenant, variables):
     """Per-round summary for the Publisher overview page.
 
@@ -614,7 +672,7 @@ def options(request, error=None):
                 applied.append({'id': screen.id, 'view': screen.view})
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
             # The admin page applies modes via AJAX so it can refresh the
-            # selects/previews in place; other callers (mobile app) get a redirect.
+            # selects/previews in place; a direct (non-AJAX) hit redirects back.
             if request.headers.get('x-requested-with') == 'XMLHttpRequest':
                 return JsonResponse({'screens': applied})
             return HttpResponseRedirect('admin?page=display')
@@ -622,7 +680,7 @@ def options(request, error=None):
         modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
         context = {
             "screens": screens,
-            "modes": modes,
+            "modes": _mode_breakdowns(modes, screens),
             "nb_players": Player.objects.filter(tenant=tenant).count(),
             "variables": variables,
         }
