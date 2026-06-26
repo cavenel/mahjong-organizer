@@ -28,7 +28,6 @@ from .score_entry import (
     set_round_published,
     update_hand_points,
     validate_score_sheet,
-    update_position_points,
     update_position_penalty,
     update_positions_bulk,
 )
@@ -49,7 +48,6 @@ from .admin_views import (
     admin_team_draw,
     admin_team_draw_save,
     update_logo,
-    update_variables,
 )
 from .user_admin import (
     user_create,
@@ -60,8 +58,6 @@ from .user_admin import (
     user_update_roles,
 )
 from .display import (
-    check_page,
-    check_round,
     check_variables,
     counter,
     index,

@@ -263,12 +263,3 @@ class TestPublishedRoundLock:
         positions[0].refresh_from_db()
         assert positions[0].minipoints == original + 3
 
-    def test_single_position_edit_rejected_on_published_round(self, authed_client, tournament):
-        pos = self._row(tournament, round_nb=1)[0]
-        original = pos.minipoints
-        resp = authed_client.get('/update_position_points', {
-            'id': pos.id, 'mp': original + 5, 'tp': pos.tablepoints,
-        })
-        assert resp.status_code == 409
-        pos.refresh_from_db()
-        assert pos.minipoints == original

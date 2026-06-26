@@ -294,35 +294,6 @@ def clear_score_sheet(request):
 
 
 @user_passes_test(is_scorer)
-def update_position_points(request):
-    tenant = get_tenant(request)
-    position = Position.objects.get(tenant=tenant, id=request.GET.get('id'))
-
-    # Published rounds are locked: a score can only change after the round is
-    # explicitly unpublished. Reject the edit rather than silently unpublishing.
-    if _round_is_published(tenant, position.round_nb):
-        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
-
-    try:
-        position.minipoints = int(request.GET.get('mp'))
-    except (TypeError, ValueError):
-        position.minipoints = None
-    try:
-        position.tablepoints = float(request.GET.get('tp'))
-    except (TypeError, ValueError):
-        position.tablepoints = None
-
-    # Write only the two columns this view owns: a full save() would also rewrite
-    # `penalty`, clobbering a value another request set concurrently (mirrors
-    # update_position_penalty, which saves only its own field).
-    position.save(update_fields=['minipoints', 'tablepoints'])
-
-    subdomain = tenant.subdomain if tenant else ''
-    broadcast_scorer_row(subdomain, _row_payload(tenant, position.round_nb, position.table_nb))
-    return HttpResponse("")
-
-
-@user_passes_test(is_scorer)
 def update_position_penalty(request):
     """Set a single position's penalty (an integer minipoint adjustment, +/-).
 

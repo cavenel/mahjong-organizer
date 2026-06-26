@@ -24,7 +24,6 @@ urlpatterns = [
     path('randomize', views.randomize, name='randomize'),
     path('admin_team_draw', views.admin_team_draw, name='admin_team_draw'),
     path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
-    path('update_variables', views.update_variables, name='update_variables'),
     path('logo', views.logo, name='logo'),
     path('update_logo', views.update_logo, name='update_logo'),
     path('counter_start', views.counter_start, name='counter_start'),
@@ -39,7 +38,6 @@ urlpatterns = [
 
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),
-    path('update_position_points', views.update_position_points, name='update_position_points'),
     path('update_position_penalty', views.update_position_penalty, name='update_position_penalty'),
     path('update_positions_bulk', views.update_positions_bulk, name='update_positions_bulk'),
     path('set_round_published', views.set_round_published, name='set_round_published'),
@@ -55,8 +53,6 @@ urlpatterns = [
     path('details_team_<path:team_name>', views.details_team, name='details_team'),
 
     # Display-screen polling
-    path('check_page', views.check_page, name='check_page'),
-    path('check_round', views.check_round, name='check_round'),
     path('check_variables', views.check_variables, name='check_variables'),
 
     # Scan

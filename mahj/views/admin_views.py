@@ -506,24 +506,6 @@ def admin_team_draw_save(request):
     return HttpResponse('OK')
 
 
-@user_passes_test(lambda u: u.is_staff)
-def update_variables(request):
-    variables = get_variables(request)
-    for name in ["welcome", "title", "fullname"]:
-        value = request.POST.get(name, default=None)
-        if value is not None:
-            if "sw_class" in name:
-                if value == "":
-                    player = None
-                else:
-                    player = Player.objects.get(id=value)
-                setattr(variables, name, player)
-            else:
-                setattr(variables, name, value)
-    variables.save()
-    return HttpResponse(str(variables))
-
-
 # Public (display screens are public, like /scan and counter_start): serve the
 # tenant's uploaded logo. Templates fall back to the static mcr_logo when unset,
 # so this is only hit when a logo exists.

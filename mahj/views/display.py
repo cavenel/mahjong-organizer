@@ -3,7 +3,6 @@ import math
 import simplejson as json
 
 from django.contrib.auth.decorators import user_passes_test
-from django.db.models import Q
 from django.forms.models import model_to_dict
 from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
@@ -221,27 +220,6 @@ def update_screen_view(request):
         screen.save()
     broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
     return HttpResponse("")
-
-
-def check_page(request):
-    tenant = get_tenant(request)
-    try:
-        screen = Screen.objects.filter(tenant=tenant).all()[int(request.GET.get('id')) - 1]
-        return HttpResponse(screen.view)
-    except (IndexError, TypeError, ValueError):
-        return HttpResponse("removed")
-
-
-def check_round(request):
-    tenant = get_tenant(request)
-    variables = get_variables(request)
-
-    position_vals = Position.objects.filter(tenant=tenant).filter(Q(tablepoints=None) | Q(minipoints=None))
-    round_max = variables.nb_rounds
-    for position_val in position_vals:
-        round_max = min(round_max, position_val.round_nb - 1)
-
-    return HttpResponse(round_max)
 
 
 def check_variables(request):

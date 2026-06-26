@@ -141,11 +141,6 @@ class TestScorerWriteEndpointsGated:
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    def test_update_position_points_anonymous_redirected(self, client_, tournament):
-        resp = client_.get('/update_position_points', {'id': 1, 'mp': 10, 'tp': 4})
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
-
     def test_non_scorer_redirected(self, client_, tournament, anonymous_user, hand):
         client_.force_login(anonymous_user)
         resp = client_.post('/update_hand_points', {
