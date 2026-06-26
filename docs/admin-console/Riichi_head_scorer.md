@@ -441,7 +441,7 @@ Open **Ceremony console** from the sidebar.
 
 | Button | Effect |
 |---|---|
-| **Blank screens** | A clean holding slide (logo / title) on every screen |
+| **Show intro slide** | A "Prize-giving ceremony" holding slide (logo + title) on every screen |
 | **End — back to screens** | Stop the ceremony; screens return to their normal views. **Nothing is published.** |
 | **Publish to everyone & end** | Reveal the **full final results** on the public site and all screens, then end. **Do this once, at the very end.** |
 
@@ -481,7 +481,7 @@ order, or skip them entirely.
 
 ### Typical run-through
 
-1. **Blank screens** while people gather.
+1. **Show intro slide** while people gather.
 2. **Teams → Start**, then **Reveal next** ×3 (3rd → 1st). Hand out team prizes.
 3. **Players → Start**, then **Reveal next** until 1st.
 4. Optionally show a few **Stat highlights**.

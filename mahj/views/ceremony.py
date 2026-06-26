@@ -54,20 +54,36 @@ def _total(entry, rules):
 
 
 def _stat_winners(key, items):
-    """Normalise an overall_winners category into [{value, name, flag}]."""
+    """Normalise an overall_winners category into [{value, name, flag, round_nb, table_nb}]."""
     winners = []
     for it in items:
         if key == 'mp_max':                       # Position instances
             player, value = it.player, it.minipoints
+            round_nb, table_nb = it.round_nb, it.table_nb
         elif key in ('sd_hand_max', 'ron_hand_max'):
             player, value = it['player'], it['pts']
-        else:                                     # *_win_max dicts
+            round_nb, table_nb = it['round_nb'], it['table_nb']
+        else:                                     # *_win_max dicts (it['pos'] is a Hand)
             player, value = it['player'], it['nb_win']
+            round_nb, table_nb = it['pos'].round_nb, it['pos'].table_nb
         if player is None:
             continue
         winners.append({'value': value, 'name': player.full_name,
-                        'flag': _country_flag(player.country)})
+                        'flag': _country_flag(player.country),
+                        'round_nb': round_nb, 'table_nb': table_nb})
     return winners
+
+
+def _round_label(winners):
+    """Human round/table tag shown under a stat value — only when every tying
+    winner comes from the same single (round, table); blank otherwise (or for
+    overall stats with no round, e.g. Best European)."""
+    spots = {(w['round_nb'], w['table_nb']) for w in winners}
+    if len(spots) == 1:
+        round_nb, table_nb = next(iter(spots))
+        if round_nb:
+            return f'Round {round_nb} · Table {table_nb}'
+    return ''
 
 
 def _ceremony_master(request):
@@ -96,7 +112,8 @@ def _ceremony_master(request):
         winners = _stat_winners(key, overall.get(key) or [])
         if winners:
             stats.append({'key': key, 'title': title, 'unit': unit,
-                          'value': winners[0]['value'], 'winners': winners})
+                          'value': winners[0]['value'], 'winners': winners,
+                          'round_label': _round_label(winners)})
 
     # Best European: top-ranked player whose flag is a European code. rows are
     # already sorted by rank, so the first match is the winner.
@@ -105,6 +122,7 @@ def _ceremony_master(request):
         value = _total(best_eu, rules)
         stats.append({'key': 'euro', 'title': 'Best European',
                       'unit': 'TP' if rules == 'MCR' else 'points', 'value': value,
+                      'round_label': '',  # overall standing, not a single round
                       'winners': [{'value': value, 'name': best_eu['name'],
                                    'flag': best_eu['flag']}]})
 
@@ -196,10 +214,11 @@ def ceremony_control(request):
     phase = request.GET.get('phase')
     if phase is not None:
         state.phase = phase
-        if phase in ('teams', 'players'):
+        if phase in ('teams', 'players', 'stat'):
+            # stat reveals in two steps: 0 = title only, 1 = value + winners.
             step = request.GET.get('step')
             state.step = int(step) if (step is not None and step.lstrip('-').isdigit()) else 0
-        elif phase == 'stat':
+        if phase == 'stat':
             state.stat_key = request.GET.get('stat_key', '')
         state.save()
 

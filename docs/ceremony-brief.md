@@ -41,13 +41,13 @@ Stefan before you press *Reveal next*, so he knows who's coming.
 
 | Button | What it does |
 |---|---|
-| **Blank screens** | Shows a clean holding slide (logo / title) on all screens. |
+| **Show intro slide** | Shows a "Prize-giving ceremony" holding slide (logo + title) on all screens. |
 | **End — back to screens** | Stops the ceremony. Screens go back to their **normal scores view**. **Nothing is published.** Use this if you started too early or want the live scores back. |
 | **Publish to everyone & end** | Reveals the **full final results** on the public website and all screens, then ends the ceremony. **Do this once, at the very end.** |
 
 ## Typical run-through
 
-1. Open the console. Press **Blank screens** while people gather.
+1. Open the console. Press **Show intro slide** while people gather.
 2. **Teams → Start**, then **Reveal next** three times (3rd → 1st). Hand out the team prizes.
 3. **Players → Start**, then **Reveal next** until 1st (16 → 1).
 4. Optionally show a few **Stat highlights**.

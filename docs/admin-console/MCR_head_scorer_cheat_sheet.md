@@ -53,7 +53,7 @@ Opens a printable full leaderboard (**Close** / **Print** → "Save as PDF").
 Open **Ceremony console** — it takes over **all** screens; the public site stays in
 suspense until the very end.
 
-1. **Blank screens** while people gather.
+1. **Show intro slide** while people gather.
 2. **Teams → Start**, then **Reveal next ▸** ×3 (3rd → 1st). Read the yellow
    **"Next to announce"** line to the announcer *before* each reveal.
 3. **Players → Start**, then **Reveal next** up to 1st.

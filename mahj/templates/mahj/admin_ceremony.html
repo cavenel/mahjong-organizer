@@ -7,7 +7,7 @@
     </div>
     <div class="flex gap-2 flex-wrap">
       <button type="button" @click="blank()"
-              class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Blank screens</button>
+              class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Show intro slide</button>
       <button type="button" @click="stop()" :disabled="phase==='idle'"
               class="px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">End — back to screens</button>
       <button type="button" @click="publish()"
@@ -16,7 +16,7 @@
   </div>
 
   <p class="text-xs text-gray-500 -mt-3">
-    <strong>Blank screens</strong> = holding slide on all screens ·
+    <strong>Show intro slide</strong> = a &ldquo;Prize-giving ceremony&rdquo; holding slide on all screens (announces the ceremony) ·
     <strong>End — back to screens</strong> = stop the ceremony, screens return to their normal scores view (nothing published) ·
     <strong>Publish to everyone &amp; end</strong> = reveal the full final results on the public site and all screens, then end.
   </p>
@@ -240,9 +240,14 @@
             <div class="text-2xl font-black text-amber-600 mt-1">
               <span x-text="s.value"></span>
               <span class="text-sm font-bold text-amber-400" x-text="s.unit"></span>
+              <span class="text-xs font-medium text-gray-400 ml-1" x-show="s.round_label" x-text="s.round_label"></span>
             </div>
             <div class="text-xs text-gray-500 mt-1 truncate"
                  x-text="s.winners.map(w => w.name).join(', ')"></div>
+            <div class="text-[11px] font-semibold uppercase tracking-wide mt-2"
+                 x-show="phase==='stat' && statKey===s.key"
+                 :class="step >= 1 ? 'text-emerald-600' : 'text-amber-600'"
+                 x-text="step >= 1 ? 'On screen: value revealed ✓' : 'On screen: title only — click again to reveal'"></div>
           </button>
         </template>
       </div>
@@ -287,19 +292,34 @@
         start(phase) { this.send({ phase: phase, step: 0 }); },
         revealNext(phase) { if (this.curStep(phase) < this.list(phase).length) this.send({ phase: phase, step: this.curStep(phase) + 1 }); },
         back(phase) { if (this.curStep(phase) > 0) this.send({ phase: phase, step: this.curStep(phase) - 1 }); },
-        showStat(key) { this.send({ phase: 'stat', stat_key: key }); },
+        showStat(key) {
+          // First click on a card shows the prize title only (step 0); clicking
+          // the live card again reveals the value + winner(s) (step 1), and once
+          // more hides them again — so the operator builds suspense at the podium.
+          const sameCard = this.phase === 'stat' && this.statKey === key;
+          const step = sameCard && this.step < 1 ? 1 : 0;
+          this.send({ phase: 'stat', stat_key: key, step: step });
+        },
         blank() { this.send({ phase: 'blank' }); },
         stop() { this.send({ phase: 'idle' }); },
-        publish() { if (confirm('Reveal the full results to everyone and end the ceremony?')) this.send({ action: 'publish' }); },
+        publish() {
+          var self = this;
+          confirmAction({
+            title: 'End ceremony',
+            body: 'Reveal the full results to everyone and end the ceremony?',
+            confirmLabel: 'Reveal & end', danger: false,
+            onConfirm: function() { self.send({ action: 'publish' }); },
+          });
+        },
         statusLabel() {
           if (this.loading) return '…';
           if (this.phase === 'idle') return 'Normal (not in ceremony)';
-          if (this.phase === 'blank') return 'Holding slide';
+          if (this.phase === 'blank') return 'Intro slide';
           if (this.phase === 'teams') return 'Teams reveal';
           if (this.phase === 'players') return 'Players reveal';
           if (this.phase === 'stat') {
             const s = this.data.stats.find(x => x.key === this.statKey);
-            return 'Stat: ' + (s ? s.title : this.statKey);
+            return 'Stat: ' + (s ? s.title : this.statKey) + (this.step >= 1 ? ' (revealed)' : ' (title only)');
           }
           return this.phase;
         },

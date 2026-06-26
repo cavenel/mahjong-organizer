@@ -47,7 +47,7 @@
 
     function shell(title, done, inner, gapClass) {
       return `<div class="flex-1 flex flex-col items-center pt-10 pb-6 px-6">
-          <img src="${LOGO_PNG}" class="fixed top-4 left-6 h-12 w-auto opacity-90" alt="">
+          <img src="${LOGO_PNG}" class="fixed top-4 left-6 h-32 w-auto opacity-90" alt="">
           <h1 class="text-5xl font-extrabold tracking-tight mb-2">${esc(title)}</h1>
           <p class="text-amber-300/80 text-xl mb-8">${done ? 'Final results' : 'Counting down…'}</p>
           <div class="w-full max-w-4xl flex flex-col ${gapClass || 'gap-3'}">${inner || '<div class="text-center text-2xl text-white/50 py-16">Ready…</div>'}</div>
@@ -65,7 +65,7 @@
         // width when it's a fixed length (a % width just re-resolves to 100% of
         // the parent), hence the fixed w-[56rem] base (= max-w-4xl) and
         // self-center so the shrunk rows stay centred.
-        const MIN = 0.68, DECAY = 0.72;
+        const MIN = 0.55, DECAY = 0.68;
         const scale = MIN + (1 - MIN) * Math.pow(DECAY, i);
         // On top of the zoom, taper the vertical padding itself (floored so the
         // text never touches the edge) so each step gives back a little more
@@ -116,14 +116,23 @@
 
     function renderStat(s) {
       if (!s.slide) return `<div class="flex-1 flex items-center justify-center text-2xl text-white/50">No data for this stat.</div>`;
+      // Two-step reveal: step 0 shows just the prize title (suspense); step 1
+      // adds the value, the round it happened in, and the winner(s).
+      const revealed = (s.step || 0) >= 1;
       const winners = (s.slide.winners || []).map(w =>
-        `<div class="flex items-center justify-center gap-4 text-3xl font-bold">${flagImg(w.flag)}<span>${esc(w.name)}</span></div>`
+        `<div class="flex items-center justify-center gap-4 text-6xl font-bold">${flagImg(w.flag)}<span>${esc(w.name)}</span></div>`
       ).join('');
+      const roundLine = s.slide.round_label
+        ? `<div class="text-2xl font-semibold text-white/60">${esc(s.slide.round_label)}</div>` : '';
+      const reveal = revealed
+        ? `<div class="text-8xl font-black text-amber-300 tabular-nums">${esc(s.slide.value)}<span class="text-4xl font-bold text-amber-200/70 ml-2">${esc(s.slide.unit)}</span></div>
+            ${roundLine}
+            <div class="flex flex-col gap-3 w-full mt-2">${winners}</div>`
+        : '';
       return `<div class="flex-1 flex flex-col items-center justify-center gap-8 px-8 text-center">
           <div class="flex flex-col items-center gap-8 w-full max-w-4xl">
             <h1 class="text-5xl font-extrabold tracking-tight">${esc(s.slide.title)}</h1>
-            <div class="text-8xl font-black text-amber-300 tabular-nums">${esc(s.slide.value)}<span class="text-4xl font-bold text-amber-200/70 ml-2">${esc(s.slide.unit)}</span></div>
-            <div class="flex flex-col gap-3 w-full">${winners}</div>
+            ${reveal}
           </div>
         </div>`;
     }
@@ -131,7 +140,10 @@
     function renderBlank() {
       return `<div class="flex-1 flex flex-col items-center justify-center gap-8">
           <img src="${LOGO_PNG}" class="h-32 w-auto opacity-90" alt="">
-          <h1 class="text-6xl font-extrabold tracking-tight text-center px-8">${esc(TITLE)}</h1>
+          <div class="flex flex-col items-center gap-3 text-center px-8">
+            <p class="text-6xl font-bold uppercase tracking-[0.25em] text-amber-300">Prize-giving ceremony</p>
+            <h1 class="text-4xl font-extrabold tracking-tight">${esc(TITLE)}</h1>
+          </div>
         </div>`;
     }
 
