@@ -136,6 +136,7 @@ var el = {
     s2: document.getElementById('seconds_2'),
     countdown: document.getElementById('countdown'),
     noSound: document.getElementById('no_sound'),
+    welcome: document.getElementById('welcome'),
 };
 
 function serverNow() { return Date.now() + clockOffset; }
@@ -283,11 +284,33 @@ function applyCounterState(data, rttMs) {
     restartLoop();
 }
 
-// Pull current state immediately on load; don't wait for a WS push. Time the
-// round-trip so the very first clock sync is already latency-corrected.
-(function () {
+// Patch the variable-derived DOM in place (title, zoom, welcome, round length)
+// instead of reloading, so a running countdown is never interrupted.
+function applyVariables(data) {
+    document.title = data.title || data.fullname || 'Mahjong Championship';
+    document.body.style.zoom = data.zoom * 0.6;   // mirrors the server-rendered zoom*0.6
+    el.welcome.innerHTML = data.welcome || '';     // raw HTML, mirrors the template's |safe
+    // Round length: apply only when no round is in progress, so a stray edit can't
+    // move a running clock/gong — the new value takes effect on the next round.
+    if (!isRoundActive() && data.total_time != null) {
+        TOTAL_TIME = parseInt(data.total_time, 10);
+        endGongPlayed = true;   // nothing running → no end gong pending
+        restartLoop();          // repaint the idle clock at the new duration
+    }
+}
+
+function refreshVariables() {
+    fetch('check_variables')
+        .then(function (r) { return r.json(); })
+        .then(applyVariables)
+        .catch(function () {});
+}
+
+// Pull the live timer state (and latency-correct the clock). Times the round-trip
+// so the clock sync is latency-corrected; shared by initial load and reconnect.
+function fetchCounterState() {
     var t0 = Date.now();
-    fetch('counter_start', {
+    return fetch('counter_start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: 'csrfmiddlewaretoken=' + encodeURIComponent(CSRF)
@@ -295,29 +318,39 @@ function applyCounterState(data, rttMs) {
         .then(function (r) { return r.json(); })
         .then(function (data) { applyCounterState(data, Date.now() - t0); })
         .catch(function () {});
-})();
-
-// Reload only if the timer isn't counting down or running (avoids flicker
-// mid-round). goTime + clockOffset are reconstructed from the next server reply,
-// so this is safe both for live updates and on reconnect.
-function reloadUnlessRunning() {
-    var active = goTime > 0 && serverNow() < goTime + TOTAL_TIME * 1000;
-    if (!active) location.reload();
 }
+
+function isRoundActive() {
+    return goTime > 0 && serverNow() < goTime + TOTAL_TIME * 1000;
+}
+
+// Pull current state immediately on load; don't wait for a WS push. The page is
+// rendered with the current variables already, so only the timer needs fetching.
+fetchCounterState();
 
 connectDisplaySocket({
     subdomain: '{{ subdomain }}',
     onUpdate: function (msg) {
         if (msg.event === 'counter_update') {
-            applyCounterState(msg);
+            applyCounterState(msg);     // start/stop — live, never reloads
+        } else if (msg.event === 'variables_update') {
+            refreshVariables();         // title/welcome/zoom/total_time — patch live
         } else if (msg.event === 'screen_update') {
-            location.reload();
+            location.reload();          // operator switched the view → swap template
+        }
+        // leaderboard_update: ignored — the counter shows nothing from it.
+    },
+    // A reconnect may have missed events. If a round is running, resync without
+    // reloading so the countdown survives; otherwise reload to pick up anything
+    // missed (e.g. a screen switch) from a clean server render.
+    onReconnect: function () {
+        if (isRoundActive()) {
+            fetchCounterState();
+            refreshVariables();
         } else {
-            reloadUnlessRunning();
+            location.reload();
         }
     },
-    // A reconnect means we may have missed an event while down — resync.
-    onReconnect: reloadUnlessRunning,
 });
 
 // Decode the gong as early as possible (works on a suspended context).

@@ -1,11 +1,11 @@
-import itertools
 import math
 
 import simplejson as json
 
 from django.contrib.auth.decorators import user_passes_test
 from django.db.models import Q
-from django.http import HttpResponse, HttpResponseNotFound
+from django.forms.models import model_to_dict
+from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
 from django.template import loader
 
@@ -92,27 +92,10 @@ def overview(request):
 def counter(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
-    counter_val = variables.counter
-    scores_json = scores_per_player_json(request, False)[:36]
-
-    def grouper(n, iterable, fillvalue=None):
-        args = [iter(iterable)] * n
-        return itertools.zip_longest(*args, fillvalue=fillvalue)
-
-    n = min(12, int(math.ceil(len(scores_json) / 3.)))
-    tables = list(grouper(n, scores_json))[:3]
-
-    try:
-        nb_rounds = len(scores_json[0]["scores"])
-    except (IndexError, KeyError):
-        nb_rounds = 0
-
     template = loader.get_template('mahj/display_counter.html')
     context = {
         'variables': variables,
-        'counter': counter_val,
-        'tables': tables,
-        'rounds': range(1, 1 + nb_rounds),
+        'counter': variables.counter,
         'subdomain': tenant.subdomain if tenant else '',
     }
     return HttpResponse(template.render(context, request))
@@ -253,5 +236,9 @@ def check_round(request):
 
 
 def check_variables(request):
+    """All tournament variables as JSON, for displays that patch live instead of
+    reloading (e.g. the counter screen). `logo` is a BinaryField (not JSON-
+    serializable; served via its own URL + logo_etag) and `tenant` is the FK —
+    both excluded."""
     variables = get_variables(request)
-    return HttpResponse(str(variables))
+    return JsonResponse(model_to_dict(variables, exclude=['logo', 'tenant']))
