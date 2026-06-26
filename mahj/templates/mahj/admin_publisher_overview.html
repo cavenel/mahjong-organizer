@@ -42,28 +42,6 @@
   .po-status.published { color: #059669; }
 
   .po-foot { margin-top: 12px; font-size: 12px; color: #9ca3af; font-style: italic; }
-
-  /* Big unpublish warning */
-  .po-warn { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; padding: 16px; }
-  .po-warn.open { display: flex; }
-  .po-warn-bg { position: absolute; inset: 0; background: rgba(0,0,0,.5); }
-  .po-warn-box {
-    position: relative; z-index: 10; background: #fff; border-radius: 16px;
-    box-shadow: 0 20px 50px rgba(0,0,0,.3); width: 100%; max-width: 32rem; overflow: hidden;
-  }
-  .po-warn-head { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border-bottom: 1px solid #f3f4f6; }
-  .po-warn-icon {
-    flex-shrink: 0; width: 48px; height: 48px; border-radius: 999px;
-    background: #fee2e2; color: #dc2626; display: flex; align-items: center; justify-content: center;
-  }
-  .po-warn-head h3 { font-size: 18px; font-weight: 700; color: #111827; }
-  .po-warn-head p  { margin-top: 8px; font-size: 14px; color: #4b5563; }
-  .po-warn-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 16px 24px; background: #f9fafb; }
-  .po-btn { padding: 8px 16px; font-size: 14px; font-weight: 500; border-radius: 8px; cursor: pointer; }
-  .po-btn-cancel  { color: #374151; background: #fff; border: 1px solid #d1d5db; }
-  .po-btn-cancel:hover { background: #f9fafb; }
-  .po-btn-danger  { color: #fff; background: #dc2626; border: 1px solid #dc2626; font-weight: 600; }
-  .po-btn-danger:hover { background: #b91c1c; }
 </style>
 
 <div class="po-wrap">
@@ -112,26 +90,6 @@
     A round can only be published once all its tables are scored, and rounds must
     be published in order (round N requires round N−1 published first).
   </p>
-</div>
-
-<!-- Big unpublish warning -->
-<div id="unpublish-warning" class="po-warn">
-  <div class="po-warn-bg" data-warn-cancel></div>
-  <div class="po-warn-box">
-    <div class="po-warn-head">
-      <div class="po-warn-icon">
-        <svg width="28" height="28" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      </div>
-      <div>
-        <h3>Unpublish <span id="warn-round-name"></span>?</h3>
-        <p id="warn-body"></p>
-      </div>
-    </div>
-    <div class="po-warn-foot">
-      <button type="button" class="po-btn po-btn-cancel" data-warn-cancel>Cancel</button>
-      <button type="button" class="po-btn po-btn-danger" id="warn-confirm">Yes, unpublish</button>
-    </div>
-  </div>
 </div>
 
 <script>
@@ -218,13 +176,8 @@
     });
   }
 
-  // --- big unpublish warning --------------------------------------------------
-  var warnEl = document.getElementById("unpublish-warning");
-  var pendingUnpublish = null;  // { roundNb, toggle }
-
+  // --- unpublish warning (shared admin confirm modal) -------------------------
   function openWarning(roundNb, toggle) {
-    pendingUnpublish = { roundNb: roundNb, toggle: toggle };
-    document.getElementById("warn-round-name").textContent = "round " + roundNb;
     // Later rounds that will also be unpublished (published rounds can't have gaps).
     var cascade = Object.keys(state).map(Number)
       .filter(function(r) { return r > roundNb && state[r].published; })
@@ -235,27 +188,16 @@
       body += " It will also unpublish round" + (cascade.length > 1 ? "s " : " ")
             + cascade.join(", ") + ", because published rounds can't have gaps.";
     }
-    document.getElementById("warn-body").textContent = body;
-    warnEl.classList.add("open");
+    confirmAction({
+      title: "Unpublish round " + roundNb + "?",
+      body: body,
+      confirmLabel: "Yes, unpublish",
+      onConfirm: function() { sendPublish(roundNb, false, toggle); },
+      // Cancel/backdrop/Escape: the optimistic toggle is still unchecked, so
+      // re-render the row to restore it to its true (published) state.
+      onCancel: function() { renderRound(roundNb); },
+    });
   }
-
-  function closeWarning() {
-    warnEl.classList.remove("open");
-    // Restore checkboxes to their true state (the cancelled box is back to checked).
-    if (pendingUnpublish) renderRound(pendingUnpublish.roundNb);
-    pendingUnpublish = null;
-  }
-
-  warnEl.querySelectorAll("[data-warn-cancel]").forEach(function(el) {
-    el.addEventListener("click", closeWarning);
-  });
-  document.getElementById("warn-confirm").addEventListener("click", function() {
-    if (!pendingUnpublish) return;
-    var p = pendingUnpublish;
-    pendingUnpublish = null;
-    warnEl.classList.remove("open");
-    sendPublish(p.roundNb, false, p.toggle);
-  });
 
   document.querySelectorAll(".publish-toggle").forEach(function(toggle) {
     toggle.addEventListener("change", function() {

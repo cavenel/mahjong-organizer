@@ -172,22 +172,34 @@
   // Revoke links
   $(document).on("click", ".revoke-links", function() {
     var $row = $(this).closest("tr");
-    if (!confirm("Invalidate ALL existing login links for this user?")) return;
-    post("user_revoke_links", { user_id: $row.data("user-id") }).then(function(res) {
-      if (res.handled) return;
-      if (res.ok) { alert("Links revoked. Generate a new link to log this user in again."); }
-      else { alert((res.data && res.data.error) || "Could not revoke links"); }
+    confirmAction({
+      title: "Invalidate login links",
+      body: "Invalidate ALL existing login links for this user?",
+      confirmLabel: "Invalidate links",
+      onConfirm: function() {
+        post("user_revoke_links", { user_id: $row.data("user-id") }).then(function(res) {
+          if (res.handled) return;
+          if (res.ok) { alert("Links revoked. Generate a new link to log this user in again."); }
+          else { alert((res.data && res.data.error) || "Could not revoke links"); }
+        });
+      },
     });
   });
 
   // Delete user
   $(document).on("click", ".delete-user", function() {
     var $row = $(this).closest("tr");
-    if (!confirm("Permanently delete this user?")) return;
-    post("user_delete", { user_id: $row.data("user-id") }).then(function(res) {
-      if (res.handled) return;
-      if (res.ok) { $row.remove(); }
-      else { alert((res.data && res.data.error) || "Could not delete user"); }
+    confirmAction({
+      title: "Delete user",
+      body: "Permanently delete this user?",
+      confirmLabel: "Delete user",
+      onConfirm: function() {
+        post("user_delete", { user_id: $row.data("user-id") }).then(function(res) {
+          if (res.handled) return;
+          if (res.ok) { $row.remove(); }
+          else { alert((res.data && res.data.error) || "Could not delete user"); }
+        });
+      },
     });
   });
 })();

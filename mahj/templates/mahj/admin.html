@@ -233,6 +233,35 @@
     </div>
   </div>
 
+  <!-- Reusable confirm modal — driven by window.confirmAction({...}) from any admin
+       page fragment. Replaces native confirm(): styled, and doesn't block the JS
+       thread (so WebSocket timers keep ticking while it's open). -->
+  <div x-show="confirmModal.open" x-cloak
+       @keydown.escape.window="confirmModal.open && closeConfirm()"
+       class="fixed inset-0 z-[60] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="closeConfirm()"></div>
+    <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+      <div class="flex items-start gap-4 p-6">
+        <div class="shrink-0 w-11 h-11 rounded-full flex items-center justify-center"
+             :class="confirmModal.danger ? 'bg-rose-100 text-rose-600' : 'bg-amber-100 text-amber-600'">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="text-lg font-bold text-gray-900" x-text="confirmModal.title"></h3>
+          <p class="mt-2 text-sm text-gray-600" x-text="confirmModal.body"></p>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 px-6 py-4 bg-gray-50">
+        <button type="button" @click="closeConfirm()"
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+                x-text="confirmModal.cancelLabel"></button>
+        <button type="button" @click="runConfirm()" x-text="confirmModal.confirmLabel"
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg"
+                :class="confirmModal.danger ? 'bg-rose-500 hover:bg-rose-600' : 'bg-amber-500 hover:bg-amber-600'"></button>
+      </div>
+    </div>
+  </div>
+
   <script>
     function adminShell() {
       return {
@@ -242,10 +271,39 @@
         livePrintOpen: false,
         printModal: { open: false, src: '' },
         detailsModal: { open: false, src: '' },
+        confirmModal: { open: false, title: '', body: '', confirmLabel: 'Confirm',
+                        cancelLabel: 'Cancel', danger: true, _onConfirm: null, _onCancel: null },
 
         init() { window._adminShell = this; },
         showPrintModal(url)   { this.printModal.src   = url; this.printModal.open   = true; },
         showDetailsModal(url) { this.detailsModal.src = url; this.detailsModal.open = true; },
+        // opts: { title, body, confirmLabel, cancelLabel, danger, onConfirm, onCancel }.
+        // onCancel fires on Cancel/backdrop/Escape (not on confirm) — e.g. to undo
+        // an optimistic UI toggle that triggered the prompt.
+        showConfirm(opts) {
+          this.confirmModal = {
+            open: true,
+            title: opts.title || 'Are you sure?',
+            body: opts.body || '',
+            confirmLabel: opts.confirmLabel || 'Confirm',
+            cancelLabel: opts.cancelLabel || 'Cancel',
+            danger: opts.danger !== false,
+            _onConfirm: opts.onConfirm || null,
+            _onCancel: opts.onCancel || null,
+          };
+        },
+        closeConfirm() {
+          var cb = this.confirmModal._onCancel;
+          this.confirmModal.open = false;
+          this.confirmModal._onConfirm = this.confirmModal._onCancel = null;
+          if (cb) cb();
+        },
+        runConfirm() {
+          var cb = this.confirmModal._onConfirm;
+          this.confirmModal.open = false;
+          this.confirmModal._onConfirm = this.confirmModal._onCancel = null;
+          if (cb) cb();
+        },
         closePrintModal()   { this.printModal.open   = false; this.printModal.src   = ''; },
         closeDetailsModal() {
           try {
@@ -263,6 +321,7 @@
     // Globals so embedded fragment scripts (admin_*.html) can drive the modals.
     window.showPrintModal   = (url) => window._adminShell.showPrintModal(url);
     window.showDetailsModal = (url) => window._adminShell.showDetailsModal(url);
+    window.confirmAction    = (opts) => window._adminShell.showConfirm(opts);
   </script>
 </body>
 </html>
