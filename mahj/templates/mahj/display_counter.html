@@ -1,5 +1,4 @@
-{% load static %} 
-{% load mathfilters %}
+{% load static %}
 
 <html>
 <head>
@@ -9,59 +8,71 @@
 
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
 <style>
-/* Dark slate gradient matching the schedule/ceremony screens. Painted on <html>
-   (background-attachment: fixed) so it fills the viewport regardless of the
-   body zoom below, which scales only the content. */
+/* Dark slate gradient matching the schedule/ceremony screens, painted on <html>
+   (background-attachment: fixed) so it fills the viewport. */
 html {
     background: #020617 linear-gradient(to bottom, #1e293b, #0f172a, #020617) fixed;
     min-height: 100vh;
 }
+/* The counter is a single timer, so it sizes itself off the viewport (vw/vh)
+   rather than the schedule/scores `zoom`: it fills the screen on any projector
+   and never overflows, independent of how far those screens are zoomed. The flex
+   column centres the timer (and its welcome line) vertically on the screen. */
 body {
-    zoom:{{ variables.zoom|mul:0.6 }};
     overflow: hidden;
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
 }
 @font-face {
     font-family: digits;
     src: url({% static "font/MADE.otf" %});
 }
+/* Persistent corner logo, matching the ceremony screen's top-left badge. */
+#logo {
+    position: fixed;
+    top: 3vh;
+    left: 1.5vw;
+    height: 12vh;
+    width: auto;
+    opacity: 0.9;
+    z-index: 10;
+}
 #welcome {
     text-align:center;
     width:100%;
+    margin-top: 6vh;
     color: #cbd5e1;
-    font-size: 50px;
+    font-size: 1.6vw;
     font-family: sans-serif;
 }
+/* The whole timer scales from #counter's font-size (capped by height so it never
+   overflows on odd aspect ratios); the digits/colons use em so they grow as one. */
 #counter {
     font-family: digits;
     color: #fff;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 70px;
     text-align: center;
-    width: 550px;
-    font-size: 130px;
-    line-height: 53px;
-    /*text-shadow: 0px 0px 25px red, 0px 0px 25px red, 0px 0px 25px red, 0px 0px 4px red, 0px 0px 4px red, 0px 0px 4px red;*/
-    border: 0px solid grey;
-    /*border: 5px solid grey;*/
-    padding:27px;
-    /*box-shadow:0px 0px 200px #777, 0px 4px 10px #fff;*/
+    font-size: min(20vw, 36vh);
+    line-height: 0.41em;
     border-radius: 10px;
-    zoom:5;
+    padding: 0.21em;
 }
 .digit {
-    width: 77px;
+    width: 0.59em;
     display: inline-block;
     text-align: right;
-    margin-top: 26px;
+    margin-top: 0.2em;
 }
 .colon {
-    width: 30px;
+    width: 0.23em;
     display: inline-block;
     text-align: center;
 }
 #countdown {
-    font-size:260px;
+    font-size: 8vw;
     color:#fcd34d;
     text-align: center;
     opacity: 1;
@@ -84,10 +95,10 @@ body {
     #no_sound {
         padding: 5px;
         position: absolute;
-        left: 10px;
+        right: 10px;
         top: 10px;
-        font-size: 60px;
-        line-height: 84px;
+        font-size: 2vw;
+        line-height: 1.4em;
         color: red;
         background-color: white;
     }
@@ -95,13 +106,13 @@ body {
 
 </head>
 <body>
+<img id="logo" src="{{ site_logo_url }}" alt="">
 <div id="no_sound">
 🔇
 </div>
 <div id="counter"><span class='digit' id='hours_1'>0</span><span class='digit' id='hours_2'>0</span><span class='colon'>:</span><span class='digit' id='minutes_1'>0</span><span class='digit' id='minutes_2'>0</span><span class='colon'>:</span><span class='digit' id='seconds_1'>0</span><span class='digit' id='seconds_2'>0</span></div>
-<br/><br/><br/><br/><br/><br/><br/><br/>
 <div id="welcome">{{variables.welcome |safe }}</div>
-<div style="height: 300px; position: absolute; left: Calc(50% - 150px); top: 52px; width: 300px;">
+<div style="height: 16vh; position: absolute; left: Calc(50% - 8vw); top: 3vh; width: 16vw;">
     <div id='countdown'></div>
 </div>
 
@@ -124,6 +135,7 @@ var startGongPlayed = true;   // start gong handled (scheduled, already played, 
 var endGongPlayed = true;     // end gong handled
 var goShown = true;           // "Go" overlay already shown for this round
 var loop = null;
+var ceremonyPending = false;  // a ceremony has started; take over once no round is running
 
 // Cache the timer DOM nodes once — the tick runs ~7×/s and a slow Pi shouldn't
 // re-query the document every frame.
@@ -221,6 +233,10 @@ function tick() {
     var now = serverNow();
     var running = goTime > 0 && now >= goTime;
 
+    // A ceremony was started while a round was running: hand the screen over to
+    // the ceremony view the moment that round finishes (never mid-round).
+    if (ceremonyPending && !isRoundActive()) { location.reload(); return; }
+
     // Main HH:MM:SS — counts down from TOTAL_TIME once the round is running.
     var elapsed = running ? Math.floor((now - goTime) / 1000) : 0;
     if (elapsed > TOTAL_TIME) elapsed = TOTAL_TIME;
@@ -284,11 +300,11 @@ function applyCounterState(data, rttMs) {
     restartLoop();
 }
 
-// Patch the variable-derived DOM in place (title, zoom, welcome, round length)
-// instead of reloading, so a running countdown is never interrupted.
+// Patch the variable-derived DOM in place (title, welcome, round length) instead
+// of reloading, so a running countdown is never interrupted. The counter sizes
+// itself off the viewport, so there's no zoom to mirror here.
 function applyVariables(data) {
     document.title = data.title || data.fullname || 'Mahjong Championship';
-    document.body.style.zoom = data.zoom * 0.6;   // mirrors the server-rendered zoom*0.6
     el.welcome.innerHTML = data.welcome || '';     // raw HTML, mirrors the template's |safe
     // Round length: apply only when no round is in progress, so a stray edit can't
     // move a running clock/gong — the new value takes effect on the next round.
@@ -334,9 +350,20 @@ connectDisplaySocket({
         if (msg.event === 'counter_update') {
             applyCounterState(msg);     // start/stop — live, never reloads
         } else if (msg.event === 'variables_update') {
-            refreshVariables();         // title/welcome/zoom/total_time — patch live
+            refreshVariables();         // title/welcome/total_time — patch live
         } else if (msg.event === 'screen_update') {
             location.reload();          // operator switched the view → swap template
+        } else if (msg.event === 'ceremony') {
+            // The ceremony takes over every screen (index() renders it). Reload to
+            // swap in the ceremony template, but never cut off a running round —
+            // if one is in progress, wait and let tick() hand over when it ends.
+            if (msg.phase === 'idle') {
+                ceremonyPending = false;    // ceremony ended before we took over
+            } else if (isRoundActive()) {
+                ceremonyPending = true;
+            } else {
+                location.reload();
+            }
         }
         // leaderboard_update: ignored — the counter shows nothing from it.
     },
