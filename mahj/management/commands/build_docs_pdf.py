@@ -72,6 +72,13 @@ th { background: #f0f0f0; }
 hr { border: none; border-top: 1px solid #e0e0e0; margin: 1.6em 0; }
 """
 
+# Extra rules for the one-page cheat sheets: tighter page margins and a smaller
+# base font so the whole recap fits on a single side. Appended after CSS, so the
+# later @page / html rules win over the defaults above.
+COMPACT_CSS = """
+html { font-size: 10px; }
+"""
+
 HTML_TEMPLATE = (
     "<!DOCTYPE html><html><head><meta charset='utf-8'>"
     "<style>{css}</style></head><body>{body}</body></html>"
@@ -95,7 +102,7 @@ EMOJI_REPLACEMENTS = {
 }
 
 
-def render_html(md_text: str) -> str:
+def render_html(md_text: str, compact: bool = False) -> str:
     """Markdown source -> full HTML document string (no native libs needed)."""
     body = markdown.markdown(
         md_text,
@@ -104,7 +111,8 @@ def render_html(md_text: str) -> str:
     )
     for char, repl in EMOJI_REPLACEMENTS.items():
         body = body.replace(char, repl)
-    return HTML_TEMPLATE.format(css=CSS, body=body)
+    css = CSS + COMPACT_CSS if compact else CSS
+    return HTML_TEMPLATE.format(css=css, body=body)
 
 
 class Command(BaseCommand):
@@ -158,7 +166,8 @@ class Command(BaseCommand):
             raise CommandError(f"No matching guides found in {source}")
 
         for md in guides:
-            html = render_html(md.read_text(encoding="utf-8"))
+            compact = "cheat_sheet" in md.stem.lower()
+            html = render_html(md.read_text(encoding="utf-8"), compact=compact)
             target = out / f"{md.stem}.pdf"
             # base_url = the guide's own dir so relative screenshots/… resolve.
             HTML(string=html, base_url=f"{md.parent}/").write_pdf(target)

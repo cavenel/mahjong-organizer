@@ -6,11 +6,9 @@
 2. **Check the 4 player names** are correct (East / South / West / North).
 3. Press <kbd>Tab</kbd> to jump into the first **MiniPoints (MP)** box.
 4. **Enter the 4 MP**, one per seat (Tab moves seat → seat).
-
 5. ✅ **Check the Sum:**
    - **`0`** = no penalties, or symmetrical penalties → correct.
-   - **Negative** (`-10`, `-20`, …) = a penalty was applied → **leave the negative
-     sum**, it is *not* an error. Just confirm it matches the penalty total.
+   - **Negative** (`-10`, `-20`, …) = a penalty was applied → **leave the negative sum**, it is *not* an error. Just confirm it matches the penalty total.
 6. ✅ **Check the left column pip 🟠→🟢:**
    - 🟠 **orange** = sending to the server.
    - 🟢 **green** = saved & synchronised.
@@ -39,8 +37,25 @@ Once all tables have their MP in, fill a **score sheet** for each table.
 4. **Penalties?** Add them on the **last (Penalties) line**.
 5. Confirm the score sheet's **MP sum matches** the MP you entered in step A.
 
-### ✅ Finish
 When everything is correct, tick **Validate score sheet** → the hands lock in.
+
+> **🔴 THE SIGNED MP TOTAL IS ALWAYS THE TRUTH.**
+>
+> If the hand-by-hand score sheet does **not** add up to the total MP signed by the
+> players — because of a counting mistake by the player who took the score —
+> **do not change the total MP entered in the main scoring table (step A).** The
+> signed MP total is final.
+>
+> 1. **Keep the MP total** exactly as the players agreed: this is the
+>    only figure that feeds the **leaderboard**.
+> 2. **Write a clear note in red on the paper score sheet** marking the discrepancy,
+>    so it is traceable later.
+> 3. Enter the score sheet correctly as it is; it is fine if it produces a different
+>    total from the signed MP.
+>
+> The full score sheet is used **only for statistics and player information**. It can
+> legitimately diverge from the MP total, which is the single source of truth for
+> the standings.
 
 ---
 
