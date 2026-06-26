@@ -63,7 +63,6 @@ urlpatterns = [
     path('scan_prefill', views.scan_prefill, name='scan_prefill'),
 
     # Print / export
-    path('scores_per_player.<str:ext>', views.scores_per_player, name='scores_per_player'),
     path('EMA_report.xlsx', views.admin_print_EMA),
     path('print_scores', views.print_scores, name='print_scores'),
     path('player_cards', views.player_cards, name='player_cards'),

@@ -63,7 +63,6 @@ from .display import (
     index,
     overview,
     render_scores,
-    scores_per_player,
     scores_per_table,
     update_screen_view,
 )

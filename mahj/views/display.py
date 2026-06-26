@@ -190,22 +190,6 @@ def render_scores(request, density, page_nb=None):
     return render(request, "mahj/display_scores.html", context)
 
 
-def scores_per_player(request, ext):
-    """Public data endpoints: JSON standings. The projector screens render via
-    render_scores()."""
-    tenant = get_tenant(request)
-    variables = get_variables(request)
-    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
-    check_final = False if prepublish else True
-    scores_json = scores_per_player_json(request, check_final)
-
-    if ext == "json":
-        return HttpResponse(json.dumps(scores_json))
-    elif ext == "html":
-        return render_scores(request, DETAILED, None)
-    return HttpResponseNotFound('<h1>Page not found</h1>')
-
-
 @user_passes_test(is_display_op)
 def update_screen_view(request):
     tenant = get_tenant(request)
