@@ -9,7 +9,16 @@
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
   <script defer src="{% static 'js/alpine-3.14.8.min.js' %}"></script>
-  <style>[x-cloak] { display: none !important; }</style>
+  <style>
+    [x-cloak] { display: none !important; }
+    /* Before Alpine boots, the :class transform binding isn't applied yet, so
+       the sidebar would flash in at its default (visible) position on mobile.
+       Pin the pre-init state here: off-screen on mobile, in place on desktop.
+       The id beats the generic [x-cloak] display:none so the aside still lays
+       out; Alpine drops x-cloak on boot and the :class binding takes over. */
+    #admin-sidebar[x-cloak] { display: flex !important; transform: translateX(-100%); }
+    @media (min-width: 1024px) { #admin-sidebar[x-cloak] { transform: translateX(0); } }
+  </style>
 </head>
 
 <body class="h-full bg-gray-50 text-gray-900"
@@ -22,7 +31,8 @@
        @click="sidebarOpen=false" x-cloak></div>
 
   <!-- Sidebar -->
-  <aside class="fixed inset-y-0 left-0 z-40 w-60 bg-white border-r border-gray-200 flex flex-col
+  <aside id="admin-sidebar" x-cloak
+         class="fixed inset-y-0 left-0 z-40 w-60 bg-white border-r border-gray-200 flex flex-col
                 transform transition-transform duration-200 lg:translate-x-0"
          :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
 

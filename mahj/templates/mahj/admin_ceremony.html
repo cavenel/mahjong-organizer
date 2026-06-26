@@ -129,7 +129,8 @@
   <div x-show="!loading" class="grid gap-6 lg:grid-cols-2">
 
     <!-- TEAMS -->
-    <section class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+    <section class="rounded-xl border bg-white p-5 space-y-4"
+             :class="phase==='teams' ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200'">
       <div class="flex items-center justify-between">
         <h3 class="font-bold text-gray-800">Teams — top 3 (prizes)</h3>
         <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
@@ -141,29 +142,19 @@
       <template x-if="data.uses_teams">
         <div class="space-y-3">
           <div class="flex gap-2">
-            <button type="button" @click="start('teams')"
-                    class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Start</button>
+            <button type="button" @click="start('teams')" :disabled="phase==='teams' && step===0"
+                    class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">Start</button>
             <button type="button" @click="back('teams')" :disabled="curStep('teams')===0"
                     class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">◂ Back</button>
             <button type="button" @click="revealNext('teams')" :disabled="curStep('teams')>=data.teams.length"
                     class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40">Reveal next ▸</button>
-          </div>
-          <!-- next-up cue -->
-          <div class="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm" x-show="nextEntry('teams')">
-            <span class="text-amber-700 font-semibold">Next to announce:</span>
-            <span class="font-bold text-gray-800">
-              #<span x-text="nextEntry('teams')?.pos"></span> —
-              <span x-text="nextEntry('teams')?.name"></span>
-              (<span x-text="nextEntry('teams')?.tp"></span> / <span x-text="nextEntry('teams')?.mp"></span>)
-            </span>
-            <div class="text-xs text-gray-500 mt-1" x-text="(nextEntry('teams')?.players || []).join(', ')"></div>
           </div>
           <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
                x-show="phase==='teams' && curStep('teams')>=data.teams.length">All 3 teams revealed. 🏆</div>
           <!-- full list reference (scrolls sideways on narrow screens instead of
                widening the page) -->
           <div class="overflow-x-auto">
-            <ul class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
+            <ul class="text-sm flex flex-col-reverse divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
               <template x-for="(t, idx) in data.teams" :key="t.name">
                 <li class="px-3 py-2"
                     :class="isRevealed('teams', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
@@ -175,7 +166,7 @@
                     </span>
                     <span title="prize">🏅</span>
                   </div>
-                  <div class="text-xs text-gray-400 pl-9 whitespace-nowrap" x-text="(t.players || []).join(', ')"></div>
+                  <div class="text-xs text-gray-400 pl-9" x-text="(t.players || []).join(', ')"></div>
                 </li>
               </template>
             </ul>
@@ -185,32 +176,25 @@
     </section>
 
     <!-- PLAYERS -->
-    <section class="rounded-xl border border-gray-200 bg-white p-5 space-y-4">
+    <section class="rounded-xl border bg-white p-5 space-y-4"
+             :class="phase==='players' ? 'border-amber-400 ring-2 ring-amber-200' : 'border-gray-200'">
       <div class="flex items-center justify-between">
         <h3 class="font-bold text-gray-800">Players — top <span x-text="data.players.length"></span></h3>
         <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700" x-show="phase==='players'">live</span>
       </div>
       <div class="space-y-3">
         <div class="flex gap-2">
-          <button type="button" @click="start('players')"
-                  class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50">Start</button>
+          <button type="button" @click="start('players')" :disabled="phase==='players' && step===0"
+                  class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">Start</button>
           <button type="button" @click="back('players')" :disabled="curStep('players')===0"
                   class="px-3 py-2 text-sm font-medium rounded-lg border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-40">◂ Back</button>
           <button type="button" @click="revealNext('players')" :disabled="curStep('players')>=data.players.length"
                   class="px-4 py-2 text-sm font-semibold rounded-lg text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-40">Reveal next ▸</button>
         </div>
-        <div class="rounded-lg bg-amber-50 border border-amber-100 px-4 py-3 text-sm" x-show="nextEntry('players')">
-          <span class="text-amber-700 font-semibold">Next to announce:</span>
-          <span class="font-bold text-gray-800">
-            #<span x-text="nextEntry('players')?.pos"></span> —
-            <span x-text="nextEntry('players')?.name"></span>
-            (<span x-text="nextEntry('players')?.total"></span>)
-          </span>
-        </div>
         <div class="rounded-lg bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm text-emerald-700 font-semibold"
              x-show="phase==='players' && curStep('players')>=data.players.length">All players revealed.</div>
         <div class="overflow-x-auto">
-          <ol class="text-sm divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
+          <ol class="text-sm flex flex-col-reverse divide-y divide-gray-100 border border-gray-100 rounded-lg overflow-hidden" style="min-width:20rem;">
             <template x-for="(p, idx) in data.players" :key="p.player_id">
               <li class="flex items-center gap-3 px-3 py-1.5"
                   :class="isRevealed('players', idx) ? 'bg-white' : 'bg-gray-50 text-gray-400'">
@@ -277,11 +261,6 @@
           // light up one at a time, not as a group.
           const l = this.list(phase), k = this.curStep(phase);
           return idx >= l.length - k;
-        },
-        nextEntry(phase) {
-          const l = this.list(phase); if (!l || !l.length) return null;
-          const i = l.length - 1 - this.curStep(phase);
-          return i >= 0 ? l[i] : null;
         },
         send(params) {
           const qs = new URLSearchParams(params).toString();
