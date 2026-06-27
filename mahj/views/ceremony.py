@@ -15,6 +15,7 @@ import simplejson as json
 
 from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse, JsonResponse
+from django.template.defaultfilters import floatformat
 
 from ..models import CeremonyState, PublishedRound
 from ..scoring import _country_flag, team_standings
@@ -48,9 +49,12 @@ STAT_META = [
 
 
 def _total(entry, rules):
-    """Primary total for display: tablepoints for MCR, minipoints otherwise."""
+    """Primary total for display: tablepoints for MCR, minipoints otherwise.
+    TP is formatted like the rest of the app (`floatformat:-2`): at most two
+    decimals, trailing zeros and a bare `.0` dropped (35.0→"35", 13.333→"13.33").
+    """
     t = entry['total']
-    return round(t['tp'], 1) if rules == 'MCR' else t['mp']
+    return floatformat(t['tp'], -2) if rules == 'MCR' else t['mp']
 
 
 def _stat_winners(key, items):
@@ -102,7 +106,7 @@ def _ceremony_master(request):
     team_rows = team_standings(rows, variables, variables.nb_rounds)
     teams = [
         {'pos': t['pos'], 'name': t['team'], 'flag': t['flag'],
-         'tp': round(t['total']['tp'], 1), 'mp': t['total']['mp'],
+         'tp': floatformat(t['total']['tp'], -2), 'mp': t['total']['mp'],
          'players': [id_to_name[pid] for pid in t['player_ids'] if pid in id_to_name]}
         for t in team_rows[:TOP_TEAMS]
     ]

@@ -216,7 +216,8 @@
       }
       for (let p = 1; p <= 4; p++) setTxt('total_' + p, total[p - 1]);
       const tp = getTP(total);
-      for (let p = 1; p <= 4; p++) setTxt('tp_' + p, tp[p - 1] !== null ? tp[p - 1].toFixed(2) : '—');
+      // Match floatformat:-2 used everywhere else: ≤2 decimals, no trailing zeros.
+      for (let p = 1; p <= 4; p++) setTxt('tp_' + p, tp[p - 1] !== null ? tp[p - 1].toFixed(2).replace(/\.?0+$/, '') : '—');
     }
 
     updateScores();

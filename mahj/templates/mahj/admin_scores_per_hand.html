@@ -140,7 +140,7 @@
         {% for s in scores %}
           <td class="px-1 py-1 whitespace-nowrap entered-cell">
             <div>{% if s.minipoints != None %}{{ s.minipoints }}{% else %}—{% endif %}</div>
-            <div class="entered-tp">/ {% if s.tablepoints != None %}{{ s.tablepoints }}{% else %}—{% endif %}</div>
+            <div class="entered-tp">/ {% if s.tablepoints != None %}{{ s.tablepoints|floatformat:-2 }}{% else %}—{% endif %}</div>
           </td>
         {% endfor %}
       </tr>
