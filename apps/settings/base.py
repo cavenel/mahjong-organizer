@@ -159,6 +159,12 @@ LOGGING = {
     },
     'loggers': {
         'mahj.views.scan': {'handlers': ['console'], 'level': 'INFO'},
+        # Each projector screen holds a WebSocket and reconnects often, so the
+        # per-connection "[accepted]" / "connection open" / "connection closed"
+        # lines (all INFO) bury real errors once there are many screens. Keep
+        # WARNING+ so genuine problems still surface.
+        'uvicorn.error': {'level': 'WARNING'},
+        'websockets': {'level': 'WARNING'},
     },
 }
 
