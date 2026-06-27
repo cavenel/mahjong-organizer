@@ -8,9 +8,10 @@ from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
 from django.template import loader
 
-from ..models import Player, Position, Schedule, Screen
+from ..models import Player, Position, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
 from ..scoring import _last_round_reveal
+from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, scores_per_table_json
@@ -96,13 +97,28 @@ def overview(request):
     subdomain = tenant.subdomain if tenant else ''
     screens = Screen.objects.filter(tenant=tenant).order_by('id')
     count = len(screens)
-    cols = rows = math.ceil(math.sqrt(count)) if count else 1
+    # A logged-in display operator gets a one-click mode switcher occupying the
+    # first grid cell (active mode highlighted); an anonymous projector view
+    # stays a clean, control-free grid.
+    can_control = is_display_op(request.user)
+    modes = []
+    if can_control:
+        modes = _mode_breakdowns(
+            ScreenMode.objects.filter(tenant=tenant).order_by('id'), screens)
+    show_controls = bool(modes)
+    # The mode switcher takes one extra cell, so size the square grid for it too.
+    cell_count = count + (1 if show_controls else 0)
+    cols = rows = math.ceil(math.sqrt(cell_count)) if cell_count else 1
+    mode_cols = math.ceil(math.sqrt(len(modes))) if modes else 1
     template = loader.get_template('mahj/display_overview.html')
     context = {
         'screens': screens,
         'cols': cols,
         'rows': rows,
         'subdomain': subdomain,
+        'modes': modes,
+        'show_controls': show_controls,
+        'mode_cols': mode_cols,
     }
     return HttpResponse(template.render(context, request))
 

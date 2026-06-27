@@ -87,6 +87,12 @@
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
           <span id="toggle-previews-label">Show preview</span>
         </button>
+        <a href="overview" target="_blank"
+           class="inline-flex items-center gap-2 px-3 py-1.5 text-sm font-semibold rounded-lg
+                  bg-amber-500 text-white hover:bg-amber-600 transition-colors">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+          Open overview
+        </a>
       </div>
       <div id="previews-container" class="flex flex-wrap gap-4" style="display:none;">
         {% for screen in screens %}
@@ -329,7 +335,7 @@
   </script>
 
   <!-- Configure individual screens — the setup/prep exception, collapsed by default. -->
-  <details class="group rounded-xl border border-gray-200 bg-white shadow-sm">
+  <details id="configure-screens" class="group rounded-xl border border-gray-200 bg-white shadow-sm">
     <summary class="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer select-none list-none">
       <span class="flex items-center gap-2">
         <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -430,7 +436,7 @@
   </details>
 
   <!-- Display settings — tuning values, collapsed by default. -->
-  <details class="group rounded-xl border border-gray-200 bg-white shadow-sm">
+  <details id="display-settings" class="group rounded-xl border border-gray-200 bg-white shadow-sm">
     <summary class="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer select-none list-none">
       <span class="flex items-center gap-2">
         <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -745,6 +751,24 @@
         doApply();
       }
     };
+  </script>
+
+  <script>
+    // Adding a screen or saving a mode reloads the page (server redirect). Those
+    // redirects carry a #configure-screens hash so we can re-open the panel and
+    // scroll back to it — otherwise the reload would fold it shut and lose the
+    // operator's place between consecutive adds. A plain visit to the Display
+    // tab (no hash) leaves the panel collapsed as designed.
+    (function() {
+      var sections = ['configure-screens', 'display-settings'];
+      var target = sections.indexOf(location.hash.slice(1)) !== -1
+        ? document.getElementById(location.hash.slice(1)) : null;
+      if (target) {
+        target.open = true;
+        // Offset clears the sticky top bar (h-14) with a little breathing room.
+        window.scrollTo(0, target.getBoundingClientRect().top + window.pageYOffset - 64);
+      }
+    })();
   </script>
 
 </div>

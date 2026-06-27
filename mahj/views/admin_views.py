@@ -638,19 +638,21 @@ def options(request, error=None):
                 variables.save()
             return HttpResponse(str(variables))
         elif request.GET.get('action') == "add_screen":
-            Screen(tenant=tenant, name="Screen_X", view="black").save()
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
-            return HttpResponseRedirect('admin?page=display')
+            Screen(tenant=tenant, name="", view="black").save()
+            # 'screens_changed' (not plain 'screen_update') so the overview grid
+            # redraws for the new screen count; per-screen displays reload either way.
+            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+            return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('action') == "remove_screen":
             Screen.objects.filter(tenant=tenant).last().delete()
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
-            return HttpResponseRedirect('admin?page=display')
+            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+            return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('action') == "add_mode":
             mode_name = request.POST.get('mode_name')
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             views_list = [str(screen.view) for screen in screens]
             ScreenMode(tenant=tenant, name=mode_name, views=json.dumps(views_list)).save()
-            return HttpResponseRedirect('admin?page=display')
+            return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('rm_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('rm_mode'))
             mode.delete()

@@ -7,9 +7,12 @@
   <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
   <style>
     html, body { margin: 0; height: 100%; background: black; overflow: hidden; }
+    body { display: flex; flex-direction: column; height: 100vh; }
     /* Near-square grid: {{ cols }} columns × {{ rows }} rows for {{ screens|length }} screen(s). */
     #grid {
-      width: 100vw; height: 100vh;
+      flex: 1 1 auto;
+      min-height: 0;
+      width: 100%;
       display: grid;
       grid-template-columns: repeat({{ cols }}, 1fr);
       grid-template-rows: repeat({{ rows }}, 1fr);
@@ -45,27 +48,45 @@
       border-radius: 3px;
       pointer-events: none;
     }
-    .enlarge {
-      position: absolute;
-      left: 6px; top: 4px;
-      z-index: 10;
-      width: 26px; height: 26px;
-      display: flex; align-items: center; justify-content: center;
-      background: #aaaaaacc;
-      border: 1px solid #888;
-      border-radius: 3px;
-      color: black;
-      cursor: pointer;
-      opacity: 0;
-      transition: opacity .15s;
-    }
-    .cell:hover .enlarge { opacity: 1; }
-    .enlarge svg { width: 16px; height: 16px; }
+    /* Transparent click-catcher over each screen: a click anywhere enlarges it
+       (the iframe would otherwise swallow the click). */
+    .cell-overlay { position: absolute; inset: 0; z-index: 5; cursor: pointer; }
     #empty {
       width: 100vw; height: 100vh;
       display: flex; align-items: center; justify-content: center;
       color: #888; font: 24px sans-serif;
     }
+    /* Mode switcher — occupies the first grid cell, shown only to display ops. */
+    .cell--control {
+      display: flex; flex-direction: column;
+      background: #141414;
+      padding: 8px;
+    }
+    .cell--control .control-label {
+      flex: 0 0 auto;
+      color: #888; font: 600 12px sans-serif;
+      text-transform: uppercase; letter-spacing: .08em;
+      padding: 2px 2px 8px;
+    }
+    .modegrid {
+      flex: 1 1 auto; min-height: 0;
+      display: grid;
+      grid-template-columns: repeat({{ mode_cols }}, 1fr);
+      gap: 8px;
+    }
+    .mode-btn {
+      display: flex; align-items: center; justify-content: center; text-align: center;
+      padding: 6px;
+      font: 600 clamp(13px, 1.6vw, 30px) sans-serif;
+      color: #eee; background: #2a2a2a;
+      border: 3px solid transparent; border-radius: 10px;
+      cursor: pointer; text-transform: capitalize;
+      transition: background .15s;
+      overflow: hidden;
+    }
+    .mode-btn:hover { background: #3a3a3a; }
+    /* Border on the active mode, matching the admin "Display on screens" view. */
+    .mode-btn--active { border-color: #f59e0b; color: #fff; background: #3a2f12; }
     /* Enlarged-screen modal */
     #modal {
       position: fixed; inset: 0; z-index: 100;
@@ -97,14 +118,23 @@
 
 {% if screens %}
   <div id="grid">
+    {% if show_controls %}
+      <div class="cell cell--control">
+        <div class="control-label">Mode</div>
+        <div class="modegrid">
+          {% for mode in modes %}
+            <button type="button" class="mode-btn{% if mode.is_active %} mode-btn--active{% endif %}"
+                    data-mode-id="{{ mode.id }}">{{ mode.name }}</button>
+          {% endfor %}
+        </div>
+      </div>
+    {% endif %}
     {% for screen in screens %}
       <div class="cell">
-        <div class="label">Screen {{ forloop.counter }}</div>
-        <button type="button" class="enlarge" title="Enlarge"
-                data-src="{{ forloop.counter }}" data-label="Screen {{ forloop.counter }}">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
-        </button>
+        <div class="label">/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}</div>
         <iframe src="{{ forloop.counter }}" scrolling="no" tabindex="-1"></iframe>
+        <div class="cell-overlay" title="Click to enlarge"
+             data-src="{{ forloop.counter }}" data-label="/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}"></div>
       </div>
     {% endfor %}
   </div>
@@ -159,9 +189,10 @@
   }
 
   if (modal) {
-    document.querySelectorAll('.enlarge').forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        openModal(btn.getAttribute('data-src'), btn.getAttribute('data-label'));
+    // A click anywhere on a screen enlarges it.
+    document.querySelectorAll('.cell-overlay').forEach(function(ov) {
+      ov.addEventListener('click', function() {
+        openModal(ov.getAttribute('data-src'), ov.getAttribute('data-label'));
       });
     });
     document.getElementById('modal-close').addEventListener('click', closeModal);
@@ -169,15 +200,43 @@
     modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
     document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
   }
+
+  // --- mode switcher (display operators only) --------------------------------
+  // POST to the same endpoint the admin page uses. No page reload: the
+  // screen_update broadcast makes each screen iframe self-refresh, so here we
+  // only move the active highlight to the chosen mode.
+  var csrf = '{{ csrf_token }}';
+  document.querySelectorAll('.mode-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      btn.disabled = true;
+      fetch('admin?page=display&set_mode=' + btn.getAttribute('data-mode-id'), {
+        method: 'POST',
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: 'csrfmiddlewaretoken=' + encodeURIComponent(csrf),
+      }).then(function(r) {
+        btn.disabled = false;
+        if (!r.ok) return;
+        document.querySelectorAll('.mode-btn--active').forEach(function(b) {
+          b.classList.remove('mode-btn--active');
+        });
+        btn.classList.add('mode-btn--active');
+      }).catch(function() { btn.disabled = false; });
+    });
+  });
 </script>
 
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
-  // Adding/removing screens changes the grid, so reload the overview itself.
-  // (Each iframe already self-reloads on its own content changes.)
+  // Each screen iframe self-refreshes on a content change, so the overview only
+  // needs to redraw itself when the *set* of screens changes (add/remove), which
+  // alters the grid. That case broadcasts event 'screens_changed'; plain view/
+  // mode changes ('screen_update') are left to the iframes.
   connectDisplaySocket({
     subdomain: '{{ subdomain }}',
-    onUpdate: function() { location.reload(); },
+    onUpdate: function(msg) { if (msg && msg.event === 'screens_changed') location.reload(); },
   });
 </script>
 </body>
