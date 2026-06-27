@@ -1,49 +1,97 @@
-<html>
-<body style="background-color:black">
+{% load static %}
 
-<div id="wrap">
-    <div class="label">Projector 1
-    </div>
-    <iframe src="1"></iframe></div>
-<div id="wrap">
-    <div class="label">Projector 2
-    </div>
-    <iframe src="2"></iframe></div>
-<div id="wrap">
-        <div class="label">Projector 3
-    </div>
-    <iframe src="3"></iframe></div>
-<div id="wrap">
-        <div class="label">Projector 4
-        </div>
-    <iframe src="4"></iframe></div>
-
-<style>
-    #wrap { position:relative; width: 825px; height: 467px; padding: 0; overflow: hidden; display: inline-block;}
-    iframe { width: 1920px; height: 1080px; border: 3px solid red; }
-    iframe {
-        -ms-zoom: 0.4266
-        -moz-transform: scale(0.4266);
-        -moz-transform-origin: 0 0;
-        -o-transform: scale(0.4266);
-        -o-transform-origin: 0 0;
-        -webkit-transform: scale(0.4266);
-        -webkit-transform-origin: 0 0;
+<html style="background-color:black;">
+<head>
+  <title>Screens overview</title>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+  <style>
+    html, body { margin: 0; height: 100%; background: black; overflow: hidden; }
+    /* Near-square grid: {{ cols }} columns × {{ rows }} rows for {{ screens|length }} screen(s). */
+    #grid {
+      width: 100vw; height: 100vh;
+      display: grid;
+      grid-template-columns: repeat({{ cols }}, 1fr);
+      grid-template-rows: repeat({{ rows }}, 1fr);
+      gap: 4px;
+      box-sizing: border-box;
+      padding: 4px;
+    }
+    .cell {
+      position: relative;
+      background: black;
+      overflow: hidden;
+      border: 1px solid #333;
+      box-sizing: border-box;
+    }
+    /* Each iframe renders a full 1920×1080 screen, then is scaled (via JS) and
+       centred to fit its cell while keeping the 16:9 aspect ratio. */
+    .cell iframe {
+      position: absolute;
+      width: 1920px; height: 1080px;
+      border: 0;
+      left: 50%; top: 50%;
+      transform-origin: center center;
     }
     .label {
-        position: absolute;
-        background-color: #aaaaaaaa;
-        border: 1px solid #888;
-        color: black;
-        z-index: 10;
-        font-size: 10px;
-        padding: 2px 8px;
-        right: 6px;
-        top: 2px;
-        font-family: monospace;
-        text-align:center;
+      position: absolute;
+      right: 6px; top: 4px;
+      z-index: 10;
+      background: #aaaaaacc;
+      border: 1px solid #888;
+      color: black;
+      font: 11px/1.2 monospace;
+      padding: 2px 8px;
+      border-radius: 3px;
+      pointer-events: none;
     }
-</style>
+    #empty {
+      width: 100vw; height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      color: #888; font: 24px sans-serif;
+    }
+  </style>
+</head>
+<body>
 
+{% if screens %}
+  <div id="grid">
+    {% for screen in screens %}
+      <div class="cell">
+        <div class="label">Screen {{ forloop.counter }}</div>
+        <iframe src="{{ forloop.counter }}" scrolling="no" tabindex="-1"></iframe>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div id="empty">No screens configured</div>
+{% endif %}
+
+<script>
+  // Scale every 1920×1080 iframe so it fills its cell (contain, keeping 16:9).
+  function fitFrames() {
+    document.querySelectorAll('.cell').forEach(function(cell) {
+      var iframe = cell.querySelector('iframe');
+      if (!iframe) return;
+      var scale = Math.min(cell.clientWidth / 1920, cell.clientHeight / 1080);
+      // left/top:50% put the iframe's top-left at the cell centre; translate by
+      // -50% of its own (1920×1080) box recentres it, then scale about centre.
+      iframe.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+    });
+  }
+  window.addEventListener('resize', fitFrames);
+  window.addEventListener('load', fitFrames);
+  fitFrames();
+</script>
+
+<script src="{% static 'js/display_socket.js' %}"></script>
+<script>
+  // Adding/removing screens changes the grid, so reload the overview itself.
+  // (Each iframe already self-reloads on its own content changes.)
+  connectDisplaySocket({
+    subdomain: '{{ subdomain }}',
+    onUpdate: function() { location.reload(); },
+  });
+</script>
 </body>
 </html>

@@ -88,8 +88,23 @@ def _render_schedule(request, tenant, variables, subdomain):
 
 
 def overview(request):
+    """Grid of live thumbnails for every configured screen. Lays the screens out
+    in a square grid (side = ceil(sqrt(n)): 1→1×1, 4→2×2, 6→3×3, 9→3×3, 10→4×4…)
+    and lets the browser scale each 1920×1080 iframe to fit its cell. Counts that
+    aren't perfect squares leave the trailing cells empty."""
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    screens = Screen.objects.filter(tenant=tenant).order_by('id')
+    count = len(screens)
+    cols = rows = math.ceil(math.sqrt(count)) if count else 1
     template = loader.get_template('mahj/display_overview.html')
-    return HttpResponse(template.render({}, request))
+    context = {
+        'screens': screens,
+        'cols': cols,
+        'rows': rows,
+        'subdomain': subdomain,
+    }
+    return HttpResponse(template.render(context, request))
 
 
 def counter(request):
