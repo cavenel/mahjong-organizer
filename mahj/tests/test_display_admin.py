@@ -173,3 +173,34 @@ def test_display_page_no_active_mode_when_nothing_matches(client_, display_op, t
     html = client_.get('/admin?page=display').content.decode()
 
     assert 'mode-card mode-card--active' not in html
+
+
+# ── Add mode ──────────────────────────────────────────────────────────────────
+
+def test_views_field_is_unbounded():
+    # add_mode stores json.dumps of every screen's view, which grows past any
+    # fixed CharField cap once there are many screens (a varchar(100) overflowed
+    # in prod with a 500). The field must stay unbounded. SQLite ignores
+    # max_length, so this model-level guard is what catches a regression.
+    assert ScreenMode._meta.get_field('views').max_length is None
+
+
+def test_add_mode_snapshots_all_screen_views(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    # Enough screens with realistic view strings that the JSON snapshot is well
+    # over the old 100-char cap.
+    views = ['scores:detailed:all', 'standings', 'counter', 'schedule',
+             'scores:totals:all', 'black', 'scores:detailed:5']
+    for v in views:
+        Screen.objects.create(tenant=tenant, view=v)
+    client_.force_login(display_op)
+
+    resp = client_.post('/admin?page=display&action=add_mode',
+                        {'mode_name': 'Full house'})
+
+    assert resp.status_code == 302
+    mode = ScreenMode.objects.get(tenant=tenant, name='Full house')
+    assert json.loads(mode.views) == views
+    assert len(mode.views) > 100
+
+

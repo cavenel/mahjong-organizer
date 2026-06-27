@@ -134,7 +134,10 @@ class Screen(TenantAwareModel):
 
 class ScreenMode(TenantAwareModel):
     name         = models.CharField(default="Unknown",max_length=70)
-    views        = models.CharField(default="Unknown",max_length=100)
+    # JSON blob of every screen's view string; its length grows with the screen
+    # count, so it must be unbounded (a fixed max_length overflows once there are
+    # many screens and the INSERT fails with 500). See add_mode in admin_views.
+    views        = models.TextField(default="Unknown")
     
     def __str__(self):
         return str(self.name)
