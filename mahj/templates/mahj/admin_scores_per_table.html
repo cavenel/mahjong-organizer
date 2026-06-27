@@ -215,6 +215,8 @@
 </div>
 {% endwith %}
 
+<script src="{% static 'js/display_socket.js' %}"></script>
+<script src="{% static 'js/admin_sync_banner.js' %}"></script>
 <script>
   $("body").on("click", ".show_hands", function() {
     var link = $(this).attr("data-link");
@@ -479,65 +481,42 @@
 
   // scorer-to-scorer live sync
   (function() {
-    var subdomain = "{{ subdomain }}";
-    if (!subdomain) return;
-    var proto = (location.protocol === "https:") ? "wss" : "ws";
-    var url = proto + "://" + location.host + "/ws/scorers/" + subdomain + "/";
-    var ws, reconnectTimer = null, retries = 0;
-    function scheduleReconnect() {
-      if (reconnectTimer) return;                 // a reconnect is already pending
-      var delay = Math.min(30000, 1000 * Math.pow(2, retries++));  // capped backoff
-      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(); }, delay);
-    }
-    function connect() {
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-      ws = new WebSocket(url);
-      ws.onopen = function() { retries = 0; };
-      ws.onmessage = function(evt) {
-        var msg;
-        try { msg = JSON.parse(evt.data); } catch (e) { return; }
-        if (msg.round_nb !== undefined && msg.positions) {
-          applyRowSync(msg);
-        } else if (msg.published_rounds) {
-          var prevMax = publishedRounds.size ? Math.max.apply(null, Array.from(publishedRounds)) : 0;
-          publishedRounds = new Set(msg.published_rounds);
-          refreshAllPublishToggles();
-          var newMax = publishedRounds.size ? Math.max.apply(null, Array.from(publishedRounds)) : 0;
-          // A round was just published (forward move only) and a round is still
-          // left to score: nudge scorers onto the next round's tab. The Alpine
-          // root only acts on scorers sitting on the published round or earlier,
-          // so anyone already reviewing a later round is left alone.
-          if (newMax > prevMax && newMax < LAST_ROUND) {
-            window.dispatchEvent(new CustomEvent('round-published', {
-              detail: { published: newMax, next: newMax + 1 }
-            }));
-          }
-        } else if (msg.type === 'scorer.validation') {
-          var vrow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
-          var badge = vrow.find('.valid-badge');
-          if (msg.valid) {
-            badge.removeClass('in-progress').addClass('active');
-          } else {
-            badge.removeClass('active').addClass('in-progress');
-          }
-        } else if (msg.type === 'scorer.filled') {
-          var frow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
-          var fbadge = frow.find('.valid-badge');
-          if (!fbadge.hasClass('active')) {
-            if (msg.filled) fbadge.addClass('in-progress'); else fbadge.removeClass('in-progress');
-          }
+    function handle(msg) {
+      if (msg.round_nb !== undefined && msg.positions) {
+        applyRowSync(msg);
+      } else if (msg.published_rounds) {
+        var prevMax = publishedRounds.size ? Math.max.apply(null, Array.from(publishedRounds)) : 0;
+        publishedRounds = new Set(msg.published_rounds);
+        refreshAllPublishToggles();
+        var newMax = publishedRounds.size ? Math.max.apply(null, Array.from(publishedRounds)) : 0;
+        // A round was just published (forward move only) and a round is still
+        // left to score: nudge scorers onto the next round's tab. The Alpine
+        // root only acts on scorers sitting on the published round or earlier,
+        // so anyone already reviewing a later round is left alone.
+        if (newMax > prevMax && newMax < LAST_ROUND) {
+          window.dispatchEvent(new CustomEvent('round-published', {
+            detail: { published: newMax, next: newMax + 1 }
+          }));
         }
-      };
-      ws.onclose = function() { scheduleReconnect(); };
+      } else if (msg.type === 'scorer.validation') {
+        var vrow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
+        var badge = vrow.find('.valid-badge');
+        if (msg.valid) {
+          badge.removeClass('in-progress').addClass('active');
+        } else {
+          badge.removeClass('active').addClass('in-progress');
+        }
+      } else if (msg.type === 'scorer.filled') {
+        var frow = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);
+        var fbadge = frow.find('.valid-badge');
+        if (!fbadge.hasClass('active')) {
+          if (msg.filled) fbadge.addClass('in-progress'); else fbadge.removeClass('in-progress');
+        }
+      }
     }
-    // Reconnect immediately when the browser regains connectivity instead of
-    // waiting out the backoff timer.
-    window.addEventListener('online', function() {
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-      retries = 0;
-      connect();
-    });
-    connect();
+
+    // Heartbeat + reconnect + "out of sync, please refresh" banner (shared helper).
+    connectScorerSocket({ subdomain: "{{ subdomain }}", onUpdate: handle });
 
     function applyRowSync(msg) {
       var row = $('#table_row_r' + msg.round_nb + '_t' + msg.table_nb);

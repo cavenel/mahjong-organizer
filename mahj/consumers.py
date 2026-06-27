@@ -58,6 +58,13 @@ class ScorersConsumer(AsyncJsonWebsocketConsumer):
     async def disconnect(self, close_code):
         await self.channel_layer.group_discard(self.group, self.channel_name)
 
+    async def receive_json(self, content, **kwargs):
+        # Clients send {"type":"ping"} as a keepalive/half-open probe; answer so
+        # their pong watchdog can tell a live socket from a dead one. Anything
+        # else is ignored (the base class would otherwise raise on receipt).
+        if content.get('type') == 'ping':
+            await self.send_json({'event': 'pong'})
+
     async def scorer_row(self, event):
         await self.send_json(event['data'])
 

@@ -194,6 +194,7 @@
     </div>
   </section>
 
+  <script src="{% static 'js/display_socket.js' %}"></script>
   <script>
   (function() {
     // `goTime` is the server's absolute epoch-ms gong moment (round start), or
@@ -306,17 +307,17 @@
 
     $(document).on('input change', '#variables-total_time', function() { updateButtons(); });
 
-    (function connectWS() {
-      var scheme = location.protocol === 'https:' ? 'wss' : 'ws';
-      var subdomain = '{{ variables.tenant.subdomain }}';
-      var ws = new WebSocket(scheme + '://' + location.host + '/ws/display/' + subdomain + '/');
-      ws.onmessage = function(e) {
-        var msg = JSON.parse(e.data);
-        if (msg.event === 'counter_update') applyCounter(msg);
-      };
-      ws.onclose = function() { setTimeout(connectWS, 3000); };
-      ws.onerror = function() { ws.close(); };
-    })();
+    // Heartbeat + auto-reconnect via the shared display client (catches a
+    // silently half-open socket after sleep). No "out of sync" banner here:
+    // fetchStatus polls every 30s and we re-poll immediately on reconnect, so
+    // the timer self-heals without a manual refresh.
+    connectDisplaySocket({
+      subdomain: '{{ variables.tenant.subdomain }}',
+      path: '/ws/display/',
+      statusBanner: false,
+      onUpdate: function(msg) { if (msg.event === 'counter_update') applyCounter(msg); },
+      onReconnect: function() { fetchStatus(); },
+    });
 
     fetchStatus();
     // Tick through updateButtons (not just updateDisplay) so the status badge
