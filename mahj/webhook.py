@@ -45,10 +45,11 @@ def leaderboard_payload(event, standings, variables, round_nb=None):
                     rslot = slot['scores'][r_idx]
                     rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
                     rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
-        sort_key = (lambda x: -x['total']['tp']) if variables.rules == 'MCR' else (lambda x: -x['total']['mp'])
-        team_rows = sorted(by_team.values(), key=sort_key)
-        for i, tr in enumerate(team_rows, 1):
-            tr['pos'] = i
+        from .scoring import _assign_ranks, _standings_rank_key, _standings_sort_key
+        team_rows = sorted(by_team.values(), key=_standings_sort_key(variables))
+        # Tied teams (same TP and MP) share a position, mirroring the players.
+        _assign_ranks(team_rows, _standings_rank_key, field='pos')
+        for tr in team_rows:
             flags = tr.pop('_flags')
             tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
 

@@ -199,9 +199,7 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     flags = {p.id: _country_flag(p.country) for p in players}
     history = {p.id: [1] for p in players}
 
-    sort_key = (lambda s: (-s['total']['tp'], -s['total']['mp'])) if variables.rules == 'MCR' \
-               else (lambda s: -s['total']['mp'])
-    rank_key = lambda s: (s['total']['mp'], s['total']['tp'])
+    sort_key = _standings_sort_key(variables)
 
     ranked = []
     for current_round in range(round_max + 1):
@@ -210,9 +208,9 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
             for p in players
         ]
         ranked.sort(key=sort_key)
-        _assign_ranks(ranked, rank_key, field='pos')
+        _assign_ranks(ranked, _standings_rank_key, field='pos')
         _assign_ranks([r for r in ranked if r['country'].strip() == 'Sweden'],
-                      rank_key, field='pos_se')
+                      _standings_rank_key, field='pos_se')
         for r in ranked:
             history[r['player_id']].append(r['pos'])
 
@@ -236,7 +234,9 @@ def team_standings(rows, variables, nb_rounds):
     `rows` are player rows as produced by `player_standings` / desktop, each
     carrying 'team', 'flag', 'player_id', 'total' {tp, mp} and per-round
     'scores' [{tp, mp}]. Returns team rows sorted by the active rules, each with
-    'team', 'flag', 'player_ids', 'total', per-round 'scores' and 1-based 'pos'.
+    'team', 'flag', 'player_ids', 'total', per-round 'scores' and a 1-based 'pos'
+    that ties share — teams level on both TP and MP get the same position, just
+    like players.
     """
     by_team = {}
     for s in rows:
@@ -260,10 +260,9 @@ def team_standings(rows, variables, nb_rounds):
                 rslot = slot['scores'][r_idx]
                 rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
-    sort_key = (lambda x: -x['total']['tp']) if variables.rules == 'MCR' else (lambda x: -x['total']['mp'])
-    team_rows = sorted(by_team.values(), key=sort_key)
-    for i, tr in enumerate(team_rows, 1):
-        tr['pos'] = i
+    team_rows = sorted(by_team.values(), key=_standings_sort_key(variables))
+    _assign_ranks(team_rows, _standings_rank_key, field='pos')
+    for tr in team_rows:
         flags = tr.pop('_flags')
         tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
     return team_rows
@@ -580,6 +579,20 @@ def _country_flag(country):
         return match.alpha_2.lower() if match else ''
     except Exception:
         return ''
+
+
+def _standings_sort_key(variables):
+    """Order standing rows best-first by the active rules. MCR ranks on TP (MP
+    breaks ties); other rules rank on MP. Used for both players and teams so a
+    team's row is ordered exactly like a player's."""
+    if variables.rules == 'MCR':
+        return lambda s: (-s['total']['tp'], -s['total']['mp'])
+    return lambda s: -s['total']['mp']
+
+
+def _standings_rank_key(s):
+    """Tie key for `_assign_ranks`: rows level on both MP and TP share a position."""
+    return (s['total']['mp'], s['total']['tp'])
 
 
 def _assign_ranks(rows, key, field):

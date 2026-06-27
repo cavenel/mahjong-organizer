@@ -8,7 +8,46 @@ from mahj.scoring import (
     _roll_up,
     _top_by,
     _top_win_streaks,
+    team_standings,
 )
+
+
+def _player_row(team, tp, mp, pid):
+    """Minimal player standing row in the shape team_standings consumes."""
+    return {
+        'team': team, 'flag': '', 'player_id': pid,
+        'total': {'tp': tp, 'mp': mp},
+        'scores': [{'tp': tp, 'mp': mp, 'round_nb': 1}],
+    }
+
+
+class TestTeamStandings:
+    def test_tied_teams_share_a_position(self):
+        # Teams B and C are level on both TP and MP — they must share pos 2,
+        # exactly like tied players, and the next team drops to pos 4.
+        rows = [
+            _player_row('A', tp=30.0, mp=300, pid=1),
+            _player_row('B', tp=20.0, mp=200, pid=2),
+            _player_row('C', tp=20.0, mp=200, pid=3),
+            _player_row('D', tp=10.0, mp=100, pid=4),
+        ]
+        variables = SimpleNamespace(rules='MCR', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        assert by_team['A']['pos'] == 1
+        assert by_team['B']['pos'] == by_team['C']['pos'] == 2
+        assert by_team['D']['pos'] == 4
+
+    def test_same_tp_different_mp_are_not_tied(self):
+        # MCR ranks on TP, but a tie needs both TP and MP equal; differing MP
+        # breaks the tie into distinct positions.
+        rows = [
+            _player_row('A', tp=20.0, mp=250, pid=1),
+            _player_row('B', tp=20.0, mp=200, pid=2),
+        ]
+        variables = SimpleNamespace(rules='MCR', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        assert by_team['A']['pos'] == 1
+        assert by_team['B']['pos'] == 2
 
 
 class TestAssignRanks:

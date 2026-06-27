@@ -7,7 +7,10 @@ from django.template import loader
 
 from ..models import Hand, Player, Position
 from .helpers import get_tenant, get_variables
-from ..scoring import player_extra_stats, team_extra_stats
+from ..scoring import (
+    _assign_ranks, _standings_rank_key, _standings_sort_key,
+    player_extra_stats, team_extra_stats, team_standings,
+)
 from ..signals import leaderboard_gen
 from .scoring import player_rounds_json, scores_per_player_json
 
@@ -81,7 +84,7 @@ def details_team(request, team_name):
         (sum(1 for sc in s['scores'] if sc.get('tp') is not None) for s in members),
         default=0,
     )
-    is_mcr = variables.rules == 'MCR'
+    sort_key = _standings_sort_key(variables)
     team_history_pos = []
     for rnd in range(1, max_played + 1):
         cumulative = {}
@@ -89,28 +92,22 @@ def details_team(request, team_name):
             t = s.get('team') or ''
             if not t:
                 continue
-            slot = cumulative.setdefault(t, {'tp': 0.0, 'mp': 0})
+            slot = cumulative.setdefault(t, {'team': t, 'total': {'tp': 0.0, 'mp': 0}})
             for sc in s['scores'][:rnd]:
                 if sc.get('tp') is not None:
-                    slot['tp'] += sc['tp']
-                    slot['mp'] += sc.get('mp') or 0
-        ranked = sorted(cumulative.items(), key=lambda x: (-x[1]['tp'] if is_mcr else 0, -x[1]['mp']))
+                    slot['total']['tp'] += sc['tp']
+                    slot['total']['mp'] += sc.get('mp') or 0
+        ranked = sorted(cumulative.values(), key=sort_key)
+        _assign_ranks(ranked, _standings_rank_key, field='pos')
         team_history_pos.append(
-            next((i + 1 for i, (name, _) in enumerate(ranked) if name == team_name), None)
+            next((r['pos'] for r in ranked if r['team'] == team_name), None)
         )
 
-    by_team = {}
-    for s in leaderboard:
-        t = s.get('team') or ''
-        if not t:
-            continue
-        slot = by_team.setdefault(t, {'tp': 0.0, 'mp': 0})
-        slot['tp'] += s['total'].get('tp') or 0
-        slot['mp'] += s['total'].get('mp') or 0
-    sort_key = (lambda x: -x[1]['tp']) if is_mcr else (lambda x: -x[1]['mp'])
-    ranked_teams = sorted(by_team.items(), key=sort_key)
-    team_pos = next((i + 1 for i, (name, _) in enumerate(ranked_teams) if name == team_name), None)
-    team_total = by_team.get(team_name, {'tp': 0.0, 'mp': 0})
+    # Final team rank and totals: tied teams share a position, like the leaderboard.
+    team_rows = team_standings(leaderboard, variables, variables.nb_rounds)
+    match = next((t for t in team_rows if t['team'] == team_name), None)
+    team_pos = match['pos'] if match else None
+    team_total = match['total'] if match else {'tp': 0.0, 'mp': 0}
 
     template = loader.get_template('mahj/modal_details_team.html')
     context = {
