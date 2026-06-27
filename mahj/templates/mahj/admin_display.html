@@ -447,6 +447,12 @@
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
+          <label for="variables-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds)</label>
+          <input id="variables-rotation_time" type="number" placeholder="10" value="{{ variables.rotation_time }}" step="1" min="1"
+                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+                        focus:outline-none focus:ring-2 focus:ring-amber-300">
+        </div>
+        <div>
           <label for="variables-welcome" class="block text-xs font-medium text-gray-600 mb-1">Counter message</label>
           <input id="variables-welcome" type="text" placeholder="Welcome" value="{{ variables.welcome }}"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white

@@ -118,7 +118,7 @@
           pages[cur].style.display = "none";
           cur = (cur + 1) % pages.length;
           pages[cur].style.display = "";
-        }, 10000);
+        }, {{ variables.rotation_time|default:10 }} * 1000);
       })();
     </script>
   {% endif %}

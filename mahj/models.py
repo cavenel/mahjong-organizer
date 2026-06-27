@@ -151,6 +151,7 @@ class Variable(TenantAwareModel):
     zoom         = models.FloatField(default=1.0,null=False)
     score_lines  = models.IntegerField(default=20,null=False)
     total_columns = models.IntegerField(default=3,null=False)  # columns in the "totals" standings layout
+    rotation_time = models.IntegerField(default=10,null=False)  # seconds each page shows before the standings screen rotates
     counter      = models.BigIntegerField(default=-1,null=False)  # -1 = never started; survives restarts
     # Optional staff-uploaded PNG logo (KBs), shown in place of the static mcr_logo
     # on on-screen surfaces. logo_etag is the md5 of the bytes, used to cache-bust
