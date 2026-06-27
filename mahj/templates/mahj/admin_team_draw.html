@@ -36,6 +36,9 @@
     {{ saved_draw_json|safe }}
   </script>
 
+  <!-- LOGO -->
+  <img src="{{ site_logo_url }}" alt="Tournament logo" class="fixed top-3 left-6 h-20 w-auto z-20">
+
   <!-- CLOCK -->
   <div id="clock" class="fixed top-3 right-6 text-2xl font-mono text-gray-400 z-20"></div>
 
@@ -174,8 +177,14 @@
 
   function loadState() {
     const saved = localStorage.getItem('team_draw_state');
-    if (saved) {
-      if (confirm('A draw is in progress. Resume where you left off?')) {
+    if (!saved) return Promise.resolve();
+    return styledConfirm({
+      title: 'A draw is in progress',
+      body: 'A draw is in progress. Resume where you left off, or discard it and start over?',
+      confirmLabel: 'Resume draw',
+      cancelLabel: 'Discard',
+    }).then(function (resume) {
+      if (resume) {
         const parsed = JSON.parse(saved);
         state.events = parsed.events || [];
         state.paused = parsed.paused || false;
@@ -184,7 +193,7 @@
       } else {
         localStorage.removeItem('team_draw_state');
       }
-    }
+    });
   }
 
   function togglePause() {
@@ -559,6 +568,7 @@
           <p class="text-sm text-gray-500">${NB_TEAMS * 4} players &mdash; ${startStr} to ${endStr}</p>
         </div>
         <div class="flex items-center gap-4">
+          <button onclick="exportCSV()" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">Download CSV</button>
           <div id="save-status" class="text-sm text-gray-400">Saving...</div>
           <div class="text-sm text-gray-400 font-mono">SHA ${fp}</div>
         </div>
@@ -585,17 +595,35 @@
   // ─── CSV EXPORT ───────────────────────────────────────
 
   function exportCSV() {
-    let csv = 'slot,team_name,player_name,role_display,rand_id\n';
+    const rows = [];
     for (let s = 1; s <= NB_TEAMS; s++) {
       const team = teamForSlot(s);
       const roles = rolesForSlot(s);
       if (!team) continue;
       team.players.forEach((p, idx) => {
         if (roles[idx] !== undefined) {
-          csv += `${s},"${team.name}","${p.full_name}",${roles[idx] + 1},${randId(s, roles[idx])}\n`;
+          rows.push({
+            original_index: p.original_index,
+            slot: s,
+            team_name: team.name,
+            full_name: p.full_name,
+            role_display: roles[idx] + 1,
+            rand_id: randId(s, roles[idx]),
+          });
         }
       });
     }
+    // Sort by original Excel-sheet row order so the drawn numbers can be pasted
+    // straight back into the import template.
+    rows.sort((a, b) => a.original_index - b.original_index);
+    let csv = 'original_index,slot,team_name,player_name,role_display,rand_id\n';
+    for (const r of rows) {
+      csv += `${r.original_index},${r.slot},"${r.team_name}","${r.full_name}",${r.role_display},${r.rand_id}\n`;
+    }
+    downloadCSV(csv);
+  }
+
+  function downloadCSV(csv) {
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
@@ -632,6 +660,9 @@
       });
       if (resp.ok) {
         localStorage.removeItem('team_draw_state');
+        // Drop the sticky "skip recap" flag so a refresh re-offers the saved
+        // result instead of dropping to a blank fresh draw.
+        sessionStorage.removeItem('team_draw_skip_recap');
         const banner = document.getElementById('save-status');
         if (banner) {
           banner.textContent = 'Saved to server';
@@ -723,7 +754,31 @@
 
   // ─── SHOW SAVED RECAP ──────────────────────────────────
 
+  function exportSavedCSV(savedDraw) {
+    const rows = [];
+    for (const r of savedDraw) {
+      r.players.forEach(p => {
+        rows.push({
+          original_index: p.original_index,
+          slot: r.slot,
+          team_name: r.team_name,
+          full_name: p.full_name,
+          rand_id: p.rand_id,
+        });
+      });
+    }
+    // Sort by original Excel-sheet row order so the drawn numbers can be pasted
+    // straight back into the import template.
+    rows.sort((a, b) => a.original_index - b.original_index);
+    let csv = 'original_index,slot,team_name,player_name,rand_id\n';
+    for (const r of rows) {
+      csv += `${r.original_index},${r.slot},"${r.team_name}","${r.full_name}",${r.rand_id}\n`;
+    }
+    downloadCSV(csv);
+  }
+
   function showSavedRecap(savedDraw) {
+    window._savedDraw = savedDraw;
     const cols = 6;
     let gridHtml = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
     for (const r of savedDraw) {
@@ -746,6 +801,7 @@
           <p class="text-sm text-gray-500">${savedDraw.length * 4} players</p>
         </div>
         <div class="flex items-center gap-4">
+          <button onclick="exportSavedCSV(window._savedDraw)" class="px-4 py-2 bg-teal-600 text-white rounded hover:bg-teal-700">Download CSV</button>
           <button onclick="sessionStorage.setItem('team_draw_skip_recap','1');location.reload()" class="px-4 py-2 bg-amber-500 text-white rounded hover:bg-amber-600">Start new draw</button>
         </div>
       </div>
@@ -754,22 +810,70 @@
       </div>`;
   }
 
+  // ─── STYLED CONFIRM ───────────────────────────────────
+  // Standalone page (not inside the admin shell), so we provide a self-contained
+  // modal that mirrors window.confirmAction. Returns a Promise<boolean>.
+  function styledConfirm(opts) {
+    return new Promise(function (resolve) {
+      const overlay = document.createElement('div');
+      overlay.className = 'fixed inset-0 z-[60] flex items-center justify-center p-4';
+      overlay.innerHTML = `
+        <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" data-cancel></div>
+        <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+          <div class="flex items-start gap-4 p-6">
+            <div class="shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-amber-100 text-amber-600">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-lg font-bold text-gray-900">${opts.title}</h3>
+              <p class="mt-2 text-sm text-gray-600">${opts.body}</p>
+            </div>
+          </div>
+          <div class="flex justify-end gap-2 px-6 py-4 bg-gray-50">
+            <button type="button" data-cancel
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">${opts.cancelLabel}</button>
+            <button type="button" data-confirm
+                    class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-amber-500 hover:bg-amber-600">${opts.confirmLabel}</button>
+          </div>
+        </div>`;
+
+      function close(result) {
+        document.removeEventListener('keydown', onKey);
+        overlay.remove();
+        resolve(result);
+      }
+      function onKey(e) { if (e.key === 'Escape') close(false); }
+
+      overlay.querySelectorAll('[data-cancel]').forEach(function (el) {
+        el.addEventListener('click', function () { close(false); });
+      });
+      overlay.querySelector('[data-confirm]').addEventListener('click', function () { close(true); });
+      document.addEventListener('keydown', onKey);
+      document.body.appendChild(overlay);
+    });
+  }
+
   // ─── INIT ─────────────────────────────────────────────
 
   const SAVED_DRAW = JSON.parse(document.getElementById('saved-draw-data').textContent);
   const skipRecap = sessionStorage.getItem('team_draw_skip_recap');
   if (SAVED_DRAW && SAVED_DRAW.length > 0 && !skipRecap) {
-    if (confirm('A draw has already been saved to the server. View the results?\n\nClick OK to see the recap, or Cancel to start a new draw.')) {
+    styledConfirm({
+      title: 'A draw is already saved',
+      body: 'A draw has already been saved to the server. View the saved results, or start a new draw?',
+      confirmLabel: 'View results',
+      cancelLabel: 'Start new draw',
+    }).then(function (viewResults) {
       localStorage.removeItem('team_draw_state');
-      showSavedRecap(SAVED_DRAW);
-    } else {
-      localStorage.removeItem('team_draw_state');
-      sessionStorage.setItem('team_draw_skip_recap', '1');
-      render();
-    }
+      if (viewResults) {
+        showSavedRecap(SAVED_DRAW);
+      } else {
+        sessionStorage.setItem('team_draw_skip_recap', '1');
+        render();
+      }
+    });
   } else {
-    loadState();
-    render();
+    loadState().then(render);
   }
   </script>
 

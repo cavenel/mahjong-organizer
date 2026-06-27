@@ -417,6 +417,11 @@ def admin_team_draw(request):
     tenant = get_tenant(request)
     players_data = Player_data.objects.filter(tenant=tenant).order_by('full_name')
 
+    # Players are created in import order, so id order is the original row order
+    # of the Excel "Players" sheet. The CSV export sorts on this so the drawn
+    # numbers line up with the template rows.
+    pd_order = {pd.id: i for i, pd in enumerate(sorted(players_data, key=lambda p: p.id), start=1)}
+
     teams_dict = {}
     for pd in players_data:
         if pd.team:
@@ -424,6 +429,7 @@ def admin_team_draw(request):
                 teams_dict[pd.team] = []
             teams_dict[pd.team].append({
                 "id": pd.id,
+                "original_index": pd_order[pd.id],
                 "full_name": pd.full_name,
                 "first_name": pd.first_name,
                 "country": pd.country,
@@ -441,6 +447,8 @@ def admin_team_draw(request):
     saved_draw = []
     players_with_team = Player.objects.filter(tenant=tenant).exclude(team="").order_by('rand_id')
     if players_with_team.exists():
+        p_order = {p.id: i for i, p in enumerate(
+            Player.objects.filter(tenant=tenant).order_by('id'), start=1)}
         draw_teams = {}
         for p in players_with_team:
             if p.team not in draw_teams:
@@ -448,6 +456,7 @@ def admin_team_draw(request):
             draw_teams[p.team].append({
                 "full_name": p.full_name,
                 "rand_id": p.rand_id,
+                "original_index": p_order[p.id],
             })
         slot = 1
         for team_name in sorted(draw_teams.keys()):
