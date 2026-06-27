@@ -8,6 +8,7 @@
   .po-intro .em { font-weight: 600; color: #b45309; }
 
   .po-card { border: 1px solid #d0d7de; border-radius: 8px; overflow: hidden; margin-top: 16px; }
+  .po-scroll { overflow-x: auto; }
   .po-table { width: 100%; border-collapse: collapse; font-size: 13px; color: #24292f; }
   .po-table thead tr { background: #f6f8fa; border-bottom: 1px solid #d0d7de; }
   .po-table thead th {
@@ -55,6 +56,7 @@
   </div>
 
   <div class="po-card">
+    <div class="po-scroll">
     <table class="po-table">
       <thead>
         <tr>
@@ -84,6 +86,7 @@
         {% endfor %}
       </tbody>
     </table>
+    </div>
   </div>
 
   <p class="po-foot">
@@ -92,6 +95,8 @@
   </p>
 </div>
 
+<script src="{% static 'js/display_socket.js' %}"></script>
+<script src="{% static 'js/admin_sync_banner.js' %}"></script>
 <script>
 (function() {
   var CSRF = "{{ csrf_token }}";
@@ -208,55 +213,31 @@
   });
 
   // --- live updates (shared scorers group) ------------------------------------
-  if (SUBDOMAIN) {
-    var proto = (location.protocol === "https:") ? "wss" : "ws";
-    var url = proto + "://" + location.host + "/ws/scorers/" + SUBDOMAIN + "/";
-    var ws, reconnectTimer = null, retries = 0;
-
-    function scheduleReconnect() {
-      if (reconnectTimer) return;
-      var delay = Math.min(30000, 1000 * Math.pow(2, retries++));
-      reconnectTimer = setTimeout(function() { reconnectTimer = null; connect(); }, delay);
-    }
-    function connect() {
-      if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-      ws = new WebSocket(url);
-      ws.onopen = function() { retries = 0; };
-      ws.onmessage = function(evt) {
-        var msg; try { msg = JSON.parse(evt.data); } catch (e) { return; }
-        handle(msg);
-      };
-      ws.onclose = function() { scheduleReconnect(); };
-    }
-    window.addEventListener("online", function() {
-      if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
-      retries = 0; connect();
-    });
-    connect();
-
-    function handle(msg) {
-      if (msg.published_rounds) { applyPublished(msg.published_rounds); return; }
-      var st = (msg.round_nb !== undefined) ? state[msg.round_nb] : null;
-      if (!st) return;
-      var t = msg.table_nb;
-      if (msg.positions) {
-        // scorer.row — a table is "scored" when every position has minipoints.
-        var allFilled = msg.positions.length > 0 &&
-          msg.positions.every(function(p) { return p.mp !== null && p.mp !== undefined; });
-        if (allFilled) st.scored.add(t); else st.scored.delete(t);
-      } else if (msg.type === "scorer.validation") {
-        // Mirror the Scoring page: validated and in-progress are mutually exclusive.
-        if (msg.valid) { st.validated.add(t); st.inprog.delete(t); }
-        else           { st.validated.delete(t); st.inprog.add(t); }
-      } else if (msg.type === "scorer.filled") {
-        if (!st.validated.has(t)) {
-          if (msg.filled) st.inprog.add(t); else st.inprog.delete(t);
-        }
-      } else {
-        return;
+  function handle(msg) {
+    if (msg.published_rounds) { applyPublished(msg.published_rounds); return; }
+    var st = (msg.round_nb !== undefined) ? state[msg.round_nb] : null;
+    if (!st) return;
+    var t = msg.table_nb;
+    if (msg.positions) {
+      // scorer.row — a table is "scored" when every position has minipoints.
+      var allFilled = msg.positions.length > 0 &&
+        msg.positions.every(function(p) { return p.mp !== null && p.mp !== undefined; });
+      if (allFilled) st.scored.add(t); else st.scored.delete(t);
+    } else if (msg.type === "scorer.validation") {
+      // Mirror the Scoring page: validated and in-progress are mutually exclusive.
+      if (msg.valid) { st.validated.add(t); st.inprog.delete(t); }
+      else           { st.validated.delete(t); st.inprog.add(t); }
+    } else if (msg.type === "scorer.filled") {
+      if (!st.validated.has(t)) {
+        if (msg.filled) st.inprog.add(t); else st.inprog.delete(t);
       }
-      renderRound(msg.round_nb);
+    } else {
+      return;
     }
+    renderRound(msg.round_nb);
   }
+
+  // Heartbeat + reconnect + "out of sync, please refresh" banner (shared helper).
+  connectScorerSocket({ subdomain: SUBDOMAIN, onUpdate: handle });
 })();
 </script>
