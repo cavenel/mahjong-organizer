@@ -45,10 +45,51 @@
       border-radius: 3px;
       pointer-events: none;
     }
+    .enlarge {
+      position: absolute;
+      left: 6px; top: 4px;
+      z-index: 10;
+      width: 26px; height: 26px;
+      display: flex; align-items: center; justify-content: center;
+      background: #aaaaaacc;
+      border: 1px solid #888;
+      border-radius: 3px;
+      color: black;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+    .cell:hover .enlarge { opacity: 1; }
+    .enlarge svg { width: 16px; height: 16px; }
     #empty {
       width: 100vw; height: 100vh;
       display: flex; align-items: center; justify-content: center;
       color: #888; font: 24px sans-serif;
+    }
+    /* Enlarged-screen modal */
+    #modal {
+      position: fixed; inset: 0; z-index: 100;
+      display: none;
+      align-items: center; justify-content: center;
+      background: rgba(0,0,0,.85);
+    }
+    #modal-frame { background: black; overflow: hidden; }
+    #modal-iframe {
+      width: 1920px; height: 1080px; border: 0;
+      transform-origin: top left;
+    }
+    #modal-close {
+      position: absolute; right: 16px; top: 12px;
+      width: 40px; height: 40px;
+      display: flex; align-items: center; justify-content: center;
+      background: #ffffffdd; border: 0; border-radius: 6px;
+      cursor: pointer; color: #111;
+    }
+    #modal-close svg { width: 22px; height: 22px; }
+    #modal-title {
+      position: absolute; left: 16px; top: 16px;
+      color: #fff; font: bold 16px sans-serif;
+      text-shadow: 0 1px 3px rgba(0,0,0,.8);
     }
   </style>
 </head>
@@ -59,9 +100,21 @@
     {% for screen in screens %}
       <div class="cell">
         <div class="label">Screen {{ forloop.counter }}</div>
+        <button type="button" class="enlarge" title="Enlarge"
+                data-src="{{ forloop.counter }}" data-label="Screen {{ forloop.counter }}">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        </button>
         <iframe src="{{ forloop.counter }}" scrolling="no" tabindex="-1"></iframe>
       </div>
     {% endfor %}
+  </div>
+
+  <div id="modal">
+    <div id="modal-title"></div>
+    <button type="button" id="modal-close" title="Close">
+      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </button>
+    <div id="modal-frame"><iframe id="modal-iframe" scrolling="no"></iframe></div>
   </div>
 {% else %}
   <div id="empty">No screens configured</div>
@@ -82,6 +135,40 @@
   window.addEventListener('resize', fitFrames);
   window.addEventListener('load', fitFrames);
   fitFrames();
+
+  // --- enlarge a single screen to a fitted full-viewport modal ---------------
+  var modal = document.getElementById('modal');
+  var modalFrame = document.getElementById('modal-frame');
+  var modalIframe = document.getElementById('modal-iframe');
+  var modalTitle = document.getElementById('modal-title');
+
+  function openModal(src, label) {
+    // Fit a 1920×1080 frame inside the viewport, never upscaling past 1:1.
+    var scale = Math.min((window.innerWidth - 48) / 1920, (window.innerHeight - 48) / 1080, 1);
+    modalIframe.style.transform = 'scale(' + scale + ')';
+    modalFrame.style.width = (1920 * scale) + 'px';
+    modalFrame.style.height = (1080 * scale) + 'px';
+    modalTitle.textContent = label;
+    modalIframe.src = src;
+    modal.style.display = 'flex';
+  }
+
+  function closeModal() {
+    modal.style.display = 'none';
+    modalIframe.removeAttribute('src');
+  }
+
+  if (modal) {
+    document.querySelectorAll('.enlarge').forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        openModal(btn.getAttribute('data-src'), btn.getAttribute('data-label'));
+      });
+    });
+    document.getElementById('modal-close').addEventListener('click', closeModal);
+    // Close when clicking the dark backdrop, but not the screen frame itself.
+    modal.addEventListener('click', function(e) { if (e.target === modal) closeModal(); });
+    document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeModal(); });
+  }
 </script>
 
 <script src="{% static 'js/display_socket.js' %}"></script>
