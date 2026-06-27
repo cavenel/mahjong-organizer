@@ -92,13 +92,13 @@
         {% for screen in screens %}
           <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div class="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-700 flex items-center justify-between gap-2">
-              <span class="truncate">Screen {{ forloop.counter }} <span class="preview-view font-normal text-gray-500" data-screen-id="{{ screen.id }}">— {{ screen.view }}</span></span>
+              <span class="truncate">/{{ forloop.counter }}<span class="preview-name-label" data-screen-id="{{ screen.id }}">{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}</span> <span class="preview-view font-normal text-gray-500" data-screen-id="{{ screen.id }}">— {{ screen.view }}</span></span>
               <button type="button" title="Enlarge"
                       class="enlarge-preview shrink-0 p-1 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                       data-screen-id="{{ screen.id }}"
-                      data-screen-label="Screen {{ forloop.counter }}"
+                      data-screen-label="/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}"
                       data-src="https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}"
-                      data-title="Screen {{ forloop.counter }} — {{ screen.view }}">
+                      data-title="/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %} — {{ screen.view }}">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
               </button>
             </div>
@@ -359,8 +359,22 @@
         {% for screen in screens %}
           <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
-              <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-              <h3 class="text-sm font-semibold text-gray-700">Screen {{ forloop.counter }}</h3>
+              <svg class="w-5 h-5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+              <!-- The title doubles as the rename field: /N is fixed, the name after it is an
+                   inline input (dashed underline + pencil) that saves on blur/Enter. -->
+              <h3 class="text-sm font-semibold text-gray-700 flex items-center gap-1.5 flex-1 min-w-0">
+                <span class="shrink-0">/{{ forloop.counter }}</span>
+                <span class="text-gray-300 shrink-0">—</span>
+                <input type="text" maxlength="70" title="Click to rename this screen"
+                       class="screen-name-input flex-1 min-w-0 bg-transparent font-semibold text-gray-700
+                              border-b border-dashed border-gray-300 px-0.5 cursor-text
+                              hover:border-gray-500 focus:outline-none focus:border-amber-400 focus:border-solid
+                              placeholder:font-normal placeholder:italic placeholder:text-gray-400"
+                       data-id="{{ screen.id }}" data-counter="{{ forloop.counter }}"
+                       value="{{ screen.friendly_name }}" placeholder="click to name">
+                <svg class="screen-name-pencil w-3.5 h-3.5 text-gray-400 shrink-0 cursor-pointer hover:text-amber-500" data-id="{{ screen.id }}"
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              </h3>
             </div>
             <div class="p-4 space-y-3">
               <a target="_blank" href="https://{{ variables.tenant }}.mahj.ovh/{{ forloop.counter }}"
@@ -671,6 +685,33 @@
     });
 
     $(document).on('change', '.select-page', function() { applyView(this.getAttribute('data-id')); });
+
+    // ── Rename a screen ───────────────────────────────────────────────────────
+    // The screen-card title is itself the rename field (/N stays fixed; the name
+    // after it is an inline input). Saving on blur/change posts to
+    // update_screen_name and refreshes the friendly-label suffix (" — Name", or
+    // nothing when cleared) on the preview header and enlarge button — no reload.
+    $(document).on('change', '.screen-name-input', function() {
+      var id = this.getAttribute('data-id');
+      var counter = this.getAttribute('data-counter');
+      var name = this.value.trim();
+      var suffix = name ? ' — ' + name : '';
+      $.post('update_screen_name?id=' + id + '&name=' + encodeURIComponent(name),
+             { 'csrfmiddlewaretoken': '{{ csrf_token }}' });
+      $('.preview-name-label[data-screen-id="' + id + '"]').text(suffix);
+      // Refresh the enlarge button's base label, then let syncControls rebuild its
+      // "<label> — <view>" title from it (and re-paint the preview-view caption).
+      $('.enlarge-preview[data-screen-id="' + id + '"]').attr('data-screen-label', '/' + counter + suffix);
+      syncControls(id, composeView(id));
+    });
+    // Enter commits (and unfocuses) the rename field; the pencil focuses it.
+    $(document).on('keydown', '.screen-name-input', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); this.blur(); }
+    });
+    $(document).on('click', '.screen-name-pencil', function() {
+      var input = $(this).siblings('.screen-name-input')[0];
+      if (input) input.focus();
+    });
 
     // Rows-per-page / column count drive the page count: rebuild the Pages
     // options for every standings screen when either changes.

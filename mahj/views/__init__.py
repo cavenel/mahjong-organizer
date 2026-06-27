@@ -64,6 +64,7 @@ from .display import (
     overview,
     render_scores,
     scores_per_table,
+    update_screen_name,
     update_screen_view,
 )
 from .scan import scan_page, scan_positions, scan_prefill, scan_status

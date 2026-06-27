@@ -63,6 +63,9 @@ def _mode_breakdowns(modes, screens):
     so a mode reads as active exactly when re-clicking it would be a no-op.
     (Initial paint only; JS keeps the highlight current after live edits.)"""
     current = [str(s.view) or "black" for s in screens]
+    # Positional label (/1, /2…) plus the operator's name when the screen was renamed.
+    labels = [f"/{i + 1}" + (f" — {s.friendly_name}" if s.friendly_name else "")
+              for i, s in enumerate(screens)]
     out = []
     for mode in modes:
         try:
@@ -73,10 +76,10 @@ def _mode_breakdowns(modes, screens):
         rows = []
         for i in range(len(current)):
             if i < len(normalised):
-                rows.append({"label": f"Screen {i + 1}",
+                rows.append({"label": labels[i],
                              "pretty": _pretty_view(normalised[i]), "unchanged": False})
             else:
-                rows.append({"label": f"Screen {i + 1}",
+                rows.append({"label": labels[i],
                              "pretty": "unchanged", "unchanged": True})
         covered = min(len(current), len(normalised))
         out.append({

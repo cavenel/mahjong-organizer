@@ -128,7 +128,17 @@ class Screen(TenantAwareModel):
     view         = models.CharField(default="",null=True,max_length=70)
     time         = models.DateTimeField(auto_now_add=True, blank=False)
     last_refresh = models.DateTimeField(auto_now_add=True, blank=False)
-    
+
+    # Legacy auto-assigned placeholders that should read as "no custom name" in the
+    # UI, so an un-renamed screen falls back to its bare positional label (/1, /2…).
+    _PLACEHOLDER_NAMES = ("", "Unknown", "Screen_X")
+
+    @property
+    def friendly_name(self):
+        """The operator-given label, or "" if the screen was never renamed."""
+        name = (self.name or "").strip()
+        return "" if name in self._PLACEHOLDER_NAMES else name
+
     def __str__(self):
         return str(self.time) + " / " + self.view
 

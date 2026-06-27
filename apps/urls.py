@@ -13,6 +13,7 @@ urlpatterns = [
     # Display screens
     path('<int:screen_id>', views.index, name='index'),
     path('update_screen_view', views.update_screen_view, name='update_screen_view'),
+    path('update_screen_name', views.update_screen_name, name='update_screen_name'),
     path('overview', views.overview, name='overview'),
 
     # Prize-giving ceremony

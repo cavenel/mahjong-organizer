@@ -221,6 +221,19 @@ def update_screen_view(request):
     return HttpResponse("")
 
 
+@user_passes_test(is_display_op)
+def update_screen_name(request):
+    """Rename a screen. The name is a friendly label only — screens are still
+    addressed positionally (/1, /2, …), so renaming never changes a URL. An empty
+    name clears it, falling back to the bare positional label in the UI."""
+    tenant = get_tenant(request)
+    screen = Screen.objects.get(tenant=tenant, id=request.GET.get('id'))
+    screen.name = (request.GET.get('name') or '').strip()[:70]
+    screen.save()
+    broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+    return HttpResponse("")
+
+
 def check_variables(request):
     """All tournament variables as JSON, for displays that patch live instead of
     reloading (e.g. the counter screen). `logo` is a BinaryField (not JSON-

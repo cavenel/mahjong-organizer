@@ -84,6 +84,7 @@ class TestStaffOnlyEndpointsRedirectAnonymous:
         '/EMA_report.xlsx',
         '/randomize',
         '/update_screen_view',
+        '/update_screen_name',
     ])
     def test_anonymous_redirected(self, client_, tournament, url):
         resp = client_.get(url)

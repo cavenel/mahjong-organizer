@@ -40,8 +40,8 @@ def _mode(id, name, views):
     return types.SimpleNamespace(id=id, name=name, views=views)
 
 
-def _screen(view):
-    return types.SimpleNamespace(view=view)
+def _screen(view, friendly_name=''):
+    return types.SimpleNamespace(view=view, friendly_name=friendly_name)
 
 
 def test_mode_breakdown_rows_and_active_match():
@@ -55,7 +55,7 @@ def test_mode_breakdown_rows_and_active_match():
     tournament, break_ = out
     assert tournament['is_active'] is True
     assert break_['is_active'] is False
-    assert [r['label'] for r in tournament['rows']] == ['Screen 1', 'Screen 2']
+    assert [r['label'] for r in tournament['rows']] == ['/1', '/2']
     assert [r['pretty'] for r in tournament['rows']] == [
         'Standings — detailed, all (rotating)', 'Counter']
 
@@ -83,7 +83,7 @@ def test_mode_breakdown_fewer_views_than_screens():
 
     assert out['is_active'] is True
     assert len(out['rows']) == 4
-    assert out['rows'][3] == {'label': 'Screen 4', 'pretty': 'unchanged', 'unchanged': True}
+    assert out['rows'][3] == {'label': '/4', 'pretty': 'unchanged', 'unchanged': True}
 
 
 def test_mode_breakdown_covered_screen_differs_is_not_active():
@@ -125,6 +125,14 @@ def test_mode_breakdown_views_json_is_compact():
         '["scores:detailed:all","counter"]'
 
 
+def test_mode_breakdown_label_includes_friendly_name():
+    """A renamed screen appends its name to the positional endpoint label."""
+    screens = [_screen('counter', friendly_name='Main hall'), _screen('black')]
+    modes = [_mode(1, 'T', json.dumps(['counter', 'black']))]
+    rows = _mode_breakdowns(modes, screens)[0]['rows']
+    assert [r['label'] for r in rows] == ['/1 — Main hall', '/2']
+
+
 # ── Page rendering ──────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -161,7 +169,9 @@ def test_display_page_marks_active_mode(client_, display_op, tournament):
     assert html.count('mode-card mode-card--active') == 1
     assert 'Tournament' in html and 'Break' in html
     assert 'Standings — detailed, all (rotating)' in html
-    assert 'Screen 1' in html and 'Screen 2' in html
+    # Screens are labelled by their positional endpoint (/1, /2…), not "Screen N".
+    # Match the mode-breakdown row label markup so we don't trip on screen URLs.
+    assert '>/1</span>' in html and '>/2</span>' in html
 
 
 def test_display_page_no_active_mode_when_nothing_matches(client_, display_op, tournament):
@@ -204,3 +214,35 @@ def test_add_mode_snapshots_all_screen_views(client_, display_op, tournament):
     assert len(mode.views) > 100
 
 
+# ── Screen rename ─────────────────────────────────────────────────────────────
+
+@pytest.mark.django_db
+@pytest.mark.parametrize('stored, expected', [
+    ('Main hall', 'Main hall'),
+    ('  Lobby  ', 'Lobby'),   # trimmed
+    ('Unknown', ''),          # legacy placeholder reads as unnamed
+    ('Screen_X', ''),         # legacy auto-name reads as unnamed
+    ('', ''),
+])
+def test_screen_friendly_name(stored, expected):
+    assert Screen(name=stored).friendly_name == expected
+
+
+def test_update_screen_name_persists_and_clears(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    screen = Screen.objects.create(tenant=tenant, view='counter')
+    client_.force_login(display_op)
+
+    resp = client_.get(f'/update_screen_name?id={screen.id}&name=Main+hall')
+    assert resp.status_code == 200
+    screen.refresh_from_db()
+    assert screen.name == 'Main hall'
+
+    # The renamed screen's label appears on the admin page as "/N — Name".
+    html = client_.get('/admin?page=display').content.decode()
+    assert 'Main hall' in html
+
+    # An empty name clears it back to the bare positional label.
+    client_.get(f'/update_screen_name?id={screen.id}&name=')
+    screen.refresh_from_db()
+    assert screen.friendly_name == ''
