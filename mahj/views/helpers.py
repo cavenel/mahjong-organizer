@@ -1,3 +1,4 @@
+import os
 import pathlib
 
 from django.conf import settings
@@ -50,6 +51,15 @@ class PositionForm(ModelForm):
 
 
 def get_domain(request):
+    # Emergency local instance: a venue laptop is reached at a bare LAN IP, which
+    # carries no subdomain, so normal host parsing can't find the live tenant.
+    # LOCAL_TENANT pins every request to one tenant regardless of IP/subnet — set
+    # it to the tournament's subdomain in the laptop's .env. DEBUG-gated so it can
+    # never collapse the multi-tenant cloud (prod) onto a single tenant.
+    if settings.DEBUG:
+        forced = os.environ.get('LOCAL_TENANT', '').strip()
+        if forced:
+            return forced
     host = request.get_host()
     parts = host.split('.')
     if len(parts) >= 3:

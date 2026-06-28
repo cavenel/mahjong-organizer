@@ -16,7 +16,9 @@
 # Config: DB creds come from the project .env; remote/SSH from
 # scripts/backup_db.env (copy from scripts/backup_db.env.example).
 #
-# Restore with scripts/restore_test.sh (rehearse this before the event!).
+# Restore the live DB with scripts/restore_db.sh; validate a dump without
+# touching live data with scripts/restore_test.sh (rehearse both before the event!).
+# Schedule this script with scripts/install_backup_cron.sh.
 set -euo pipefail
 
 # --- locate the project + load config ---------------------------------------
@@ -44,6 +46,14 @@ COMPOSE="${COMPOSE:-docker compose -f docker-compose.yml -f docker-compose.prod.
 LOCAL_RETENTION_MIN="${LOCAL_RETENTION_MIN:-720}"     # 12h
 REMOTE_RETENTION_MIN="${REMOTE_RETENTION_MIN:-4320}"  # 3 days
 
+# Origin label baked into every dump name (mahj_<source>_<stamp>.dump). During a
+# venue failover the cloud may still be dumping; tagging keeps the two streams
+# distinct in the shared remote dir so failback grabs the right (venue) dump.
+# Set BACKUP_SOURCE per box in backup_db.env (e.g. cloud / venue); default: hostname.
+BACKUP_SOURCE="${BACKUP_SOURCE:-$(hostname -s 2>/dev/null || echo host)}"
+# Force a filename-safe token — it goes verbatim into dump names AND prune globs.
+BACKUP_SOURCE="$(printf '%s' "$BACKUP_SOURCE" | tr -c 'A-Za-z0-9._-' '_')"
+
 : "${DB_NAME:?DB_NAME unset in .env}"
 : "${DB_USER:?DB_USER unset in .env}"
 : "${DB_PASSWORD:?DB_PASSWORD unset in .env}"
@@ -52,8 +62,8 @@ REMOTE_RETENTION_MIN="${REMOTE_RETENTION_MIN:-4320}"  # 3 days
 
 mkdir -p "$LOCAL_DIR"
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-final="$LOCAL_DIR/mahj_${stamp}.dump"
-tmp="$LOCAL_DIR/.mahj_${stamp}.partial"
+final="$LOCAL_DIR/mahj_${BACKUP_SOURCE}_${stamp}.dump"
+tmp="$LOCAL_DIR/.mahj_${BACKUP_SOURCE}_${stamp}.partial"
 
 # --- 1+2. dump atomically ----------------------------------------------------
 # Write to a .partial first; only promote to the real name if pg_dump exits 0,
@@ -81,12 +91,15 @@ rsync -az -e "$SSH_OPTS" "$final" "$REMOTE/"
 echo "backup_db: rsynced to $REMOTE/"
 
 # --- 4. prune ----------------------------------------------------------------
-find "$LOCAL_DIR" -maxdepth 1 -name 'mahj_*.dump' -mmin "+$LOCAL_RETENTION_MIN" -delete
+# Scope pruning to THIS box's own source: cloud and venue share the remote dir,
+# and an unscoped 'mahj_*.dump' glob would let the cloud cron reap the venue's
+# dumps (or vice versa). Each instance only ever deletes what it wrote.
+find "$LOCAL_DIR" -maxdepth 1 -name "mahj_${BACKUP_SOURCE}_*.dump" -mmin "+$LOCAL_RETENTION_MIN" -delete
 # Remote prune: split user@host from path, run find over SSH.
 remote_host="${REMOTE%%:*}"
 remote_path="${REMOTE#*:}"
 $SSH_OPTS "$remote_host" \
-  "find '$remote_path' -maxdepth 1 -name 'mahj_*.dump' -mmin +$REMOTE_RETENTION_MIN -delete" \
+  "find '$remote_path' -maxdepth 1 -name 'mahj_${BACKUP_SOURCE}_*.dump' -mmin +$REMOTE_RETENTION_MIN -delete" \
   || echo "backup_db: remote prune skipped (non-fatal)" >&2
 
 echo "backup_db: done"
