@@ -353,7 +353,10 @@ def player_extra_stats(tenant, player, variables):
         for p in (1, 2, 3, 4)
     ]
 
-    # Win / loss hand stats.
+    # Win / loss hand stats. Only count hands from validated score sheets — an
+    # un-validated table's hand detail (e.g. freshly scanned, not yet human-checked)
+    # must not feed these rates, exactly like the per-table detailed-hands modal.
+    completed = completed_tables(tenant)
     round_table_seat = {pos.round_nb: (pos.table_nb, pos.position) for pos in positions}
     hands = Hand.objects.filter(
         tenant=tenant,
@@ -365,6 +368,8 @@ def player_extra_stats(tenant, player, variables):
     for h in hands:
         info = round_table_seat.get(h.round_nb)
         if info is None or h.table_nb != info[0] or h.pts == 0:
+            continue
+        if (h.round_nb, h.table_nb) not in completed:
             continue
         seat = info[1]
         total_hands += 1
@@ -421,6 +426,8 @@ def team_extra_stats(tenant, team_name, variables):
         for p in (1, 2, 3, 4)
     ]
 
+    # Only validated score sheets feed the win/loss rates (see player_extra_stats).
+    completed = completed_tables(tenant)
     round_table_seat = {}
     for pos in positions:
         round_table_seat.setdefault(pos.player_id, {})[pos.round_nb] = (pos.table_nb, pos.position)
@@ -433,6 +440,8 @@ def team_extra_stats(tenant, team_name, variables):
 
     sd_win = ron_win = deal_in = sd_lose = total_hands = 0
     for h in hands:
+        if (h.round_nb, h.table_nb) not in completed:
+            continue
         for pid, rts_map in round_table_seat.items():
             info = rts_map.get(h.round_nb)
             if info is None or h.table_nb != info[0] or h.pts == 0:

@@ -8,7 +8,7 @@ import pytest
 
 from mahj import views
 from mahj.models import Hand, Player, Position, PublishedRound, Variable
-from mahj.scoring import player_extra_stats
+from mahj.scoring import player_extra_stats, team_extra_stats
 
 
 @pytest.fixture
@@ -207,6 +207,47 @@ class TestPlacementStatsRiichi:
         assert place_of(players[2]) == 2
         assert place_of(players[1]) == 3
         assert place_of(players[0]) == 4
+
+
+class TestWinLossStatsValidationGate:
+    """Win/loss hand stats only count hands from a validated score sheet (a
+    hand_nb=17, pts=1 marker), like the detailed-hands modal — an un-validated
+    sheet (e.g. freshly scanned, not yet human-checked) must not feed the rates."""
+
+    def _table_with_hands(self, tenant):
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
+        # Two real hands won by seat 1 (players[0]) on a discard from seat 2.
+        for hn, pts in ((1, 20), (2, 30)):
+            Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=hn,
+                                pts=pts, win_by=1, win_from=2)
+        return variables, players
+
+    def test_unvalidated_sheet_hands_are_not_counted(self, tenant):
+        variables, players = self._table_with_hands(tenant)
+        # No hand_nb=17 pts=1 marker -> table is not validated.
+        stats = player_extra_stats(tenant, players[0], variables)
+        assert stats['total_hands'] == 0
+
+    def test_validated_sheet_hands_are_counted(self, tenant):
+        variables, players = self._table_with_hands(tenant)
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
+                            pts=1, win_by=0, win_from=0)
+        stats = player_extra_stats(tenant, players[0], variables)
+        assert stats['total_hands'] == 2
+        by_label = {s['label']: s['count'] for s in stats['hand_stats']}
+        assert by_label['Win by discard'] == 2
+
+    def test_team_stats_also_gate_on_validation(self, tenant):
+        variables, players = self._table_with_hands(tenant)
+        for p in players:
+            p.team = 'Reds'
+            p.save()
+        assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 0
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
+                            pts=1, win_by=0, win_from=0)
+        # All 4 team members sit at this table, so team stats see each hand from
+        # every member's seat: 2 hands x 4 players = 8 player-hand observations.
+        assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 8
 
 
 class TestFinalCutoff:
