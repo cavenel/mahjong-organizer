@@ -49,6 +49,18 @@ class TestTeamStandings:
         assert by_team['A']['pos'] == 1
         assert by_team['B']['pos'] == 2
 
+    def test_riichi_same_mp_different_tp_are_tied(self):
+        # Counterpart to test_same_tp_different_mp_are_not_tied: Riichi ranks on
+        # MP alone, so equal MP ties even when TP differs (TP isn't part of the
+        # order at all).
+        rows = [
+            _player_row('A', tp=20.0, mp=200, pid=1),
+            _player_row('B', tp=5.0, mp=200, pid=2),
+        ]
+        variables = SimpleNamespace(rules='Riichi', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        assert by_team['A']['pos'] == by_team['B']['pos'] == 1
+
     def test_non_mcr_ties_on_mp_alone_ignoring_tp(self):
         # Non-MCR (e.g. Riichi) ranks on MP only. Teams level on MP share a
         # position even if their (display-only) TP differs; TP must not split

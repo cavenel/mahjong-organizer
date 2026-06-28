@@ -21,6 +21,12 @@ def teamed(tournament):
 
 
 @pytest.fixture
+def teamed_riichi(teamed, riichi_tournament):
+    """The teamed fixture re-ruled as Riichi (ranking on minipoints)."""
+    return teamed
+
+
+@pytest.fixture
 def tied_players(teamed):
     """Force players[0] and players[1] into an exact (mp, tp) tie across the
     counted rounds, so they share a `pos` in the standings.
@@ -68,6 +74,15 @@ class TestMasterData:
         assert len(master['players']) == 16
         for p in master['players']:
             assert set(p.keys()) == {'pos', 'player_id', 'name', 'flag', 'total', 'mp'}
+
+    def test_player_display_total_is_minipoints_for_riichi(self, teamed_riichi):
+        # MCR shows table points as the headline total; Riichi has none, so the
+        # displayed total must be the minipoints score.
+        master = ceremony._ceremony_master(_request())
+        assert master['rules'] == 'Riichi'
+        assert master['players']
+        for p in master['players']:
+            assert p['total'] == p['mp']
 
 
 class TestTieHandling:

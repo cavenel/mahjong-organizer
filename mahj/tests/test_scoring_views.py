@@ -59,6 +59,13 @@ class TestPlayerStandings:
         # MCR: descending by tp, tiebreak descending by mp
         assert totals == sorted(totals, key=lambda t: (-t[0], -t[1]))
 
+    def test_sorted_by_mp_only_for_riichi(self, request_riichi):
+        rows = views.scores_per_player_json(request_riichi, force_all=True)
+        mps = [r['total']['mp'] for r in rows]
+        # Riichi ranks on minipoints alone — strictly non-increasing, regardless
+        # of table points (which must not influence the order).
+        assert mps == sorted(mps, reverse=True)
+
     def test_ranks_are_dense_with_ties_sharing(self, request_):
         rows = views.scores_per_player_json(request_, force_all=True)
         # pos values must be 1..n, with ties sharing (1,2,2,4 pattern).
@@ -99,34 +106,39 @@ class TestPlayerStandings:
             assert len(r['scores']) == 2
 
 
+def _seat_one_table(tenant, seats, rules='MCR'):
+    """Create a Variable + one 4-seat table. `seats` is [(minipoints, tablepoints), …]
+    in seat order. Returns (variables, [players])."""
+    variables = Variable.objects.create(
+        tenant=tenant, welcome='W', title='T', fullname='F',
+        nb_rounds=1, rules=rules,
+    )
+    players = []
+    for i, (mp, tp) in enumerate(seats):
+        p = Player.objects.create(
+            tenant=tenant, rand_id=i + 1, full_name=f'P{i + 1} L',
+            first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}', email='',
+        )
+        Position.objects.create(
+            tenant=tenant, round_nb=1, table_nb=1, position=i + 1,
+            player=p, minipoints=mp, tablepoints=tp,
+        )
+        players.append(p)
+    return variables, players
+
+
+# A 2-way tie for 1st (both mp=100 -> averaged tp 3.0), then a clean 3rd
+# (mp=50, tp 1.0) and 4th (mp=20, tp 0.0).
+_TIE_SEATS = [(100, 3.0), (100, 3.0), (50, 1.0), (20, 0.0)]
+
+
 class TestPlacementStats:
     """player_extra_stats placement rates — especially MCR tied tables, whose
     averaged table points (3.0, 1.5, 0.5, …) used to match no fixed-TP key and
     silently dropped the whole round from the counts."""
 
-    def _seat_table(self, tenant, rules='MCR'):
-        """One MCR table with a 2-way tie for 1st (both mp=100 -> tp 3.0),
-        then a clean 3rd (mp=50, tp 1.0) and 4th (mp=20, tp 0.0)."""
-        variables = Variable.objects.create(
-            tenant=tenant, welcome='W', title='T', fullname='F',
-            nb_rounds=1, rules=rules,
-        )
-        seats = [(100, 3.0), (100, 3.0), (50, 1.0), (20, 0.0)]
-        players = []
-        for i, (mp, tp) in enumerate(seats):
-            p = Player.objects.create(
-                tenant=tenant, rand_id=i + 1, full_name=f'P{i + 1} L',
-                first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}', email='',
-            )
-            Position.objects.create(
-                tenant=tenant, round_nb=1, table_nb=1, position=i + 1,
-                player=p, minipoints=mp, tablepoints=tp,
-            )
-            players.append(p)
-        return variables, players
-
     def test_tied_first_place_round_is_counted_not_dropped(self, tenant):
-        variables, players = self._seat_table(tenant)
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         stats = player_extra_stats(tenant, players[0], variables)
         # The tied-for-1st player's round must be counted (was dropped before).
         assert stats['total_rounds'] == 1
@@ -136,14 +148,14 @@ class TestPlacementStats:
         assert by_place[2]['count'] == 0
 
     def test_both_tied_players_share_first(self, tenant):
-        variables, players = self._seat_table(tenant)
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         for tied in (players[0], players[1]):
             by_place = {p['place']: p['count']
                         for p in player_extra_stats(tenant, tied, variables)['placement']}
             assert by_place == {1: 1, 2: 0, 3: 0, 4: 0}
 
     def test_lower_seats_keep_their_true_place(self, tenant):
-        variables, players = self._seat_table(tenant)
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         # mp=50 sits behind two tied leaders -> 3rd; mp=20 -> 4th.
         third = {p['place']: p['count']
                  for p in player_extra_stats(tenant, players[2], variables)['placement']}
@@ -151,6 +163,50 @@ class TestPlacementStats:
                   for p in player_extra_stats(tenant, players[3], variables)['placement']}
         assert third == {1: 0, 2: 0, 3: 1, 4: 0}
         assert fourth == {1: 0, 2: 0, 3: 0, 4: 1}
+
+
+class TestPlacementStatsRiichi:
+    """Riichi placement rates: ranked within the table by minipoints, not table
+    points. Same tie-sharing and round-counting guarantees as MCR."""
+
+    def test_tied_first_place_round_is_counted_not_dropped(self, tenant):
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        stats = player_extra_stats(tenant, players[0], variables)
+        assert stats['total_rounds'] == 1
+        by_place = {p['place']: p for p in stats['placement']}
+        assert by_place[1]['count'] == 1
+        assert by_place[1]['rate_pct'] == 100
+        assert by_place[2]['count'] == 0
+
+    def test_both_tied_players_share_first(self, tenant):
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        for tied in (players[0], players[1]):
+            by_place = {p['place']: p['count']
+                        for p in player_extra_stats(tenant, tied, variables)['placement']}
+            assert by_place == {1: 1, 2: 0, 3: 0, 4: 0}
+
+    def test_lower_seats_keep_their_true_place(self, tenant):
+        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        third = {p['place']: p['count']
+                 for p in player_extra_stats(tenant, players[2], variables)['placement']}
+        fourth = {p['place']: p['count']
+                  for p in player_extra_stats(tenant, players[3], variables)['placement']}
+        assert third == {1: 0, 2: 0, 3: 1, 4: 0}
+        assert fourth == {1: 0, 2: 0, 3: 0, 4: 1}
+
+    def test_placement_follows_minipoints_not_table_points(self, tenant):
+        # Table points and minipoints disagree: the seat with the most table
+        # points has the fewest minipoints. Riichi must place by minipoints.
+        seats = [(10, 4.0), (40, 2.0), (70, 1.0), (100, 0.0)]
+        variables, players = _seat_one_table(tenant, seats, 'Riichi')
+        place_of = lambda pl: next(
+            p['place'] for p in player_extra_stats(tenant, pl, variables)['placement']
+            if p['count'])
+        # mp=100 (tp 0.0) is 1st; mp=10 (tp 4.0) is 4th — the reverse of MCR.
+        assert place_of(players[3]) == 1
+        assert place_of(players[2]) == 2
+        assert place_of(players[1]) == 3
+        assert place_of(players[0]) == 4
 
 
 class TestFinalCutoff:

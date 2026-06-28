@@ -82,6 +82,24 @@ def request_(tournament):
     return req
 
 
+@pytest.fixture
+def riichi_tournament(tournament):
+    """The standard fixture re-ruled as Riichi: ranking is on minipoints alone
+    (no table points), so it exercises the non-MCR scoring/standings path."""
+    variable = tournament['variable']
+    variable.rules = 'Riichi'
+    variable.save()
+    return tournament
+
+
+@pytest.fixture
+def request_riichi(riichi_tournament):
+    rf = RequestFactory()
+    req = rf.get('/', HTTP_HOST='test.mahj.ovh')
+    req.user = AnonymousUser()
+    return req
+
+
 def _model_snapshot(m):
     data = {'__model__': type(m).__name__, 'pk': m.pk}
     for field in m._meta.fields:
