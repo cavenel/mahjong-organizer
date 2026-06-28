@@ -683,14 +683,19 @@ def _top_win_streaks(hands, pos_lookup=None):
 
 
 def _roll_up(rounds, category, value_of):
-    """Across rounds, collect all items from rounds tying for the overall top value."""
-    best_value, best_items = 0, []
+    """Across rounds, collect all items from rounds tying for the overall top value.
+
+    `best_value` starts as None (not 0) so the first non-empty round sets the bar:
+    minipoints are zero-sum and routinely negative, and a 0 seed would either drop
+    an all-negative field entirely or merge a spurious 0-valued round into it.
+    """
+    best_value, best_items = None, []
     for rs in rounds:
         items = rs.get(category) or []
         if not items:
             continue
         v = value_of(items[0])
-        if v > best_value:
+        if best_value is None or v > best_value:
             best_value, best_items = v, list(items)
         elif v == best_value:
             best_items += items

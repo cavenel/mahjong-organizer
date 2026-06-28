@@ -45,6 +45,7 @@ def _invalidate_leaderboard(subdomain):
     for cf in (True, False):
         cache.delete(f'stat_rounds:{subdomain}:{cf}')
     cache.delete(f'stat_all:{subdomain}')
+    cache.delete(f'schedule:{subdomain}')
     cache.delete(f'seating:{subdomain}')
     cache.delete(f'player_table:{subdomain}')
     for cf in (True, False):

@@ -153,6 +153,20 @@ class TestRollUp:
     def test_all_empty(self):
         assert _roll_up([{'mp': []}, {}], 'mp', value_of=lambda d: d['v']) == []
 
+    def test_all_negative_tops_still_pick_the_best(self):
+        # Minipoints are zero-sum and routinely negative; an all-negative field
+        # must still roll up the least-negative round (a 0 seed dropped it).
+        rounds = [
+            {'mp': [{'v': -30}]},
+            {'mp': [{'v': -5}]},
+            {'mp': [{'v': -20}]},
+        ]
+        assert _roll_up(rounds, 'mp', value_of=lambda d: d['v']) == [{'v': -5}]
+
+    def test_zero_top_is_picked_not_treated_as_absent(self):
+        rounds = [{'mp': [{'v': -10}]}, {'mp': [{'v': 0}]}]
+        assert _roll_up(rounds, 'mp', value_of=lambda d: d['v']) == [{'v': 0}]
+
 
 class TestCountryFlag:
     def test_known(self):

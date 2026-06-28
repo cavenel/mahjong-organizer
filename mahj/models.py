@@ -183,9 +183,10 @@ class Variable(TenantAwareModel):
 
 class PublishedRound(TenantAwareModel):
     round_nb     = models.IntegerField()
-    # 100 = fully visible (non-last rounds or fully revealed last round).
-    # For the last round, publishing starts at 0 (hidden — podium reveal suspense),
-    # then admin_display +/- bumps it: 1..11 progressively reveal positions 10..1, >11 = fully visible.
+    # Only two values are ever written: 100 = fully visible (non-last rounds, or
+    # the last round once revealed), and 0 = hidden for the last round during the
+    # podium-reveal suspense. The reveal animation is driven client-side by the
+    # ceremony page, not by mutating this field.
     reveal_level = models.IntegerField(default=100)
     published_at = models.DateTimeField(auto_now=True)
 
