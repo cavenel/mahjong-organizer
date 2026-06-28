@@ -47,8 +47,9 @@ def leaderboard_payload(event, standings, variables, round_nb=None):
                     rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
         from .scoring import _assign_ranks, _standings_rank_key, _standings_sort_key
         team_rows = sorted(by_team.values(), key=_standings_sort_key(variables))
-        # Tied teams (same TP and MP) share a position, mirroring the players.
-        _assign_ranks(team_rows, _standings_rank_key, field='pos')
+        # Tied teams share a position, mirroring the players: level on both TP and
+        # MP under MCR, or level on MP alone under the MP-ranked rules.
+        _assign_ranks(team_rows, _standings_rank_key(variables), field='pos')
         for tr in team_rows:
             flags = tr.pop('_flags')
             tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''

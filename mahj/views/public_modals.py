@@ -85,6 +85,7 @@ def details_team(request, team_name):
         default=0,
     )
     sort_key = _standings_sort_key(variables)
+    rank_key = _standings_rank_key(variables)
     team_history_pos = []
     for rnd in range(1, max_played + 1):
         cumulative = {}
@@ -98,7 +99,7 @@ def details_team(request, team_name):
                     slot['total']['tp'] += sc['tp']
                     slot['total']['mp'] += sc.get('mp') or 0
         ranked = sorted(cumulative.values(), key=sort_key)
-        _assign_ranks(ranked, _standings_rank_key, field='pos')
+        _assign_ranks(ranked, rank_key, field='pos')
         team_history_pos.append(
             next((r['pos'] for r in ranked if r['team'] == team_name), None)
         )

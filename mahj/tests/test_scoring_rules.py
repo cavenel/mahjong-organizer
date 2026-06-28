@@ -49,6 +49,24 @@ class TestTeamStandings:
         assert by_team['A']['pos'] == 1
         assert by_team['B']['pos'] == 2
 
+    def test_non_mcr_ties_on_mp_alone_ignoring_tp(self):
+        # Non-MCR (e.g. Riichi) ranks on MP only. Teams level on MP share a
+        # position even if their (display-only) TP differs; TP must not split
+        # the tie. Input order is deliberately tp-shuffled to catch the
+        # order-dependent grouping bug.
+        rows = [
+            _player_row('A', tp=9.0, mp=300, pid=1),
+            _player_row('B', tp=5.0, mp=200, pid=2),
+            _player_row('C', tp=3.0, mp=200, pid=3),
+            _player_row('D', tp=5.0, mp=200, pid=4),
+            _player_row('E', tp=1.0, mp=100, pid=5),
+        ]
+        variables = SimpleNamespace(rules='Riichi', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        assert by_team['A']['pos'] == 1
+        assert by_team['B']['pos'] == by_team['C']['pos'] == by_team['D']['pos'] == 2
+        assert by_team['E']['pos'] == 5
+
 
 class TestAssignRanks:
     def test_all_unique(self):

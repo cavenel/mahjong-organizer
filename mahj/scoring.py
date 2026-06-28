@@ -200,6 +200,7 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     history = {p.id: [1] for p in players}
 
     sort_key = _standings_sort_key(variables)
+    rank_key = _standings_rank_key(variables)
 
     ranked = []
     for current_round in range(round_max + 1):
@@ -208,9 +209,9 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
             for p in players
         ]
         ranked.sort(key=sort_key)
-        _assign_ranks(ranked, _standings_rank_key, field='pos')
+        _assign_ranks(ranked, rank_key, field='pos')
         _assign_ranks([r for r in ranked if r['country'].strip() == 'Sweden'],
-                      _standings_rank_key, field='pos_se')
+                      rank_key, field='pos_se')
         for r in ranked:
             history[r['player_id']].append(r['pos'])
 
@@ -261,7 +262,7 @@ def team_standings(rows, variables, nb_rounds):
                 rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
     team_rows = sorted(by_team.values(), key=_standings_sort_key(variables))
-    _assign_ranks(team_rows, _standings_rank_key, field='pos')
+    _assign_ranks(team_rows, _standings_rank_key(variables), field='pos')
     for tr in team_rows:
         flags = tr.pop('_flags')
         tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
@@ -590,9 +591,17 @@ def _standings_sort_key(variables):
     return lambda s: -s['total']['mp']
 
 
-def _standings_rank_key(s):
-    """Tie key for `_assign_ranks`: rows level on both MP and TP share a position."""
-    return (s['total']['mp'], s['total']['tp'])
+def _standings_rank_key(variables):
+    """Tie key for `_assign_ranks`, mirroring `_standings_sort_key` so rows tie
+    (share a position) exactly when they're level on every value the active rules
+    order by. MCR ranks on TP with MP as the tie-breaker, so a shared position
+    needs both equal. Other rules rank on MP alone — equal MP alone ties, and TP
+    must not split them, since the sort doesn't order by TP at all (rows level on
+    MP keep their input order, so a (MP, TP) key would also assign positions
+    non-deterministically)."""
+    if variables.rules == 'MCR':
+        return lambda s: (s['total']['tp'], s['total']['mp'])
+    return lambda s: s['total']['mp']
 
 
 def _assign_ranks(rows, key, field):
