@@ -206,6 +206,7 @@
 
   let searchValue = '';
   let searchHighlight = 0;
+  let searchDebounce = null;
 
   function getSearchMatches() {
     if (!searchValue) return [];
@@ -216,7 +217,18 @@
   function filterTeams(value) {
     searchValue = value.toLowerCase();
     searchHighlight = 0;
-    renderSearchResults();
+    clearTimeout(searchDebounce);
+    // Hide any previously shown matches while the user is still typing.
+    const container = document.getElementById('search-results');
+    if (container) container.innerHTML = '';
+    const matches = getSearchMatches();
+    // A single, unambiguous match shows right away; otherwise wait a beat
+    // so we don't flash other teams' names with every keystroke.
+    if (matches.length === 1) {
+      renderSearchResults();
+    } else if (matches.length > 1) {
+      searchDebounce = setTimeout(renderSearchResults, 2000);
+    }
   }
 
   function renderSearchResults() {
