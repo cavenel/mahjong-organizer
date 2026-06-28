@@ -176,11 +176,11 @@ def admin_print_EMA(request):
             "YES" if player["EMA_ID"] != "" else "NO",
             player["flag"].upper(),
             datetime.today().strftime('%d/%m/%Y'),
-            "SE",
+            "SE",          # Countrycourt: organising federation (Swedish host)
             variables.city,
             2,
             variables.title,
-            "Riichi",
+            variables.rules,   # discipline column: "MCR" or "Riichi", not hardcoded
             variables.period,
             2,
             "NO",

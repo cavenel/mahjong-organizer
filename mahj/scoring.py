@@ -546,6 +546,20 @@ def _group_by(iterable, key):
     return out
 
 
+# Country names pycountry's exact + fuzzy lookup gets wrong or misses, mapped to
+# their ISO alpha-2 flag code. "Turkey" misses entirely (pycountry renamed it
+# "Türkiye"), so a Turkish player would get no flag and be excluded from "Best
+# European". Bare "Korea" fuzzy-matches "Korea, Democratic People's Republic of"
+# (kp, North Korea) instead of South Korea (kr). Keys are lower-cased and matched
+# after stripping a leading "The ".
+_FLAG_ALIASES = {
+    'turkey': 'tr',
+    'korea': 'kr',
+    'south korea': 'kr',
+    'chinese taipei': 'tw',
+}
+
+
 @lru_cache(maxsize=256)
 def _country_flag(country):
     if country == "Independent":
@@ -554,6 +568,9 @@ def _country_flag(country):
         name = country.replace('The ', '').strip()
         if not name:
             return ''  # search_fuzzy('') matches an arbitrary country (gb); short-circuit
+        alias = _FLAG_ALIASES.get(name.lower())
+        if alias:
+            return alias
         match = pycountry.countries.get(name=name)
         if match is None:
             results = pycountry.countries.search_fuzzy(name)

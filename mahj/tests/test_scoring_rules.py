@@ -170,6 +170,14 @@ class TestCountryFlag:
         assert _country_flag('') == ''
         assert _country_flag('  ') == ''
 
+    def test_aliased_names_pycountry_gets_wrong(self):
+        # "Turkey" misses pycountry entirely (renamed "Türkiye"); bare "Korea"
+        # fuzzy-matches North Korea (kp) instead of South Korea (kr).
+        assert _country_flag('Turkey') == 'tr'
+        assert _country_flag('Türkiye') == 'tr'
+        assert _country_flag('Korea') == 'kr'
+        assert _country_flag('South Korea') == 'kr'
+
 
 class TestTopWinStreaks:
     def test_no_hands(self):
