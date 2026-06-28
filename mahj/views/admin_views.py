@@ -549,7 +549,10 @@ def update_logo(request):
             return HttpResponseBadRequest("PNG files only")
         variables.logo = data
         variables.logo_etag = hashlib.md5(data).hexdigest()
-    variables.save()  # signals.py invalidates the cached Variable
+    # Scope the write to the logo fields: a full-row save would also persist this
+    # (possibly stale) instance's `counter`, which could stop a running round
+    # timer. signals.py still invalidates the cached Variable on post_save.
+    variables.save(update_fields=['logo', 'logo_etag'])
     return HttpResponse("OK")
 
 
@@ -625,17 +628,26 @@ def options(request, error=None):
             # Staff-only fields: display operators may tune the layout, but not the
             # round length (changing it mid-round would desync every screen's timer).
             staff_only_fields = {"total_time"}
-            touched = False
+            # The round timer is written only by counter_start (server-authoritative);
+            # it must never be settable through this generic field loop, or a stray
+            # `variables-counter=...` would stop/reset a running clock.
+            protected_fields = {"counter"}
+            touched_fields = []
             for var in request.GET.keys():
                 if "variables-" in var:
                     field = var.replace("variables-", "")
+                    if field in protected_fields:
+                        continue
                     if field in staff_only_fields and not request.user.is_staff:
                         continue
                     if hasattr(variables, field):
                         setattr(variables, field, request.GET.get(var))
-                        touched = True
-            if touched:
-                variables.save()
+                        touched_fields.append(field)
+            if touched_fields:
+                # Scope the write to the fields actually edited: a full-row save would
+                # also persist this instance's `counter`, which could stop a running
+                # round timer. signals.py still busts the cache on post_save.
+                variables.save(update_fields=touched_fields)
             return HttpResponse(str(variables))
         elif request.GET.get('action') == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()
