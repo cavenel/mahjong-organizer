@@ -341,34 +341,7 @@ def player_extra_stats(tenant, player, variables):
         .order_by('round_nb')
     )
 
-    # Placement rates — MCR: 4TP=1st, 2TP=2nd, 1TP=3rd, 0TP=4th.
-    # For non-MCR, rank by minipoints within the table.
-    if variables.rules == 'MCR':
-        tp_to_place = {4.0: 1, 2.0: 2, 1.0: 3, 0.0: 4}
-        counts = {1: 0, 2: 0, 3: 0, 4: 0}
-        for pos in positions:
-            place = tp_to_place.get(float(pos.tablepoints))
-            if place:
-                counts[place] += 1
-    else:
-        counts = {1: 0, 2: 0, 3: 0, 4: 0}
-        rts = {(pos.round_nb, pos.table_nb) for pos in positions}
-        table_positions = _group_by(
-            Position.objects.filter(
-                tenant=tenant,
-                round_nb__in={p.round_nb for p in positions},
-            ).filter(minipoints__isnull=False),
-            key=lambda p: (p.round_nb, p.table_nb),
-        )
-        for pos in positions:
-            key = (pos.round_nb, pos.table_nb)
-            if key not in rts or pos.minipoints is None:
-                continue
-            peers = sorted(table_positions[key], key=lambda p: -p.minipoints)
-            place = next((i + 1 for i, p in enumerate(peers) if p.id == pos.id), None)
-            if place:
-                counts[place] += 1
-
+    counts = _placement_counts(tenant, positions, variables)
     total_rounds = sum(counts.values())
     placement = [
         {
@@ -436,32 +409,7 @@ def team_extra_stats(tenant, team_name, variables):
         .order_by('round_nb')
     )
 
-    if variables.rules == 'MCR':
-        tp_to_place = {4.0: 1, 2.0: 2, 1.0: 3, 0.0: 4}
-        counts = {1: 0, 2: 0, 3: 0, 4: 0}
-        for pos in positions:
-            place = tp_to_place.get(float(pos.tablepoints))
-            if place:
-                counts[place] += 1
-    else:
-        counts = {1: 0, 2: 0, 3: 0, 4: 0}
-        table_positions = _group_by(
-            Position.objects.filter(
-                tenant=tenant,
-                round_nb__in={p.round_nb for p in positions},
-            ).filter(minipoints__isnull=False),
-            key=lambda p: (p.round_nb, p.table_nb),
-        )
-        rts = {(pos.round_nb, pos.table_nb) for pos in positions}
-        for pos in positions:
-            key = (pos.round_nb, pos.table_nb)
-            if key not in rts or pos.minipoints is None:
-                continue
-            peers = sorted(table_positions[key], key=lambda p: -p.minipoints)
-            place = next((i + 1 for i, p in enumerate(peers) if p.id == pos.id), None)
-            if place:
-                counts[place] += 1
-
+    counts = _placement_counts(tenant, positions, variables)
     total_rounds = sum(counts.values())
     placement = [
         {
@@ -555,6 +503,39 @@ def _last_round_reveal(tenant, nb_rounds):
     """
     row = PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
     return row.reveal_level if row else None
+
+
+def _placement_counts(tenant, positions, variables):
+    """How often these positions placed 1st/2nd/3rd/4th at their own table.
+
+    A seat's place is its rank within its (round, table): by table points for MCR,
+    by minipoints otherwise. Tied seats share a place (1, 1, 3, 4 — standard
+    competition ranking), so a tie for 1st counts both as 1st and no round is ever
+    dropped from the stats.
+
+    `positions` are this player's/team's seats (already filtered to scored rounds);
+    the table peers are fetched per round so every seat can be ranked against its
+    own table.
+    """
+    rank_field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
+    table_positions = _group_by(
+        Position.objects.filter(
+            tenant=tenant,
+            round_nb__in={p.round_nb for p in positions},
+            **{f'{rank_field}__isnull': False},
+        ),
+        key=lambda p: (p.round_nb, p.table_nb),
+    )
+    counts = {1: 0, 2: 0, 3: 0, 4: 0}
+    for pos in positions:
+        my_val = getattr(pos, rank_field)
+        if my_val is None:
+            continue
+        peers = table_positions[(pos.round_nb, pos.table_nb)]
+        place = 1 + sum(1 for p in peers if getattr(p, rank_field) > my_val)
+        if place <= 4:
+            counts[place] += 1
+    return counts
 
 
 def _group_by(iterable, key):

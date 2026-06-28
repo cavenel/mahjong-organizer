@@ -7,7 +7,8 @@ Swedish ranking, hidden final cut-off, etc.
 import pytest
 
 from mahj import views
-from mahj.models import Hand, Position, PublishedRound
+from mahj.models import Hand, Player, Position, PublishedRound, Variable
+from mahj.scoring import player_extra_stats
 
 
 @pytest.fixture
@@ -96,6 +97,60 @@ class TestPlayerStandings:
         # Round 3 is partial (no minipoints), so only 2 rounds appear in scores.
         for r in rows:
             assert len(r['scores']) == 2
+
+
+class TestPlacementStats:
+    """player_extra_stats placement rates — especially MCR tied tables, whose
+    averaged table points (3.0, 1.5, 0.5, …) used to match no fixed-TP key and
+    silently dropped the whole round from the counts."""
+
+    def _seat_table(self, tenant, rules='MCR'):
+        """One MCR table with a 2-way tie for 1st (both mp=100 -> tp 3.0),
+        then a clean 3rd (mp=50, tp 1.0) and 4th (mp=20, tp 0.0)."""
+        variables = Variable.objects.create(
+            tenant=tenant, welcome='W', title='T', fullname='F',
+            nb_rounds=1, rules=rules,
+        )
+        seats = [(100, 3.0), (100, 3.0), (50, 1.0), (20, 0.0)]
+        players = []
+        for i, (mp, tp) in enumerate(seats):
+            p = Player.objects.create(
+                tenant=tenant, rand_id=i + 1, full_name=f'P{i + 1} L',
+                first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}', email='',
+            )
+            Position.objects.create(
+                tenant=tenant, round_nb=1, table_nb=1, position=i + 1,
+                player=p, minipoints=mp, tablepoints=tp,
+            )
+            players.append(p)
+        return variables, players
+
+    def test_tied_first_place_round_is_counted_not_dropped(self, tenant):
+        variables, players = self._seat_table(tenant)
+        stats = player_extra_stats(tenant, players[0], variables)
+        # The tied-for-1st player's round must be counted (was dropped before).
+        assert stats['total_rounds'] == 1
+        by_place = {p['place']: p for p in stats['placement']}
+        assert by_place[1]['count'] == 1
+        assert by_place[1]['rate_pct'] == 100
+        assert by_place[2]['count'] == 0
+
+    def test_both_tied_players_share_first(self, tenant):
+        variables, players = self._seat_table(tenant)
+        for tied in (players[0], players[1]):
+            by_place = {p['place']: p['count']
+                        for p in player_extra_stats(tenant, tied, variables)['placement']}
+            assert by_place == {1: 1, 2: 0, 3: 0, 4: 0}
+
+    def test_lower_seats_keep_their_true_place(self, tenant):
+        variables, players = self._seat_table(tenant)
+        # mp=50 sits behind two tied leaders -> 3rd; mp=20 -> 4th.
+        third = {p['place']: p['count']
+                 for p in player_extra_stats(tenant, players[2], variables)['placement']}
+        fourth = {p['place']: p['count']
+                  for p in player_extra_stats(tenant, players[3], variables)['placement']}
+        assert third == {1: 0, 2: 0, 3: 1, 4: 0}
+        assert fourth == {1: 0, 2: 0, 3: 0, 4: 1}
 
 
 class TestFinalCutoff:
