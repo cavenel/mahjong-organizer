@@ -47,7 +47,7 @@ if [ "${1:-}" = "--install" ] || [ "${1:-}" = "--remove" ]; then
 fi
 
 # --- one pull ----------------------------------------------------------------
-SSH_OPTS="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+SSH_OPTS="ssh -i $SSH_KEY -p ${SSH_PORT:-22} -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 mkdir -p "$LOCAL_DIR"
 # Trailing slashes: copy the CONTENTS of the remote dir into LOCAL_DIR. -a keeps
 # mtimes so restore_db.sh's "newest" ordering and age-based logic stay correct.

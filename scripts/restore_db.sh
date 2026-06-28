@@ -45,7 +45,7 @@ case "${1:-}" in
   --remote)
     : "${REMOTE:?REMOTE unset in scripts/backup_db.env}"
     : "${SSH_KEY:?SSH_KEY unset in scripts/backup_db.env}"
-    SSH_OPTS="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+    SSH_OPTS="ssh -i $SSH_KEY -p ${SSH_PORT:-22} -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
     remote_host="${REMOTE%%:*}"
     remote_path="${REMOTE#*:}"
     echo "restore_db: listing dumps on $REMOTE …"

@@ -86,7 +86,7 @@ trap - EXIT
 echo "backup_db: wrote $final ($(du -h "$final" | cut -f1))"
 
 # --- 3. push off-host --------------------------------------------------------
-SSH_OPTS="ssh -i $SSH_KEY -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+SSH_OPTS="ssh -i $SSH_KEY -p ${SSH_PORT:-22} -o StrictHostKeyChecking=accept-new -o BatchMode=yes"
 rsync -az -e "$SSH_OPTS" "$final" "$REMOTE/"
 echo "backup_db: rsynced to $REMOTE/"
 
