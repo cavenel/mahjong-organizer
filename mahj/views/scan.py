@@ -161,9 +161,29 @@ OCR_PROMPT = (
     'Discarder (integer 1-4, or null if the cell is empty, crossed out, '
     'or contains any non-digit symbol). '
     'If a hand was not played, set all three to null. '
-    'For each hand, set Confidence to a float between 0.0 (unreadable, '
-    'pure guess) and 1.0 (perfectly legible, fully certain).'
+    '\n\n'
+    'Confidence flags rows a reviewer should double-check. Be SPARING: most '
+    'hands are perfectly readable and must be "certain" (they get no '
+    'highlight). Only drop below "certain" when you can name a SPECIFIC other '
+    'digit the writing could realistically be — an actual misread risk, not '
+    'just slightly messy ink. The classic confusions are 0 vs 6, 1 vs 7, '
+    '1 vs 4, 3 vs 8, 5 vs 6, 4 vs 9, 6 vs 8. Judge all three cells of the hand '
+    'and report the LEAST confident as the hand Confidence, so one doubtful '
+    'digit flags the row. '
+    'Levels: '
+    '"certain" = you can read every digit; one clear interpretation. '
+    '"likely" = your reading is probably right, but a specific other digit is '
+    'possible. '
+    '"unsure" = two digits are genuinely plausible and you cannot decide. '
+    '"guess" = barely legible. '
+    'If most rows come out as "likely" you are being too cautious — reserve it '
+    'for genuine confusions so the flagged rows actually stand out.'
 )
+
+# Verbal levels calibrate far better than a raw 0-1 float (models cluster floats
+# near 1.0). Mapped to a tint alpha of 1 - value in the review sheet, so "likely"
+# is already a visible pink and "guess" is near-solid red.
+CONFIDENCE_LEVELS = {'certain': 1.0, 'likely': 0.6, 'unsure': 0.3, 'guess': 0.0}
 
 OCR_SCHEMA = {
     "type": "object",
@@ -177,7 +197,8 @@ OCR_SCHEMA = {
                     "Value": {"type": ["integer", "null"]},
                     "Winner": {"type": ["integer", "null"]},
                     "Discarder": {"type": ["integer", "null"]},
-                    "Confidence": {"type": "number"},
+                    "Confidence": {"type": "string",
+                                   "enum": ["certain", "likely", "unsure", "guess"]},
                 },
                 "required": ["Hand", "Value", "Winner", "Discarder", "Confidence"],
                 "additionalProperties": False,
@@ -357,7 +378,7 @@ def scan_prefill(request):
             'pts': int(value) if value is not None else 0,
             'win_by': int(winner) if winner is not None else 0,
             'win_from': int(discarder) if discarder is not None else 0,
-            'confidence': float(confidence) if confidence is not None else 1.0,
+            'confidence': CONFIDENCE_LEVELS.get(confidence, 0.3),
         }
         _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
 

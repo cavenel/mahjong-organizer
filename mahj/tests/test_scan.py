@@ -40,8 +40,8 @@ class TestScanPrefill:
         body = {
             'round_nb': 3, 'table_nb': 1, 'validate': False,
             'scores': [
-                {'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 0.4},
-                {'Hand': 2, 'Value': 16, 'Winner': 3, 'Discarder': None, 'Confidence': 0.95},
+                {'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 'unsure'},
+                {'Hand': 2, 'Value': 16, 'Winner': 3, 'Discarder': None, 'Confidence': 'certain'},
             ],
         }
         resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
@@ -50,10 +50,10 @@ class TestScanPrefill:
 
         h1 = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
         assert h1.pts == 20 and h1.win_by == 1 and h1.win_from == 2
-        assert h1.confidence == pytest.approx(0.4)
+        assert h1.confidence == pytest.approx(0.3)  # 'unsure'
 
         h2 = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=2)
-        assert h2.confidence == pytest.approx(0.95)
+        assert h2.confidence == pytest.approx(1.0)  # 'certain'
 
         # Sheet stays NOT valid: the validation marker (hand_nb=17) is pts=0.
         valid = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=17)
