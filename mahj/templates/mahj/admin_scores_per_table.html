@@ -228,6 +228,7 @@
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script src="{% static 'js/admin_sync_banner.js' %}"></script>
 <script>
+
   $("body").on("click", ".show_hands", function() {
     var link = $(this).attr("data-link");
     window.showDetailsModal(link);
@@ -431,20 +432,23 @@
 
   // Select-all on focus for the score cells and the table filter, so the next
   // keystroke overwrites instead of appending (easier than placing the caret on
-  // a phone). This is a NATIVE focusin listener on purpose, not jQuery's
-  // delegated `.on('focus', selector, …)`: jQuery simulates delegated focus/blur
-  // (leverageNative), and that simulation ping-pongs focus between two adjacent
-  // number inputs into an infinite loop the moment a handler calls .select().
-  // A native listener never simulates, so .select() on the already-focused
-  // element can't re-fire focusin — no loop. setTimeout defers past the
-  // browser's own focus handling (mobile clears the selection otherwise).
+  // a phone). setTimeout defers past the browser's own focus handling (mobile
+  // clears the selection otherwise).
+  //
+  // The activeElement guard is essential: by the time the timer fires, focus may
+  // have moved to another cell, and `.select()` on an UNFOCUSED input re-focuses
+  // it — stealing focus back. Moving quickly between two cells leaves both with a
+  // pending select() that each yank focus to their own input, ping-ponging
+  // forever. Only select when this element is still the focused one.
   document.addEventListener("focusin", function(e) {
     var el = e.target;
     if (!el || el.tagName !== "INPUT") return;
     var isMP = el.name === "minipoints" && !el.disabled && !el.readOnly;
     var isFilter = el.classList && el.classList.contains("table-filter");
     if (!isMP && !isFilter) return;
-    setTimeout(function() { try { el.select(); } catch (err) {} }, 0);
+    setTimeout(function() {
+      if (document.activeElement === el) { try { el.select(); } catch (err) {} }
+    }, 0);
   });
 
   // The filter sits before the table, so Tab off the last MP input would fall
