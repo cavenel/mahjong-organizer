@@ -47,25 +47,35 @@
     padding: 5px 5px 0 5px; font-size: 11px; font-weight: 500; color: var(--text-muted);
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 113px; margin-bottom: 2px;
   }
+  /* Clearly-visible boxed inputs, matching the per-hand score sheet: a slate
+     pill (MP + computed TP joined) that darkens on hover and lights up amber on
+     focus. :focus-within drives the highlight so the whole pill reacts when the
+     MP cell is active. */
   .score-inputs {
     display: flex; width: 100%;
-    border: 1px solid var(--border); border-radius: 4px; overflow: hidden; margin-bottom: 3px;
+    border: 2px solid #94a3b8; border-radius: 6px; overflow: hidden; margin-bottom: 3px;
+    background: #f1f5f9; transition: border-color .1s, background .1s, box-shadow .1s;
+  }
+  .score-inputs:hover { border-color: #475569; background: #e2e8f0; }
+  .score-inputs:focus-within {
+    border-color: #f59e0b; background: #fef3c7; box-shadow: 0 0 0 3px rgba(245,158,11,0.45);
   }
   .score-inputs input {
-    border: 0; outline: 0; padding: 0 5px;
+    border: 0; outline: 0; padding: 2px 5px;
     font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums;
-    text-align: right; color: var(--text-main); background: #fff;
-    appearance: textfield; -moz-appearance: textfield; min-width: 0;
+    text-align: right; color: var(--text-main); background: transparent; min-width: 0;
+    appearance: textfield; -moz-appearance: textfield;
   }
   .score-inputs input::-webkit-inner-spin-button,
   .score-inputs input::-webkit-outer-spin-button { -webkit-appearance: none; }
-  .score-inputs input:focus { background: #f0f6ff; }
-  .score-inputs input.mp-input { flex: 2; width: 60px; border-right: 1px solid var(--border-light); font-size: 18px; }
-  .score-inputs input.tp-input { flex: 1; width: 36px; background: var(--bg-header); color: var(--text-sub); }
+  .score-inputs input.mp-input { flex: 2; width: 60px; border-right: 1px solid rgba(148,163,184,.6); font-size: 18px; }
+  .score-inputs input.tp-input { flex: 1; width: 36px; background: rgba(148,163,184,.18); color: var(--text-sub); }
   /* Published rounds are locked — scores can only change after unpublishing. */
-  .score-inputs.locked { background: var(--bg-header); }
+  .score-inputs.locked,
+  .score-inputs.locked:focus-within {
+    background: var(--bg-header); border-color: var(--border); box-shadow: none;
+  }
   .score-inputs.locked input { background: var(--bg-header); color: var(--text-sub); cursor: not-allowed; }
-  .score-inputs.locked input:focus { background: var(--bg-header); }
 
   .col-sum { width: 40px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; padding: 6px 8px !important; vertical-align: bottom !important; }
   .col-sum.sum-ok  { color: var(--green); font-weight: 600; font-size: 14px; }
