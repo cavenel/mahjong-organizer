@@ -47,6 +47,11 @@
     table.review-table .penalty-cell input:focus { background: #fef3c7; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.35); }
     table.review-table .penalty-cell input:disabled { background: #f3f4f6; color: #9ca3af; border-color: #e5e7eb; }
 
+    /* Impossible entries get the solid red of a confidence-0 cell so they're
+       obviously not enterable: Win / From outside a seat (1–4), or a Value below
+       the 8-point MCR minimum. !important so it overrides the inline OCR tint. */
+    table.review-table input.invalid-cell { background: #fecaca !important; }
+
     /* Sheet layout: table beside the QR / Validate column on wide screens,
        stacked (QR + Validate after the table) on narrow / mobile screens so the
        table keeps full width and nothing gets squeezed. */
@@ -308,9 +313,25 @@
     update_scores();
   }
 
+  // Win / From must be a seat (1–4) or blank; flag anything else solid red.
+  function markSeatValidity(id) {
+    var v = ($("#" + id).val() || "").trim();
+    $("#" + id).toggleClass("invalid-cell", v !== "" && !/^[1-4]$/.test(v));
+  }
+
+  // Value (points) must be a real MCR hand (≥ 8) or blank; flag anything below.
+  function markValueValidity(id) {
+    var v = ($("#" + id).val() || "").trim();
+    var n = parseInt(v, 10);
+    $("#" + id).toggleClass("invalid-cell", v !== "" && (isNaN(n) || n < 8));
+  }
+
   function update_scores () {
     var total = [0, 0, 0, 0];
     for (var i = 0; i < 16; i++) {
+      markValueValidity("pts_"  + (i+1));
+      markSeatValidity("by_"   + (i+1));
+      markSeatValidity("from_" + (i+1));
       var pts  = parseInt($("#pts_"  + (i+1)).val());
       var by   = parseInt($("#by_"   + (i+1)).val());
       var from = parseInt($("#from_" + (i+1)).val());
