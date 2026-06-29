@@ -193,10 +193,10 @@
                       <div class="player-name" title="{{ s.position.player.full_name }}">{{ s.position.player.full_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
-                               value="{{ s.position.minipoints }}" placeholder="MP" autocomplete="off">
+                               value="{{ s.position.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">
                         {% if variables.rules == "MCR" %}
                           <input class="tp-input" type="number" name="tablepoints"
-                                 value="{{ s.position.tablepoints }}" placeholder="TP" readonly tabindex="-1">
+                                 value="{{ s.position.tablepoints|default_if_none:'' }}" placeholder="TP" readonly tabindex="-1">
                         {% endif %}
                       </div>
                     </div>
@@ -371,6 +371,13 @@
   }
 
   $(".table_row").each(function() { update_line($(this), false); });
+  // Server renders a whole float as "1.0"; the JS edit path shows "1". Run the
+  // rendered TP through the same Number→String the edit path uses so they match
+  // (whole → "1", fractions stay exactly as before). Display only.
+  $("input[name='tablepoints']").each(function() {
+    var v = $(this).val();
+    if (v !== "") $(this).val(String(parseFloat(v)));
+  });
   refreshAllPublishToggles();
 
   // Filter by table number: typing a number shows only that table (exact match)
