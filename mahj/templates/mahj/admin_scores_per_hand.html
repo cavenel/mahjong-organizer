@@ -271,9 +271,41 @@
       'csrfmiddlewaretoken': '{{ csrf_token }}',
       'id': id, 'pts': pts, 'from': from, 'by': by, 'version': version,
     };
-    $.post("update_hand_points", data, function(resp) {
-      if (resp && resp.version) $("#version_" + table_row).val(resp.version);
+    $.ajax({
+      type: "POST", url: "update_hand_points", data: data,
+      success: function(resp) {
+        if (resp && resp.version) $("#version_" + table_row).val(resp.version);
+      },
+      error: function(xhr) {
+        if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.current) {
+          // Optimistic-lock conflict: another scorer/device saved this hand first.
+          // Reload the server's values so the sheet never silently diverges.
+          applyServerHand(table_row, xhr.responseJSON.current);
+          alert("This hand was just changed by another scorer or device.\n\n" +
+                "Your edit was NOT saved. The sheet now shows the latest saved " +
+                "values — please re-check and re-enter your change if needed.");
+        } else {
+          alert("Could not save this hand (connection or server error).\n\n" +
+                "Your edit was NOT saved — please check your connection and try again.");
+        }
+      },
     });
+  }
+
+  // Write the server's current values for one hand back into its inputs (used to
+  // recover from an optimistic-lock conflict).
+  function applyServerHand(table_row, current) {
+    if (!current) return;
+    $("#version_" + table_row).val(current.version);
+    if ($("#valid_" + table_row).length) {
+      $("#valid_" + table_row).prop("checked", current.pts === 1);
+      updateDisabledState();
+    } else {
+      $("#pts_"  + table_row).val(current.pts);
+      $("#by_"   + table_row).val(current.win_by);
+      $("#from_" + table_row).val(current.win_from);
+    }
+    update_scores();
   }
 
   function update_scores () {
@@ -377,6 +409,13 @@
 
   // Penalties are saved per-position (not per-hand) and debounced like the hands.
   var penalty_timeouts = {};
+  // Last server-confirmed penalty per position, so a failed save can roll the
+  // input back instead of leaving an unsaved value on screen.
+  var penalty_saved = {};
+  $(".penalty-input").each(function() {
+    var pid = $(this).attr("data-pos-id");
+    if (pid) penalty_saved[pid] = $(this).val();
+  });
 
   // Beacon out any not-yet-saved penalty edits when the sheet/tab is closing.
   function flushPendingPenalties() {
@@ -405,10 +444,22 @@
     penalty_timeouts[posId] = setTimeout(function() {
       var val = parseInt($inp.val());
       if (isNaN(val)) val = 0;
-      $.post("update_position_penalty", {
-        'csrfmiddlewaretoken': '{{ csrf_token }}',
-        'id': posId,
-        'penalty': val,
+      $.ajax({
+        type: "POST", url: "update_position_penalty",
+        data: {
+          'csrfmiddlewaretoken': '{{ csrf_token }}',
+          'id': posId,
+          'penalty': val,
+        },
+        success: function() { penalty_saved[posId] = String(val); },
+        error: function() {
+          // Revert to the last value the server confirmed, then say so — never
+          // leave a penalty showing on screen that wasn't actually saved.
+          $inp.val(penalty_saved[posId] || "");
+          update_scores();
+          alert("Could not save the penalty (connection or server error).\n\n" +
+                "It has been reverted to the last saved value — please try again.");
+        },
       });
     }, 1000);
   });

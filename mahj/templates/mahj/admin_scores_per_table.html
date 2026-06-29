@@ -302,7 +302,32 @@
       data: JSON.stringify({ positions: positions }),
       headers: { "X-CSRFToken": "{{ csrf_token }}" },
       success: function() { setPip(row, expectedState); },
-      error:   function() { setPip(row, "err"); },
+      error:   function(xhr) {
+        setPip(row, "err");
+        if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.status === "locked") {
+          // The round is published (perhaps just now, by another scorer), so the
+          // edit was rejected. Revert the row to the server's values, lock it,
+          // and say what happened — don't leave an unsaved score on screen.
+          var rn = parseInt(row.attr("data-round-nb"));
+          var serverRow = xhr.responseJSON.row;
+          if (serverRow && serverRow.positions) {
+            var posDivs = row.find(".position_div");
+            serverRow.positions.forEach(function(p, idx) {
+              var cell = posDivs.eq(idx);
+              if (!cell.length) return;
+              cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
+              cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");
+            });
+            delete recentlyEdited[row.attr("id")];
+            update_line(row, false);
+          }
+          if (!publishedRounds.has(rn)) publishedRounds.add(rn);
+          refreshAllPublishToggles();
+          alert("Round " + rn + " is published, so its scores are locked.\n\n" +
+                "Your change was NOT saved and has been reverted to the published " +
+                "values. Unpublish the round first if you need to edit it.");
+        }
+      },
     });
   }
 

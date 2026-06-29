@@ -297,17 +297,17 @@ def clear_score_sheet(request):
 def update_position_penalty(request):
     """Set a single position's penalty (an integer minipoint adjustment, +/-).
 
-    Entered from the MCR score sheet. Like the other per-position edits, it is
-    rejected on a published (locked) round.
+    Entered from the MCR score sheet. The penalty is a sheet-balance figure only:
+    the player's ranking minipoints already fold it in, so it never feeds the
+    standings (it surfaces only on the detailed-scores modal). Unlike the MP/TP
+    edits it is therefore *not* publish-locked — like the per-hand detail it can
+    still be reconciled after the round is published.
     """
     tenant = get_tenant(request)
     try:
         position = Position.objects.get(tenant=tenant, id=request.POST.get('id'))
     except Position.DoesNotExist:
         return JsonResponse({'status': 'not_found'}, status=404)
-
-    if _round_is_published(tenant, position.round_nb):
-        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
 
     try:
         position.penalty = int(request.POST.get('penalty'))
@@ -354,9 +354,15 @@ def update_positions_bulk(request):
     subdomain = tenant.subdomain if tenant else ''
 
     # Published rounds are locked: a score can only change after the round is
-    # explicitly unpublished. Reject the edit rather than silently unpublishing.
+    # explicitly unpublished. Reject the edit rather than silently unpublishing,
+    # and hand back the current server values so the client can revert the row it
+    # tried to change (the lock may have been set by another scorer mid-edit).
     if _round_is_published(tenant, round_nb):
-        return JsonResponse({'status': 'locked', 'error': 'round is published'}, status=409)
+        return JsonResponse({
+            'status': 'locked',
+            'error': 'round is published',
+            'row': _row_payload(tenant, round_nb, table_nb),
+        }, status=409)
 
     with transaction.atomic():
         Position.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
