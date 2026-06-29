@@ -349,9 +349,16 @@
   // overwrites it instead of appending — important on phones where placing the
   // caret precisely is fiddly. setTimeout defers past the browser's own focus
   // handling, which otherwise clears the selection on mobile.
-  $(document).on("focus", "input[type=number]:not(:disabled)", function() {
-    var el = this;
-    setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
+  //
+  // NATIVE focusin, not jQuery's delegated `.on('focus', selector, …)`: jQuery
+  // simulates delegated focus/blur (leverageNative), and that simulation can
+  // ping-pong focus between two number inputs into an infinite loop the moment a
+  // handler calls .select(). A native listener never simulates, so .select() on
+  // the already-focused element can't re-fire focusin.
+  document.addEventListener("focusin", function(e) {
+    var el = e.target;
+    if (!el || el.tagName !== "INPUT" || el.type !== "number" || el.disabled) return;
+    setTimeout(function() { try { el.select(); } catch (err) {} }, 0);
   });
 
   $("input").on("input change", function() {

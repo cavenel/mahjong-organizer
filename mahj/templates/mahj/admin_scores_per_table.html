@@ -374,12 +374,6 @@
     });
   }
   $(document).on("input", ".table-filter", function() { applyTableFilter($(this).val()); });
-  // Select the value on focus so the next keystroke overwrites it (matches the
-  // score inputs above). setTimeout defers past the browser's focus handling.
-  $(document).on("focus", ".table-filter", function() {
-    var el = this;
-    setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
-  });
   // "/" focuses the visible round's table filter — but not while you're already
   // typing in a field (so it doesn't hijack a keystroke meant for a score input).
   $(document).on("keydown", function(e) {
@@ -393,13 +387,22 @@
     $(".tab-pane.active .table-filter").focus();
   });
 
-  // Tabbing/tapping into a score field selects its value so the next keystroke
-  // overwrites it rather than appending — easier than placing the caret on a
-  // phone. setTimeout defers past the browser's focus handling (mobile clears
-  // the selection otherwise).
-  $(document).on("focus", "input[name='minipoints']:not(:disabled):not([readonly])", function() {
-    var el = this;
-    setTimeout(function() { try { el.select(); } catch (e) {} }, 0);
+  // Select-all on focus for the score cells and the table filter, so the next
+  // keystroke overwrites instead of appending (easier than placing the caret on
+  // a phone). This is a NATIVE focusin listener on purpose, not jQuery's
+  // delegated `.on('focus', selector, …)`: jQuery simulates delegated focus/blur
+  // (leverageNative), and that simulation ping-pongs focus between two adjacent
+  // number inputs into an infinite loop the moment a handler calls .select().
+  // A native listener never simulates, so .select() on the already-focused
+  // element can't re-fire focusin — no loop. setTimeout defers past the
+  // browser's own focus handling (mobile clears the selection otherwise).
+  document.addEventListener("focusin", function(e) {
+    var el = e.target;
+    if (!el || el.tagName !== "INPUT") return;
+    var isMP = el.name === "minipoints" && !el.disabled && !el.readOnly;
+    var isFilter = el.classList && el.classList.contains("table-filter");
+    if (!isMP && !isFilter) return;
+    setTimeout(function() { try { el.select(); } catch (err) {} }, 0);
   });
 
   // The filter sits before the table, so Tab off the last MP input would fall

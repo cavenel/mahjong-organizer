@@ -287,7 +287,13 @@
 
         init() { window._adminShell = this; },
         showPrintModal(url)   { this.printModal.src   = url; this.printModal.open   = true; },
-        showDetailsModal(url) { this.detailsModal.src = url; this.detailsModal.open = true; },
+        showDetailsModal(url) {
+          // Cache-bust the iframe: reopening a score sheet must always pull the
+          // current server state (another scorer/device may have edited it) and
+          // the current JS — never a stale cached snapshot.
+          var bust = (url.indexOf('?') === -1 ? '?' : '&') + '_=' + Date.now();
+          this.detailsModal.src = url + bust; this.detailsModal.open = true;
+        },
         // opts: { title, body, confirmLabel, cancelLabel, danger, onConfirm, onCancel }.
         // onCancel fires on Cancel/backdrop/Escape (not on confirm) — e.g. to undo
         // an optimistic UI toggle that triggered the prompt.
