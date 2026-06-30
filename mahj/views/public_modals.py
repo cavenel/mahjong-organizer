@@ -136,16 +136,28 @@ def details_team(request, team_name):
 def detailed_scores(request, round_nb, table_nb):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
+    is_admin = request.user.is_staff
 
     # Public modal hit by the whole crowd (every table cell on the desktop links
     # here, including unplayed rounds). Cache the rendered HTML briefly, keyed by
-    # the leaderboard generation so a real write busts it; the 30s TTL bounds
-    # staleness for hand edits (which don't bump the generation). Same content for
-    # everyone — no per-user key.
-    cache_key = f'modal_detailed:{subdomain}:{round_nb}:{table_nb}:{leaderboard_gen(subdomain)}'
+    # the leaderboard generation so a real write (including publish/reveal) busts
+    # it; the 30s TTL bounds staleness for hand edits (which don't bump the
+    # generation). Keyed on is_admin too, since staff and public can see different
+    # rounds — and the not-yet-revealed placeholder below is cached the same way.
+    cache_key = f'modal_detailed:{subdomain}:{round_nb}:{table_nb}:{is_admin}:{leaderboard_gen(subdomain)}'
     cached = cache.get(cache_key)
     if cached is not None:
         return HttpResponse(cached)
+
+    # This is the raw hand-by-hand grid, so it must honour the same reveal masking
+    # as the standings: a public viewer may not open a round held back for the
+    # ceremony (unpublished, or the final round in pre-publish suspense). Staff see
+    # everything. Mirrors public_round_max used by the standings/modal stat cards.
+    if not is_admin and round_nb > public_round_max(tenant, get_variables(request)):
+        template = loader.get_template('mahj/modal_not_revealed.html')
+        html = template.render({'round_nb': round_nb, 'table_nb': table_nb}, request)
+        cache.set(cache_key, html, MODAL_CACHE_TTL)
+        return HttpResponse(html)
 
     position_vals = (
         Position.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb)

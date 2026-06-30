@@ -5,6 +5,8 @@ desktop, including unplayed rounds. Guard the two properties that matter under
 crowd load: it must not write rows on a read, and it must not N+1 on players.
 """
 import pytest
+from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.test import Client
 
 from mahj.models import Hand
@@ -18,6 +20,11 @@ def client_():
     c = Client()
     c.defaults['HTTP_HOST'] = HOST
     return c
+
+
+@pytest.fixture
+def staff_user(db):
+    return User.objects.create_user('boss', password='pw', is_staff=True)
 
 
 def _hand_count(tournament, round_nb, table_nb):
@@ -50,9 +57,11 @@ class TestDetailedScoresReadOnly:
         assert 'id="by_1"' in body and 'id="from_1"' in body
 
     def test_no_nplus1_on_players(self, client_, tournament, django_assert_max_num_queries):
-        # positions (select_related player) + hands + tenant resolve — must not
-        # grow with the 4 seated players. Pre-fix this did +1 query per player.
-        with django_assert_max_num_queries(5):
+        # positions (select_related player) + hands + tenant resolve + the reveal
+        # gate's fixed lookups (variables, complete/published/reveal) — a constant
+        # number that must not grow with the 4 seated players. Pre-fix the player
+        # query did +1 per player.
+        with django_assert_max_num_queries(7):
             client_.get('/detailed_scores_1_1')
 
 
@@ -81,3 +90,40 @@ class TestDetailedScoresPenalties:
         cache.clear()
         body = client_.get('/detailed_scores_1_1').content.decode()
         assert 'id="pen_1"' not in body
+
+
+class TestDetailedScoresReveal:
+    """The raw per-table grid must honour the same reveal masking as the
+    standings: a round held back for the ceremony (here round 3, unpublished) is
+    a placeholder for the public but fully visible to staff. Without this the
+    final round leaks before the prize-giving (L2)."""
+
+    def test_public_sees_placeholder_for_unrevealed_round(self, client_, tournament):
+        cache.clear()
+        body = client_.get('/detailed_scores_3_1').content.decode()
+        assert 'Results not yet revealed' in body
+        # None of the score-grid markers leak through.
+        assert 'id="by_1"' not in body
+
+    def test_public_still_sees_published_round(self, client_, tournament):
+        cache.clear()
+        body = client_.get('/detailed_scores_1_1').content.decode()
+        assert 'Results not yet revealed' not in body
+        assert 'id="by_1"' in body
+
+    def test_staff_sees_unrevealed_round(self, client_, tournament, staff_user):
+        cache.clear()
+        client_.force_login(staff_user)
+        body = client_.get('/detailed_scores_3_1').content.decode()
+        assert 'Results not yet revealed' not in body
+        assert 'id="by_1"' in body
+
+    def test_staff_view_not_served_from_public_cache(self, client_, tournament, staff_user):
+        # Cache is keyed on is_admin: a public placeholder cached first must not
+        # be served back to staff (regression guard for the cache-key fix).
+        cache.clear()
+        public = client_.get('/detailed_scores_3_1').content.decode()
+        assert 'Results not yet revealed' in public
+        client_.force_login(staff_user)
+        staff = client_.get('/detailed_scores_3_1').content.decode()
+        assert 'Results not yet revealed' not in staff
