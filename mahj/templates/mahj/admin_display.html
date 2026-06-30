@@ -395,6 +395,7 @@
                           class="select-output w-full text-sm border border-gray-200 rounded-lg px-2 py-1.5 bg-white
                                  focus:outline-none focus:ring-2 focus:ring-amber-300">
                     <option value="black">Blank</option>
+                    <option value="welcome">Welcome</option>
                     <option value="counter">Counter</option>
                     <option value="schedule">Schedule</option>
                     <option value="scores:detailed">Standings — detailed</option>
@@ -561,8 +562,8 @@
       });
     });
     // ── Double-select per screen ────────────────────────────────────────────
-    // A screen's stored view is "black" | "counter" | "schedule" |
-    // "scores:<density>:<page>". The Output select picks the first three or a
+    // A screen's stored view is "black" | "welcome" | "counter" | "schedule" |
+    // "scores:<density>:<page>". The Output select picks the first four or a
     // standings density; the Pages select (shown only for standings) picks a
     // fixed page or "all" (rotating). Every change applies immediately, with
     // "all" as the default page, so a layout pick is never an incomplete state.
@@ -592,6 +593,7 @@
 
     function prettyView(view) {
       if (!view || view === 'black') return 'Blank';
+      if (view === 'welcome') return 'Welcome';
       if (view === 'counter') return 'Counter';
       if (view === 'schedule') return 'Schedule';
       if (view.indexOf('scores:') === 0) {

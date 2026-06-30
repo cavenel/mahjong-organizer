@@ -35,9 +35,11 @@ def _pretty_view(view):
     """Human label for a stored screen view string. Mirrors the prettyView()
     used client-side on the display admin page, so a mode's saved views read the
     same whether rendered by Django or refreshed live by JS.
-    Grammar: "black" | "counter" | "schedule" | "scores:<density>:<page>"."""
+    Grammar: "black" | "welcome" | "counter" | "schedule" | "scores:<density>:<page>"."""
     if not view or view in ("black", "null"):
         return "Blank"
+    if view == "welcome":
+        return "Welcome"
     if view == "counter":
         return "Counter"
     if view == "schedule":

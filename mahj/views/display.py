@@ -58,11 +58,13 @@ def index(request, screen_id=None):
 
     if screen:
         view = screen.view or "black"
-        # Grammar: "black" | "counter" | "schedule" | "scores:<density>:<page>"
+        # Grammar: "black" | "welcome" | "counter" | "schedule" | "scores:<density>:<page>"
         # where density is detailed|totals and page is all|<N>.
         if view in ("", "black", "null"):
             template = loader.get_template('mahj/display_black.html')
             return HttpResponse(template.render({'subdomain': subdomain}, request))
+        elif view == "welcome":
+            return welcome(request)
         elif view == "counter":
             return counter(request)
         elif view == "schedule":
@@ -119,6 +121,22 @@ def overview(request):
         'modes': modes,
         'show_controls': show_controls,
         'mode_cols': mode_cols,
+    }
+    return HttpResponse(template.render(context, request))
+
+
+def welcome(request):
+    """Static welcome screen: hero logo, tournament name and the welcome message,
+    with the tournament's key info (full name, city, period, rules) pinned at the
+    bottom. Reloads live on any display event, like the other static screens."""
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    subdomain = tenant.subdomain if tenant else ''
+    template = loader.get_template('mahj/display_welcome.html')
+    context = {
+        'variables': variables,
+        'subdomain': subdomain,
+        'qr_svg': _spectator_qr_svg(subdomain),
     }
     return HttpResponse(template.render(context, request))
 
