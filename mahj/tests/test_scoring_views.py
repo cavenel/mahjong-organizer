@@ -408,6 +408,38 @@ class TestOverallWinnersMaskFinalRound:
         assert any(p.round_nb == nb_rounds for p in overall['mp_max'])
 
 
+class TestStatCardsConsistentWhenFinalPublishedWithheld:
+    """Once the admin presses "publish last round" the final round gets a
+    PublishedRound row at reveal=0 (ceremony pending). In that window the
+    standings and detail modals show rounds 1..n-1; the per-round / overall
+    winner cards must show the *same* rounds — not vanish entirely. `round_winners`
+    used to special-case this state and return [], disagreeing with every other
+    public surface. They now share `public_round_max`.
+
+    `completed_tournament` is exactly this state (final round published, reveal=0).
+    """
+
+    def test_public_round_cards_show_through_previous_round(self, request_, completed_tournament):
+        nb_rounds = completed_tournament['variable'].nb_rounds
+        rounds = views.stat_rounds(request_, check_final=True)
+        # Not [] — rounds 1..n-1 are shown, matching the standings/modal cutoff.
+        assert len(rounds) == nb_rounds - 1
+        assert len(rounds) == public_round_max(
+            completed_tournament['tenant'], completed_tournament['variable'], force_all=False
+        )
+
+    def test_public_overall_cards_exclude_final_but_are_not_empty(self, request_, completed_tournament):
+        nb_rounds = completed_tournament['variable'].nb_rounds
+        overall = views.stat_all_rounds(request_, check_final=True)
+        assert overall['mp_max']
+        assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
+
+    def test_admin_still_sees_the_final_round(self, request_, completed_tournament):
+        nb_rounds = completed_tournament['variable'].nb_rounds
+        rounds = views.stat_rounds(request_, check_final=False)
+        assert len(rounds) == nb_rounds
+
+
 class TestNoRoundsFallback:
     """Before any round is scored, the standings would read "Scores after round 0"
     over an all-zero table — meaningless, so the view falls back to the schedule."""

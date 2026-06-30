@@ -35,12 +35,10 @@ def scores_per_table(tenant, variables):
 def round_winners(tenant, variables, check_final=False, positions=None, hands=None):
     """Per-round top minipoints / single-hand score / same-seat-win streaks."""
     if check_final:
-        round_max = _last_published_round(tenant)
-        reveal = _last_round_reveal(tenant, variables.nb_rounds)
-        # Last round prepared but not yet published to everyone (pre-publish /
-        # ceremony pending) — hide the end-of-tournament stats.
-        if round_max == variables.nb_rounds and reveal != 100:
-            return []
+        # Public viewers see the same rounds as the standings and the detail
+        # modals: capped at the last published round, with the withheld final
+        # round dropped during the ceremony-pending (reveal==0) window.
+        round_max = public_round_max(tenant, variables, force_all=False)
     else:
         round_max = _last_complete_round(tenant, variables)
 
