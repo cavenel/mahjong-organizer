@@ -74,6 +74,7 @@ def _stat_winners(key, items):
             continue
         winners.append({'value': value, 'name': player.full_name,
                         'flag': _country_flag(player.country),
+                        'country': player.country,
                         'round_nb': round_nb, 'table_nb': table_nb})
     return winners
 
@@ -112,15 +113,9 @@ def _ceremony_master(request):
     ]
     overall = stat_all_rounds(request)
     stats = []
-    for key, title, unit in STAT_META:
-        winners = _stat_winners(key, overall.get(key) or [])
-        if winners:
-            stats.append({'key': key, 'title': title, 'unit': unit,
-                          'value': winners[0]['value'], 'winners': winners,
-                          'round_label': _round_label(winners)})
 
     # Best European: top-ranked player whose flag is a European code. rows are
-    # already sorted by rank, so the first match is the winner.
+    # already sorted by rank, so the first match is the winner. Shown first.
     best_eu = next((r for r in rows if (r['flag'] or '') in EUROPE), None)
     if best_eu:
         value = _total(best_eu, rules)
@@ -128,25 +123,23 @@ def _ceremony_master(request):
                 'unit': 'TP' if rules == 'MCR' else 'points', 'value': value,
                 'round_label': '',  # overall standing, not a single round
                 'winners': [{'value': value, 'name': best_eu['name'],
-                             'flag': best_eu['flag']}]}
+                             'flag': best_eu['flag'],
+                             'country': best_eu['country']}]}
         # MCR ranks on TP but MP is the tie-breaker — show both on this standing-
         # based stat (Riichi has no TP, so `value` is already the MP total).
         if rules == 'MCR':
             euro['mp'] = best_eu['total']['mp']
         stats.append(euro)
 
-    # Debug aid for the console: every player tagged with the same EUROPE test
-    # "Best European" uses, so the operator can sanity-check the continent split
-    # from the JS console (window.debugEuropean()).
-    debug_europe = [
-        {'name': r['name'], 'country': r['country'], 'flag': r['flag'] or '',
-         'european': (r['flag'] or '') in EUROPE}
-        for r in rows
-    ]
+    for key, title, unit in STAT_META:
+        winners = _stat_winners(key, overall.get(key) or [])
+        if winners:
+            stats.append({'key': key, 'title': title, 'unit': unit,
+                          'value': winners[0]['value'], 'winners': winners,
+                          'round_label': _round_label(winners)})
 
     return {'rules': rules, 'teams': teams, 'players': players,
-            'stats': stats, 'uses_teams': bool(teams),
-            'debug_europe': debug_europe}
+            'stats': stats, 'uses_teams': bool(teams)}
 
 
 def _slide_payload(master, state):

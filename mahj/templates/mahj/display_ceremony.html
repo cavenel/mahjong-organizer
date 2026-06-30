@@ -20,6 +20,9 @@
        is 4:3 (matching the flag SVGs) with background-size:cover so the flag
        fills it edge-to-edge and the border hugs it with no letterbox padding. */
     .flag { filter: none; border: 1px solid #999; width: 32px; height: 24px; margin: 0; vertical-align: middle; background-size: cover; }
+    /* Stat-winner rows show a larger flag alongside the country name. */
+    .flag-lg { width: 64px; height: 48px; }
+    .flag-xl { width: 96px; height: 72px; }
   </style>
 </head>
 <body class="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
@@ -46,8 +49,8 @@
       d.textContent = (s == null ? '' : String(s));
       return d.innerHTML;
     }
-    function flagImg(code) {
-      return code ? `<img src="${BLANK_PNG}" class="flag inline-block flag-${esc(code)}" alt="">` : '';
+    function flagImg(code, extra) {
+      return code ? `<img src="${BLANK_PNG}" class="flag inline-block flag-${esc(code)} ${extra || ''}" alt="">` : '';
     }
 
     function shell(title, inner, gapClass) {
@@ -122,23 +125,26 @@
       // Two-step reveal: step 0 shows just the prize title (suspense); step 1
       // adds the value, the round it happened in, and the winner(s).
       const revealed = (s.step || 0) >= 1;
-      const winners = (s.slide.winners || []).map(w =>
-        `<div class="flex items-center justify-center gap-4 text-6xl font-bold">${flagImg(w.flag)}<span>${esc(w.name)}</span></div>`
-      ).join('');
+      const winners = (s.slide.winners || []).map(w => {
+        // The winner is the headline: big name on top, country + flag underneath.
+        const place = `<div class="flex items-center justify-center gap-4 text-5xl font-semibold text-white/70">${w.country ? `<span>${esc(w.country)}</span>` : ''}${flagImg(w.flag, 'flag-xl')}</div>`;
+        return `<div class="flex flex-col items-center gap-4"><div class="text-8xl font-black">${esc(w.name)}</div>${place}</div>`;
+      }).join('');
       const roundLine = s.slide.round_label
         ? `<div class="text-2xl font-semibold text-white/60">${esc(s.slide.round_label)}</div>` : '';
       // Standing-based stats (MCR Best European) carry an MP total alongside the
       // primary TP value — show both.
       const mpPart = s.slide.mp != null
-        ? `<span class="text-4xl font-bold text-amber-200/70 ml-4">/ ${esc(s.slide.mp)} MP</span>` : '';
+        ? `<span class="text-3xl font-bold text-amber-200/70 ml-4">/ ${esc(s.slide.mp)} MP</span>` : '';
+      // Name (the winner) comes first, then the value/points below it.
       const reveal = revealed
-        ? `<div class="text-8xl font-black text-amber-300 tabular-nums">${esc(s.slide.value)}<span class="text-4xl font-bold text-amber-200/70 ml-2">${esc(s.slide.unit)}</span>${mpPart}</div>
-            ${roundLine}
-            <div class="flex flex-col gap-3 w-full mt-2">${winners}</div>`
+        ? `<div class="flex flex-col gap-6 w-full">${winners}</div>
+            <div class="text-6xl font-black text-amber-300 tabular-nums">${esc(s.slide.value)}<span class="text-3xl font-bold text-amber-200/70 ml-2">${esc(s.slide.unit)}</span>${mpPart}</div>
+            ${roundLine}`
         : '';
       return `<div class="flex-1 flex flex-col items-center justify-center gap-8 px-8 text-center">
           <div class="flex flex-col items-center gap-8 w-full max-w-4xl">
-            <h1 class="text-5xl font-extrabold tracking-tight">${esc(s.slide.title)}</h1>
+            <h1 class="text-5xl font-extrabold tracking-tight -mt-16">${esc(s.slide.title)}</h1>
             ${reveal}
           </div>
         </div>`;
