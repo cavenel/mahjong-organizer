@@ -88,17 +88,20 @@ def _align_to_template(image_bgr):
 
 
 def _warp_crop(image_bgr, H, bbox, max_edge=1568):
-    """Warp the photo straight to the bbox region, scaled so its long edge is at most
-    max_edge. Folding the scale into the homography keeps it a single resampling pass
-    and bounds the output regardless of template or bbox size (Sonnet caps vision at
-    ~1568px / ~1.15MP and would otherwise downscale server-side). Never upscales."""
+    """Warp the photo straight to the bbox region in one resampling pass, scaled so the
+    long edge is max_edge (1568 — Sonnet's vision cap; anything larger is downscaled
+    server-side anyway). Folding the scale into the homography resamples the scan once,
+    at the final resolution. Because the warp is a rotation/perspective, output pixels
+    land between scan pixels, so a dense output grid captures the reconstructed image
+    more faithfully than resampling near the scan's own pixel rate would — we always
+    scale up to max_edge rather than snapping to the smaller template grid."""
     import cv2
     import numpy as np
 
     x1, y1, x2, y2 = bbox
     bw, bh = x2 - x1, y2 - y1
-    s = min(1.0, max_edge / max(bw, bh))
-    # Shift the bbox origin to (0,0), then scale; compose onto H so it's one warp.
+    s = max_edge / max(bw, bh)
+    # Shift the bbox origin to (0,0) and scale; compose onto H so it's one warp.
     S = np.array([[s, 0.0, -x1 * s],
                   [0.0, s, -y1 * s],
                   [0.0, 0.0, 1.0]])
