@@ -8,7 +8,7 @@ import pytest
 
 from mahj import views
 from mahj.models import Hand, Player, Position, PublishedRound, Variable
-from mahj.scoring import player_extra_stats, team_extra_stats
+from mahj.scoring import player_extra_stats, public_round_max, team_extra_stats
 
 
 @pytest.fixture
@@ -248,6 +248,51 @@ class TestWinLossStatsValidationGate:
         # All 4 team members sit at this table, so team stats see each hand from
         # every member's seat: 2 hands x 4 players = 8 player-hand observations.
         assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 8
+
+
+class TestExtraStatsMaskFinalRound:
+    """The player/team modal's placement and win/loss cards must honour the same
+    end-of-tournament masking as the modal's score grid. While the final round is
+    scored but withheld for the ceremony (reveal=0), it must stay out of these
+    cards for public viewers — otherwise the placement/hand-count jump leaks the
+    champion's final table before the reveal. Admin viewers still see every round.
+
+    `completed_tournament` is exactly that state: all 3 rounds scored + validated,
+    rounds 1-2 published, the final round published at reveal=0.
+    """
+
+    def test_public_cutoff_drops_the_withheld_final_round(self, completed_tournament):
+        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
+        assert public_round_max(tenant, variables, force_all=False) == variables.nb_rounds - 1
+        assert public_round_max(tenant, variables, force_all=True) == variables.nb_rounds
+
+    def test_public_player_cards_exclude_final_round(self, completed_tournament):
+        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
+        player = completed_tournament['players'][0]
+        public = player_extra_stats(
+            tenant, player, variables,
+            max_round=public_round_max(tenant, variables, force_all=False),
+        )
+        admin = player_extra_stats(tenant, player, variables, max_round=None)
+        # The final round is folded in for admin but withheld from the public.
+        assert admin['total_rounds'] == variables.nb_rounds
+        assert public['total_rounds'] == variables.nb_rounds - 1
+        # Validated final-round hands count for admin, not for the public viewer.
+        assert public['total_hands'] < admin['total_hands']
+
+    def test_public_team_cards_exclude_final_round(self, completed_tournament):
+        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
+        player = completed_tournament['players'][0]
+        player.team = 'Reds'
+        player.save()
+        public = team_extra_stats(
+            tenant, 'Reds', variables,
+            max_round=public_round_max(tenant, variables, force_all=False),
+        )
+        admin = team_extra_stats(tenant, 'Reds', variables, max_round=None)
+        assert admin['total_rounds'] == variables.nb_rounds
+        assert public['total_rounds'] == variables.nb_rounds - 1
+        assert public['total_hands'] < admin['total_hands']
 
 
 class TestFinalCutoff:

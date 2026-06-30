@@ -339,12 +339,17 @@ def tournament_seating(tenant, variables, check_final=True, force_all=False, val
     return seating, player_table
 
 
-def player_extra_stats(tenant, player, variables):
-    """Placement rates and win/loss hand stats for one player."""
-    positions = list(
-        Position.objects.filter(tenant=tenant, player=player, tablepoints__isnull=False)
-        .order_by('round_nb')
-    )
+def player_extra_stats(tenant, player, variables, max_round=None):
+    """Placement rates and win/loss hand stats for one player.
+
+    `max_round` caps the rounds folded in: a public viewer must not see a
+    withheld final round leak into these cards (the per-round score grid in the
+    same modal already hides it). None = no cap, for admin/ceremony callers.
+    """
+    qs = Position.objects.filter(tenant=tenant, player=player, tablepoints__isnull=False)
+    if max_round is not None:
+        qs = qs.filter(round_nb__lte=max_round)
+    positions = list(qs.order_by('round_nb'))
 
     counts = _placement_counts(tenant, positions, variables)
     total_rounds = sum(counts.values())
@@ -407,17 +412,21 @@ def player_extra_stats(tenant, player, variables):
     }
 
 
-def team_extra_stats(tenant, team_name, variables):
-    """Placement rates and win/loss stats aggregated over all players in a team."""
+def team_extra_stats(tenant, team_name, variables, max_round=None):
+    """Placement rates and win/loss stats aggregated over all players in a team.
+
+    `max_round` caps the rounds folded in, exactly like `player_extra_stats` —
+    public team modals must not leak a withheld final round. None = no cap.
+    """
     players = list(Player.objects.filter(tenant=tenant, team=team_name))
     if not players:
         return None
 
     player_ids = [p.id for p in players]
-    positions = list(
-        Position.objects.filter(tenant=tenant, player_id__in=player_ids, tablepoints__isnull=False)
-        .order_by('round_nb')
-    )
+    qs = Position.objects.filter(tenant=tenant, player_id__in=player_ids, tablepoints__isnull=False)
+    if max_round is not None:
+        qs = qs.filter(round_nb__lte=max_round)
+    positions = list(qs.order_by('round_nb'))
 
     counts = _placement_counts(tenant, positions, variables)
     total_rounds = sum(counts.values())
@@ -517,6 +526,23 @@ def _last_round_reveal(tenant, nb_rounds):
     """
     row = PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
     return row.reveal_level if row else None
+
+
+def public_round_max(tenant, variables, force_all=False):
+    """Highest round number a public viewer may see, mirroring `player_standings`.
+
+    Public viewers (`force_all=False`) are clamped to the last published round,
+    and during the end-of-tournament suspense window (final round prepared but
+    held back, reveal==0) one further round is dropped. `force_all=True` (admin
+    /ceremony) sees every scored round. Use this to cap auxiliary surfaces — e.g.
+    the modal's placement/hand cards — to the same rounds the standings expose.
+    """
+    if force_all:
+        return variables.nb_rounds
+    round_max = min(_last_complete_round(tenant, variables), _last_published_round(tenant))
+    if round_max == variables.nb_rounds and _last_round_reveal(tenant, variables.nb_rounds) == 0:
+        round_max = max(0, round_max - 1)
+    return round_max
 
 
 def _placement_counts(tenant, positions, variables):

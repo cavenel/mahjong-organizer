@@ -9,7 +9,7 @@ from ..models import Hand, Player, Position
 from .helpers import get_tenant, get_variables
 from ..scoring import (
     _assign_ranks, _standings_rank_key, _standings_sort_key,
-    player_extra_stats, team_extra_stats, team_standings,
+    player_extra_stats, public_round_max, team_extra_stats, team_standings,
 )
 from ..signals import leaderboard_gen
 from .scoring import player_rounds_json, scores_per_player_json
@@ -36,7 +36,12 @@ def details_player(request, id):
     scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
     rounds = player_rounds_json(request, id)
-    extra_stats = player_extra_stats(tenant, player, variables)
+    # Cap the placement/hand cards to the same rounds the score grid shows, so a
+    # withheld final round can't leak into them ahead of the ceremony.
+    extra_stats = player_extra_stats(
+        tenant, player, variables,
+        max_round=public_round_max(tenant, variables, force_all=is_admin),
+    )
     template = loader.get_template('mahj/modal_details_player.html')
     context = {
         'player': player,
@@ -66,7 +71,10 @@ def details_team(request, team_name):
         return HttpResponse(cached)
 
     variables = get_variables(request)
-    extra_stats = team_extra_stats(tenant, team_name, variables)
+    extra_stats = team_extra_stats(
+        tenant, team_name, variables,
+        max_round=public_round_max(tenant, variables, force_all=is_admin),
+    )
     if extra_stats is None:
         from django.http import Http404
         raise Http404
