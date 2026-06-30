@@ -19,7 +19,7 @@ from .helpers import BASE_DIR, get_tenant, is_scorer
 
 # ---- Configure these ------------------------------------------------------
 TEMPLATE_PATH      = BASE_DIR / "static" / "template.jpg"
-BBOX_SCORES        = (135, 238, 384, 1500)    # (x1, y1, x2, y2) in template coords
+BBOX_SCORES        = (61, 161, 241, 991) # (x1, y1, x2, y2) in template coords
 MAX_FEATURES       = 5000
 GOOD_MATCH_PERCENT = 0.15
 MIN_MATCHES        = 12
@@ -61,6 +61,7 @@ def _read_image(file_storage):
 
 
 def _align_to_template(image_bgr):
+    """Return the homography mapping photo pixels to template coordinates, or None."""
     import cv2
     import numpy as np
 
@@ -83,16 +84,30 @@ def _align_to_template(image_bgr):
     dst = np.float32([_tpl_kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
     H, _ = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
-    if H is None:
-        return None
-    return cv2.warpPerspective(image_bgr, H, (_tpl_w, _tpl_h))
+    return H
 
 
-def _encode_crop(aligned, bbox):
+def _warp_crop(image_bgr, H, bbox, max_edge=1568):
+    """Warp the photo straight to the bbox region, scaled so its long edge is at most
+    max_edge. Folding the scale into the homography keeps it a single resampling pass
+    and bounds the output regardless of template or bbox size (Sonnet caps vision at
+    ~1568px / ~1.15MP and would otherwise downscale server-side). Never upscales."""
     import cv2
+    import numpy as np
 
     x1, y1, x2, y2 = bbox
-    crop = aligned[y1:y2, x1:x2]
+    bw, bh = x2 - x1, y2 - y1
+    s = min(1.0, max_edge / max(bw, bh))
+    # Shift the bbox origin to (0,0), then scale; compose onto H so it's one warp.
+    S = np.array([[s, 0.0, -x1 * s],
+                  [0.0, s, -y1 * s],
+                  [0.0, 0.0, 1.0]])
+    return cv2.warpPerspective(image_bgr, S @ H, (round(bw * s), round(bh * s)))
+
+
+def _encode_jpeg(crop):
+    import cv2
+
     ok, buf = cv2.imencode('.jpg', crop, [cv2.IMWRITE_JPEG_QUALITY, 85])
     if not ok:
         return None
@@ -228,21 +243,21 @@ def run_scan(image_bgr):
     {'status': 'error', 'error': msg}. Runs in the scan_worker process.
     """
     _ensure_initialized()
-    aligned = _align_to_template(image_bgr)
-    if aligned is None:
+    H = _align_to_template(image_bgr)
+    if H is None:
         return {'status': 'error',
                 'error': 'Could not align with template. Try a clearer, less tilted shot.'}
 
-    scores_b64 = _encode_crop(aligned, BBOX_SCORES)
+    scores_crop = _warp_crop(image_bgr, H, BBOX_SCORES)
+    scores_b64 = _encode_jpeg(scores_crop)
 
     # Only dump crops for offline inspection in DEBUG — never in production.
     if settings.DEBUG:
         import cv2
         debug_dir = BASE_DIR / "captures" / "debug_crops"
         os.makedirs(debug_dir, exist_ok=True)
-        cv2.imwrite(str(debug_dir / "aligned.jpg"), aligned)
-        x1, y1, x2, y2 = BBOX_SCORES
-        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), aligned[y1:y2, x1:x2])
+        cv2.imwrite(str(debug_dir / "aligned.jpg"), cv2.warpPerspective(image_bgr, H, (_tpl_w, _tpl_h)))
+        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), scores_crop)
 
     api_key = os.environ.get('ANTHROPIC_API_KEY', '')
     if not api_key:
