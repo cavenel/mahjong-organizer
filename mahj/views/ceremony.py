@@ -135,8 +135,18 @@ def _ceremony_master(request):
             euro['mp'] = best_eu['total']['mp']
         stats.append(euro)
 
+    # Debug aid for the console: every player tagged with the same EUROPE test
+    # "Best European" uses, so the operator can sanity-check the continent split
+    # from the JS console (window.debugEuropean()).
+    debug_europe = [
+        {'name': r['name'], 'country': r['country'], 'flag': r['flag'] or '',
+         'european': (r['flag'] or '') in EUROPE}
+        for r in rows
+    ]
+
     return {'rules': rules, 'teams': teams, 'players': players,
-            'stats': stats, 'uses_teams': bool(teams)}
+            'stats': stats, 'uses_teams': bool(teams),
+            'debug_europe': debug_europe}
 
 
 def _slide_payload(master, state):

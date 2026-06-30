@@ -251,6 +251,20 @@
             this.data = d;
             if (d.state) { this.phase = d.state.phase; this.step = d.state.step || 0; this.statKey = d.state.stat_key || ''; }
             this.loading = false;
+            // Debug helper: `debugEuropean()` in the console prints the two
+            // continent groups (name + country) exactly as the server's EUROPE
+            // test classifies them — used to vet the "Best European" prize.
+            window.debugEuropean = () => {
+              const all = d.debug_europe || [];
+              const fmt = r => ({ name: r.name, country: r.country, flag: r.flag });
+              const eu = all.filter(r => r.european);
+              const non = all.filter(r => !r.european);
+              console.log('%c🇪🇺 European (' + eu.length + ')', 'font-weight:bold;color:#2563eb');
+              console.table(eu.map(fmt));
+              console.log('%c🌍 Non-European (' + non.length + ')', 'font-weight:bold;color:#d97706');
+              console.table(non.map(fmt));
+              return { european: eu, nonEuropean: non };
+            };
           });
         },
         list(phase) { return phase === 'teams' ? this.data.teams : this.data.players; },
