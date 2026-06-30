@@ -57,18 +57,19 @@ def stat_rounds(request, check_final=False, positions=None, hands=None):
     return result
 
 
-def stat_all_rounds(request, positions=None, hands=None):
+def stat_all_rounds(request, check_final=False, positions=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None or hands is not None:
         return _scoring.overall_winners(
-            tenant, get_variables(request), positions=positions, hands=hands,
+            tenant, get_variables(request), check_final,
+            positions=positions, hands=hands,
         )
-    cache_key = f'stat_all:{subdomain}'
+    cache_key = f'stat_all:{subdomain}:{check_final}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _scoring.overall_winners(tenant, get_variables(request))
+    result = _scoring.overall_winners(tenant, get_variables(request), check_final)
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 

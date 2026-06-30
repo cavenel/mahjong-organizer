@@ -313,6 +313,56 @@ class TestRoundWinners:
             assert len(set(mps)) == 1  # all tied at the max
 
 
+class TestOverallWinnersMaskFinalRound:
+    """The 'Overall — after N rounds' cards must honour the same end-of-tournament
+    masking as the per-round cards. While the final round is scored but not yet
+    published (ceremony pending), its hands/scores must stay out of the overall
+    roll-up for public viewers (check_final=True) — otherwise the projector/desktop
+    leaks the champion's biggest hand/top game before the ceremony reveals it.
+    Admin/ceremony (check_final=False) still see everything.
+    """
+
+    @pytest.fixture
+    def suspense_tournament(self, completed_tournament):
+        # Earlier rounds are published; the *final* round is fully scored but has
+        # no PublishedRound row yet — the exact pre-ceremony state where the leak
+        # used to occur. Spike one final-round seat + one self-draw hand to the
+        # unique overall best so a leak would be unmistakable.
+        nb_rounds = completed_tournament['variable'].nb_rounds
+        tenant = completed_tournament['tenant']
+        PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).delete()
+        pos = Position.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
+        pos.minipoints = 100000
+        pos.save()
+        h = Hand.objects.filter(tenant=tenant, round_nb=nb_rounds, hand_nb=1).first()
+        h.pts, h.win_by, h.win_from = 100000, 1, 0  # self-draw
+        h.save()
+        return completed_tournament
+
+    def test_public_overall_excludes_unpublished_final_round(self, request_, suspense_tournament):
+        nb_rounds = suspense_tournament['variable'].nb_rounds
+        overall = views.stat_all_rounds(request_, check_final=True)
+        # Roll-up still has earlier-round data, but nothing from the withheld final.
+        assert overall['mp_max']
+        assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
+        assert all(h['pts'] < 100000 for h in overall['sd_hand_max'])
+
+    def test_admin_overall_includes_final_round(self, request_, suspense_tournament):
+        nb_rounds = suspense_tournament['variable'].nb_rounds
+        overall = views.stat_all_rounds(request_, check_final=False)
+        assert any(
+            p.round_nb == nb_rounds and p.minipoints == 100000 for p in overall['mp_max']
+        )
+        assert any(h['pts'] == 100000 for h in overall['sd_hand_max'])
+
+    def test_default_is_unmasked_for_ceremony(self, request_, suspense_tournament):
+        # ceremony.py calls stat_all_rounds(request) with no check_final and must
+        # keep seeing the final round (the reveal surface).
+        nb_rounds = suspense_tournament['variable'].nb_rounds
+        overall = views.stat_all_rounds(request_)
+        assert any(p.round_nb == nb_rounds for p in overall['mp_max'])
+
+
 class TestNoRoundsFallback:
     """Before any round is scored, the standings would read "Scores after round 0"
     over an all-zero table — meaningless, so the view falls back to the schedule."""

@@ -66,9 +66,14 @@ def round_winners(tenant, variables, check_final=False, positions=None, hands=No
     ]
 
 
-def overall_winners(tenant, variables, positions=None, hands=None):
-    """Aggregate round_winners across rounds: items from rounds tying for overall top."""
-    rounds = round_winners(tenant, variables, positions=positions, hands=hands)
+def overall_winners(tenant, variables, check_final=False, positions=None, hands=None):
+    """Aggregate round_winners across rounds: items from rounds tying for overall top.
+
+    ``check_final`` is forwarded to ``round_winners`` so the overall roll-up honours
+    the same end-of-tournament masking as the per-round stats: while the final round
+    is prepared but not yet published, its hands/scores stay out of these cards.
+    """
+    rounds = round_winners(tenant, variables, check_final, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
         'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h['pts']),

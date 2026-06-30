@@ -113,7 +113,7 @@ def desktop(request):
         schedule = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
         cache.set(schedule_key, schedule, 300)
     stat_rounds_data = stat_rounds(request, check_final=check_final, positions=positions, hands=hands)
-    stat_all_data = stat_all_rounds(request, positions=positions, hands=hands)
+    stat_all_data = stat_all_rounds(request, check_final=check_final, positions=positions, hands=hands)
 
     context = {
         'variables': variables,
