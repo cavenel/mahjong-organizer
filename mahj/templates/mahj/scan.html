@@ -13,7 +13,7 @@
   <div class="w-full max-w-sm">
 
     <h1 class="text-2xl font-bold text-gray-800 mb-1 text-center">Scan score sheet</h1>
-    <p class="text-sm text-gray-600 mb-6 text-center">Enter the round and table, then take a clear photo of the whole A4 sheet.</p>
+    <p class="text-sm text-gray-600 mb-6 text-center">Enter the round and table, then take a clear photo of the whole A4 sheet. Once analyzed, you can check the scan results in the scoring table.</p>
 
     <!-- ====== OFFLINE BANNER ====== -->
     <div id="offline-banner" class="hidden rounded-lg p-2 text-xs font-semibold text-center mb-4 bg-gray-800 text-white">
@@ -49,16 +49,9 @@
       <input type="file" id="file" class="hidden" accept="image/*" capture="environment">
     </label>
 
-    <!-- ====== PROGRESS ====== -->
-    <div id="progress" class="hidden items-center justify-center gap-3 rounded-lg px-4 py-3 bg-amber-50 text-amber-700 mb-4">
-      <svg class="w-5 h-5 animate-spin text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24">
-        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-      </svg>
-      <span id="progress-text" class="text-sm font-medium">Reading sheet…</span>
-    </div>
-
-    <!-- ====== RESULTS LIST ====== -->
+    <!-- ====== RESULTS LIST ======
+         One card per scan: starts as a spinner, updates in place, becomes the
+         saved/error result. -->
     <div id="results" class="space-y-2"></div>
 
   </div>
@@ -79,8 +72,6 @@ const tableEl  = document.getElementById('table');
 const fileEl   = document.getElementById('file');
 const scanLabel= document.getElementById('scan-label');
 const statusEl = document.getElementById('status');
-const progress = document.getElementById('progress');
-const progressText = document.getElementById('progress-text');
 const resultsEl= document.getElementById('results');
 const offlineBanner = document.getElementById('offline-banner');
 
@@ -181,10 +172,34 @@ roundEl.addEventListener('input', () => {
 });
 tableEl.addEventListener('input', refreshStatus);
 
-/* ====== RESULTS LIST ====== */
+/* ====== RESULTS LIST ======
+   Each scan owns one card, created up front and mutated in place: it shows a
+   spinner ("Reading R1 T2…") while the queue works, then turns into the saved
+   or error result. Per-card state means several scans can run at once without
+   overwriting each other's feedback. */
 
-function addResult(round_nb, table_nb, ok, msg) {
+/* Create a spinner card for a new scan and add it to the top of the list. */
+function addPendingCard(round_nb, table_nb) {
   const div = document.createElement('div');
+  div.className = 'flex items-center gap-3 rounded-lg px-4 py-3 bg-amber-50 text-amber-700';
+  div.innerHTML =
+    `<svg class="w-5 h-5 animate-spin text-amber-500 shrink-0" fill="none" viewBox="0 0 24 24">` +
+      `<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>` +
+      `<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>` +
+    `</svg><span class="text-sm font-medium pending-text"></span>`;
+  resultsEl.prepend(div);
+  setPendingText(div, `Reading R${round_nb} T${table_nb}…`);
+  return div;
+}
+
+/* Update the spinner card's text without rebuilding it (keeps the spin going). */
+function setPendingText(div, text) {
+  const span = div.querySelector('.pending-text');
+  if (span) span.textContent = text;
+}
+
+/* Turn a scan's card into its final saved / error result. */
+function renderResult(div, round_nb, table_nb, ok, msg) {
   if (ok) {
     // Scorers open the score sheet inline; everyone else is sent to the admin
     // console (the score sheet itself is scorer-only).
@@ -201,7 +216,6 @@ function addResult(round_nb, table_nb, ok, msg) {
     div.className = 'flex items-center gap-3 rounded-lg px-4 py-3 bg-red-50 text-red-700';
     div.innerHTML = `<span class="text-lg">❌</span><span class="text-xs truncate">R${round_nb} T${table_nb}: ${msg}</span>`;
   }
-  resultsEl.prepend(div);
 }
 
 /* ====== SCORE-SHEET IFRAME OVERLAY ====== */
@@ -228,6 +242,13 @@ document.getElementById('overlay-close').addEventListener('click', closeSheet);
 
 /* ====== SCAN ====== */
 
+/* Round/table snapshotted when the camera opens. The change event fires only
+   after the photo comes back — by then a concurrent scan's success handler may
+   have blanked the shared table field, so reading it live there yields NaN
+   ("R1 TNaN"). Capture the values here, at open time, and use them for the
+   whole scan. */
+let pendingRound = null, pendingTable = null;
+
 fileEl.addEventListener('click', function (e) {
   // Guard before the camera opens: require round/table.
   const round_nb = roundEl.value;
@@ -237,12 +258,14 @@ fileEl.addEventListener('click', function (e) {
     alert('Enter a round and table first.');
     return;
   }
+  pendingRound = parseInt(round_nb);
+  pendingTable = parseInt(table_nb);
 });
 
 /* Poll a queued OCR job until it finishes. The scan runs in a worker process
    (a small pool consuming one shared queue), so the result arrives by polling
    rather than in the upload response — this keeps OCR off the web workers. */
-async function pollScan(jobId, round_nb, table_nb) {
+async function pollScan(jobId, round_nb, table_nb, card) {
   const deadline = Date.now() + 90000;   // give up after ~90s in the queue
   let dots = 0;
   while (Date.now() < deadline) {
@@ -252,7 +275,7 @@ async function pollScan(jobId, round_nb, table_nb) {
       throw new Error(data.error || 'Could not read the sheet. Retake a clear, flat photo.');
     }
     dots = (dots + 1) % 4;
-    progressText.textContent = `Reading R${round_nb} T${table_nb}${'.'.repeat(dots)}`;
+    setPendingText(card, `Reading R${round_nb} T${table_nb}${'.'.repeat(dots)}`);
     await new Promise(r => setTimeout(r, 1200));
   }
   throw new Error('Scan is taking too long — the queue may be busy. Try again in a moment.');
@@ -263,13 +286,22 @@ fileEl.addEventListener('change', async function () {
   const file = this.files[0];
   this.value = '';
 
-  const round_nb = parseInt(roundEl.value);
-  const table_nb = parseInt(tableEl.value);
+  // Use the values captured when the camera opened: the field is cleared below
+  // as soon as the scan is sent, so it no longer holds this scan's table.
+  const round_nb = pendingRound;
+  const table_nb = pendingTable;
+  if (!Number.isInteger(round_nb) || !Number.isInteger(table_nb)) return;
 
-  progressText.textContent = `Reading R${round_nb} T${table_nb}…`;
-  progress.classList.remove('hidden');
-  progress.classList.add('flex');
-  setScanEnabled(false);
+  // No disable here: scans are meant to queue in the OCR worker pool, so fire
+  // off the next sheet while this one processes.
+  const card = addPendingCard(round_nb, table_nb);
+
+  // Clear the table the instant it's sent — it's now in the queue with its own
+  // card, so there's nothing to re-enter. This frees the field for the next
+  // sheet and signals the table is on its way. (Keep the round.)
+  tableEl.value = '';
+  tableEl.focus();
+  refreshStatus();
 
   try {
     const fd = new FormData();
@@ -279,9 +311,9 @@ fileEl.addEventListener('change', async function () {
     const { data } = await requestJSON('scan', { method: 'POST', body: fd });
     if (!data.ok || !data.job_id) throw new Error(data.error || 'Could not start the scan. Try again.');
 
-    const scores = await pollScan(data.job_id, round_nb, table_nb);
+    const scores = await pollScan(data.job_id, round_nb, table_nb, card);
 
-    progressText.textContent = `Saving R${round_nb} T${table_nb}…`;
+    setPendingText(card, `Saving R${round_nb} T${table_nb}…`);
     const { data: pdata } = await requestJSON('scan_prefill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
@@ -291,16 +323,10 @@ fileEl.addEventListener('change', async function () {
     });
     if (!pdata.ok) throw new Error(pdata.error || 'Save failed.');
 
-    addResult(round_nb, table_nb, true);
-    tableEl.value = '';        // clear table, keep round, for the next sheet
-    tableEl.focus();
-    refreshStatus();
+    renderResult(card, round_nb, table_nb, true);
+    refreshStatus();   // re-check the current field; the scanned table now locks
   } catch (e) {
-    addResult(round_nb, table_nb, false, e.message);
-  } finally {
-    progress.classList.add('hidden');
-    progress.classList.remove('flex');
-    setScanEnabled(true);
+    renderResult(card, round_nb, table_nb, false, e.message);
   }
 });
 
