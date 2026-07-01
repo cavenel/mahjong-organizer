@@ -13,6 +13,23 @@
 
 <div class="space-y-8">
 
+  <!-- Ceremony takeover warning. A running prize-giving ceremony overrides every
+       screen, so the controls below have no visible effect until it ends. Shown
+       server-side on load when a ceremony is already running, then toggled live
+       by the 'ceremony.update' socket broadcast (see the script at the bottom). -->
+  <div id="ceremony-warning"
+       class="rounded-xl border border-amber-300 bg-amber-50 p-4 flex items-start gap-3{% if not ceremony_active %} hidden{% endif %}">
+    <svg class="w-6 h-6 shrink-0 text-amber-600 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+    <div class="min-w-0">
+      <h3 class="text-sm font-bold text-amber-800">Ceremony ongoing</h3>
+      <p class="text-sm text-amber-700 mt-0.5">
+        The prize-giving ceremony is taking over every screen. Display modes and
+        screen settings below won't change what's shown until you
+        <a href="admin?page=ceremony" class="font-semibold underline hover:text-amber-900">end the ceremony</a>.
+      </p>
+    </div>
+  </div>
+
   <!-- Display modes — the everyday control: one click reconfigures every screen. -->
   <section>
     <h2 class="text-xl font-bold text-gray-800 mb-1">Display modes</h2>
@@ -317,12 +334,29 @@
     // silently half-open socket after sleep). No "out of sync" banner here:
     // fetchStatus polls every 30s and we re-poll immediately on reconnect, so
     // the timer self-heals without a manual refresh.
+    // Show/hide the "Ceremony ongoing" warning. The ceremony takes over every
+    // screen, so while it runs the display controls below do nothing visible.
+    function setCeremonyWarning(active) {
+      var el = document.getElementById('ceremony-warning');
+      if (el) el.classList.toggle('hidden', !active);
+    }
+
     connectDisplaySocket({
       subdomain: '{{ variables.tenant.subdomain }}',
       path: '/ws/display/',
       statusBanner: false,
-      onUpdate: function(msg) { if (msg.event === 'counter_update') applyCounter(msg); },
-      onReconnect: function() { fetchStatus(); },
+      onUpdate: function(msg) {
+        if (msg.event === 'counter_update') applyCounter(msg);
+        else if (msg.event === 'ceremony') setCeremonyWarning(msg.phase !== 'idle');
+      },
+      onReconnect: function() {
+        fetchStatus();
+        // Resync the ceremony banner: a ceremony may have started or ended while
+        // the socket was down, so we can't trust the pre-disconnect state.
+        fetch('ceremony_data').then(function(r){ return r.json(); })
+          .then(function(d){ setCeremonyWarning(d.state && d.state.phase !== 'idle'); })
+          .catch(function(){});
+      },
     });
 
     fetchStatus();
