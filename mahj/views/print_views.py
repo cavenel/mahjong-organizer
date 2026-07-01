@@ -95,6 +95,23 @@ def player_cards(request):
         for p in players
     ]
 
+    # ?players=1,2,3 keeps only those players plus anyone who shares a table
+    # with them in some round (their opponents), so a card is printed for every
+    # player relevant to the requested rand numbers. ?main=true drops the
+    # opponents and prints only the requested players' own badges.
+    wanted = {
+        int(pid) for pid in request.GET.get('players', '').split(',') if pid.strip().isdigit()
+    }
+    main_only = request.GET.get('main', '').lower() in ('1', 'true', 'yes')
+    if wanted:
+        player_rounds = [
+            pr for pr in player_rounds
+            if pr["player"].rand_id in wanted
+            or (not main_only
+                and any(pos.player.rand_id in wanted
+                        for rnd in pr["rounds"] for pos in rnd["other_pos"]))
+        ]
+
     def grouper(n, iterable, fillvalue=None):
         args = [iter(iterable)] * n
         return itertools.zip_longest(*args, fillvalue=fillvalue)
