@@ -81,10 +81,22 @@ RUN groupadd --gid 1000 app && \
 # Runtime-only native libs: opencv (libglib2.0-0, libgomp1) and the healthcheck's
 # curl-over-socket liveness probe. No gcc / libpq-dev — psycopg2-binary bundles
 # its own libpq, and nothing is compiled at runtime.
+#
+# Plus the restore_worker's tools: postgresql-client-16 (pg_restore + psql — must
+# match the postgres:16 server's custom-dump archive version, which Debian's
+# default pg15 client can't read, so pull it from the PGDG apt repo), and
+# rsync/openssh-client for the "pull from remote" job.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl ca-certificates \
+    curl ca-certificates gnupg \
     libglib2.0-0 libgomp1 \
-    && rm -rf /var/lib/apt/lists/*
+    rsync openssh-client \
+ && install -d /usr/share/postgresql-common/pgdg \
+ && curl -sSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list \
+ && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
+ && rm -rf /var/lib/apt/lists/*
 
 # Install dependencies from the prebuilt wheels. The wheel dir is bind-mounted
 # from the builder so it is never committed to a layer (no image bloat).

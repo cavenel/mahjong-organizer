@@ -37,6 +37,11 @@ urlpatterns = [
     path('user_revoke_links', views.user_revoke_links, name='user_revoke_links'),
     path('user_delete', views.user_delete, name='user_delete'),
 
+    # Database restore (staff only)
+    path('restore_pull', views.restore_pull, name='restore_pull'),
+    path('restore_run', views.restore_run, name='restore_run'),
+    path('restore_status', views.restore_status, name='restore_status'),
+
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),
     path('update_position_penalty', views.update_position_penalty, name='update_position_penalty'),

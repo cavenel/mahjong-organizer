@@ -1,0 +1,242 @@
+{% load static %}
+<div class="max-w-4xl space-y-6">
+
+  <div>
+    <h2 class="text-xl font-bold text-gray-800">Database restore</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      Pull dumps from the off-host backup, and roll the live database back to one
+      of them.
+    </p>
+  </div>
+
+  <!-- Danger notice -->
+  <div class="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800 space-y-1">
+    <p><strong>Restoring overwrites the live database.</strong> Everything entered
+      since the chosen dump is lost — a restore replaces, it never merges.</p>
+    <p>Only one instance may accept score writes at a time. Before restoring, make
+      sure nobody is still scoring on another instance.</p>
+  </div>
+
+  <!-- Pull from remote -->
+  <div class="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-center gap-3">
+    <div class="flex-1 min-w-0">
+      <h3 class="font-semibold text-gray-700">Pull from remote</h3>
+      <p class="text-xs text-gray-500 mt-0.5">Mirror the off-host dumps down to this box, then refresh the list.</p>
+    </div>
+    {% if pull_configured %}
+    <button id="pull-btn" type="button"
+            class="rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50">
+      Pull now
+    </button>
+    {% else %}
+    <span class="text-xs italic text-gray-400">Pull not configured on this box.</span>
+    {% endif %}
+    <p id="pull-status" class="w-full text-sm hidden"></p>
+  </div>
+
+  <!-- Dumps grouped by origin -->
+  {% if groups %}
+    {% for g in groups %}
+    <div class="rounded-lg border border-gray-200 bg-white">
+      <div class="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-gray-100">
+        <h3 class="font-semibold text-gray-700">
+          Origin: <span class="text-amber-700">{{ g.source }}</span>
+        </h3>
+        <span class="text-xs text-gray-500">{{ g.count }} dump{{ g.count|pluralize }}{% if g.span %} · {{ g.span }}{% endif %}</span>
+        <button type="button" class="restore-dump ml-auto rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-600"
+                data-name="{{ g.newest }}">Restore newest</button>
+      </div>
+      <table class="w-full text-sm text-gray-700">
+        <tbody class="divide-y divide-gray-100">
+          {% for d in g.recent %}
+          <tr>
+            <td class="px-4 py-2 font-mono text-xs text-gray-600">{{ d.name }}</td>
+            <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{{ d.when }}</td>
+            <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ d.size_h }}</td>
+            <td class="px-4 py-2 text-right">
+              <button type="button" class="restore-dump rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                      data-name="{{ d.name }}">Restore</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% if g.has_more %}
+      <p class="px-4 py-2 text-xs text-gray-400 border-t border-gray-100">
+        Showing the {{ g.recent|length }} newest of {{ g.count }}. Older dumps are pruned automatically; use “Restore newest” or pull again for the latest.
+      </p>
+      {% endif %}
+    </div>
+    {% endfor %}
+  {% else %}
+    <div class="rounded-lg border border-dashed border-gray-300 px-4 py-8 text-center text-sm text-gray-500">
+      No local dumps found.{% if pull_configured %} Pull from the remote to fetch some.{% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Restore confirm + progress modal (in-fragment: needs a typed-confirm input,
+     which the shared text-only confirm modal can't host). -->
+<div id="restore-modal" class="fixed inset-0 z-[70] hidden items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" data-close></div>
+  <div class="relative z-10 bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+    <!-- Confirm step -->
+    <div id="restore-confirm-step">
+      <div class="flex items-start gap-4 p-6">
+        <div class="shrink-0 w-11 h-11 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div class="min-w-0">
+          <h3 class="text-lg font-bold text-gray-900">Restore the live database?</h3>
+          <p class="mt-2 text-sm text-gray-600">This will overwrite <strong>{{ db_name }}</strong> with:</p>
+          <p class="mt-1 font-mono text-xs text-gray-500 break-all" id="restore-dump-name"></p>
+          <label class="mt-4 block text-xs text-gray-500">Type the database name (<strong>{{ db_name }}</strong>) to confirm
+            <input id="restore-confirm-input" type="text" autocomplete="off"
+                   class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800">
+          </label>
+        </div>
+      </div>
+      <div class="flex justify-end gap-2 px-6 py-4 bg-gray-50">
+        <button type="button" data-close class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</button>
+        <button id="restore-go" type="button" disabled
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg bg-rose-500 hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed">Restore</button>
+      </div>
+    </div>
+    <!-- Progress step -->
+    <div id="restore-progress-step" class="hidden p-6">
+      <h3 class="text-lg font-bold text-gray-900">Restoring…</h3>
+      <p id="restore-phase" class="mt-2 text-sm text-gray-600">Starting…</p>
+      <div class="mt-4 flex justify-end">
+        <button id="restore-close" type="button" disabled
+                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-40">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {
+  var CSRF = "{{ csrf_token }}";
+  var DB_NAME = "{{ db_name|escapejs }}";
+
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify(body || {}),
+    }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) {
+      // Re-auth lapsed: bounce back to the password prompt for this page.
+      if (r.status === 403 && j && j.status === "reauth_required") {
+        location.href = "admin?page=database_restore";
+        return { ok: false, handled: true };
+      }
+      return { ok: r.ok, status: r.status, data: j };
+    }); });
+  }
+
+  var PHASE_LABEL = {
+    queued: "Queued…", pausing: "Pausing the connection pool…",
+    restoring: "Dropping and restoring the database…",
+    migrating: "Applying migrations…", pulling: "Syncing from the remote…",
+    done: "Done.",
+  };
+
+  // Poll a job until it leaves the running/pending states.
+  function poll(jobId, onUpdate) {
+    function tick() {
+      fetch("restore_status?job_id=" + encodeURIComponent(jobId))
+        .then(function(r) { return r.json().catch(function() { return {}; }); })
+        .then(function(j) {
+          onUpdate(j);
+          if (j.status === "running" || j.status === "pending") {
+            setTimeout(tick, 1000);
+          }
+        })
+        .catch(function() { setTimeout(tick, 2000); });
+    }
+    tick();
+  }
+
+  // ---- Pull -------------------------------------------------------------
+  $("#pull-btn").on("click", function() {
+    var $btn = $(this).prop("disabled", true);
+    var $st = $("#pull-status").removeClass("hidden text-rose-600 text-green-600")
+                               .addClass("text-gray-600").text("Pulling…");
+    post("restore_pull", {}).then(function(res) {
+      if (res.handled) return;
+      if (!res.ok) { $btn.prop("disabled", false); $st.addClass("text-rose-600").text((res.data && res.data.error) || "Could not start pull"); return; }
+      poll(res.data.job_id, function(j) {
+        if (j.status === "done") {
+          $st.removeClass("text-gray-600").addClass("text-green-600")
+             .text("Pulled — " + (j.held != null ? j.held + " dumps held. " : "") + "Refreshing…");
+          setTimeout(function() { location.href = "admin?page=database_restore"; }, 900);
+        } else if (j.status === "error" || j.status === "expired") {
+          $btn.prop("disabled", false);
+          $st.addClass("text-rose-600").text(j.error || "Pull failed.");
+        } else {
+          $st.text(PHASE_LABEL[j.phase] || "Pulling…");
+        }
+      });
+    });
+  });
+
+  // ---- Restore ----------------------------------------------------------
+  var $modal = $("#restore-modal");
+  var $confirmStep = $("#restore-confirm-step");
+  var $progressStep = $("#restore-progress-step");
+  var pendingDump = null;
+
+  function openModal(name) {
+    pendingDump = name;
+    $("#restore-dump-name").text(name);
+    $("#restore-confirm-input").val("");
+    $("#restore-go").prop("disabled", true);
+    $confirmStep.removeClass("hidden");
+    $progressStep.addClass("hidden");
+    $("#restore-close").prop("disabled", true);
+    $modal.removeClass("hidden").addClass("flex");
+    setTimeout(function() { $("#restore-confirm-input").focus(); }, 50);
+  }
+  function closeModal() { $modal.addClass("hidden").removeClass("flex"); pendingDump = null; }
+
+  $(document).on("click", ".restore-dump", function() { openModal($(this).data("name")); });
+  $modal.on("click", "[data-close]", closeModal);
+  $("#restore-confirm-input").on("input", function() {
+    $("#restore-go").prop("disabled", $(this).val() !== DB_NAME);
+  });
+
+  $("#restore-go").on("click", function() {
+    var dump = pendingDump;
+    $confirmStep.addClass("hidden");
+    $progressStep.removeClass("hidden");
+    $("#restore-phase").removeClass("text-rose-600 text-green-600").text("Starting…");
+    post("restore_run", { dump: dump, confirm: $("#restore-confirm-input").val() }).then(function(res) {
+      if (res.handled) return;
+      if (!res.ok) {
+        $("#restore-phase").addClass("text-rose-600").text((res.data && res.data.error) || "Could not start restore.");
+        $("#restore-close").prop("disabled", false);
+        return;
+      }
+      poll(res.data.job_id, function(j) {
+        if (j.status === "done") {
+          var c = j.counts;
+          var txt = "Restored.";
+          if (c) txt += " " + c.players + " players, " + c.positions + " positions, " + c.hands + " hands.";
+          $("#restore-phase").addClass("text-green-600").text(txt);
+          $("#restore-close").prop("disabled", false);
+        } else if (j.status === "error" || j.status === "expired") {
+          $("#restore-phase").addClass("text-rose-600").text(j.error || "Restore failed.");
+          $("#restore-close").prop("disabled", false);
+        } else {
+          $("#restore-phase").text(PHASE_LABEL[j.phase] || "Working…");
+        }
+      });
+    });
+  });
+
+  $("#restore-close").on("click", function() {
+    closeModal();
+    location.href = "admin?page=database_restore";  // refresh the list + clear state
+  });
+})();
+</script>

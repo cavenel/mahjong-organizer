@@ -37,6 +37,7 @@
 <script>
 (function() {
   var CSRF = "{{ csrf_token }}";
+  var NEXT = "{{ reauth_next|default:'users' }}";
   $("#reauth-form").on("submit", function(e) {
     e.preventDefault();
     var pw = $(this).find('[name="password"]').val();
@@ -45,7 +46,7 @@
       headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
       body: JSON.stringify({ password: pw }),
     }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) {
-      if (r.ok && j.status === "ok") { location.href = "admin?page=users"; return; }
+      if (r.ok && j.status === "ok") { location.href = "admin?page=" + NEXT; return; }
       var $err = $("#reauth-error");
       $err.text((j && j.error) || "Could not confirm password").removeClass("hidden");
       $("#reauth-form [name='password']").val("").focus();

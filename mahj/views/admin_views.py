@@ -18,11 +18,12 @@ from django.core.files.storage import FileSystemStorage
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
 
-from ..models import Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
+from ..models import CeremonyState, Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
 from .print_views import _country_flag
 from .user_admin import ROLE_GROUPS, reauth_ok
+from .restore_admin import list_backups
 from .scoring import (
     scores_per_player_json,
     scores_per_table_json,
@@ -688,11 +689,16 @@ def options(request, error=None):
             return HttpResponseRedirect('admin?page=display')
         screens = Screen.objects.filter(tenant=tenant).order_by('id')
         modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
+        # A running ceremony takes over every screen, so the display controls
+        # below are inert until it ends. Flag it so the page can warn up front;
+        # the banner then tracks live 'ceremony.update' broadcasts over the socket.
+        ceremony_state = CeremonyState.objects.filter(tenant=tenant).first()
         context = {
             "screens": screens,
             "modes": _mode_breakdowns(modes, screens),
             "nb_players": Player.objects.filter(tenant=tenant).count(),
             "variables": variables,
+            "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
         }
         template2 = loader.get_template('mahj/admin_display.html')
         page_content = template2.render(context, request)
@@ -790,6 +796,23 @@ def options(request, error=None):
                 "user_rows": user_rows,
                 "role_groups": ROLE_GROUPS,
                 "link_validity_days": settings.SESAME_MAX_AGE // 86400,
+            }, request)
+    elif page == "database_restore":
+        # Staff-only, and — like user management — re-confirm the password first:
+        # this page can WIPE the live DB, so a borrowed session must re-auth.
+        if not request.user.is_staff:
+            page_content = "None"
+        elif not reauth_ok(request):
+            template2 = loader.get_template('mahj/admin_users_reauth.html')
+            page_content = template2.render(
+                {"link_only": not request.user.has_usable_password(),
+                 "reauth_next": "database_restore"}, request)
+        else:
+            template2 = loader.get_template('mahj/admin_database_restore.html')
+            page_content = template2.render({
+                "groups": list_backups(),
+                "db_name": settings.DATABASES['default']['NAME'],
+                "pull_configured": bool(os.environ.get('REMOTE')),
             }, request)
     else:
         page_content = "None"
