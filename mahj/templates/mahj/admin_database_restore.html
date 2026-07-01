@@ -42,7 +42,7 @@
         <h3 class="font-semibold text-gray-700">
           Origin: <span class="text-amber-700">{{ g.source }}</span>
         </h3>
-        <span class="text-xs text-gray-500">{{ g.count }} dump{{ g.count|pluralize }}{% if g.span %} · {{ g.span }}{% endif %}</span>
+        <span class="text-xs text-gray-500">{{ g.count }} dump{{ g.count|pluralize }}{% if g.newest_ago %} · newest {{ g.newest_ago }}{% endif %}</span>
         <button type="button" class="restore-dump ml-auto rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-600"
                 data-name="{{ g.newest }}">Restore newest</button>
       </div>
@@ -51,7 +51,7 @@
           {% for d in g.recent %}
           <tr>
             <td class="px-4 py-2 font-mono text-xs text-gray-600">{{ d.name }}</td>
-            <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{{ d.when }}{% if d.ago %} <span class="text-gray-400">· {{ d.ago }}</span>{% endif %}</td>
+            <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap"><span class="dump-when" data-utc="{{ d.iso }}">{{ d.when }}</span>{% if d.ago %} <span class="text-gray-400">· {{ d.ago }}</span>{% endif %}</td>
             <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ d.size_h }}</td>
             <td class="px-4 py-2 text-right">
               <button type="button" class="restore-dump rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
@@ -141,12 +141,33 @@
     done: "Done.",
   };
 
+  // Render the dump timestamps in the viewer's LOCAL zone (the stamps are UTC and
+  // TIME_ZONE is UTC server-side, so this is the only place that knows the operator's
+  // wall clock). Falls back to the server's "… UTC" text if JS/parse fails.
+  document.querySelectorAll('.dump-when').forEach(function(el) {
+    var utc = el.getAttribute('data-utc');
+    if (!utc) return;
+    var d = new Date(utc);
+    if (isNaN(d.getTime())) return;
+    el.textContent = d.toLocaleString([], {
+      day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit',
+    });
+  });
+
   // Poll a job until it leaves the running/pending states.
   function poll(jobId, onUpdate) {
     function tick() {
       fetch("restore_status?job_id=" + encodeURIComponent(jobId))
-        .then(function(r) { return r.json().catch(function() { return {}; }); })
-        .then(function(j) {
+        .then(function(r) { return r.json().catch(function() { return {}; })
+          .then(function(j) { return { status: r.status, j: j }; }); })
+        .then(function(res) {
+          // Reauth lapsed mid-poll: bounce to the password prompt instead of
+          // freezing the modal on an unrecognised status.
+          if (res.status === 403 && res.j && res.j.status === "reauth_required") {
+            location.href = "admin?page=database_restore";
+            return;
+          }
+          var j = res.j;
           onUpdate(j);
           if (j.status === "running" || j.status === "pending") {
             setTimeout(tick, 1000);

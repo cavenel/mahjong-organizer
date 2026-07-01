@@ -80,8 +80,11 @@ def list_backups():
                 'name': path.name,
                 'source': source,
                 'size_h': _human_size(path.stat().st_size),
-                # Stamp is UTC; label it as such and add a tz-independent age so
-                # "is this current?" doesn't depend on the viewer's clock.
+                # Stamp is UTC. `iso` lets the page render it in the viewer's local
+                # zone (TIME_ZONE is UTC, so a server-side convert wouldn't help);
+                # `when` is the UTC fallback if JS is off, and `ago` is a
+                # tz-independent freshness signal.
+                'iso': when.strftime('%Y-%m-%dT%H:%M:%SZ') if when else '',
                 'when': (when.strftime('%d %b %H:%M') + ' UTC') if when else '?',
                 'ago': _ago(when),
                 # Order by the embedded UTC stamp (the true backup time, and what
@@ -93,12 +96,11 @@ def list_backups():
     groups = []
     for source, dumps in backups.items():
         dumps.sort(key=lambda d: d['sort'], reverse=True)
-        spans = [d['when'] for d in dumps if d['when'] != '?']
         groups.append({
             'source': source,
             'count': len(dumps),
             'newest': dumps[0]['name'],
-            'span': f"{spans[-1]} → {spans[0]}" if len(spans) > 1 else (spans[0] if spans else ''),
+            'newest_ago': dumps[0]['ago'],
             'recent': dumps[:RECENT_PER_SOURCE],
             'has_more': len(dumps) > RECENT_PER_SOURCE,
         })
