@@ -159,7 +159,11 @@ def restore_run(request):
                             status=400)
 
     job_id = restore_queue.new_job_id()
-    restore_queue.enqueue({'job_id': job_id, 'action': 'restore', 'dump': name})
+    # Pass the session key so the worker can re-insert this admin's session after
+    # the DB swap — otherwise the restore wipes django_session and logs them out
+    # mid-poll (the status request would bounce to login and the modal would hang).
+    restore_queue.enqueue({'job_id': job_id, 'action': 'restore', 'dump': name,
+                           'session_key': request.session.session_key})
     return JsonResponse({'status': 'ok', 'job_id': job_id})
 
 

@@ -82,7 +82,7 @@ class Command(BaseCommand):
         action = job.get('action')
         try:
             if action == 'restore':
-                self._restore(job_id, job.get('dump', ''))
+                self._restore(job_id, job.get('dump', ''), job.get('session_key'))
             elif action == 'pull':
                 self._pull(job_id)
             else:
@@ -102,12 +102,18 @@ class Command(BaseCommand):
 
     # -- restore -------------------------------------------------------------
 
-    def _restore(self, job_id, dump_name):
+    def _restore(self, job_id, dump_name, session_key=None):
         db = settings.DATABASES['default']
         name, user, password = db['NAME'], db['USER'], db['PASSWORD']
 
         dump_path = self._validate_dump(dump_name)
         env = dict(os.environ, PGPASSWORD=password)
+
+        # The restore replaces the whole DB — including django_session — so it would
+        # log out the admin who triggered it, and their completion poll would then
+        # hit the login redirect and hang. Grab their session row now (DB still
+        # intact) and re-insert it after the restore so they stay signed in.
+        saved_session = self._read_session(name, user, password, session_key)
 
         self._set(job_id, 'running', 'pausing')
         paused = False
@@ -125,6 +131,10 @@ class Command(BaseCommand):
             # directly since the pooler is still paused (web does this on boot).
             self._set(job_id, 'running', 'migrating')
             self._migrate(env)
+
+            # Re-insert the triggering admin's session so the poll can still read
+            # the result (and they stay logged in) after the DB swap.
+            self._restore_session(name, user, password, session_key, saved_session)
         finally:
             # Always resume, even on failure: a paused pool would otherwise wedge
             # the whole live site behind a half-done restore.
@@ -189,6 +199,49 @@ class Command(BaseCommand):
             'psql', '-h', PGBOUNCER_HOST, '-p', DB_PORT, '-U', user,
             '-d', 'pgbouncer', '-c', command,
         ], env)
+
+    def _read_session(self, name, user, password, session_key):
+        """Read one django_session row (the admin who triggered the restore) from
+        the live DB, before it's dropped. None if we can't — we just proceed and
+        they'll be logged out, which is the pre-fix behaviour."""
+        if not session_key:
+            return None
+        import psycopg2
+        try:
+            conn = psycopg2.connect(host=DB_DIRECT_HOST, port=DB_PORT, dbname=name,
+                                    user=user, password=password)
+            try:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT session_data, expire_date FROM django_session "
+                                "WHERE session_key = %s", (session_key,))
+                    return cur.fetchone()
+            finally:
+                conn.close()
+        except Exception:
+            logger.exception("restore: could not read admin session (they may be logged out)")
+            return None
+
+    def _restore_session(self, name, user, password, session_key, saved):
+        """Re-insert the admin's saved session row into the restored DB so their
+        cookie still authenticates. Best-effort: on failure they just re-login."""
+        if not session_key or not saved:
+            return
+        import psycopg2
+        try:
+            conn = psycopg2.connect(host=DB_DIRECT_HOST, port=DB_PORT, dbname=name,
+                                    user=user, password=password)
+            try:
+                conn.autocommit = True
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "INSERT INTO django_session (session_key, session_data, expire_date) "
+                        "VALUES (%s, %s, %s) ON CONFLICT (session_key) DO UPDATE "
+                        "SET session_data = EXCLUDED.session_data, expire_date = EXCLUDED.expire_date",
+                        (session_key, saved[0], saved[1]))
+            finally:
+                conn.close()
+        except Exception:
+            logger.exception("restore: could not re-insert admin session (they'll need to re-login)")
 
     def _row_counts(self, name, user, password):
         import psycopg2

@@ -142,8 +142,14 @@ class TestRestoreRun:
         }, content_type='application/json')
         assert resp.status_code == 200
         assert resp.json()['status'] == 'ok'
-        assert no_redis == [{'job_id': 'testjob', 'action': 'restore',
-                             'dump': 'mahj_cloud_20260630T184242Z.dump'}]
+        assert len(no_redis) == 1
+        job = no_redis[0]
+        assert job['job_id'] == 'testjob'
+        assert job['action'] == 'restore'
+        assert job['dump'] == 'mahj_cloud_20260630T184242Z.dump'
+        # The admin's session key rides along so the worker can re-insert it after
+        # the DB swap (the restore wipes django_session and would log them out).
+        assert job['session_key']
 
     def test_pull_enqueued(self, client_, staff_user, no_redis):
         client_.force_login(staff_user)

@@ -158,20 +158,21 @@
   function poll(jobId, onUpdate) {
     function tick() {
       fetch("restore_status?job_id=" + encodeURIComponent(jobId))
-        .then(function(r) { return r.json().catch(function() { return {}; })
-          .then(function(j) { return { status: r.status, j: j }; }); })
-        .then(function(res) {
-          // Reauth lapsed mid-poll: bounce to the password prompt instead of
-          // freezing the modal on an unrecognised status.
-          if (res.status === 403 && res.j && res.j.status === "reauth_required") {
-            location.href = "admin?page=database_restore";
-            return;
+        .then(function(r) {
+          // Reauth lapsed mid-poll: bounce to the password prompt.
+          if (r.status === 403) { location.href = "admin?page=database_restore"; return; }
+          // A restore replaces django_session, which can log this admin out; the
+          // status request then redirects to login (HTML), not JSON. Surface that
+          // clearly instead of freezing on an unrecognised payload.
+          var ct = r.headers.get("content-type") || "";
+          if (!r.ok || ct.indexOf("application/json") === -1) {
+            onUpdate({ status: "loggedout" });
+            return;   // stop polling
           }
-          var j = res.j;
-          onUpdate(j);
-          if (j.status === "running" || j.status === "pending") {
-            setTimeout(tick, 1000);
-          }
+          return r.json().catch(function() { return {}; }).then(function(j) {
+            onUpdate(j);
+            if (j.status === "running" || j.status === "pending") setTimeout(tick, 1000);
+          });
         })
         .catch(function() { setTimeout(tick, 2000); });
     }
@@ -247,6 +248,9 @@
           $("#restore-close").prop("disabled", false);
         } else if (j.status === "error" || j.status === "expired") {
           $("#restore-phase").addClass("text-rose-600").text(j.error || "Restore failed.");
+          $("#restore-close").prop("disabled", false);
+        } else if (j.status === "loggedout") {
+          $("#restore-phase").text("Restore finished. The restored database replaced your session — reload the page and log in to confirm.");
           $("#restore-close").prop("disabled", false);
         } else {
           $("#restore-phase").text(PHASE_LABEL[j.phase] || "Working…");
