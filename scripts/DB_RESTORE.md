@@ -72,11 +72,18 @@ chowning those away from the backup cron. Grant access via the owning **group**:
 
 - `MAHJ_WORKER_GID` in `.env` = the gid that owns `MAHJ_BACKUP_DIR` + the key
   (`id -g`). Compose adds it to the worker via `group_add`.
-- Make the key group-readable and the dir group-writable on the host:
+- The dir just needs to be group-writable: `chmod 775 "$MAHJ_BACKUP_DIR"`.
+- **Do NOT chmod the cron's SSH key group-readable.** `backup_db.sh` runs as the
+  key's owner, and OpenSSH refuses a private key that's group/world-readable when
+  you own it ("permissions too open") — that silently breaks the off-host backup.
+  Instead give the container a **separate, group-readable copy**, and point
+  `MAHJ_BACKUP_SSH_KEY` at the copy (the cron key stays 600):
   ```sh
-  chmod 640 "$MAHJ_BACKUP_SSH_KEY"      # group can read the private key
-  chmod 775 "$MAHJ_BACKUP_DIR"          # group can write pulled dumps
+  cp "$KEY" "$KEY.container" && chmod 640 "$KEY.container"   # KEY stays 600
+  # .env: MAHJ_BACKUP_SSH_KEY=/…/mahj_backup.container
   ```
+  (ssh doesn't apply the strict-perms check to the copy because the container
+  runs as `app`, which isn't the copy's owner — it reads it via the shared group.)
 
 Restore and listing need none of this — dumps are world-readable (664) and the
 restore path is pure DB/network. Only the pull's key-read + dir-write need the

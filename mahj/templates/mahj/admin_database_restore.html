@@ -51,7 +51,7 @@
           {% for d in g.recent %}
           <tr>
             <td class="px-4 py-2 font-mono text-xs text-gray-600">{{ d.name }}</td>
-            <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{{ d.when }}</td>
+            <td class="px-3 py-2 text-gray-500 text-xs whitespace-nowrap">{{ d.when }}{% if d.ago %} <span class="text-gray-400">· {{ d.ago }}</span>{% endif %}</td>
             <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ d.size_h }}</td>
             <td class="px-4 py-2 text-right">
               <button type="button" class="restore-dump rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"

@@ -32,6 +32,22 @@ def _human_size(n):
         size /= 1024
 
 
+def _ago(when):
+    """Compact relative age of a UTC datetime, so freshness reads the same
+    regardless of the viewer's timezone (the stamp itself is UTC)."""
+    if when is None:
+        return ''
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    secs = (now - when).total_seconds()
+    if secs < 90:
+        return 'just now'
+    if secs < 5400:
+        return f"{round(secs / 60)}m ago"
+    if secs < 172800:
+        return f"{round(secs / 3600)}h ago"
+    return f"{round(secs / 86400)}d ago"
+
+
 def _parse_name(filename):
     """``mahj_<source>_<stamp>.dump`` → (source, datetime|None). ``source`` may
     itself contain underscores (it's a filename-safe token), so split off the
@@ -64,7 +80,10 @@ def list_backups():
                 'name': path.name,
                 'source': source,
                 'size_h': _human_size(path.stat().st_size),
-                'when': when.strftime('%d %b %H:%M') if when else '?',
+                # Stamp is UTC; label it as such and add a tz-independent age so
+                # "is this current?" doesn't depend on the viewer's clock.
+                'when': (when.strftime('%d %b %H:%M') + ' UTC') if when else '?',
+                'ago': _ago(when),
                 # Order by the embedded UTC stamp (the true backup time, and what
                 # rsync -a preserves as mtime anyway); fall back to mtime if the
                 # name doesn't parse.

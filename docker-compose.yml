@@ -150,9 +150,10 @@ services:
     # Stays the image's `app` user (ssh needs a real passwd entry), but joins the
     # GROUP that owns the backups dir + pull key on the host, so it can read the
     # key and write pulled dumps without chowning host files away from the backup
-    # cron. Set MAHJ_WORKER_GID to that group (e.g. 1001) + make the key group-
-    # readable and the dir group-writable (see scripts/DB_RESTORE.md). Default 1000
-    # is a harmless self-add on a single-user dev box.
+    # cron. Set MAHJ_WORKER_GID to that group (e.g. 1001) + make the dir group-
+    # writable, and point MAHJ_BACKUP_SSH_KEY at a group-readable COPY of the key
+    # (NOT the cron's own key, which must stay 600 — see scripts/DB_RESTORE.md).
+    # Default 1000 is a harmless self-add on a single-user dev box.
     group_add:
       - "${MAHJ_WORKER_GID:-1000}"
     environment:
