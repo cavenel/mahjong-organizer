@@ -680,6 +680,20 @@ def options(request, error=None):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('rm_mode'))
             mode.delete()
             return HttpResponseRedirect('admin?page=display')
+        elif request.GET.get('action') == "set_all_views":
+            # Bulk "All screens" control: point every screen at one view in a
+            # single write + one broadcast (rather than N per-screen posts).
+            # Mirrors set_mode's shape so the admin page can sync each card's
+            # selects/previews from the returned list.
+            view = request.GET.get('view') or 'black'
+            screens = Screen.objects.filter(tenant=tenant).order_by('id')
+            applied = []
+            for screen in screens:
+                screen.view = view
+                screen.save()
+                applied.append({'id': screen.id, 'view': screen.view})
+            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+            return JsonResponse({'screens': applied})
         elif request.GET.get('set_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('set_mode'))
             views_list = json.loads(mode.views)

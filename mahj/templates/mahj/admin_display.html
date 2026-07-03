@@ -39,7 +39,7 @@
     </p>
 
     {% if modes %}
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
         {% for mode in modes %}
           <div class="mode-card{% if mode.is_active %} mode-card--active{% endif %}
                       rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden flex flex-col"
@@ -415,6 +415,47 @@
       </div>
 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {% if screens %}
+          <!-- Bulk control: set every screen's Output/Pages in one go. Amber-tinted
+               and labelled "All screens" so it reads as a control, not a real screen
+               (real screens are addressed /1, /2, …). Applies immediately, like the
+               per-screen selects, via the same syncControls path as Apply mode. -->
+          <div class="rounded-xl border-2 border-amber-300 bg-amber-50 shadow-sm overflow-hidden">
+            <div class="px-4 py-3 bg-amber-100/60 border-b border-amber-200 flex items-center gap-2">
+              <svg class="w-5 h-5 text-amber-600 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+              <h3 class="text-sm font-bold text-amber-800 flex-1 min-w-0">All screens</h3>
+              <span class="text-xs text-amber-600 shrink-0">set every screen at once</span>
+            </div>
+            <div class="p-4 space-y-3">
+              <p class="text-xs text-amber-700/80">Applies immediately to every screen below.</p>
+              <div class="flex gap-2">
+                <div class="flex-1 min-w-0">
+                  <label for="select-output-all" class="block text-xs font-medium text-gray-600 mb-1">Output</label>
+                  <select id="select-output-all"
+                          class="w-full text-sm border border-amber-200 rounded-lg px-2 py-1.5 bg-white
+                                 focus:outline-none focus:ring-2 focus:ring-amber-300">
+                    <option value="">Set all to…</option>
+                    <option value="black">Blank</option>
+                    <option value="welcome">Welcome</option>
+                    <option value="counter">Counter</option>
+                    <option value="schedule">Schedule</option>
+                    <option value="scores:detailed">Standings — detailed</option>
+                    <option value="scores:totals">Standings — totals</option>
+                  </select>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <label for="select-page-all" class="block text-xs font-medium text-gray-600 mb-1">Pages</label>
+                  <select id="select-page-all"
+                          class="w-full text-sm border border-amber-200 rounded-lg px-2 py-1.5 bg-white
+                                 focus:outline-none focus:ring-2 focus:ring-amber-300
+                                 disabled:bg-gray-100 disabled:text-gray-400 disabled:cursor-not-allowed" disabled>
+                    <option>—</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
         {% for screen in screens %}
           <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
             <div class="px-4 py-3 bg-gray-50 border-b border-gray-100 flex items-center gap-2">
@@ -747,6 +788,46 @@
 
     $(document).on('change', '.select-page', function() { applyView(this.getAttribute('data-id')); });
 
+    // ── "All screens" bulk control ────────────────────────────────────────────
+    // Sets every screen to one Output/Pages in a single server write (one
+    // broadcast → one projector reload, not N). The response echoes each screen's
+    // new view, which we feed through syncControls so the per-screen cards and
+    // previews update in place — exactly like Apply mode. Its selects reuse the
+    // shared helpers via the id suffix "all"; they deliberately lack the
+    // .select-output/.select-page classes so the per-screen handlers skip them.
+    if (document.getElementById('select-output-all')) {
+      setPageSelect('all', document.getElementById('select-output-all').value);
+
+      window.applyAllScreens = function() {
+        var output = document.getElementById('select-output-all').value;
+        if (!output) return;   // still on the "Set all to…" placeholder
+        var view = composeView('all');
+        function doApply() {
+          $.post("admin?page=display&action=set_all_views&view=" + encodeURIComponent(view),
+                 { 'csrfmiddlewaretoken': '{{ csrf_token }}' }, function(data) {
+            (data.screens || []).forEach(function(s) { syncControls(s.id, s.view || 'black'); });
+            recomputeActiveMode();
+          }, 'json');
+        }
+        if (window.timerRunning) {
+          confirmAction({
+            title: 'Set all screens',
+            body: 'The round timer is running. This will change every screen now. Continue?',
+            confirmLabel: 'Set all screens', danger: false,
+            onConfirm: doApply,
+          });
+        } else {
+          doApply();
+        }
+      };
+
+      $(document).on('change', '#select-output-all', function() {
+        setPageSelect('all', this.value, document.getElementById('select-page-all').value);
+        applyAllScreens();
+      });
+      $(document).on('change', '#select-page-all', applyAllScreens);
+    }
+
     // ── Rename a screen ───────────────────────────────────────────────────────
     // The screen-card title is itself the rename field (/N stays fixed; the name
     // after it is an inline input). Saving on blur/change posts to
@@ -782,6 +863,12 @@
         var pageSel = document.getElementById('select-page-' + out.getAttribute('data-id'));
         buildPageOptions(pageSel, out.value, pageSel.value);
       });
+      // Keep the "All screens" Pages options in step with the row/column counts too.
+      var allOut = document.getElementById('select-output-all');
+      if (allOut && isScores(allOut.value)) {
+        var allPage = document.getElementById('select-page-all');
+        buildPageOptions(allPage, allOut.value, allPage.value);
+      }
     });
 
     // Apply a saved display mode: the server returns the new per-screen views;
