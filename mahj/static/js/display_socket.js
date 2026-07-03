@@ -129,6 +129,49 @@ function connectDisplaySocket(opts) {
     }, BANNER_GRACE_MS);
   }
 
+  // --- "Identify screen" overlay ------------------------------------------
+  // Triggered from the admin Display page (broadcasts {event:'screen_identify'})
+  // so an operator can tell which physical projector is /1, /2, … We flash a big
+  // corner badge with this screen's positional number, read straight from the
+  // URL path ("/3" → 3), then auto-hide after IDENTIFY_MS. Like the disconnect
+  // banner it's attached to <html> (not <body>, which the projector templates
+  // zoom). Pages whose path isn't a bare number (the /overview grid, the public
+  // desktop, the admin page) parse to null and show nothing.
+  var IDENTIFY_MS = 10000;
+  var identifyEl = null;
+  var identifyTimer = null;
+
+  function screenNumberFromPath() {
+    var m = /^\/(\d+)\/?$/.exec(location.pathname);
+    return m ? m[1] : null;
+  }
+
+  function showIdentify() {
+    var num = screenNumberFromPath();
+    if (num === null) return;
+    if (!identifyEl) {
+      identifyEl = document.createElement('div');
+      identifyEl.id = 'ds-identify';
+      identifyEl.style.cssText = [
+        'position:fixed', 'top:24px', 'left:24px', 'z-index:2147483647',
+        'background:rgba(17,24,39,.92)', 'color:#f59e0b',
+        'border:3px solid #f59e0b', 'border-radius:16px',
+        'padding:16px 28px', 'text-align:center', 'font-family:sans-serif',
+        'box-shadow:0 4px 24px rgba(0,0,0,.6)', 'pointer-events:none'
+      ].join(';');
+      (document.documentElement || document.body).appendChild(identifyEl);
+    }
+    identifyEl.innerHTML =
+      '<div style="font-size:22px;font-weight:bold;letter-spacing:3px;color:#fbbf24">SCREEN</div>' +
+      '<div style="font-size:120px;font-weight:bold;line-height:1;color:#fff">' + num + '</div>';
+    identifyEl.style.display = 'block';
+    if (identifyTimer) clearTimeout(identifyTimer);
+    identifyTimer = setTimeout(function() {
+      if (identifyEl) identifyEl.style.display = 'none';
+    }, IDENTIFY_MS);
+    log('identify overlay shown (screen ' + num + ')');
+  }
+
   function clearTimers() {
     if (pingTimer) { clearInterval(pingTimer); pingTimer = null; }
     if (pongTimer) { clearTimeout(pongTimer); pongTimer = null; }
@@ -178,6 +221,13 @@ function connectDisplaySocket(opts) {
       if (msg && msg.event === 'pong') {
         log('pong received');
         if (pongTimer) { clearTimeout(pongTimer); pongTimer = null; }
+        return;
+      }
+      // "Identify screen": swallow it like a pong — show the corner badge and
+      // never forward to onUpdate, so no page reloads and non-screen listeners
+      // (desktop/admin) simply ignore it.
+      if (msg && msg.event === 'screen_identify') {
+        showIdentify();
         return;
       }
       log('message → onUpdate (would reload):', JSON.stringify(msg));

@@ -662,6 +662,14 @@ def options(request, error=None):
             Screen.objects.filter(tenant=tenant).last().delete()
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
             return HttpResponseRedirect('admin?page=display#configure-screens')
+        elif request.GET.get('action') == "identify_screens":
+            # Flash each screen's positional number (/1, /2, …) as a corner badge
+            # for a few seconds so an operator can match physical projectors to
+            # their URLs. Reuses the existing 'screen.update' channel with a
+            # distinct event the display socket intercepts without reloading —
+            # see mahj/static/js/display_socket.js.
+            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_identify'})
+            return HttpResponse("")
         elif request.GET.get('action') == "add_mode":
             mode_name = request.POST.get('mode_name')
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
