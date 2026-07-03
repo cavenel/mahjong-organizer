@@ -17,12 +17,16 @@
     .review-table th.pl-col { width: 90px; max-width: 90px; }
     /* Narrow window / mobile: shrink every column so the whole sheet fits the
        screen instead of overflowing. Input font stays 16px so iOS doesn't
-       zoom in on focus. */
+       zoom in on focus. The editable Value/Win/From columns get a firm
+       min-width (not a soft width, which the browser compresses under pressure
+       since the table isn't table-layout:fixed) so their content stays legible;
+       if that overflows a very narrow phone, .table-scroll scrolls rather than
+       crushing them. */
     @media (max-width: 640px) {
-      .review-table thead th:nth-child(1) { width: 24px; }   /* Hand  */
-      .review-table thead th:nth-child(2) { width: 58px; }   /* Value */
-      .review-table thead th:nth-child(3) { width: 40px; }   /* Win   */
-      .review-table thead th:nth-child(4) { width: 40px; }   /* From  */
+      .review-table thead th:nth-child(1) { width: 26px; }       /* Hand  */
+      .review-table thead th:nth-child(2) { min-width: 64px; }   /* Value */
+      .review-table thead th:nth-child(3) { min-width: 52px; }   /* Win   */
+      .review-table thead th:nth-child(4) { min-width: 52px; }   /* From  */
       .review-table th.pl-col { width: 50px; max-width: 50px; }
     }
     table.review-table th, table.review-table td { border: 1px solid #d1d5db; padding: 0; text-align: center; }
