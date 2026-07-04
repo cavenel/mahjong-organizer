@@ -74,6 +74,23 @@ def stat_all_rounds(request, check_final=False, positions=None, hands=None):
     return result
 
 
+def table_stats(request, check_final=False, positions=None, hands=None):
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    if positions is not None or hands is not None:
+        return _scoring.table_stats(
+            tenant, get_variables(request), check_final,
+            positions=positions, hands=hands,
+        )
+    cache_key = f'table_stats:{subdomain}:{check_final}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = _scoring.table_stats(tenant, get_variables(request), check_final)
+    cache.set(cache_key, result, SUB_CACHE_TTL)
+    return result
+
+
 def tournament_seating(request, check_final=True, force_all=False, valid_pairs=None, positions=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''

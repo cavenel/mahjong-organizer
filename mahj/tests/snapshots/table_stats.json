@@ -1,0 +1,189 @@
+{
+  "avg_hands": 16.0,
+  "gave_least": [
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00001",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player1",
+        "full_name": "Player1 Lastname",
+        "id": 1,
+        "pk": 1,
+        "rand_id": 1,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00002",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player2",
+        "full_name": "Player2 Lastname",
+        "id": 2,
+        "pk": 2,
+        "rand_id": 2,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00003",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player3",
+        "full_name": "Player3 Lastname",
+        "id": 3,
+        "pk": 3,
+        "rand_id": 3,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00004",
+        "__model__": "Player",
+        "country": "France",
+        "email": "",
+        "first_name": "Player4",
+        "full_name": "Player4 Lastname",
+        "id": 4,
+        "pk": 4,
+        "rand_id": 4,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00005",
+        "__model__": "Player",
+        "country": "Japan",
+        "email": "",
+        "first_name": "Player5",
+        "full_name": "Player5 Lastname",
+        "id": 5,
+        "pk": 5,
+        "rand_id": 5,
+        "team": "",
+        "tenant_id": 1
+      }
+    }
+  ],
+  "gave_most": [
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00001",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player1",
+        "full_name": "Player1 Lastname",
+        "id": 1,
+        "pk": 1,
+        "rand_id": 1,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00002",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player2",
+        "full_name": "Player2 Lastname",
+        "id": 2,
+        "pk": 2,
+        "rand_id": 2,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00003",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player3",
+        "full_name": "Player3 Lastname",
+        "id": 3,
+        "pk": 3,
+        "rand_id": 3,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00004",
+        "__model__": "Player",
+        "country": "France",
+        "email": "",
+        "first_name": "Player4",
+        "full_name": "Player4 Lastname",
+        "id": 4,
+        "pk": 4,
+        "rand_id": 4,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "nb_from": 8,
+      "nb_hands": 32,
+      "pct": 25.0,
+      "player": {
+        "EMA_ID": "E00005",
+        "__model__": "Player",
+        "country": "Japan",
+        "email": "",
+        "first_name": "Player5",
+        "full_name": "Player5 Lastname",
+        "id": 5,
+        "pk": 5,
+        "rand_id": 5,
+        "team": "",
+        "tenant_id": 1
+      }
+    }
+  ],
+  "tables_finished": 8,
+  "tables_total": 8
+}

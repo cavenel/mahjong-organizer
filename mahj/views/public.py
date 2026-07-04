@@ -7,7 +7,7 @@ from django.template import loader
 from ..models import Hand, Position, Schedule
 from ..scoring import team_standings
 from .helpers import can_access_admin, get_tenant, get_variables
-from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, tournament_seating
+from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, table_stats, tournament_seating
 
 HTML_CACHE_TTL = LEADERBOARD_TTL  # same TTL as data; also invalidated by signals
 
@@ -115,6 +115,7 @@ def desktop(request):
         cache.set(schedule_key, schedule, 300)
     stat_rounds_data = stat_rounds(request, check_final=check_final, positions=positions, hands=hands)
     stat_all_data = stat_all_rounds(request, check_final=check_final, positions=positions, hands=hands)
+    stat_tables_data = table_stats(request, check_final=check_final, positions=positions, hands=hands)
 
     context = {
         'variables': variables,
@@ -127,6 +128,7 @@ def desktop(request):
         'schedule': schedule,
         'stat_rounds': stat_rounds_data,
         'stat_all': stat_all_data,
+        'stat_tables': stat_tables_data,
         'uses_teams': uses_teams,
         'team_rows': team_rows,
         'user_authenticated': authenticated,

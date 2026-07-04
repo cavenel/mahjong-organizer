@@ -1,0 +1,40 @@
+{% comment %}
+Overall-only stats block: validated-table completion + deal-in ("From") ratios.
+
+Argument:
+  stats — the table_stats dict: tables_finished, tables_total, avg_hands,
+          gave_most, gave_least (each a list of {player, nb_from, nb_hands, pct}).
+
+Deal-in rows link the player name to their detail page; the value badge is a
+plain span (a ratio spans many tables, so there's no single table to link to).
+{% endcomment %}
+
+{# 4 — Tables completed #}
+<h3 class="font-semibold text-gray-600 text-sm mb-3">Tables completed</h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Tables finished</h3>
+    </div>
+    <div class="px-4 py-3 flex items-baseline gap-1">
+      <span class="text-2xl font-bold text-amber-600">{{ stats.tables_finished }}</span>
+      <span class="text-gray-400">/ {{ stats.tables_total }}</span>
+    </div>
+  </div>
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+    <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+      <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Average hands per table</h3>
+    </div>
+    <div class="px-4 py-3">
+      <span class="text-2xl font-bold text-amber-600">{{ stats.avg_hands }}</span>
+      <span class="text-gray-400 text-sm">/ 16</span>
+    </div>
+  </div>
+</div>
+
+{# 5 — Deal-ins (gave the winning tile) #}
+<h3 class="font-semibold text-gray-600 text-sm mb-3">Deal-ins — gave the winning tile</h3>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {% include "mahj/stats_ratio_card.html" with title="Gave most" items=stats.gave_most %}
+  {% include "mahj/stats_ratio_card.html" with title="Gave least" items=stats.gave_least %}
+</div>

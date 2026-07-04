@@ -502,6 +502,7 @@
       <h2 class="font-bold text-gray-700 text-base uppercase tracking-wider mb-4">Overall — after {{ stat_rounds|length }} round{{ stat_rounds|length|pluralize }}</h2>
       <div class="mb-8">
         {% include "mahj/stats_panel.html" with stats=stat_all %}
+        {% include "mahj/stats_tables.html" with stats=stat_tables %}
       </div>
 
       <!-- ── Per round ── -->

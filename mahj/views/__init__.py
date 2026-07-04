@@ -19,6 +19,7 @@ from .scoring import (
     scores_per_table_json,
     stat_all_rounds,
     stat_rounds,
+    table_stats,
     tournament_seating,
 )
 from .score_entry import (

@@ -40,6 +40,10 @@ def test_stat_all_rounds(request_):
     assert_snapshot('stat_all_rounds', views.stat_all_rounds(request_))
 
 
+def test_table_stats(request_):
+    assert_snapshot('table_stats', views.table_stats(request_))
+
+
 def test_player_rounds_json(request_, tournament):
     player_id = tournament['players'][0].id
     assert_snapshot('player_rounds_json_p1', views.player_rounds_json(request_, player_id))

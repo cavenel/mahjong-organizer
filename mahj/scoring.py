@@ -83,6 +83,86 @@ def overall_winners(tenant, variables, check_final=False, positions=None, hands=
     }
 
 
+def table_stats(tenant, variables, check_final=False, positions=None, hands=None):
+    """Validated-table completion + per-player deal-in ("From") ratios.
+
+    Scope: only tables carrying a hand_nb=17, pts=1 validation marker, capped at
+    the same published round as the other stats. Draws and unplayed
+    slots are indistinguishable in the data (both pts=0), so hands-played is read
+    as the index of the last hand with pts>0 — trailing zeros count as not played.
+    """
+    if check_final:
+        round_max = public_round_max(tenant, variables, force_all=False)
+    else:
+        round_max = _last_complete_round(tenant, variables)
+
+    if positions is None:
+        positions = list(
+            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
+        )
+    if hands is None:
+        hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
+
+    # Validated tables = those carrying a hand_nb=17, pts=1 marker. Derived from the
+    # in-memory hands (same rule as completed_tables / public.py's valid_pairs) so we
+    # don't fire an extra query on the cached-HTML path.
+    valid = {
+        (h.round_nb, h.table_nb) for h in hands
+        if h.hand_nb == COMPLETION_HAND_NB and h.pts == 1 and h.round_nb <= round_max
+    }
+
+    hand_by_table = _group_by(
+        (h for h in hands if h.round_nb <= round_max and (h.round_nb, h.table_nb) in valid),
+        key=lambda h: (h.round_nb, h.table_nb),
+    )
+    hands_played = {
+        rt: max(
+            (h.hand_nb for h in hand_by_table[rt]
+             if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0),
+            default=0,
+        )
+        for rt in valid
+    }
+
+    tables_total = len(valid)
+    tables_finished = sum(1 for n in hands_played.values() if n == 16)
+    avg_hands = round(sum(hands_played.values()) / tables_total, 1) if tables_total else 0
+
+    # Deal-ins: win_from is a seat, resolve it to a player via the position lookup
+    # (same N+1-avoidance as _hand_item). Only real wins from another player count.
+    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in positions}
+    deal_ins = defaultdict(int)
+    for rt, table_hands in hand_by_table.items():
+        for h in table_hands:
+            if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0 and not _is_self_draw(h):
+                giver = pos_lookup.get((h.round_nb, h.table_nb, h.win_from))
+                if giver is not None:
+                    deal_ins[giver] += 1
+
+    # Hands played by a player = the played-count of every validated table they sat at.
+    played = defaultdict(int)
+    for p in positions:
+        rt = (p.round_nb, p.table_nb)
+        if rt in valid:
+            played[p.player] += hands_played[rt]
+
+    items = [
+        {'player': player, 'nb_from': deal_ins.get(player, 0), 'nb_hands': n,
+         'pct': round(100 * deal_ins.get(player, 0) / n, 1)}
+        for player, n in played.items() if n > 0
+    ]
+    gave_most = sorted(items, key=lambda d: d['pct'], reverse=True)[:5]
+    gave_least = sorted(items, key=lambda d: d['pct'])[:5]
+
+    return {
+        'tables_finished': tables_finished,
+        'tables_total': tables_total,
+        'avg_hands': avg_hands,
+        'gave_most': gave_most,
+        'gave_least': gave_least,
+    }
+
+
 def player_schedule(tenant):
     """The round/session rows used by player_rounds, fetched once."""
     return [
