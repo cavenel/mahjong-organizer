@@ -174,6 +174,11 @@
         <span class="text-sm font-bold text-amber-700 leading-tight">Validate<br>score sheet</span>
         <input type="hidden" id="version_17" value="{{ completed.version }}">
       </label>
+      <button type="button" id="clear-all" onclick="confirmClearAll()"
+              class="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 transition-colors">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+        Clear all
+      </button>
     </div>
   </div>
 </div>
@@ -266,6 +271,29 @@
     }
     if (!filled) return true;
     return window.confirm("You haven't validated this score sheet. Close it anyway?");
+  };
+
+  // Wipe the whole sheet: every hand and every penalty. Uses the admin shell's
+  // styled confirm when this page runs inside the admin iframe, falling back to a
+  // native confirm() when opened standalone (QR / direct URL), where window.parent
+  // has no confirmAction.
+  window.confirmClearAll = function() {
+    var doClear = function() {
+      $.post("clear_score_sheet", {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'round_nb': '{{ round_nb }}',
+        'table_nb': '{{ table_nb }}',
+      }, function() { location.reload(); });
+    };
+    try {
+      window.parent.confirmAction({
+        title: 'Clear all scores',
+        body: 'This will erase every hand and penalty on this sheet. This cannot be undone.',
+        confirmLabel: 'Clear all', danger: true, onConfirm: doClear,
+      });
+    } catch (e) {
+      if (window.confirm('Erase every hand and penalty on this sheet?')) doClear();
+    }
   };
 
   function send_ajax (table_row) {

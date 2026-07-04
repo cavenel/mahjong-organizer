@@ -273,8 +273,10 @@ def validate_score_sheet(request):
 @user_passes_test(is_scorer)
 def clear_score_sheet(request):
     """Wipe a table's score sheet: delete all its hands (1-16 and the hand_nb=17
-    validation marker), so it reads as neither filled nor validated. Symmetric
-    with create_hand_points + validate_score_sheet (the random-fill tools).
+    validation marker) and reset the four seats' penalties to 0, so the sheet
+    reads as neither filled nor validated and carries no leftover penalty.
+    Symmetric with create_hand_points + validate_score_sheet (the random-fill
+    tools).
 
     Broadcasts validation=False *then* filled=False, in that order, so a remote
     scorer's badge lands grey: validation clears the green/active state, then
@@ -284,6 +286,8 @@ def clear_score_sheet(request):
     round_nb = int(request.POST.get('round_nb'))
     table_nb = int(request.POST.get('table_nb'))
     Hand.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).delete()
+    Position.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb).update(penalty=0)
     broadcast_scorer_validation(tenant.subdomain, {
         'type': 'scorer.validation', 'round_nb': round_nb, 'table_nb': table_nb, 'valid': False,
     })
