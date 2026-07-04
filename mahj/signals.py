@@ -104,10 +104,20 @@ def broadcast_scorer_filled(subdomain, data):
     _broadcast(f'scorers_{subdomain}', 'scorer.filled', data)
 
 
-def invalidate_leaderboard(subdomain):
-    """Called from publish/unpublish paths: bust caches and wake public displays."""
+def invalidate_leaderboard(subdomain, published_round=None):
+    """Called from publish/unpublish paths: bust caches and wake public displays.
+
+    When a round has just been published normally, pass its number as
+    `published_round` so the standings screens can show a "Showing scores after
+    round N in 3, 2, 1" countdown before refreshing. Left None (unpublish,
+    ceremony, variable changes, and the final withheld round) the screens just
+    reload instantly, as before.
+    """
     _invalidate_leaderboard(subdomain)
-    _broadcast(f'leaderboard_{subdomain}', 'leaderboard.update', {'event': 'leaderboard_update'})
+    data = {'event': 'leaderboard_update'}
+    if published_round is not None:
+        data['published_round'] = published_round
+    _broadcast(f'leaderboard_{subdomain}', 'leaderboard.update', data)
 
 
 @receiver([post_save, post_delete], sender=Variable)

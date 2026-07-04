@@ -433,7 +433,15 @@ def set_round_published(request):
         _unpublish_rounds_from(tenant, round_nb)
 
     subdomain = tenant.subdomain if tenant else ''
-    invalidate_leaderboard(subdomain)
+    # Announce the round number to the standings screens (they show a 3-2-1
+    # countdown before refreshing) only for a normal publish. The last round is
+    # withheld for the ceremony (reveal_level=0 → the "waiting for ceremony"
+    # holding screen), and unpublish shouldn't count down either — both reload
+    # instantly.
+    invalidate_leaderboard(
+        subdomain,
+        published_round=(round_nb if (published and not is_last_round) else None),
+    )
     broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
 
     from ..webhook import fire_webhook, leaderboard_payload

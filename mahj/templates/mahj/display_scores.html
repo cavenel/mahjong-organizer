@@ -130,9 +130,43 @@
 
   <script src="{% static 'js/display_socket.js' %}"></script>
   <script>
+    // On a normal round publish the broadcast carries `published_round`; show a
+    // big "Showing scores after round N" overlay counting 3 → 2 → 1, then reload
+    // to the fresh standings. Any other update (unpublish, ceremony, variable
+    // change, or the withheld final round) has no round number and reloads
+    // instantly, as before.
+    var countdownRunning = false;
+    function runPublishCountdown(round) {
+      if (countdownRunning) return;   // ignore a second publish mid-countdown
+      countdownRunning = true;
+      var overlay = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:2147483647;' +
+        'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1.5rem;' +
+        'background:#020617ee;color:#fff;font-family:sans-serif;text-align:center;';
+      var title = document.createElement('div');
+      title.style.cssText = 'font-size:3rem;font-weight:800;letter-spacing:-0.02em;';
+      title.textContent = 'Showing scores after round ' + round;
+      var num = document.createElement('div');
+      num.style.cssText = 'font-size:11rem;font-weight:800;line-height:1;color:#fbbf24;';
+      overlay.appendChild(title);
+      overlay.appendChild(num);
+      (document.body || document.documentElement).appendChild(overlay);
+
+      var n = 3;
+      num.textContent = n;
+      var timer = setInterval(function() {
+        n -= 1;
+        if (n <= 0) { clearInterval(timer); location.reload(); return; }
+        num.textContent = n;
+      }, 1000);
+    }
+
     connectDisplaySocket({
       subdomain: '{{ subdomain }}',
-      onUpdate: function() { location.reload(); },
+      onUpdate: function(msg) {
+        if (msg && msg.published_round) { runPublishCountdown(msg.published_round); }
+        else { location.reload(); }
+      },
     });
   </script>
 </body>
