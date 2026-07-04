@@ -96,6 +96,7 @@ def desktop(request):
             'player_id': s['player_id'],
             'name': s['name'],
             'flag': s['flag'],
+            'country': s.get('country', ''),
             'pos': s['pos'],
             'pos_se': s.get('pos_se'),
             'total': s['total'],
