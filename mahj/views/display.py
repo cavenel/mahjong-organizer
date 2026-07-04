@@ -10,7 +10,7 @@ from django.template import loader
 
 from ..models import Player, Position, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
-from ..scoring import _last_round_reveal
+from ..scoring import _last_round_reveal, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, is_display_op
@@ -71,7 +71,7 @@ def index(request, screen_id=None):
             return _render_schedule(request, tenant, variables, subdomain)
         elif view.startswith("scores:"):
             parts = view.split(":")
-            density = parts[1] if len(parts) > 1 and parts[1] in (DETAILED, TOTALS) else DETAILED
+            density = parts[1] if len(parts) > 1 and parts[1] in (DETAILED, TOTALS, TEAMS) else DETAILED
             page = parts[2] if len(parts) > 2 else "all"
             page_nb = int(page) if page.isdigit() else None
             return render_scores(request, density, page_nb)
@@ -174,6 +174,7 @@ def scores_per_table(request, ext):
 
 DETAILED = "detailed"   # one wide table, per-round columns
 TOTALS = "totals"       # compact rows, several columns side by side
+TEAMS = "teams"         # individual totals pages, then team totals pages
 
 
 def _score_columns(rows, columns, score_lines):
@@ -181,13 +182,27 @@ def _score_columns(rows, columns, score_lines):
     return [rows[j:j + score_lines] for j in range(0, len(rows), score_lines)] or [[]]
 
 
+def _paginate(rows, columns, score_lines, kind, label=''):
+    """Split standings `rows` into page dicts, each holding up to
+    `columns` × `score_lines` rows. `kind` ('players'|'teams') tells the template
+    which header to draw; `label` is an optional on-screen section sub-heading
+    ('Individuals'/'Teams' for the teams view, '' otherwise)."""
+    per_page = score_lines * columns
+    chunks = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
+    return [
+        {'columns': _score_columns(chunk, columns, score_lines), 'kind': kind, 'label': label}
+        for chunk in chunks
+    ]
+
+
 def render_scores(request, density, page_nb=None):
     """Unified projector standings.
 
-    density: DETAILED (per-round breakdown, one column) or TOTALS (compact,
-    `variables.total_columns` columns). page_nb: a 1-based page to pin, or None
-    to show every page and rotate. An out-of-range page clamps to the last one.
-    The view is identical whether or not the browser is logged in as staff.
+    density: DETAILED (per-round breakdown, one column), TOTALS (compact,
+    `variables.total_columns` columns) or TEAMS (the totals pages followed by
+    team-totals pages). page_nb: a 1-based page to pin, or None to show every page
+    and rotate. An out-of-range page clamps to the last one. The view is identical
+    whether or not the browser is logged in as staff.
     """
     tenant = get_tenant(request)
     variables = get_variables(request)
@@ -208,18 +223,23 @@ def render_scores(request, density, page_nb=None):
     if nb_rounds == 0 and not prepublish:
         return _render_schedule(request, tenant, variables, tenant.subdomain if tenant else '')
 
-    per_page = score_lines * columns
-    nb_pages = max(1, math.ceil(len(scores_json) / per_page)) if scores_json else 1
+    # Individual pages first; the TEAMS view appends team-totals pages after them
+    # (skipped when the tournament has no teams — then TEAMS just reads as TOTALS).
+    # Section headings ("Individuals"/"Teams") only appear when both sections are
+    # present, so a no-team tournament shows an unlabelled totals view. All pages
+    # share one rotation loop in the template.
+    team_rows = team_standings(scores_json, variables, nb_rounds) if density == TEAMS else []
+    all_pages = _paginate(scores_json, columns, score_lines,
+                          'players', 'Individuals' if team_rows else '')
+    if team_rows:
+        all_pages += _paginate(team_rows, columns, score_lines, 'teams', 'Teams')
 
+    nb_pages = len(all_pages)
     if page_nb:
         page_nb = min(max(1, page_nb), nb_pages)   # clamp to a real page
-        chunk = scores_json[(page_nb - 1) * per_page:page_nb * per_page]
-        pages = [_score_columns(chunk, columns, score_lines)]
+        pages = [all_pages[page_nb - 1]]
     else:
-        pages = [
-            _score_columns(scores_json[i:i + per_page], columns, score_lines)
-            for i in range(0, len(scores_json), per_page)
-        ] or [[[]]]
+        pages = all_pages
 
     context = {
         "pages": pages,

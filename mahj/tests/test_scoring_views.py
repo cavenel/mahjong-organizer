@@ -470,6 +470,41 @@ class TestNoRoundsFallback:
         assert '<title>Scores</title>' in html
 
 
+class TestTeamsView:
+    """The "Standings — teams" display (density 'teams') shows the individual
+    totals pages first, then extra team-totals pages, rotating through both."""
+
+    @pytest.fixture
+    def team_tournament(self, tournament):
+        # Split the 16 players into four teams by their round-1 table.
+        players = tournament['players']
+        for i, p in enumerate(players):
+            p.team = 'Team %s' % chr(ord('A') + i % 4)
+            p.save()
+        return tournament
+
+    def test_teams_view_appends_team_pages(self, request_, team_tournament):
+        html = views.render_scores(request_, "teams", None).content.decode()
+        assert '<title>Scores</title>' in html
+        # Both section headings appear, and at least one team name is rendered.
+        assert 'Individuals' in html
+        assert 'Teams' in html
+        assert 'Team A' in html
+
+    def test_teams_view_without_teams_falls_back_to_individuals(self, request_, tournament):
+        # No player has a team → team_standings is empty, so only individual
+        # pages render (equivalent to 'totals'); no "Teams" section heading.
+        html = views.render_scores(request_, "teams", None).content.decode()
+        assert '<title>Scores</title>' in html
+        assert '>Teams<' not in html
+
+    def test_teams_view_pins_a_single_page(self, request_, team_tournament):
+        # Pinning a page returns exactly that one page (no rotation loop).
+        html = views.render_scores(request_, "teams", 1).content.decode()
+        assert '<title>Scores</title>' in html
+        assert 'scores_page_2' not in html
+
+
 class TestSpectatorQr:
     """The public-site QR on the score displays is generated locally (segno),
     never fetched from an external service — so a projector behind a captive

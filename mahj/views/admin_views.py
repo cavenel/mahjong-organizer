@@ -719,6 +719,10 @@ def options(request, error=None):
             "screens": screens,
             "modes": _mode_breakdowns(modes, screens),
             "nb_players": Player.objects.filter(tenant=tenant).count(),
+            # Distinct non-empty team names — drives the "Standings — teams" page
+            # picker (individual pages + team pages).
+            "nb_teams": Player.objects.filter(tenant=tenant).exclude(team="")
+                .values_list('team', flat=True).distinct().count(),
             "variables": variables,
             "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
         }

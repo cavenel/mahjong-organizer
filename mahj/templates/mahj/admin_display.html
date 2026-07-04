@@ -441,6 +441,7 @@
                     <option value="schedule">Schedule</option>
                     <option value="scores:detailed">Standings — detailed</option>
                     <option value="scores:totals">Standings — totals</option>
+                    <option value="scores:teams">Standings — teams</option>
                   </select>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -494,6 +495,7 @@
                     <option value="schedule">Schedule</option>
                     <option value="scores:detailed">Standings — detailed</option>
                     <option value="scores:totals">Standings — totals</option>
+                    <option value="scores:teams">Standings — teams</option>
                   </select>
                 </div>
                 <div class="flex-1 min-w-0">
@@ -661,26 +663,47 @@
     // standings density; the Pages select (shown only for standings) picks a
     // fixed page or "all" (rotating). Every change applies immediately, with
     // "all" as the default page, so a layout pick is never an incomplete state.
-    var NB_PLAYERS = {{ nb_players }};
+    var NB_PLAYERS = {{ nb_players|default:0 }};
+    var NB_TEAMS = {{ nb_teams|default:0 }};
 
-    function isScores(output) { return output === 'scores:detailed' || output === 'scores:totals'; }
+    function isScores(output) { return output === 'scores:detailed' || output === 'scores:totals' || output === 'scores:teams'; }
     function scoreLines() { return parseInt(document.getElementById('variables-score_lines').value, 10) || 20; }
     function totalCols() { return parseInt(document.getElementById('variables-total_columns').value, 10) || 3; }
 
-    // Page count is derived live from players, rows-per-page and (for totals)
-    // the column count — never stored — so it tracks those settings as they change.
+    // Rows-per-page: totals and teams lay out `total_columns` columns side by
+    // side; detailed is a single wide column.
+    function perPageFor(output) {
+      return scoreLines() * (output === 'scores:detailed' ? 1 : totalCols());
+    }
+    // Individual page count and (teams only) team page count, derived live from
+    // players/teams, rows-per-page and the column count — never stored — so they
+    // track those settings as they change.
+    function nbPlayerPages(output) {
+      return Math.max(1, Math.ceil(NB_PLAYERS / Math.max(1, perPageFor(output))));
+    }
+    function nbTeamPages(output) {
+      if (NB_TEAMS <= 0) return 0;
+      return Math.ceil(NB_TEAMS / Math.max(1, perPageFor(output)));
+    }
     function nbPages(output) {
-      var perPage = scoreLines() * (output === 'scores:totals' ? totalCols() : 1);
-      return Math.max(1, Math.ceil(NB_PLAYERS / Math.max(1, perPage)));
+      return nbPlayerPages(output) + (output === 'scores:teams' ? nbTeamPages(output) : 0);
     }
 
     function buildPageOptions(sel, output, current) {
-      var n = nbPages(output);
       sel.innerHTML = '';
       sel.add(new Option('All (rotating)', 'all'));
-      for (var p = 1; p <= n; p++) sel.add(new Option('Page ' + p, String(p)));
+      if (output === 'scores:teams') {
+        // Pages run Individuals p1…pN, then Teams p1…pM (matching render_scores).
+        var pp = nbPlayerPages(output), tp = nbTeamPages(output), page = 0;
+        for (var i = 1; i <= pp; i++) sel.add(new Option('Individuals p' + i, String(++page)));
+        for (var j = 1; j <= tp; j++) sel.add(new Option('Teams p' + j, String(++page)));
+      } else {
+        var n = nbPages(output);
+        for (var p = 1; p <= n; p++) sel.add(new Option('Page ' + p, String(p)));
+      }
+      var total = nbPages(output);
       var want = current || 'all';
-      if (want !== 'all' && parseInt(want, 10) > n) want = String(n); // clamp to last
+      if (want !== 'all' && parseInt(want, 10) > total) want = String(total); // clamp to last
       sel.value = want;
       if (!sel.value) sel.value = 'all';
     }
@@ -692,7 +715,7 @@
       if (view === 'schedule') return 'Schedule';
       if (view.indexOf('scores:') === 0) {
         var p = view.split(':');
-        var dens = p[1] === 'totals' ? 'totals' : 'detailed';
+        var dens = (p[1] === 'totals' || p[1] === 'teams') ? p[1] : 'detailed';
         var page = (p[2] && p[2] !== 'all') ? 'page ' + p[2] : 'all (rotating)';
         return 'Standings — ' + dens + ', ' + page;
       }
