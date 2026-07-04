@@ -146,11 +146,27 @@
     </script>
   {% endif %}
 
-  {% if next_round and next_round_time and not awaiting_ceremony %}
-    <div class="fixed bottom-4 left-6 text-amber-300/80 text-lg leading-tight">
-      Round {{ next_round }}: <span class="tabular-nums font-semibold text-amber-300">{{ next_round_time }}</span>
-    </div>
-  {% endif %}
+  <div class="fixed bottom-4 left-6 flex items-baseline gap-3 text-lg leading-tight">
+    <span id="wallclock" class="tabular-nums font-semibold text-white"></span>
+    {% if next_round and next_round_time and not awaiting_ceremony %}
+      <span class="text-amber-300/80">Round {{ next_round }}: <span class="tabular-nums font-semibold text-amber-300">{{ next_round_time }}</span></span>
+    {% endif %}
+  </div>
+  <script>
+    // Live wall clock (browser/Pi local time, 24h HH:MM to match the schedule).
+    // Zero-padded + tabular-nums so the width never shifts as the digits change.
+    (function() {
+      var el = document.getElementById("wallclock");
+      function tick() {
+        var d = new Date();
+        el.textContent =
+          String(d.getHours()).padStart(2, "0") + ":" +
+          String(d.getMinutes()).padStart(2, "0");
+      }
+      tick();
+      setInterval(tick, 1000);
+    })();
+  </script>
 
   <div class="fixed top-4 right-6 flex items-center gap-3">
     <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ variables.tenant }}.mahj.ovh</span>

@@ -482,8 +482,14 @@ class TestNextRoundBadge:
         assert 'Round 3:' in html
         assert '12:00' in html
 
+    def test_wall_clock_renders_regardless_of_round(self, request_, tournament):
+        # The live wall clock is always present (JS fills it in the browser).
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert 'id="wallclock"' in html
+
     def test_badge_hidden_once_final_round_is_played(self, request_, completed_tournament):
-        # Round 3 fully played and published (not withheld): no next round to show.
+        # Round 3 fully played and published (not withheld): no next round to show,
+        # but the wall clock stays.
         PublishedRound.objects.update_or_create(
             tenant=completed_tournament['tenant'], round_nb=3,
             defaults={'reveal_level': 100},
@@ -491,6 +497,7 @@ class TestNextRoundBadge:
         html = views.render_scores(request_, "detailed", None).content.decode()
         assert 'Scores after round 3' in html
         assert 'Round 4:' not in html
+        assert 'id="wallclock"' in html
 
     def test_badge_hidden_while_awaiting_ceremony(self, request_, completed_tournament):
         # Final round withheld for the ceremony → holding screen, no badge.
