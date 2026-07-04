@@ -10,7 +10,7 @@ from django.template import loader
 
 from ..models import Player, Position, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
-from ..scoring import _last_round_reveal, team_standings
+from ..scoring import _last_round_reveal, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, is_display_op
@@ -241,6 +241,19 @@ def render_scores(request, density, page_nb=None):
     else:
         pages = all_pages
 
+    # Corner badge with the schedule time of the round about to be played. Only
+    # while there is a next round to play (not on/after the final round) and not
+    # while withholding for the ceremony. The schedule `time` is free text shown
+    # verbatim; skip when there's no matching schedule row or it's blank.
+    next_round = nb_rounds + 1
+    next_round_time = None
+    if not prepublish and next_round <= variables.nb_rounds:
+        sched = player_schedule(tenant)
+        if next_round - 1 < len(sched):
+            next_round_time = sched[next_round - 1].time
+    if not next_round_time:
+        next_round = None
+
     context = {
         "pages": pages,
         "rounds": range(1, 1 + nb_rounds),
@@ -249,6 +262,8 @@ def render_scores(request, density, page_nb=None):
         "rotate": page_nb is None and len(pages) > 1,
         "page_nb": page_nb,
         "nb_pages": nb_pages,
+        "next_round": next_round,
+        "next_round_time": next_round_time,
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
