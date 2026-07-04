@@ -1,5 +1,25 @@
 [
   {
+    "hand_max": [
+      {
+        "player": {
+          "EMA_ID": "E00016",
+          "__model__": "Player",
+          "country": "France",
+          "email": "",
+          "first_name": "Player16",
+          "full_name": "Player16 Lastname",
+          "id": 16,
+          "pk": 16,
+          "rand_id": 16,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pts": 46,
+        "round_nb": 1,
+        "table_nb": 4
+      }
+    ],
     "mp_max": [
       {
         "__model__": "Position",
@@ -64,7 +84,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -94,7 +116,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -124,7 +148,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -154,7 +180,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -184,7 +212,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -214,7 +244,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -244,7 +276,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -274,7 +308,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -304,7 +340,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -334,7 +372,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -364,7 +404,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -394,7 +436,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -424,7 +468,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -454,7 +500,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -484,7 +532,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -514,7 +564,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       }
     ],
     "sd_hand_max": [],
@@ -548,7 +600,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -578,7 +632,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -608,7 +664,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -638,7 +696,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -668,7 +728,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -698,7 +760,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -728,7 +792,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -758,7 +824,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -788,7 +856,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -818,7 +888,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -848,7 +920,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -878,7 +952,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -908,7 +984,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -938,7 +1016,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -968,7 +1048,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -998,11 +1080,33 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 1,
+        "table_nb": 4
       }
     ]
   },
   {
+    "hand_max": [
+      {
+        "player": {
+          "EMA_ID": "E00013",
+          "__model__": "Player",
+          "country": "Japan",
+          "email": "",
+          "first_name": "Player13",
+          "full_name": "Player13 Lastname",
+          "id": 13,
+          "pk": 13,
+          "rand_id": 13,
+          "team": "",
+          "tenant_id": 1
+        },
+        "pts": 46,
+        "round_nb": 2,
+        "table_nb": 4
+      }
+    ],
     "mp_max": [
       {
         "__model__": "Position",
@@ -1067,7 +1171,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1097,7 +1203,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1127,7 +1235,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1157,7 +1267,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1187,7 +1299,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1217,7 +1331,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1247,7 +1363,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1277,7 +1395,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1307,7 +1427,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1337,7 +1459,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1367,7 +1491,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1397,7 +1523,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1427,7 +1555,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -1457,7 +1587,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -1487,7 +1619,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -1517,7 +1651,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       }
     ],
     "sd_hand_max": [],
@@ -1551,7 +1687,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1581,7 +1719,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1611,7 +1751,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1641,7 +1783,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 1
       },
       {
         "nb_win": 4,
@@ -1671,7 +1815,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1701,7 +1847,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1731,7 +1879,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1761,7 +1911,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 2
       },
       {
         "nb_win": 4,
@@ -1791,7 +1943,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1821,7 +1975,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1851,7 +2007,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1881,7 +2039,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 3
       },
       {
         "nb_win": 4,
@@ -1911,7 +2071,9 @@
           "version": 0,
           "win_by": 1,
           "win_from": 2
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -1941,7 +2103,9 @@
           "version": 0,
           "win_by": 2,
           "win_from": 3
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -1971,7 +2135,9 @@
           "version": 0,
           "win_by": 3,
           "win_from": 4
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       },
       {
         "nb_win": 4,
@@ -2001,7 +2167,9 @@
           "version": 0,
           "win_by": 4,
           "win_from": 1
-        }
+        },
+        "round_nb": 2,
+        "table_nb": 4
       }
     ]
   }

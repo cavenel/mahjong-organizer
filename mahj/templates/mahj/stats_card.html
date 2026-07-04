@@ -2,52 +2,38 @@
 Stats card partial.
 
 Arguments:
-  title  — card heading string
+  title  — card heading string (e.g. "All", "Self-drawn", "From others")
   items  — list of stat objects (empty list = no data yet)
   kind   — "mp" | "hand" | "wins"
-  rn     — (optional) round number for link; if absent, read from item directly
+  rn     — (optional) round number for the hand link; if absent, read from the item
+
+Each row carries two independent links: the player name → that player's detail
+page, the value badge (+ chevron) → the full table/hand view.
 {% endcomment %}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
   <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
-    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">{{ title }}{% if rn %} in R. {{ rn }}{% endif %}</h3>
+    <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">{{ title }}</h3>
   </div>
   {% if items %}
     <div class="divide-y divide-gray-100">
       {% for item in items %}
-        {% if kind == "mp" %}
-          {% if rn %}
-            <a href="detailed_scores_{{ rn }}_{{ item.table_nb }}"
+        {% with r=rn|default:item.round_nb t=item.table_nb %}
+        <div class="flex items-center px-4 py-3 text-sm hover:bg-gray-50 transition-colors">
+          {% if item.player %}
+            <a href="details_player_{{ item.player.id }}"
+               class="flex-1 min-w-0 truncate font-medium text-gray-800 hover:text-amber-600 transition-colors">{{ item.player.full_name }}</a>
           {% else %}
-            <a href="detailed_scores_{{ item.round_nb }}_{{ item.table_nb }}"
+            <span class="flex-1 min-w-0 truncate text-gray-400">Unknown</span>
           {% endif %}
-             class="flex items-center px-4 py-3 hover:bg-amber-50 transition-colors text-sm">
-            <span class="flex-1 text-gray-800 truncate">{{ item.player.full_name }}</span>
-            <span class="font-bold text-amber-600 ml-3 shrink-0">{{ item.minipoints }} pts</span>
-            <span class="text-gray-300 ml-2">›</span>
+          <a href="detailed_scores_{{ r }}_{{ t }}"
+             class="group ml-3 -my-3 py-3 pr-1 flex shrink-0 items-center rounded hover:bg-amber-50 transition-colors">
+            <span class="font-bold text-amber-600">
+              {% if kind == "wins" %}{{ item.nb_win }}×{% elif kind == "mp" %}{{ item.minipoints }} pts{% else %}{{ item.pts }} pts{% endif %}
+            </span>
+            <span class="ml-2 text-gray-300 group-hover:text-amber-500 transition-colors">›</span>
           </a>
-        {% elif kind == "hand" %}
-          {% if rn %}
-            <a href="detailed_scores_{{ rn }}_{{ item.table_nb }}"
-          {% else %}
-            <a href="detailed_scores_{{ item.round_nb }}_{{ item.table_nb }}"
-          {% endif %}
-             class="flex items-center px-4 py-3 hover:bg-amber-50 transition-colors text-sm">
-            <span class="flex-1 text-gray-800 truncate">{{ item.player.full_name }}</span>
-            <span class="font-bold text-amber-600 ml-3 shrink-0">{{ item.pts }} pts</span>
-            <span class="text-gray-300 ml-2">›</span>
-          </a>
-        {% elif kind == "wins" %}
-          {% if rn %}
-            <a href="detailed_scores_{{ rn }}_{{ item.pos.table_nb }}"
-          {% else %}
-            <a href="detailed_scores_{{ item.pos.round_nb }}_{{ item.pos.table_nb }}"
-          {% endif %}
-             class="flex items-center px-4 py-3 hover:bg-amber-50 transition-colors text-sm">
-            <span class="flex-1 text-gray-800 truncate">{{ item.player.full_name }}</span>
-            <span class="font-bold text-amber-600 ml-3 shrink-0">{{ item.nb_win }}×</span>
-            <span class="text-gray-300 ml-2">›</span>
-          </a>
-        {% endif %}
+        </div>
+        {% endwith %}
       {% endfor %}
     </div>
   {% else %}

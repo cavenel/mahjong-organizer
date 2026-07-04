@@ -74,6 +74,7 @@ def overall_winners(tenant, variables, check_final=False, positions=None, hands=
     rounds = round_winners(tenant, variables, check_final, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
+        'hand_max':      _roll_up(rounds, 'hand_max',      lambda h: h['pts']),
         'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h['pts']),
         'ron_hand_max':  _roll_up(rounds, 'ron_hand_max',  lambda h: h['pts']),
         'sd_win_max':    _roll_up(rounds, 'sd_win_max',    lambda d: d['nb_win']),
@@ -658,7 +659,7 @@ def _is_self_draw(h):
 def _winners_for_round(positions, hands):
     mp_max = _top_by(positions, key=lambda p: p.minipoints)
     round_complete = not any(h.hand_nb == COMPLETION_HAND_NB and h.pts == 0 for h in hands)
-    empty = {'mp_max': mp_max, 'sd_hand_max': [], 'ron_hand_max': [],
+    empty = {'mp_max': mp_max, 'hand_max': [], 'sd_hand_max': [], 'ron_hand_max': [],
              'sd_win_max': [], 'ron_win_max': [], 'total_win_max': []}
     if not round_complete:
         return empty
@@ -676,6 +677,7 @@ def _winners_for_round(positions, hands):
         }
     return {
         'mp_max':        mp_max,
+        'hand_max':      [_hand_item(h) for h in _top_by(game_hands, key=lambda h: h.pts, exclude_zero=True)],
         'sd_hand_max':   [_hand_item(h) for h in _top_by(sd_hands,  key=lambda h: h.pts, exclude_zero=True)],
         'ron_hand_max':  [_hand_item(h) for h in _top_by(ron_hands, key=lambda h: h.pts, exclude_zero=True)],
         'sd_win_max':    _top_win_streaks(sd_hands, pos_lookup),
@@ -715,7 +717,8 @@ def _top_win_streaks(hands, pos_lookup=None):
             return h.win_by_player
         return pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
     return [
-        {'nb_win': len(g), 'player': _player_of(g[0]), 'pos': g[0]}
+        {'nb_win': len(g), 'player': _player_of(g[0]), 'pos': g[0],
+         'round_nb': g[0].round_nb, 'table_nb': g[0].table_nb}
         for g in ordered if len(g) == max_wins
     ]
 

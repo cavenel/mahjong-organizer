@@ -216,10 +216,10 @@ class TestTopWinStreaks:
 
     def test_picks_max_group(self):
         hands = [
-            SimpleNamespace(table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10)
             for i in range(5)
         ] + [
-            SimpleNamespace(table_nb=1, win_by=2, win_by_player='P2', hand_nb=i, pts=10)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=2, win_by_player='P2', hand_nb=i, pts=10)
             for i in range(2)
         ]
         result = _top_win_streaks(hands)
@@ -229,9 +229,9 @@ class TestTopWinStreaks:
 
     def test_keeps_all_ties(self):
         hands = [
-            SimpleNamespace(table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10) for i in range(3)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10) for i in range(3)
         ] + [
-            SimpleNamespace(table_nb=2, win_by=3, win_by_player='P3', hand_nb=i, pts=10) for i in range(3)
+            SimpleNamespace(round_nb=1, table_nb=2, win_by=3, win_by_player='P3', hand_nb=i, pts=10) for i in range(3)
         ]
         result = _top_win_streaks(hands)
         assert len(result) == 2
