@@ -470,6 +470,35 @@ class TestNoRoundsFallback:
         assert '<title>Scores</title>' in html
 
 
+class TestNextRoundBadge:
+    """The standings screen shows a corner badge with the schedule time of the
+    round about to be played, e.g. "Round 3: 12:00". The seeded fixture has two
+    scored rounds (round 3 partial), so the next round is 3, and the schedule
+    seeds "Round N" rows timed at 10:00/11:00/12:00."""
+
+    def test_badge_shows_next_round_schedule_time(self, request_, tournament):
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert 'Scores after round 2' in html
+        assert 'Round 3:' in html
+        assert '12:00' in html
+
+    def test_badge_hidden_once_final_round_is_played(self, request_, completed_tournament):
+        # Round 3 fully played and published (not withheld): no next round to show.
+        PublishedRound.objects.update_or_create(
+            tenant=completed_tournament['tenant'], round_nb=3,
+            defaults={'reveal_level': 100},
+        )
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert 'Scores after round 3' in html
+        assert 'Round 4:' not in html
+
+    def test_badge_hidden_while_awaiting_ceremony(self, request_, completed_tournament):
+        # Final round withheld for the ceremony → holding screen, no badge.
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        assert 'Waiting for the ceremony to start' in html
+        assert 'Round 4:' not in html
+
+
 class TestTeamsView:
     """The "Standings — teams" display (density 'teams') shows the individual
     totals pages first, then extra team-totals pages, rotating through both."""
