@@ -220,7 +220,7 @@ def ceremony_control(request):
         # hidden for suspense, so this is the first time complete results leave.
         from ..webhook import fire_webhook, leaderboard_payload
         standings = scores_per_player_json(request, check_final=True)
-        fire_webhook(leaderboard_payload('round_published', standings, variables))
+        fire_webhook(leaderboard_payload('round_published', standings, variables), subdomain)
 
         return JsonResponse({'status': 'ok', 'phase': 'idle', 'published': True})
 

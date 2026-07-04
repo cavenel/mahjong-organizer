@@ -216,7 +216,8 @@ class TestControlEndpoint:
     def test_publish_fires_webhook_with_full_final_standings(self, op_client, monkeypatch):
         """The full final standings reach the webhook only after the ceremony."""
         sent = []
-        monkeypatch.setattr('mahj.webhook.fire_webhook', lambda payload: sent.append(payload))
+        monkeypatch.setattr('mahj.webhook.fire_webhook',
+                            lambda payload, subdomain=None: sent.append(payload))
 
         op_client.get('/ceremony_control?action=publish')
 

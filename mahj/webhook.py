@@ -3,6 +3,12 @@
 Configured via the WEBHOOK_URL environment variable. If unset, no webhook fires.
 An optional WEBHOOK_SECRET can be set to authenticate requests (sent as
 X-Webhook-Secret header).
+
+WEBHOOK_TENANT restricts the webhook to a single tenant: only publishes from
+that tenant's subdomain are sent. This is important because every tenant shares
+the same WEBHOOK_URL — without this gate a test tenant's publishes would post to
+the live site. If WEBHOOK_TENANT is unset, every tenant fires (legacy). Holds a
+subdomain, mirroring LOCAL_TENANT.
 """
 import logging
 import os
@@ -14,6 +20,7 @@ logger = logging.getLogger(__name__)
 
 WEBHOOK_URL = os.environ.get('WEBHOOK_URL', '')
 WEBHOOK_SECRET = os.environ.get('WEBHOOK_SECRET', '')
+WEBHOOK_TENANT = os.environ.get('WEBHOOK_TENANT', '')
 
 
 def leaderboard_payload(event, standings, variables, round_nb=None):
@@ -64,12 +71,20 @@ def leaderboard_payload(event, standings, variables, round_nb=None):
     }
 
 
-def fire_webhook(payload):
+def fire_webhook(payload, subdomain=None):
     """Send payload to the configured webhook URL in a background thread.
 
-    Does nothing if WEBHOOK_URL is not set.
+    Does nothing if WEBHOOK_URL is not set, or if WEBHOOK_TENANT is set and
+    `subdomain` (the publishing tenant) does not match it — so only the live
+    tournament's tenant reaches the webhook, not test tenants.
     """
     if not WEBHOOK_URL:
+        return
+
+    if WEBHOOK_TENANT and subdomain != WEBHOOK_TENANT:
+        logger.info(
+            'Webhook skipped: tenant %r is not the configured WEBHOOK_TENANT %r',
+            subdomain, WEBHOOK_TENANT)
         return
 
     def _send():
