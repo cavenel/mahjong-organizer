@@ -20,6 +20,7 @@ from .scoring import (
     stat_all_rounds,
     stat_rounds,
     table_stats,
+    table_stats_rounds,
     tournament_seating,
 )
 from .score_entry import (

@@ -7,7 +7,10 @@ from django.template import loader
 from ..models import Hand, Position, Schedule
 from ..scoring import team_standings
 from .helpers import can_access_admin, get_tenant, get_variables
-from .scoring import LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds, table_stats, tournament_seating
+from .scoring import (
+    LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
+    table_stats, table_stats_rounds, tournament_seating,
+)
 
 HTML_CACHE_TTL = LEADERBOARD_TTL  # same TTL as data; also invalidated by signals
 
@@ -116,6 +119,13 @@ def desktop(request):
     stat_rounds_data = stat_rounds(request, check_final=check_final, positions=positions, hands=hands)
     stat_all_data = stat_all_rounds(request, check_final=check_final, positions=positions, hands=hands)
     stat_tables_data = table_stats(request, check_final=check_final, positions=positions, hands=hands)
+    stat_tables_rounds_data = table_stats_rounds(request, check_final=check_final, positions=positions, hands=hands)
+    # Pair each round's winner stats with its table stats so one per-round loop in the
+    # template can render both panels (both lists are round-aligned, length round_max).
+    stat_rounds_combined = [
+        {'winners': w, 'tables': t}
+        for w, t in zip(stat_rounds_data, stat_tables_rounds_data)
+    ]
 
     context = {
         'variables': variables,
@@ -129,6 +139,7 @@ def desktop(request):
         'stat_rounds': stat_rounds_data,
         'stat_all': stat_all_data,
         'stat_tables': stat_tables_data,
+        'stat_rounds_combined': stat_rounds_combined,
         'uses_teams': uses_teams,
         'team_rows': team_rows,
         'user_authenticated': authenticated,

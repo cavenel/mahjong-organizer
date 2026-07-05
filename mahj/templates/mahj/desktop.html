@@ -524,10 +524,11 @@
         </div>
 
         <!-- Round panels -->
-        {% for round in stat_rounds %}
+        {% for round in stat_rounds_combined %}
         <template x-if="statRound === {{ forloop.counter }}">
           <div>
-            {% include "mahj/stats_panel.html" with stats=round rn=forloop.counter %}
+            {% include "mahj/stats_panel.html" with stats=round.winners rn=forloop.counter %}
+            {% include "mahj/stats_tables.html" with stats=round.tables rn=forloop.counter %}
           </div>
         </template>
         {% endfor %}

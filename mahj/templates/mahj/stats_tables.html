@@ -1,16 +1,18 @@
 {% comment %}
-Overall-only stats block: validated-table completion + deal-in ("From") ratios.
+Table-completion + deal-in ("From") ratios block, rendered in the overall panel
+and once per round.
 
-Argument:
-  stats — the table_stats dict: tables_finished, tables_total, avg_hands,
+Arguments:
+  stats — a table_stats dict: tables_finished, tables_total, avg_hands,
           gave_most, gave_least (each a list of {player, nb_from, nb_hands, pct}).
+  rn    — (optional) round number; appended to the section headings.
 
 Deal-in rows link the player name to their detail page; the value badge is a
 plain span (a ratio spans many tables, so there's no single table to link to).
 {% endcomment %}
 
 {# 4 — Tables completed #}
-<h3 class="font-semibold text-gray-600 text-sm mb-3">Tables completed</h3>
+<h3 class="font-semibold text-gray-600 text-sm mb-3 mt-8">Tables completed{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
@@ -33,7 +35,7 @@ plain span (a ratio spans many tables, so there's no single table to link to).
 </div>
 
 {# 5 — Deal-ins (gave the winning tile) #}
-<h3 class="font-semibold text-gray-600 text-sm mb-3">Deal-ins — gave the winning tile</h3>
+<h3 class="font-semibold text-gray-600 text-sm mb-3">Deal-ins — gave the winning tile{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
   {% include "mahj/stats_ratio_card.html" with title="Gave most" items=stats.gave_most %}
   {% include "mahj/stats_ratio_card.html" with title="Gave least" items=stats.gave_least %}

@@ -103,16 +103,56 @@ def table_stats(tenant, variables, check_final=False, positions=None, hands=None
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
 
-    # Validated tables = those carrying a hand_nb=17, pts=1 marker. Derived from the
-    # in-memory hands (same rule as completed_tables / public.py's valid_pairs) so we
-    # don't fire an extra query on the cached-HTML path.
-    valid = {
+    valid = _validated_tables(hands, round_max)
+    return _table_stats_for(positions, hands, valid)
+
+
+def table_stats_rounds(tenant, variables, check_final=False, positions=None, hands=None):
+    """Per-round version of table_stats: one dict per round, like round_winners."""
+    if check_final:
+        round_max = public_round_max(tenant, variables, force_all=False)
+    else:
+        round_max = _last_complete_round(tenant, variables)
+
+    if positions is None:
+        positions = list(
+            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
+        )
+    if hands is None:
+        hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
+
+    valid = _validated_tables(hands, round_max)
+    pos_by_round = _group_by((p for p in positions if p.round_nb <= round_max), key=lambda p: p.round_nb)
+    hand_by_round = _group_by((h for h in hands if h.round_nb <= round_max), key=lambda h: h.round_nb)
+    return [
+        _table_stats_for(
+            pos_by_round[rn], hand_by_round[rn],
+            {(r, t) for (r, t) in valid if r == rn},
+        )
+        for rn in range(1, round_max + 1)
+    ]
+
+
+def _validated_tables(hands, round_max):
+    """(round, table) pairs with a hand_nb=17, pts=1 marker, capped at round_max.
+
+    Derived from the in-memory hands (same rule as completed_tables / public.py's
+    valid_pairs) so the cached-HTML path fires no extra query.
+    """
+    return {
         (h.round_nb, h.table_nb) for h in hands
         if h.hand_nb == COMPLETION_HAND_NB and h.pts == 1 and h.round_nb <= round_max
     }
 
+
+def _table_stats_for(positions, hands, valid):
+    """Table-completion + deal-in ("From") ratios over the given validated tables.
+
+    Draws and unplayed slots are indistinguishable (both pts=0), so hands-played is
+    read as the index of the last hand with pts>0 — trailing zeros count as unplayed.
+    """
     hand_by_table = _group_by(
-        (h for h in hands if h.round_nb <= round_max and (h.round_nb, h.table_nb) in valid),
+        (h for h in hands if (h.round_nb, h.table_nb) in valid),
         key=lambda h: (h.round_nb, h.table_nb),
     )
     hands_played = {
