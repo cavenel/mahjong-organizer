@@ -141,6 +141,11 @@ USE_TZ = True
 # local time the display clock renders (IANA name, e.g. 'Europe/Stockholm').
 VENUE_TZ = env('VENUE_TZ', 'UTC')
 
+# Score-sheet camera scan / OCR (needs the Redis work queue + OpenCV/LLM
+# scan_worker). The standalone single-binary profile turns this off — it ships
+# without those heavy deps and enters scores manually.
+SCAN_ENABLED = True
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'

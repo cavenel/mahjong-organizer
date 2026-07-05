@@ -1,0 +1,14 @@
+# Standalone single-binary profile (PyInstaller). Runs the same Django code as
+# the Docker stack but single-process on sqlite — see docs/STANDALONE.md and
+# apps/settings/standalone.py.
+-r base.txt
+
+# ASGI server embedded by standalone/run.py (also used by the prod stack).
+uvicorn[standard]==0.49.0
+
+# Loads the external, user-editable .env before Django starts (docker-compose
+# does this for the robust profile; the standalone launcher does it here).
+python-dotenv==1.0.1
+
+# Freezes the app into a per-OS binary.
+pyinstaller==6.11.1

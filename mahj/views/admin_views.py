@@ -575,6 +575,28 @@ def update_logo(request):
     return HttpResponse("OK")
 
 
+@user_passes_test(lambda u: u.is_staff)
+def publish_web(request):
+    """Manually regenerate + upload the public static site (the "Publish to web"
+    button). Publish also happens automatically on each round publish; this is the
+    on-demand re-push. Runs in the background so the request returns at once."""
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    from ..publish.sftp_upload import is_configured
+    if not is_configured():
+        return JsonResponse(
+            {'status': 'error', 'error': 'Static publish is not configured (set PUBLISH_SFTP_HOST).'},
+            status=400)
+    gate = os.environ.get('PUBLISH_TENANT', '')
+    if gate and subdomain != gate:
+        return JsonResponse(
+            {'status': 'error', 'error': f"This instance publishes only '{gate}', not '{subdomain}'."},
+            status=400)
+    from ..publish.trigger import fire_static_export
+    fire_static_export(subdomain)
+    return JsonResponse({'status': 'ok', 'message': 'Publishing to the web…'})
+
+
 # The round timer is server-authoritative. `counter` holds an absolute epoch-ms
 # "gong moment": the instant the round starts (and the start gong sounds). Before
 # it, screens render a synchronized lead window + 3-2-1 countdown; after it, the
@@ -639,8 +661,12 @@ def options(request, error=None):
 
     if page == "welcome" or page is None:
         page = "welcome"
+        from ..publish.sftp_upload import is_configured as _static_publish_configured
         template2 = loader.get_template('mahj/admin_welcome.html')
-        page_content = template2.render({"error": error}, request)
+        page_content = template2.render(
+            {"error": error, "static_publish_enabled": _static_publish_configured()},
+            request,
+        )
     elif page == "display":
         variables = get_variables(request)
         if request.GET.get('action') == "set_variable":

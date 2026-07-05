@@ -10,12 +10,19 @@ import os
 
 from django.conf import settings
 from django.db.models import F
-from django.http import JsonResponse
+from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
 from ..models import Hand, Position
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
 from .helpers import BASE_DIR, get_tenant, is_scorer
+
+
+def _require_scan_enabled():
+    """Scan/OCR is disabled in the standalone build (no Redis queue / OCR deps).
+    Guard every scan endpoint so a stray request can't reach the missing stack."""
+    if not getattr(settings, 'SCAN_ENABLED', True):
+        raise Http404
 
 # ---- Configure these ------------------------------------------------------
 TEMPLATE_PATH      = BASE_DIR / "static" / "template.jpg"
@@ -118,6 +125,7 @@ def _encode_jpeg(crop):
 
 
 def scan_page(request, round_nb=None, table_nb=None):
+    _require_scan_enabled()
     if request.method == "POST":
         # Stage the image and hand OCR off to a scan_worker via the queue, then
         # return immediately. The heavy OpenCV + LLM work never runs on a request
@@ -153,6 +161,7 @@ def scan_page(request, round_nb=None, table_nb=None):
 
 def scan_status(request):
     """Poll a queued OCR job: pending / done(scores) / error / expired."""
+    _require_scan_enabled()
     from .. import scan_queue
     job_id = request.GET.get('job_id', '')
     if not job_id:
@@ -300,6 +309,7 @@ WINDS = ['E', 'S', 'W', 'N']
 
 def scan_positions(request):
     """Return positions (players, MP, TP) for a given round/table."""
+    _require_scan_enabled()
     tenant = get_tenant(request)
     round_nb = request.GET.get('round_nb')
     table_nb = request.GET.get('table_nb')
@@ -357,6 +367,7 @@ def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
 
 def scan_prefill(request):
     """Write OCR-extracted hand data to DB, mark as valid."""
+    _require_scan_enabled()
     if request.method != 'POST':
         return JsonResponse({"ok": False, "error": "POST required"}, status=405)
 

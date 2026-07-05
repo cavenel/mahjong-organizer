@@ -28,6 +28,7 @@ urlpatterns = [
     path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
     path('logo', views.logo, name='logo'),
     path('update_logo', views.update_logo, name='update_logo'),
+    path('publish_web', views.publish_web, name='publish_web'),
     path('counter_start', views.counter_start, name='counter_start'),
 
     # User management (staff only)

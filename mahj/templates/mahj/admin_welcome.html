@@ -43,6 +43,38 @@
     </ul>
   </div>
 
+  {% if static_publish_enabled and request.user.is_staff %}
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-gray-700 mb-3">Public website</h3>
+    <p class="text-sm text-gray-600 mb-3">
+      Regenerate the public spectator page and upload it to the web host. This also
+      happens automatically each time you publish a round.
+    </p>
+    <button type="button" id="publish-web-btn"
+            class="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
+      Publish to web
+    </button>
+  </div>
+  <script>
+    $("#publish-web-btn").on('click', function() {
+      var btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        type: "POST", url: "publish_web", dataType: "json",
+        data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+        success: function(data) {
+          window.alertAction({ title: 'Publishing', body: data.message || 'Publishing to the web…' });
+        },
+        error: function(xhr) {
+          var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'Publish failed.';
+          window.alertAction({ title: 'Couldn’t publish', body: msg });
+        },
+        complete: function() { btn.prop('disabled', false); }
+      });
+    });
+  </script>
+  {% endif %}
+
   <p class="text-xs text-gray-400 italic">
     Note that this application is not in any way related to the European Mahjong Association.
   </p>

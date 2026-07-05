@@ -222,6 +222,10 @@ def ceremony_control(request):
         standings = scores_per_player_json(request, check_final=True)
         fire_webhook(leaderboard_payload('round_published', standings, variables), subdomain)
 
+        # Push the now-complete final standings to the static spectator site too.
+        from ..publish.trigger import fire_static_export
+        fire_static_export(subdomain)
+
         return JsonResponse({'status': 'ok', 'phase': 'idle', 'published': True})
 
     phase = request.GET.get('phase')

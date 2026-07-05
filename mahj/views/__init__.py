@@ -46,6 +46,7 @@ from .admin_views import (
     counter_start,
     logo,
     options,
+    publish_web,
     randomize,
     admin_team_draw,
     admin_team_draw_save,

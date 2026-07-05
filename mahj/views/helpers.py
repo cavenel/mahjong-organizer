@@ -51,15 +51,18 @@ class PositionForm(ModelForm):
 
 
 def get_domain(request):
-    # Emergency local instance: a venue laptop is reached at a bare LAN IP, which
-    # carries no subdomain, so normal host parsing can't find the live tenant.
-    # LOCAL_TENANT pins every request to one tenant regardless of IP/subnet — set
-    # it to the tournament's subdomain in the laptop's .env. DEBUG-gated so it can
-    # never collapse the multi-tenant cloud (prod) onto a single tenant.
-    if settings.DEBUG:
+    # Local instance: a venue laptop is reached at localhost / a bare LAN IP,
+    # which carries no subdomain, so normal host parsing can't find the tenant.
+    # LOCAL_TENANT pins every request to one tenant regardless of IP/subnet.
+    #   - The standalone build sets settings.LOCAL_TENANT and is always honoured
+    #     (that build is single-tenant by construction).
+    #   - The DEBUG-gated env var is the dev/laptop-failover path; it stays gated
+    #     so it can never collapse the multi-tenant cloud (prod) onto one tenant.
+    forced = (getattr(settings, 'LOCAL_TENANT', '') or '').strip()
+    if not forced and settings.DEBUG:
         forced = os.environ.get('LOCAL_TENANT', '').strip()
-        if forced:
-            return forced
+    if forced:
+        return forced
     host = request.get_host()
     parts = host.split('.')
     if len(parts) >= 3:

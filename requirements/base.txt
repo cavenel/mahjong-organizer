@@ -26,3 +26,6 @@ numpy==2.4.6
 requests==2.34.2
 anthropic==0.111.0
 segno==1.6.6
+
+# SFTP upload of the exported public static site (mahj/publish/sftp_upload.py).
+paramiko==3.5.1

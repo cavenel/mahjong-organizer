@@ -1,5 +1,6 @@
 import json
 
+from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
 from django.db import transaction
 from django.db.models import F
@@ -58,8 +59,11 @@ def _row_payload(tenant, round_nb, table_nb):
 
 
 def _scan_qr_svg(request, round_nb, table_nb):
-    """Inline SVG QR linking to the pre-filled scan page. Empty string if the
-    pure-Python `segno` dependency isn't installed on this host."""
+    """Inline SVG QR linking to the pre-filled scan page. Empty string if scan is
+    disabled (standalone build) or the pure-Python `segno` dependency isn't
+    installed on this host — the template hides the QR when this is empty."""
+    if not getattr(settings, 'SCAN_ENABLED', True):
+        return ''
     try:
         import segno
     except ImportError:
@@ -453,5 +457,9 @@ def set_round_published(request):
     standings = scores_per_player_json(request, check_final=True)
     event = 'round_published' if published else 'round_unpublished'
     fire_webhook(leaderboard_payload(event, standings, variables, round_nb), subdomain)
+
+    # Regenerate + upload the static spectator site (no-op unless SFTP configured).
+    from ..publish.trigger import fire_static_export
+    fire_static_export(subdomain)
 
     return JsonResponse({'status': 'ok', 'published_rounds': _published_rounds(tenant)})
