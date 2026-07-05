@@ -785,6 +785,12 @@ def options(request, error=None):
                 .values_list('team', flat=True).distinct().count(),
             "variables": variables,
             "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
+            # Base URL the screens are reachable at, taken from THIS request so the
+            # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
+            # cloud this resolves to https://<tenant>.mahj.ovh (proxy headers); in
+            # the standalone build to http://<host>:<port>. A hardcoded
+            # mahj.ovh URL would be cross-origin — and unreachable — on a laptop.
+            "screen_base": request.build_absolute_uri('/').rstrip('/'),
         }
         template2 = loader.get_template('mahj/admin_display.html')
         page_content = template2.render(context, request)
