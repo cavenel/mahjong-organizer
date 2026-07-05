@@ -3,10 +3,17 @@
 
   <div>
     <h2 class="text-xl font-bold text-gray-800">Database restore</h2>
+    {% if standalone %}
+    <p class="text-sm text-gray-500 mt-1">
+      Roll the database back to an automatic snapshot. The restore is applied the
+      next time you launch the app.
+    </p>
+    {% else %}
     <p class="text-sm text-gray-500 mt-1">
       Pull dumps from the off-host backup, and roll the live database back to one
       of them.
     </p>
+    {% endif %}
   </div>
 
   <!-- Danger notice -->
@@ -17,7 +24,8 @@
       sure nobody is still scoring on another instance.</p>
   </div>
 
-  <!-- Pull from remote -->
+  {% if not standalone %}
+  <!-- Pull from remote (Postgres/off-host dumps only) -->
   <div class="rounded-lg border border-gray-200 bg-white p-4 flex flex-wrap items-center gap-3">
     <div class="flex-1 min-w-0">
       <h3 class="font-semibold text-gray-700">Pull from remote</h3>
@@ -33,6 +41,7 @@
     {% endif %}
     <p id="pull-status" class="w-full text-sm hidden"></p>
   </div>
+  {% endif %}
 
   <!-- Dumps grouped by origin -->
   {% if groups %}
@@ -236,6 +245,13 @@
       if (res.handled) return;
       if (!res.ok) {
         $("#restore-phase").addClass("text-rose-600").text((res.data && res.data.error) || "Could not start restore.");
+        $("#restore-close").prop("disabled", false);
+        return;
+      }
+      // Standalone: no async worker to poll — the restore is applied on relaunch.
+      if (res.data && res.data.standalone) {
+        $("#restore-phase").addClass("text-green-600")
+          .text(res.data.message || "Restore scheduled — quit and relaunch the app to apply it.");
         $("#restore-close").prop("disabled", false);
         return;
       }

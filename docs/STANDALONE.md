@@ -58,9 +58,15 @@ every few minutes while running (safe on a live database, unlike copying the fil
 keeping the most recent ones. It also runs an integrity check on startup and
 refuses to serve a corrupt database, pointing you at the snapshots.
 
-**To recover:** quit the app, go to the data dir, rename the newest
-`snapshots/mahj-YYYYMMDD-HHMMSS.sqlite3` to `mahj.sqlite3` (replacing the bad one),
-and relaunch. Last resort with no snapshot:
+**To recover from the admin console:** open **Database restore**
+(`/admin?page=database_restore`), pick a snapshot, and confirm. The restore is
+applied the next time you launch the app (a running process can't swap its own
+open database), so quit and relaunch to complete it — the same "Database restore"
+page the Docker/Postgres deployment uses, just backed by the sqlite snapshots.
+
+**To recover by hand** (e.g. the app won't start): quit, go to the data dir,
+rename the newest `snapshots/mahj-*.sqlite3` to `mahj.sqlite3` (replacing the bad
+one), and relaunch. Last resort with no snapshot:
 `sqlite3 mahj.sqlite3 ".recover" | sqlite3 recovered.sqlite3`.
 
 Concurrent writes never corrupt sqlite — it serializes writers, and WAL mode plus

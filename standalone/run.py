@@ -16,7 +16,6 @@ quick_check on startup. Recovery = quit, replace the .sqlite with a snapshot,
 relaunch (see docs/STANDALONE.md).
 """
 import os
-import sqlite3
 import sys
 import threading
 import time
@@ -27,7 +26,6 @@ HOST = '127.0.0.1'
 PORT = 8000
 SETTINGS_MODULE = 'apps.settings.standalone'
 SNAPSHOT_INTERVAL_S = 5 * 60   # take a backup every 5 minutes while running
-SNAPSHOT_KEEP = 12             # keep the last hour of snapshots
 
 # .env keys that are meaningful in the standalone profile (the template written
 # on first run). DB_* / Redis vars from the Docker profile don't apply here.
@@ -105,48 +103,14 @@ def db_path(data_dir):
     return str(data_dir / 'mahj.sqlite3')
 
 
-def integrity_ok(path):
-    """PRAGMA quick_check the DB before serving; True if healthy or brand new."""
-    if not Path(path).exists():
-        return True
-    try:
-        con = sqlite3.connect(path)
-        try:
-            row = con.execute('PRAGMA quick_check;').fetchone()
-        finally:
-            con.close()
-        return bool(row) and row[0] == 'ok'
-    except sqlite3.DatabaseError:
-        return False
-
-
-def snapshot(path, snap_dir):
-    """Online-backup the live DB to a timestamped file; prune to SNAPSHOT_KEEP.
-
-    Uses sqlite's backup API, which is safe against a concurrently-written DB —
-    unlike copying the file.
-    """
-    if not Path(path).exists():
-        return
-    snap_dir.mkdir(parents=True, exist_ok=True)
-    dest = snap_dir / f"mahj-{time.strftime('%Y%m%d-%H%M%S')}.sqlite3"
-    src = sqlite3.connect(path)
-    dst = sqlite3.connect(str(dest))
-    try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
-    snaps = sorted(snap_dir.glob('mahj-*.sqlite3'))
-    for old in snaps[:-SNAPSHOT_KEEP]:
-        old.unlink(missing_ok=True)
-
-
-def _snapshot_loop(path, snap_dir):
+def _snapshot_loop():
+    # Snapshot + integrity logic lives in mahj.standalone_backup so the admin
+    # restore page and this launcher share one implementation.
+    from mahj import standalone_backup
     while True:
         time.sleep(SNAPSHOT_INTERVAL_S)
         try:
-            snapshot(path, snap_dir)
+            standalone_backup.take_snapshot()
         except Exception as e:
             print(f"Snapshot failed: {e}")
 
@@ -171,12 +135,22 @@ def main():
     path = db_path(data_dir)
     os.environ['MAHJ_DB_PATH'] = path
 
-    if not integrity_ok(path):
-        snap_dir = data_dir / 'snapshots'
+    # Shared with the admin "Database restore" page. Imported here (after
+    # MAHJ_DB_PATH is set, before django.setup) because it must swap the sqlite
+    # file before anything opens it.
+    from mahj import standalone_backup
+
+    # Apply a restore the admin scheduled last session (they picked a snapshot;
+    # a single process can't swap its own open DB, so it's applied on relaunch).
+    restored = standalone_backup.apply_pending_restore()
+    if restored:
+        print(f"Restored database from snapshot: {restored}")
+
+    if not standalone_backup.integrity_ok(path):
         print("\n*** The database failed its integrity check. ***\n"
               f"Its file is: {path}\n"
-              f"Restore the newest snapshot from {snap_dir} (rename it to mahj.sqlite3) "
-              "and relaunch.\n")
+              f"Restore the newest snapshot from {standalone_backup.snapshots_dir()} "
+              "(rename it to mahj.sqlite3) and relaunch.\n")
         sys.exit(1)
 
     import django
@@ -185,9 +159,8 @@ def main():
     call_command('migrate', '--noinput', verbosity=0)
     bootstrap()
 
-    snap_dir = data_dir / 'snapshots'
-    snapshot(path, snap_dir)  # known-good snapshot at boot
-    threading.Thread(target=_snapshot_loop, args=(path, snap_dir), daemon=True).start()
+    standalone_backup.take_snapshot()  # known-good snapshot at boot
+    threading.Thread(target=_snapshot_loop, daemon=True).start()
 
     url = f'http://{HOST}:{PORT}/options'
     threading.Timer(1.5, lambda: webbrowser.open(url)).start()

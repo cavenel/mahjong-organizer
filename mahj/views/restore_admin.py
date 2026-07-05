@@ -129,6 +129,10 @@ def _validate_dump(name):
 @staff_and_reauthed
 def restore_pull(request):
     """Enqueue a pull of the off-host dumps down into the local backups dir."""
+    if settings.STANDALONE:
+        # Off-host pull is a Postgres/remote-dump feature; the standalone build
+        # only has local sqlite snapshots.
+        return JsonResponse({'status': 'error', 'error': 'Not available in this build.'}, status=404)
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     job_id = restore_queue.new_job_id()
@@ -138,7 +142,12 @@ def restore_pull(request):
 
 @staff_and_reauthed
 def restore_run(request):
-    """Enqueue a restore of a chosen dump — gated by a typed DB-name confirmation."""
+    """Restore a chosen backup — gated by a typed confirmation.
+
+    Postgres: enqueue a job for the restore_worker. Standalone: schedule the
+    chosen sqlite snapshot to be swapped in on the next launch (a single process
+    can't replace its own open DB), and tell the UI to relaunch.
+    """
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     import json
@@ -146,6 +155,17 @@ def restore_run(request):
         data = json.loads(request.body) if request.body else {}
     except ValueError:
         return JsonResponse({'status': 'bad_request'}, status=400)
+
+    if settings.STANDALONE:
+        from .. import standalone_backup
+        if (data.get('confirm') or '') != standalone_backup.CONFIRM_TOKEN:
+            return JsonResponse(
+                {'status': 'error', 'error': f"Type '{standalone_backup.CONFIRM_TOKEN}' to confirm."},
+                status=400)
+        if not standalone_backup.request_restore(data.get('dump') or ''):
+            return JsonResponse({'status': 'error', 'error': 'Unknown or invalid snapshot.'}, status=400)
+        return JsonResponse({'status': 'ok', 'standalone': True,
+                             'message': 'Restore scheduled. Quit and relaunch the app to apply it.'})
 
     db_name = settings.DATABASES['default']['NAME']
     if (data.get('confirm') or '') != db_name:
@@ -169,7 +189,10 @@ def restore_run(request):
 
 @staff_and_reauthed
 def restore_status(request):
-    """Poll a queued restore/pull job."""
+    """Poll a queued restore/pull job (Postgres path only)."""
+    if settings.STANDALONE:
+        # Standalone restores apply on relaunch, so there's no async job to poll.
+        return JsonResponse({'status': 'error', 'error': 'Not applicable.'}, status=404)
     job_id = request.GET.get('job_id', '')
     if not job_id:
         return JsonResponse({'status': 'error', 'error': 'job_id required'}, status=400)

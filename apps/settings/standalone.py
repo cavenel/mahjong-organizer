@@ -73,6 +73,11 @@ LOCAL_TENANT = os.environ.get('LOCAL_TENANT', '').strip() or 'local'
 # entered manually. Gates the scorer QR and 404s the scan endpoints.
 SCAN_ENABLED = False
 
+# --- single-process backup/restore ------------------------------------------
+# Use the sqlite snapshot + restore-on-relaunch path instead of the Postgres
+# restore_worker, so the admin "Database restore" page works here too.
+STANDALONE = True
+
 # --- sqlite PRAGMAs on every connection --------------------------------------
 # Django 4.2's sqlite backend doesn't run OPTIONS['init_command'], so set the
 # durability/concurrency PRAGMAs via the connection_created signal. Guarded on

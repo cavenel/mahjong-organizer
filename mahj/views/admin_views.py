@@ -900,12 +900,22 @@ def options(request, error=None):
                 {"link_only": not request.user.has_usable_password(),
                  "reauth_next": "database_restore"}, request)
         else:
+            if settings.STANDALONE:
+                from .. import standalone_backup
+                restore_ctx = {
+                    "groups": standalone_backup.list_snapshot_groups(),
+                    "db_name": standalone_backup.CONFIRM_TOKEN,
+                    "pull_configured": False,   # off-host pull is Postgres-only
+                    "standalone": True,         # restore applies on relaunch
+                }
+            else:
+                restore_ctx = {
+                    "groups": list_backups(),
+                    "db_name": settings.DATABASES['default']['NAME'],
+                    "pull_configured": bool(os.environ.get('REMOTE')),
+                }
             template2 = loader.get_template('mahj/admin_database_restore.html')
-            page_content = template2.render({
-                "groups": list_backups(),
-                "db_name": settings.DATABASES['default']['NAME'],
-                "pull_configured": bool(os.environ.get('REMOTE')),
-            }, request)
+            page_content = template2.render(restore_ctx, request)
     else:
         page_content = "None"
 
