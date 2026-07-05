@@ -136,6 +136,11 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
+# Wall-clock timezone of the venue, shown by the live clock on the projector
+# standings screen. The server stores everything in UTC; this only affects what
+# local time the display clock renders (IANA name, e.g. 'Europe/Stockholm').
+VENUE_TZ = env('VENUE_TZ', 'UTC')
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'

@@ -1,12 +1,15 @@
 import math
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import simplejson as json
 
+from django.conf import settings
 from django.contrib.auth.decorators import user_passes_test
 from django.forms.models import model_to_dict
 from django.http import HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import render
 from django.template import loader
+from django.utils import timezone
 
 from ..models import Player, Position, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
@@ -30,6 +33,21 @@ def _spectator_qr_svg(subdomain):
         return ''
     url = f'https://{subdomain}.mahj.ovh'
     return segno.make(url, error='m').svg_inline(scale=3, border=2)
+
+
+def _venue_clock_ms():
+    """Current venue-local wall time as milliseconds-since-midnight.
+
+    The projector clock ticks this forward client-side from a monotonic timer,
+    so it stays correct even when the display device's own clock or timezone is
+    wrong. Timezone is the deployment-wide ``VENUE_TZ`` (server stores UTC)."""
+    try:
+        tz = ZoneInfo(settings.VENUE_TZ)
+    except (ZoneInfoNotFoundError, ValueError):
+        tz = ZoneInfo('UTC')
+    now = timezone.now().astimezone(tz)
+    return ((now.hour * 3600 + now.minute * 60 + now.second) * 1000
+            + now.microsecond // 1000)
 
 
 def index(request, screen_id=None):
@@ -264,6 +282,7 @@ def render_scores(request, density, page_nb=None):
         "nb_pages": nb_pages,
         "next_round": next_round,
         "next_round_time": next_round_time,
+        "server_clock_ms": _venue_clock_ms(),
         "variables": variables,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),

@@ -153,15 +153,22 @@
     {% endif %}
   </div>
   <script>
-    // Live wall clock (browser/Pi local time, 24h HH:MM to match the schedule).
-    // Zero-padded + tabular-nums so the width never shifts as the digits change.
+    // Live wall clock, 24h HH:MM to match the schedule. The time comes from the
+    // SERVER (venue timezone), not the display device — so a Pi with a wrong
+    // clock or locale still shows the right time. We seed with the server's
+    // milliseconds-since-midnight at render and tick it forward with
+    // performance.now() (a monotonic timer, immune to the device clock). Zero-
+    // padded + tabular-nums so the width never shifts as the digits change.
     (function() {
       var el = document.getElementById("wallclock");
+      var base = {{ server_clock_ms }};
+      var start = performance.now();
       function tick() {
-        var d = new Date();
+        var ms = (base + (performance.now() - start)) % 86400000;
+        var s = Math.floor(ms / 1000);
         el.textContent =
-          String(d.getHours()).padStart(2, "0") + ":" +
-          String(d.getMinutes()).padStart(2, "0");
+          String(Math.floor(s / 3600) % 24).padStart(2, "0") + ":" +
+          String(Math.floor(s / 60) % 60).padStart(2, "0");
       }
       tick();
       setInterval(tick, 1000);
