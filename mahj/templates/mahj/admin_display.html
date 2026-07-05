@@ -438,6 +438,7 @@
                     <option value="black">Blank</option>
                     <option value="welcome">Welcome</option>
                     <option value="counter">Counter</option>
+                    <option value="announcement">Announcement</option>
                     <option value="schedule">Schedule</option>
                     <option value="scores:detailed">Standings — detailed</option>
                     <option value="scores:totals">Standings — totals</option>
@@ -492,6 +493,7 @@
                     <option value="black">Blank</option>
                     <option value="welcome">Welcome</option>
                     <option value="counter">Counter</option>
+                    <option value="announcement">Announcement</option>
                     <option value="schedule">Schedule</option>
                     <option value="scores:detailed">Standings — detailed</option>
                     <option value="scores:totals">Standings — totals</option>
@@ -571,7 +573,7 @@
         </div>
         <div>
           <label for="variables-welcome" class="block text-xs font-medium text-gray-600 mb-1">Counter message</label>
-          <input id="variables-welcome" type="text" placeholder="Welcome" value="{{ variables.welcome }}"
+          <input id="variables-welcome" type="text" placeholder="Welcome" value="{{ variables.welcome }}" maxlength="255"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
@@ -627,7 +629,11 @@
         type: "POST", url: "/update_logo", data: form,
         processData: false, contentType: false,
         success: function() { location.reload(); },
-        error: function(xhr) { alert('Could not update the logo: ' + (xhr.responseText || 'error')); }
+        error: function(xhr) {
+          var msg = (xhr && xhr.responseText) || '';
+          if (!msg || xhr.status >= 500 || /<html/i.test(msg)) { msg = 'The upload was rejected.'; }
+          window.alertAction({ title: 'Couldn’t update the logo', body: msg });
+        }
       });
     });
     $("#logo-reset").on('click', function() {
@@ -654,12 +660,22 @@
         type: "POST",
         url: url,
         data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-        success: function() { console.log("success"); }
+        success: function() { console.log("success"); },
+        error: function(xhr) {
+          // set_variable returns a short plain-text reason on a 400; a 500 is an
+          // HTML error page with no useful text, so fall back to a generic line.
+          var msg = (xhr && xhr.responseText) || '';
+          if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
+            msg = 'The server rejected the change (status ' + ((xhr && xhr.status) || '?') + ').';
+          }
+          window.alertAction({ title: 'Couldn’t save settings', body: msg });
+        }
       });
     });
     // ── Double-select per screen ────────────────────────────────────────────
-    // A screen's stored view is "black" | "welcome" | "counter" | "schedule" |
-    // "scores:<density>:<page>". The Output select picks the first four or a
+    // A screen's stored view is "black" | "welcome" | "counter" | "announcement"
+    // | "schedule" | "scores:<density>:<page>". The Output select picks a plain
+    // view or a
     // standings density; the Pages select (shown only for standings) picks a
     // fixed page or "all" (rotating). Every change applies immediately, with
     // "all" as the default page, so a layout pick is never an incomplete state.
@@ -712,6 +728,7 @@
       if (!view || view === 'black') return 'Blank';
       if (view === 'welcome') return 'Welcome';
       if (view === 'counter') return 'Counter';
+      if (view === 'announcement') return 'Announcement';
       if (view === 'schedule') return 'Schedule';
       if (view.indexOf('scores:') === 0) {
         var p = view.split(':');

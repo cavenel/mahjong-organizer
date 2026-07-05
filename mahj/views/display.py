@@ -76,8 +76,9 @@ def index(request, screen_id=None):
 
     if screen:
         view = screen.view or "black"
-        # Grammar: "black" | "welcome" | "counter" | "schedule" | "scores:<density>:<page>"
-        # where density is detailed|totals and page is all|<N>.
+        # Grammar: "black" | "welcome" | "counter" | "announcement" | "schedule"
+        # | "scores:<density>:<page>" where density is detailed|totals and page
+        # is all|<N>.
         if view in ("", "black", "null"):
             template = loader.get_template('mahj/display_black.html')
             return HttpResponse(template.render({'subdomain': subdomain}, request))
@@ -85,6 +86,8 @@ def index(request, screen_id=None):
             return welcome(request)
         elif view == "counter":
             return counter(request)
+        elif view == "announcement":
+            return announcement(request)
         elif view == "schedule":
             return _render_schedule(request, tenant, variables, subdomain)
         elif view.startswith("scores:"):
@@ -166,6 +169,21 @@ def counter(request):
     context = {
         'variables': variables,
         'counter': variables.counter,
+        'subdomain': tenant.subdomain if tenant else '',
+    }
+    return HttpResponse(template.render(context, request))
+
+
+def announcement(request):
+    """Full-screen announcement: nothing but the "Counter message" variable
+    (`variables.welcome`), auto-sized by the template to fill the screen as
+    large as it can. Reloads live on a screen switch and patches the text in
+    place when the message is edited, like the other static screens."""
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    template = loader.get_template('mahj/display_announcement.html')
+    context = {
+        'variables': variables,
         'subdomain': tenant.subdomain if tenant else '',
     }
     return HttpResponse(template.render(context, request))

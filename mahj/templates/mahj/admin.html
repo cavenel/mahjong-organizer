@@ -269,7 +269,7 @@
         </div>
       </div>
       <div class="flex justify-end gap-2 px-6 py-4 bg-gray-50">
-        <button type="button" @click="closeConfirm()"
+        <button type="button" @click="closeConfirm()" x-show="!confirmModal.hideCancel"
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 x-text="confirmModal.cancelLabel"></button>
         <button type="button" @click="runConfirm()" x-text="confirmModal.confirmLabel"
@@ -289,7 +289,8 @@
         printModal: { open: false, src: '' },
         detailsModal: { open: false, src: '' },
         confirmModal: { open: false, title: '', body: '', confirmLabel: 'Confirm',
-                        cancelLabel: 'Cancel', danger: true, _onConfirm: null, _onCancel: null },
+                        cancelLabel: 'Cancel', danger: true, hideCancel: false,
+                        _onConfirm: null, _onCancel: null },
 
         init() { window._adminShell = this; },
         showPrintModal(url)   { this.printModal.src   = url; this.printModal.open   = true; },
@@ -311,8 +312,24 @@
             confirmLabel: opts.confirmLabel || 'Confirm',
             cancelLabel: opts.cancelLabel || 'Cancel',
             danger: opts.danger !== false,
+            hideCancel: false,
             _onConfirm: opts.onConfirm || null,
             _onCancel: opts.onCancel || null,
+          };
+        },
+        // One-button notice reusing the confirm modal (no Cancel) — for surfacing
+        // failures that were previously silent. opts: { title, body, confirmLabel }.
+        showAlert(opts) {
+          this.confirmModal = {
+            open: true,
+            title: opts.title || 'Something went wrong',
+            body: opts.body || '',
+            confirmLabel: opts.confirmLabel || 'OK',
+            cancelLabel: 'Cancel',
+            danger: opts.danger !== false,
+            hideCancel: true,
+            _onConfirm: opts.onConfirm || null,
+            _onCancel: null,
           };
         },
         closeConfirm() {
@@ -345,6 +362,7 @@
     window.showPrintModal   = (url) => window._adminShell.showPrintModal(url);
     window.showDetailsModal = (url) => window._adminShell.showDetailsModal(url);
     window.confirmAction    = (opts) => window._adminShell.showConfirm(opts);
+    window.alertAction      = (opts) => window._adminShell.showAlert(opts);
   </script>
 </body>
 </html>

@@ -32,17 +32,33 @@ from .scoring import (
 )
 
 
+# Friendly labels for the editable tournament variables, matching the field
+# labels on the display admin page, so a rejected save names the field the way
+# the operator sees it ("Counter message", not "welcome").
+_VARIABLE_LABELS = {
+    "welcome": "Counter message",
+    "title": "Title",
+    "fullname": "Full tournament name",
+    "city": "City",
+    "period": "Period",
+    "rules": "Rules",
+}
+
+
 def _pretty_view(view):
     """Human label for a stored screen view string. Mirrors the prettyView()
     used client-side on the display admin page, so a mode's saved views read the
     same whether rendered by Django or refreshed live by JS.
-    Grammar: "black" | "welcome" | "counter" | "schedule" | "scores:<density>:<page>"."""
+    Grammar: "black" | "welcome" | "counter" | "announcement" | "schedule"
+    | "scores:<density>:<page>"."""
     if not view or view in ("black", "null"):
         return "Blank"
     if view == "welcome":
         return "Welcome"
     if view == "counter":
         return "Counter"
+    if view == "announcement":
+        return "Announcement"
     if view == "schedule":
         return "Schedule"
     if view.startswith("scores:"):
@@ -647,10 +663,28 @@ def options(request, error=None):
                         setattr(variables, field, request.GET.get(var))
                         touched_fields.append(field)
             if touched_fields:
+                # Reject over-long text here, before it reaches the DB: on
+                # PostgreSQL an oversized value raises a bare 500, which the admin
+                # UI showed silently. Returning a readable 400 instead lets the
+                # page surface exactly which field was too long, and why.
+                for field in touched_fields:
+                    max_length = getattr(variables._meta.get_field(field), "max_length", None)
+                    value = getattr(variables, field)
+                    if max_length and isinstance(value, str) and len(value) > max_length:
+                        label = _VARIABLE_LABELS.get(field, field)
+                        return HttpResponse(
+                            f"{label} is too long: {len(value)} characters "
+                            f"(maximum {max_length}).",
+                            status=400)
                 # Scope the write to the fields actually edited: a full-row save would
                 # also persist this instance's `counter`, which could stop a running
                 # round timer. signals.py still busts the cache on post_save.
-                variables.save(update_fields=touched_fields)
+                try:
+                    variables.save(update_fields=touched_fields)
+                except Exception as exc:
+                    # Any other save failure (e.g. a non-numeric value for a number
+                    # field) — return the reason rather than a silent 500.
+                    return HttpResponse(f"Could not save: {exc}", status=400)
             return HttpResponse(str(variables))
         elif request.GET.get('action') == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()

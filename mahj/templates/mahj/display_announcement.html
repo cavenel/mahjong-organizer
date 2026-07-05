@@ -1,0 +1,94 @@
+{% load static %}
+
+<html>
+<head>
+  <title>{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}</title>
+  <meta charset="utf-8">
+  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+<style>
+/* Dark slate gradient matching the counter/schedule/ceremony screens, painted on
+   <html> (background-attachment: fixed) so it fills the viewport. */
+html {
+    background: #020617 linear-gradient(to bottom, #1e293b, #0f172a, #020617) fixed;
+    min-height: 100vh;
+}
+body {
+    overflow: hidden;
+    margin: 0;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+/* The message is sized by JS (fitMessage) to be as large as it can while fitting
+   the padded viewport; the font-size here is only a starting point. */
+#message {
+    color: #fff;
+    text-align: center;
+    font-family: sans-serif;
+    font-weight: 700;
+    line-height: 1.1;
+    width: 92vw;
+    max-height: 92vh;
+    overflow: hidden;
+    font-size: 10vw;
+}
+</style>
+</head>
+<body>
+<div id="message">{{ variables.welcome|safe }}</div>
+
+<script src="{% static 'js/display_socket.js' %}"></script>
+<script>
+var el = document.getElementById('message');
+
+// Grow the message to the largest font-size that still fits the padded viewport,
+// by binary search between a min and max pixel size. Called on load, on resize,
+// and whenever the message text changes.
+function fitMessage() {
+    var maxW = window.innerWidth * 0.92;
+    var maxH = window.innerHeight * 0.92;
+    if (!el.textContent.trim()) { el.style.fontSize = '0px'; return; }
+    var lo = 8, hi = Math.floor(window.innerHeight);   // px
+    for (var i = 0; i < 22 && hi - lo > 1; i++) {
+        var mid = (lo + hi) / 2;
+        el.style.fontSize = mid + 'px';
+        if (el.scrollWidth <= maxW && el.scrollHeight <= maxH) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    el.style.fontSize = lo + 'px';
+}
+
+fitMessage();
+window.addEventListener('resize', fitMessage);
+
+// Patch the message in place (raw HTML, mirroring the template's |safe) when it's
+// edited, so no reload is needed; reload only on a screen switch.
+function refreshMessage() {
+    fetch('check_variables')
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+            el.innerHTML = data.welcome || '';
+            fitMessage();
+        })
+        .catch(function () {});
+}
+
+connectDisplaySocket({
+    subdomain: '{{ subdomain }}',
+    onUpdate: function (msg) {
+        if (msg.event === 'variables_update') {
+            refreshMessage();
+        } else if (msg.event === 'screen_update' || msg.event === 'ceremony') {
+            location.reload();
+        }
+        // counter_update / leaderboard_update: nothing shown here.
+    },
+    onReconnect: function () { location.reload(); },
+});
+</script>
+</body>
+</html>

@@ -13,7 +13,7 @@ import simplejson as json
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Screen, ScreenMode
+from mahj.models import Screen, ScreenMode, Variable
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
 
 HOST = 'test.mahj.ovh'
@@ -24,6 +24,7 @@ HOST = 'test.mahj.ovh'
     ('black', 'Blank'),
     ('null', 'Blank'),
     ('counter', 'Counter'),
+    ('announcement', 'Announcement'),
     ('schedule', 'Schedule'),
     ('scores:detailed:all', 'Standings — detailed, all (rotating)'),
     ('scores:detailed', 'Standings — detailed, all (rotating)'),
@@ -246,3 +247,38 @@ def test_update_screen_name_persists_and_clears(client_, display_op, tournament)
     client_.get(f'/update_screen_name?id={screen.id}&name=')
     screen.refresh_from_db()
     assert screen.friendly_name == ''
+
+
+# ── set_variable error surfacing ────────────────────────────────────────────
+# A save that can't fit the DB used to bubble up as a bare 500 the admin page
+# swallowed silently. set_variable now validates length up front and returns a
+# readable 400, which the page shows in an alert dialog.
+
+def test_set_variable_rejects_over_long_message(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    Variable.objects.filter(tenant=tenant).update(welcome='ok')
+    client_.force_login(display_op)
+
+    too_long = 'x' * 300  # welcome is max_length=255
+    resp = client_.post(
+        f'/admin?page=display&action=set_variable&variables-welcome={too_long}',
+        {'csrfmiddlewaretoken': 'x'})
+
+    assert resp.status_code == 400
+    body = resp.content.decode()
+    assert 'Counter message is too long' in body
+    assert '255' in body
+    # The rejected value was not persisted.
+    assert Variable.objects.get(tenant=tenant).welcome == 'ok'
+
+
+def test_set_variable_saves_valid_message(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    client_.force_login(display_op)
+
+    resp = client_.post(
+        '/admin?page=display&action=set_variable&variables-welcome=Round+3+starts+soon',
+        {'csrfmiddlewaretoken': 'x'})
+
+    assert resp.status_code == 200
+    assert Variable.objects.get(tenant=tenant).welcome == 'Round 3 starts soon'

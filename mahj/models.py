@@ -153,7 +153,7 @@ class ScreenMode(TenantAwareModel):
         return str(self.name)
 
 class Variable(TenantAwareModel):
-    welcome      = models.CharField(default="",max_length=70)
+    welcome      = models.CharField(default="",max_length=255)
     title        = models.CharField(default="",max_length=70)
     fullname     = models.CharField(default="",max_length=70)
     city         = models.CharField(default="",max_length=70)
