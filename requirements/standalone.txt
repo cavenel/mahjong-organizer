@@ -3,6 +3,11 @@
 # apps/settings/standalone.py.
 -r base.txt
 
+# INSTALLED_APPS lists 'daphne' first (it overrides runserver's ASGI handling);
+# it lives in prod.txt, not base.txt, so pull it in here too or Django won't
+# start. We serve via uvicorn, but the app must still be importable.
+daphne==4.2.1
+
 # ASGI server embedded by standalone/run.py (also used by the prod stack).
 uvicorn[standard]==0.49.0
 
