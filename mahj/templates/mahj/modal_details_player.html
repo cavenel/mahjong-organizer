@@ -238,6 +238,32 @@
       </table>
     </div>
 
+    <!-- Strength of Schedule -->
+    {% if extra_stats.opp_strength.count %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Strength of Schedule</span>
+      </div>
+      <table class="w-full text-sm">
+        <tbody class="divide-y divide-gray-100">
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2.5 text-gray-800">Opponents' total table points</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ extra_stats.opp_strength.total|floatformat:1 }}</td>
+          </tr>
+          <tr class="hover:bg-gray-50">
+            <td class="px-4 py-2.5 text-gray-800">Average per opponent</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ extra_stats.opp_strength.avg|floatformat:1 }}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr class="border-t border-gray-200 text-xs text-gray-400">
+            <td class="px-4 py-2" colspan="2">{{ extra_stats.opp_strength.count }} opponents faced</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% endif %}
+
     {% endif %}
 
   </main>

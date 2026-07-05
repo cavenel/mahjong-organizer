@@ -9,7 +9,7 @@ from functools import lru_cache
 from itertools import groupby
 
 import pycountry
-from django.db.models import Q
+from django.db.models import Q, Sum
 
 from .models import Hand, Player, Position, PublishedRound, Schedule
 
@@ -546,6 +546,7 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         'total_rounds': total_rounds,
         'hand_stats': hand_stats,
         'total_hands': total_hands,
+        'opp_strength': _opponent_strength(tenant, positions, variables, max_round),
     }
 
 
@@ -728,6 +729,39 @@ def _placement_counts(tenant, positions, variables):
         if place <= 4:
             counts[place] += 1
     return counts
+
+
+def _opponent_strength(tenant, positions, variables, max_round=None):
+    """Strength of schedule: total & average full-tournament table points of
+    every opponent this player faced (an opponent faced twice counts twice).
+
+    Mirrors _placement_counts: ranks on tablepoints for MCR, minipoints
+    otherwise. `max_round` caps the opponents' totals to the rounds this modal
+    is allowed to show, so a withheld final round can't leak in.
+    """
+    if not positions:
+        return {'total': 0, 'avg': 0, 'count': 0}
+    field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
+    totals_qs = Position.objects.filter(tenant=tenant, **{f'{field}__isnull': False})
+    if max_round is not None:
+        totals_qs = totals_qs.filter(round_nb__lte=max_round)
+    totals = dict(totals_qs.values_list('player_id').annotate(Sum(field)))
+
+    table_positions = _group_by(
+        Position.objects.filter(
+            tenant=tenant, round_nb__in={p.round_nb for p in positions},
+        ),
+        key=lambda p: (p.round_nb, p.table_nb),
+    )
+    total = 0.0
+    count = 0
+    for pos in positions:
+        for peer in table_positions[(pos.round_nb, pos.table_nb)]:
+            if peer.player_id == pos.player_id:
+                continue
+            total += totals.get(peer.player_id, 0) or 0
+            count += 1
+    return {'total': total, 'avg': total / count if count else 0, 'count': count}
 
 
 def _group_by(iterable, key):
