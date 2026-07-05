@@ -79,10 +79,17 @@ every build; a manual build must do it too, using the standalone Tailwind CLI
 (v3.4.17, no Node — matches the Dockerfile). Order matters:
 **Tailwind → collectstatic → PyInstaller.**
 
-Linux/macOS:
+The Tailwind CLI is a per-OS native binary (like PyInstaller's output), so pick
+the asset for the machine you build on — `tailwindcss-windows-x64.exe`,
+`tailwindcss-macos-arm64`, `tailwindcss-macos-x64`, `tailwindcss-linux-x64`, or
+`tailwindcss-linux-arm64`.
+
+Linux/macOS (auto-detects OS + arch):
 ```
 pip install -r requirements/standalone.txt
-curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-$(uname -s | tr A-Z a-z)-x64 && chmod +x tailwindcss
+case "$(uname -s)" in Linux) OS=linux;; Darwin) OS=macos;; esac
+case "$(uname -m)" in x86_64|amd64) ARCH=x64;; arm64|aarch64) ARCH=arm64;; esac
+curl -sLo tailwindcss "https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-${OS}-${ARCH}" && chmod +x tailwindcss
 ./tailwindcss -c tailwind.config.js -i mahj/static/css/tailwind.src.css -o mahj/static/css/tailwind.min.css --minify
 python manage.py collectstatic --noinput --settings apps.settings.standalone
 pyinstaller --noconfirm standalone/mahj.spec
