@@ -69,6 +69,12 @@ uvicorn_mods = [
 ]
 hiddenimports = mahj_mods + collect_submodules('channels') + uvicorn_mods
 hiddenimports += collect_submodules('sesame')
+# whitenoise middleware + storage are referenced only by string in settings
+# (MIDDLEWARE / STORAGES), so grab the whole package rather than name each one.
+hiddenimports += collect_submodules('whitenoise')
+# django-mathfilters: an INSTALLED_APP whose templatetags load by string
+# ({% load mathfilters %}), so its templatetags submodule must be bundled.
+hiddenimports += collect_submodules('mathfilters')
 hiddenimports += [
     # apps.* is reached only via the "apps.asgi:application" string, so list the
     # pieces explicitly. (Not collect_submodules('apps') — that would import
@@ -77,8 +83,6 @@ hiddenimports += [
     'apps.settings.standalone', 'apps.settings.base',
     'django.db.backends.sqlite3',
     'django.contrib.staticfiles',
-    'whitenoise', 'whitenoise.storage',
-    'mathfilters',
     'daphne',
     'dotenv',
     'paramiko',
