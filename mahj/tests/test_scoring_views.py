@@ -237,6 +237,24 @@ class TestWinLossStatsValidationGate:
         by_label = {s['label']: s['count'] for s in stats['hand_stats']}
         assert by_label['Win by discard'] == 2
 
+    def test_mid_table_draw_counts_trailing_empty_excluded(self, tenant):
+        variables, players = self._table_with_hands(tenant)  # hands 1,2 discard-win seat 1
+        # hand 3 = genuine mid-table draw (a later hand is decided), hand 5 = trailing
+        # unplayed slot. Both are pts=0; only the mid-table one is a played hand.
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=3,
+                            pts=0, win_by=0, win_from=0)
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=4,
+                            pts=25, win_by=1, win_from=2)
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=5,
+                            pts=0, win_by=0, win_from=0)
+        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
+                            pts=1, win_by=0, win_from=0)
+        stats = player_extra_stats(tenant, players[0], variables)
+        assert stats['total_hands'] == 4  # 3 decided + 1 mid-table draw; hand 5 excluded
+        by_label = {s['label']: s['count'] for s in stats['hand_stats']}
+        assert by_label['Draw'] == 1
+        assert by_label['Win by discard'] == 3
+
     def test_team_stats_also_gate_on_validation(self, tenant):
         variables, players = self._table_with_hands(tenant)
         for p in players:

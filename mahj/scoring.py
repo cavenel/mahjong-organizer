@@ -487,20 +487,37 @@ def player_extra_stats(tenant, player, variables, max_round=None):
     # must not feed these rates, exactly like the per-table detailed-hands modal.
     completed = completed_tables(tenant)
     round_table_seat = {pos.round_nb: (pos.table_nb, pos.position) for pos in positions}
-    hands = Hand.objects.filter(
+    hands = list(Hand.objects.filter(
         tenant=tenant,
         round_nb__in=list(round_table_seat.keys()),
         hand_nb__lt=COMPLETION_HAND_NB,
-    )
+    ))
 
-    sd_win = ron_win = deal_in = sd_lose = total_hands = 0
+    # A genuine draw and an unplayed trailing slot are both pts=0. Only hands up to
+    # the last decided hand of the table were actually played; hands_played[round]
+    # is that last hand_nb, so a pts=0 hand after it is an unplayed slot, not a draw.
+    hands_played = defaultdict(int)
     for h in hands:
         info = round_table_seat.get(h.round_nb)
-        if info is None or h.table_nb != info[0] or h.pts == 0:
+        if info is None or h.table_nb != info[0] or (h.round_nb, h.table_nb) not in completed:
+            continue
+        if h.pts > 0 and h.hand_nb > hands_played[h.round_nb]:
+            hands_played[h.round_nb] = h.hand_nb
+
+    sd_win = ron_win = deal_in = sd_lose = draw = total_hands = 0
+    for h in hands:
+        info = round_table_seat.get(h.round_nb)
+        if info is None or h.table_nb != info[0]:
             continue
         if (h.round_nb, h.table_nb) not in completed:
             continue
         seat = info[1]
+        if h.pts == 0:
+            # Mid-table draw counts as a played hand; a trailing unplayed slot doesn't.
+            if h.hand_nb <= hands_played[h.round_nb]:
+                total_hands += 1
+                draw += 1
+            continue
         total_hands += 1
         is_sd = h.win_from == 0 or h.win_from == h.win_by
         if h.win_by == seat:
@@ -521,6 +538,7 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         {'label': 'Win by discard',    'count': ron_win, 'rate_pct': _pct(ron_win) * 100},
         {'label': 'Deal in',           'count': deal_in, 'rate_pct': _pct(deal_in) * 100},
         {'label': 'Lose to self-draw', 'count': sd_lose, 'rate_pct': _pct(sd_lose) * 100},
+        {'label': 'Draw',              'count': draw,    'rate_pct': _pct(draw)    * 100},
     ]
 
     return {
@@ -565,22 +583,36 @@ def team_extra_stats(tenant, team_name, variables, max_round=None):
     for pos in positions:
         round_table_seat.setdefault(pos.player_id, {})[pos.round_nb] = (pos.table_nb, pos.position)
 
-    hands = Hand.objects.filter(
+    hands = list(Hand.objects.filter(
         tenant=tenant,
         round_nb__in=list({p.round_nb for p in positions}),
         hand_nb__lt=COMPLETION_HAND_NB,
-    )
+    ))
 
-    sd_win = ron_win = deal_in = sd_lose = total_hands = 0
+    # Mid-table draws are played hands; trailing pts=0 slots are unplayed. Per table,
+    # hands_played is the last decided hand_nb (see player_extra_stats for the why).
+    hands_played = defaultdict(int)
+    for h in hands:
+        if (h.round_nb, h.table_nb) in completed and h.pts > 0 \
+                and h.hand_nb > hands_played[(h.round_nb, h.table_nb)]:
+            hands_played[(h.round_nb, h.table_nb)] = h.hand_nb
+
+    sd_win = ron_win = deal_in = sd_lose = draw = total_hands = 0
     for h in hands:
         if (h.round_nb, h.table_nb) not in completed:
             continue
+        is_draw = h.pts == 0
+        if is_draw and h.hand_nb > hands_played[(h.round_nb, h.table_nb)]:
+            continue  # unplayed trailing slot, not a real draw
         for pid, rts_map in round_table_seat.items():
             info = rts_map.get(h.round_nb)
-            if info is None or h.table_nb != info[0] or h.pts == 0:
+            if info is None or h.table_nb != info[0]:
                 continue
             seat = info[1]
             total_hands += 1
+            if is_draw:
+                draw += 1
+                continue
             is_sd = h.win_from == 0 or h.win_from == h.win_by
             if h.win_by == seat:
                 if is_sd:
@@ -600,6 +632,7 @@ def team_extra_stats(tenant, team_name, variables, max_round=None):
         {'label': 'Win by discard',    'count': ron_win, 'rate_pct': _pct(ron_win) * 100},
         {'label': 'Deal in',           'count': deal_in, 'rate_pct': _pct(deal_in) * 100},
         {'label': 'Lose to self-draw', 'count': sd_lose, 'rate_pct': _pct(sd_lose) * 100},
+        {'label': 'Draw',              'count': draw,    'rate_pct': _pct(draw)    * 100},
     ]
 
     return {
