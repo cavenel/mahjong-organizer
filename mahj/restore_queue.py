@@ -16,8 +16,12 @@ import os
 import uuid
 from pathlib import Path
 
-import redis
 from django.conf import settings
+
+# redis is imported lazily inside _redis() (like mahj.scan_queue / mahj.views.scan
+# defer their heavy deps) so importing this module — and therefore the admin
+# URLconf that pulls it in via restore_admin — never requires redis. The
+# standalone build ships without redis and never runs a restore.
 
 QUEUE_KEY = 'restore:queue'
 _RESULT_PREFIX = 'restore:result:'
@@ -35,6 +39,7 @@ _client = None
 def _redis():
     global _client
     if _client is None:
+        import redis
         # Same noeviction bus as the scan queue: a queued restore must never be
         # evicted out from under a waiting operator.
         _client = redis.from_url(settings.REDIS_BUS_URL, decode_responses=True)
