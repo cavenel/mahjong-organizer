@@ -13,10 +13,17 @@
 # standalone settings never load them (see apps/settings/standalone.py).
 import os
 import pkgutil
+import sys
 
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 project_root = os.path.abspath(os.getcwd())
+
+# PyInstaller execs this spec without the project root on sys.path, so the
+# `import apps` / `import mahj` below (and django.setup()) would fail. Add it.
+# (pathex only affects PyInstaller's own analysis, not this spec's imports.)
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 
 def walk_package(name):
