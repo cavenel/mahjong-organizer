@@ -72,12 +72,32 @@ errors. The write volume of one operator is far below any contention concern.
 PyInstaller builds for the OS it runs on — build on each target platform (or in a
 CI matrix). There is no single cross-platform binary.
 
+`tailwind.min.css` is a **generated** artifact: Tailwind's JIT scans the templates
+and emits only the classes they use, so it must be rebuilt from the current
+templates or the app renders unstyled/partly-styled. The Docker image does this
+every build; a manual build must do it too, using the standalone Tailwind CLI
+(v3.4.17, no Node — matches the Dockerfile). Order matters:
+**Tailwind → collectstatic → PyInstaller.**
+
+Linux/macOS:
 ```
 pip install -r requirements/standalone.txt
-python manage.py collectstatic --noinput      # populate staticfiles/
-pyinstaller standalone/mahj.spec
+curl -sLo tailwindcss https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-$(uname -s | tr A-Z a-z)-x64 && chmod +x tailwindcss
+./tailwindcss -c tailwind.config.js -i mahj/static/css/tailwind.src.css -o mahj/static/css/tailwind.min.css --minify
+python manage.py collectstatic --noinput --settings apps.settings.standalone
+pyinstaller --noconfirm standalone/mahj.spec
 ```
 
-The app lands in `dist/mahj-admin/`. The scan/OCR stack (OpenCV, the LLM client)
-and the Postgres/Redis backends are deliberately excluded to keep it small — the
-standalone settings never load them.
+Windows (PowerShell):
+```
+pip install -r requirements/standalone.txt
+Invoke-WebRequest https://github.com/tailwindlabs/tailwindcss/releases/download/v3.4.17/tailwindcss-windows-x64.exe -OutFile tailwindcss.exe
+.\tailwindcss.exe -c tailwind.config.js -i mahj/static/css/tailwind.src.css -o mahj/static/css/tailwind.min.css --minify
+python manage.py collectstatic --noinput --settings apps.settings.standalone
+pyinstaller --noconfirm standalone/mahj.spec
+```
+
+The app lands in `dist/mahj-admin/`. The regenerated `tailwind.min.css` is a build
+artifact — no need to commit it. The scan/OCR stack (OpenCV, the LLM client) and
+the Postgres/Redis backends are deliberately excluded to keep the binary small —
+the standalone settings never load them.
