@@ -70,6 +70,12 @@ class TestRewrites:
         # The raw team name is gone from the href.
         assert 'href="details_team_Alpha"' not in html
 
+    def test_static_urls_are_relative(self, tmp_path, tournament):
+        # So the site can be hosted in a subfolder, not just at the domain root.
+        html = (_export(tmp_path) / 'index.html').read_text()
+        assert '"/static/' not in html          # no root-absolute static URLs
+        assert 'src="static/js/static_poll.js"' in html
+
     def test_websocket_client_swapped_for_poller(self, tmp_path, tournament):
         out = _export(tmp_path)
         html = (out / 'index.html').read_text()

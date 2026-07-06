@@ -27,6 +27,11 @@ from ..models import Player, Position, Tenant, Variable
 from ..signals import leaderboard_gen
 from ..views import public, public_modals
 
+# Top-level static/ subtrees the public spectator page never loads — excluded
+# from the export (see _copy_static). Admin-console assets, doc PDFs, and the
+# projector gong sounds aren't referenced by the public pages.
+_SKIP_STATIC_DIRS = {'admin', 'docs', 'sounds'}
+
 
 def _make_request(subdomain, tenant):
     """An anonymous GET bound to `tenant`.
@@ -91,19 +96,42 @@ def _rewrite_html(html, logo_replacement, poll_url):
     if logo_replacement:
         html = re.sub(r'/logo\?v=[^"\'&\s]*', logo_replacement, html)
 
+    # Make static URLs relative (/static/… → static/…) so the site can be hosted
+    # in a subfolder, not just at the domain root. Everything else the page loads
+    # (modals, logo.png, version.json) is already relative and lives in the same
+    # flat dir, so a relative static/ path resolves the same from index.html and
+    # from any modal opened in the iframe.
+    html = re.sub(r'''(=|\()(["']?)/static/''', r'\1\2static/', html)
+
     return html
 
 
 def _copy_static(out):
-    """Copy collected static files so the rendered /static/… URLs resolve."""
+    """Copy the static files the public page needs into the export.
+
+    Skips assets the spectator page never loads so the export — and the SFTP
+    upload — isn't dominated by hundreds of unused files: the Django admin
+    console assets, the doc PDFs, the projector gong sounds, and WhiteNoise's
+    pre-compressed .gz/.br variants (a plain host serves the normal file). This
+    cuts the file count ~4x, which is what makes the upload slow (SFTP does a
+    round-trip per file).
+    """
     static_root = getattr(settings, 'STATIC_ROOT', None)
     if not (static_root and Path(static_root).is_dir() and any(Path(static_root).iterdir())):
         raise RuntimeError(
             'STATIC_ROOT is empty — run `manage.py collectstatic` before exporting.')
+    root = Path(static_root)
+
+    def _ignore(src, names):
+        skip = {n for n in names if n.endswith('.gz') or n.endswith('.br')}
+        if Path(src) == root:  # prune whole unused trees at the top level only
+            skip |= {n for n in names if n in _SKIP_STATIC_DIRS}
+        return skip
+
     dest = out / 'static'
     if dest.exists():
         shutil.rmtree(dest)
-    shutil.copytree(static_root, dest)
+    shutil.copytree(root, dest, ignore=_ignore)
 
 
 def export_public(subdomain, out_dir, copy_static=True):

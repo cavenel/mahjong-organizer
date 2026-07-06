@@ -17,6 +17,7 @@ robust profile, or by the standalone launcher):
 `version.json` is uploaded last so a polling client never sees a new version
 before the files it points at have landed.
 """
+import json
 import logging
 import os
 from pathlib import Path
@@ -27,6 +28,12 @@ logger = logging.getLogger(__name__)
 
 # Uploaded last, on its own, after every other file is in place.
 VERSION_FILE = 'version.json'
+
+# Local record of what we last uploaded (relpath → [size, mtime]) so repeat
+# publishes skip unchanged files — the CSS/JS/flags don't change between rounds,
+# so only the regenerated HTML + version.json actually upload. Kept in the export
+# dir, never uploaded.
+MANIFEST_FILE = '.upload_manifest.json'
 
 # All config is read live from os.environ inside the functions below (never
 # cached at import) so the standalone launcher and tests can set it after import.
@@ -70,11 +77,12 @@ def _ensure_remote_dir(sftp, remote_dir):
             sftp.mkdir(cur)
 
 
-def upload_dir(local_dir, subdomain=None):
-    """Upload everything under `local_dir` to PUBLISH_SFTP_PATH.
+def upload_dir(local_dir, subdomain=None, full=False):
+    """Upload `local_dir` to PUBLISH_SFTP_PATH, skipping files unchanged since the
+    last upload (unless `full`). version.json goes last.
 
     Does nothing if unconfigured, or if PUBLISH_TENANT is set and `subdomain`
-    doesn't match it. version.json goes last.
+    doesn't match it.
     """
     if not is_configured():
         logger.info("SFTP upload skipped: PUBLISH_SFTP_HOST not set.")
@@ -89,16 +97,36 @@ def upload_dir(local_dir, subdomain=None):
     local_dir = Path(local_dir)
     remote_root = (os.environ.get('PUBLISH_SFTP_PATH', '') or '.').rstrip('/')
 
-    # All files except version.json, then version.json last.
-    files = [p for p in local_dir.rglob('*') if p.is_file()]
+    manifest_path = local_dir / MANIFEST_FILE
+    previous = {}
+    if not full and manifest_path.exists():
+        try:
+            previous = json.loads(manifest_path.read_text())
+        except (ValueError, OSError):
+            previous = {}
+
+    # Everything except the local-only manifest; version.json last so a client
+    # never polls a new version before the files it points at have landed.
+    files = [p for p in local_dir.rglob('*') if p.is_file() and p.name != MANIFEST_FILE]
     files.sort(key=lambda p: (p.name == VERSION_FILE, str(p)))
+
+    # Skip files whose size+mtime match the last upload (static assets rarely
+    # change); always send version.json so the refresh signal lands.
+    manifest = {}
+    to_send = []
+    for f in files:
+        rel = f.relative_to(local_dir).as_posix()
+        st = f.stat()
+        sig = [st.st_size, int(st.st_mtime)]
+        manifest[rel] = sig
+        if f.name == VERSION_FILE or previous.get(rel) != sig:
+            to_send.append((f, rel))
 
     client = _connect()
     try:
         sftp = client.open_sftp()
         made = set()
-        for f in files:
-            rel = f.relative_to(local_dir).as_posix()
+        for f, rel in to_send:
             remote = f'{remote_root}/{rel}'
             rdir = remote.rsplit('/', 1)[0]
             if rdir not in made:
@@ -108,4 +136,10 @@ def upload_dir(local_dir, subdomain=None):
         sftp.close()
     finally:
         client.close()
-    logger.info("Uploaded %d files for %r to %s", len(files), subdomain, remote_root)
+
+    try:
+        manifest_path.write_text(json.dumps(manifest))
+    except OSError:
+        pass  # manifest is an optimization; losing it just means a full next upload
+    logger.info("Uploaded %d of %d files for %r to %s (skipped %d unchanged)",
+                len(to_send), len(files), subdomain, remote_root, len(files) - len(to_send))
