@@ -597,6 +597,16 @@ def publish_web(request):
     return JsonResponse({'status': 'ok', 'message': 'Publishing to the web…'})
 
 
+@user_passes_test(lambda u: u.is_staff)
+def publish_status(request):
+    """Poll the running (or last) 'Publish to web' job — drives the progress bar.
+    Returns {phase, pct, message, error}; phase is idle when nothing has run."""
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    from ..publish.trigger import get_progress
+    return JsonResponse(get_progress(subdomain) or {'phase': 'idle'})
+
+
 # The round timer is server-authoritative. `counter` holds an absolute epoch-ms
 # "gong moment": the instant the round starts (and the start gong sounds). Before
 # it, screens render a synchronized lead window + 3-2-1 countdown; after it, the

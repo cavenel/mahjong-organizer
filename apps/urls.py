@@ -29,6 +29,7 @@ urlpatterns = [
     path('logo', views.logo, name='logo'),
     path('update_logo', views.update_logo, name='update_logo'),
     path('publish_web', views.publish_web, name='publish_web'),
+    path('publish_status', views.publish_status, name='publish_status'),
     path('counter_start', views.counter_start, name='counter_start'),
 
     # User management (staff only)

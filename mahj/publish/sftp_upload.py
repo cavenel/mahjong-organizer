@@ -77,12 +77,13 @@ def _ensure_remote_dir(sftp, remote_dir):
             sftp.mkdir(cur)
 
 
-def upload_dir(local_dir, subdomain=None, full=False):
+def upload_dir(local_dir, subdomain=None, full=False, progress=None):
     """Upload `local_dir` to PUBLISH_SFTP_PATH, skipping files unchanged since the
     last upload (unless `full`). version.json goes last.
 
-    Does nothing if unconfigured, or if PUBLISH_TENANT is set and `subdomain`
-    doesn't match it.
+    `progress`, if given, is called as progress(done, total) after each file, so
+    the caller can drive a progress bar. Does nothing if unconfigured, or if
+    PUBLISH_TENANT is set and `subdomain` doesn't match it.
     """
     if not is_configured():
         logger.info("SFTP upload skipped: PUBLISH_SFTP_HOST not set.")
@@ -122,17 +123,20 @@ def upload_dir(local_dir, subdomain=None, full=False):
         if f.name == VERSION_FILE or previous.get(rel) != sig:
             to_send.append((f, rel))
 
+    total = len(to_send)
     client = _connect()
     try:
         sftp = client.open_sftp()
         made = set()
-        for f, rel in to_send:
+        for i, (f, rel) in enumerate(to_send, start=1):
             remote = f'{remote_root}/{rel}'
             rdir = remote.rsplit('/', 1)[0]
             if rdir not in made:
                 _ensure_remote_dir(sftp, rdir)
                 made.add(rdir)
             sftp.put(str(f), remote)
+            if progress:
+                progress(i, total)
         sftp.close()
     finally:
         client.close()

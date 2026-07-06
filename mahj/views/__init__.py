@@ -47,6 +47,7 @@ from .admin_views import (
     logo,
     options,
     publish_web,
+    publish_status,
     randomize,
     admin_team_draw,
     admin_team_draw_save,

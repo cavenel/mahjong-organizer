@@ -116,6 +116,37 @@ class TestAuthMenu:
         assert 'accounts/login' in html
 
 
+class TestPublishProgress:
+    def test_status_requires_staff(self, tournament):
+        from django.test import Client
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        resp = c.get('/publish_status')
+        assert resp.status_code in (301, 302)   # anonymous → login
+
+    def test_status_idle_by_default(self, tournament):
+        from django.contrib.auth.models import User
+        from django.test import Client
+        User.objects.create_user('boss', password='pw', is_staff=True)
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.force_login(User.objects.get(username='boss'))
+        assert c.get('/publish_status').json()['phase'] == 'idle'
+
+    def test_progress_round_trip(self, settings):
+        # The real cache (not the test DummyCache) is what the daemon thread and
+        # the poll endpoint share; verify set/get under a working backend.
+        settings.CACHES = {'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+        from django.core.cache import caches
+        caches['default'].clear()
+        from mahj.publish import trigger
+        assert trigger.get_progress('t') is None
+        trigger.set_progress('t', 'upload', pct=42, message='Uploading… 3/7')
+        p = trigger.get_progress('t')
+        assert p['phase'] == 'upload' and p['pct'] == 42
+
+
 class TestRevealMasking:
     def test_unpublished_round_hidden(self, tmp_path, tournament):
         # Round 3 is unpublished in the fixture; the anonymous export must not
