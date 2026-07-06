@@ -19,8 +19,18 @@ import os
 import sys
 import threading
 import time
+import warnings
 import webbrowser
 from pathlib import Path
+
+# WhiteNoise serves /static/ via a sync-iterator streaming response; under ASGI
+# Django emits a one-time warning as it falls back to sync_to_async. The files
+# serve correctly — silence the noise so the app's console stays clean. (The
+# cloud deployment serves static via nginx, so it never hits this path.)
+warnings.filterwarnings(
+    'ignore',
+    message='StreamingHttpResponse must consume synchronous iterators.*',
+)
 
 HOST = '127.0.0.1'
 PORT = 8000
