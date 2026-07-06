@@ -802,6 +802,19 @@ def options(request, error=None):
             # mahj.ovh URL would be cross-origin — and unreachable — on a laptop.
             "screen_base": request.build_absolute_uri('/').rstrip('/'),
         }
+        # Standalone (LAN-served) build: list the addresses other devices can use
+        # to open a screen — loopback (this machine) + the LAN IP. The public IP is
+        # filled in client-side (external lookup) with a port-forward warning.
+        if settings.STANDALONE:
+            from .helpers import lan_ip
+            port = request.get_port()
+            bases = [("This machine", f"http://127.0.0.1:{port}")]
+            ip = lan_ip()
+            if ip:
+                bases.append(("Same network (LAN)", f"http://{ip}:{port}"))
+            context["standalone"] = True
+            context["access_bases"] = bases
+            context["access_port"] = port
         template2 = loader.get_template('mahj/admin_display.html')
         page_content = template2.render(context, request)
     elif page == "import_template":

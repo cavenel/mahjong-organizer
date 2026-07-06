@@ -22,6 +22,17 @@ python -m standalone.run
 It opens `http://127.0.0.1:8000/options` in your browser. First run creates an
 `admin`/`admin` user — **change the password in the app.**
 
+## Opening screens on other devices (LAN)
+
+The app binds to all interfaces, so projector/scorer devices on the same network
+can reach it by the laptop's LAN IP. The admin **Display** page
+(`/admin?page=display`) lists the exact URLs — loopback for this machine, the LAN
+IP for other devices, and the public IP (only if you port-forward the router).
+Open one on the projector machine and add the screen number (`/1`, `/2`, …).
+
+Because the app is now reachable from the LAN, the (login-gated) admin console is
+too — so **changing the default `admin` password matters** on an untrusted network.
+
 ## Configuration (.env)
 
 Config is **not** baked into the binary. On first run the launcher writes an

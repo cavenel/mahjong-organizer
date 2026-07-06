@@ -119,6 +119,33 @@
           <span id="identify-screens-label">Identify screens</span>
         </button>
       </div>
+      {% if standalone %}
+      <!-- Addresses other devices on the venue can use to open a screen. This
+           machine uses loopback; other devices use the LAN IP; the public IP is
+           filled in client-side and only works with router port-forwarding. -->
+      <div class="mb-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-sm">
+        <h3 class="font-semibold text-gray-700 mb-1">Open a screen on another device</h3>
+        <p class="text-xs text-gray-500 mb-2">Browse to one of these on the projector machine, then add the screen number (<code>/1</code>, <code>/2</code>, …).</p>
+        <ul class="space-y-1 text-xs text-gray-700">
+          {% for label, base in access_bases %}
+          <li><span class="inline-block w-40 text-gray-500">{{ label }}:</span> <span class="font-mono">{{ base }}/<span class="text-gray-400">N</span></span></li>
+          {% endfor %}
+          <li id="public-access-row" class="hidden"><span class="inline-block w-40 text-gray-500">Public (internet):</span> <span class="font-mono"><span id="public-access-url"></span>/<span class="text-gray-400">N</span></span> <span class="text-amber-600">— only works if you port-forward port {{ access_port }} on the router</span></li>
+        </ul>
+      </div>
+      <script>
+        // The public IP needs an external lookup and only works with port
+        // forwarding, so fill it in client-side and flag the caveat.
+        fetch('https://api.ipify.org?format=json')
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (d && d.ip) {
+              document.getElementById('public-access-url').textContent = 'http://' + d.ip + ':{{ access_port }}';
+              document.getElementById('public-access-row').classList.remove('hidden');
+            }
+          }).catch(function () {});
+      </script>
+      {% endif %}
       <div id="previews-container" class="flex flex-wrap gap-4" style="display:none;">
         {% for screen in screens %}
           <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

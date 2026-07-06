@@ -50,6 +50,23 @@ class PositionForm(ModelForm):
         fields = ['id', 'minipoints', 'tablepoints']
 
 
+def lan_ip():
+    """Best-effort primary LAN IPv4 of this machine, for the standalone Display
+    page's "open screens on other devices" URLs. Uses the standard UDP-connect
+    trick (no packets are actually sent); None if it can't be determined."""
+    import socket
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(('8.8.8.8', 80))
+            ip = s.getsockname()[0]
+        finally:
+            s.close()
+        return ip if ip and not ip.startswith('127.') else None
+    except OSError:
+        return None
+
+
 def public_site_url(subdomain):
     """Public spectator-site URL to advertise (projector QR + caption, printed
     cards). settings.PUBLIC_SITE_URL overrides for the standalone build, which

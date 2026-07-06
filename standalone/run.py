@@ -32,7 +32,10 @@ warnings.filterwarnings(
     message='StreamingHttpResponse must consume synchronous iterators.*',
 )
 
-HOST = '127.0.0.1'
+# Bind all interfaces so projector/scorer devices on the venue LAN can reach the
+# screens by the laptop's LAN IP; the operator's own browser still uses loopback.
+BIND_HOST = '0.0.0.0'
+OPEN_HOST = '127.0.0.1'
 PORT = 8000
 SETTINGS_MODULE = 'apps.settings.standalone'
 SNAPSHOT_INTERVAL_S = 5 * 60   # take a backup every 5 minutes while running
@@ -177,12 +180,15 @@ def main():
     standalone_backup.take_snapshot()  # known-good snapshot at boot
     threading.Thread(target=_snapshot_loop, daemon=True).start()
 
-    url = f'http://{HOST}:{PORT}/options'
+    url = f'http://{OPEN_HOST}:{PORT}/options'
     threading.Timer(1.5, lambda: webbrowser.open(url)).start()
-    print(f"\nMahjong admin is running at {url}\n(Close this window to stop.)\n")
+    print(f"\nMahjong admin is running at {url}")
+    print("Other devices on this network can open display screens via the laptop's "
+          "LAN IP — the admin's Display page lists the exact URLs.")
+    print("(Close this window to stop.)\n")
 
     import uvicorn
-    uvicorn.run('apps.asgi:application', host=HOST, port=PORT, log_level='warning')
+    uvicorn.run('apps.asgi:application', host=BIND_HOST, port=PORT, log_level='warning')
 
 
 if __name__ == '__main__':

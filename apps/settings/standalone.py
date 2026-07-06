@@ -27,11 +27,12 @@ DEBUG = False
 # invalidates existing sessions/sesame links).
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or get_random_secret_key()
 
-# Served locally over http on the loopback interface (optionally the LAN so other
-# venue devices / projectors can reach it). Extra hosts come from ALLOWED_HOSTS.
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '[::1]', '0.0.0.0'] + [
-    h.strip() for h in os.environ.get('ALLOWED_HOSTS', '').split(',') if h.strip()
-]
+# Bound to 0.0.0.0 so projector/scorer devices on the venue LAN can open screens
+# by the laptop's LAN (or port-forwarded public) IP — which means the Host header
+# is whatever address they used. Host validation isn't a security boundary for
+# this single-tenant local app (the tenant is pinned via LOCAL_TENANT, not the
+# host), so accept any Host rather than have LAN devices hit a 400.
+ALLOWED_HOSTS = ['*']
 
 # --- sqlite instead of Postgres ---------------------------------------------
 # One local file, no pooling. The launcher points MAHJ_DB_PATH at a writable
