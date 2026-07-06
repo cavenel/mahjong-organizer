@@ -845,6 +845,9 @@ def options(request, error=None):
             "variables": get_variables(request),
             "subdomain": tenant.subdomain if tenant else '',
             "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
+            # Same-origin base for the preview iframes (see the display page):
+            # cloud → https://<tenant>.mahj.ovh, standalone → http://<host>:<port>.
+            "screen_base": request.build_absolute_uri('/').rstrip('/'),
         }, request)
     elif page == "publisher_overview":
         # Publisher-only: a plain scorer reaching this page (?page=…) gets nothing.
