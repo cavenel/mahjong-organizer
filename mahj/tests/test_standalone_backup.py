@@ -110,3 +110,25 @@ class TestRestore:
         (db.parent / sb._PENDING_MARKER).write_text('ghost.sqlite3')
         assert sb.apply_pending_restore() is None
         assert not (db.parent / sb._PENDING_MARKER).exists()
+
+
+class TestPublicSiteUrl:
+    """The spectator-site URL advertised on screens/cards: PUBLIC_SITE_URL wins,
+    else the tenant's <subdomain>.mahj.ovh (cloud default)."""
+
+    def test_fallback_to_subdomain(self, settings):
+        from mahj.views.helpers import public_site_url, public_site_host
+        settings.PUBLIC_SITE_URL = ''
+        assert public_site_url('oemc2026') == 'https://oemc2026.mahj.ovh'
+        assert public_site_host('oemc2026') == 'oemc2026.mahj.ovh'
+
+    def test_override_used_when_set(self, settings):
+        from mahj.views.helpers import public_site_url, public_site_host
+        settings.PUBLIC_SITE_URL = 'https://scores.example.org'
+        assert public_site_url('local') == 'https://scores.example.org'
+        assert public_site_host('local') == 'scores.example.org'
+
+    def test_override_without_scheme_gets_https(self, settings):
+        from mahj.views.helpers import public_site_url
+        settings.PUBLIC_SITE_URL = 'scores.example.org'
+        assert public_site_url('local') == 'https://scores.example.org'

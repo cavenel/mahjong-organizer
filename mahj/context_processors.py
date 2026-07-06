@@ -1,7 +1,7 @@
 from django.templatetags.static import static
 from django.urls import reverse
 
-from .views.helpers import get_variables
+from .views.helpers import get_tenant, get_variables, public_site_host, public_site_url
 
 
 def site_logo(request):
@@ -17,3 +17,19 @@ def site_logo(request):
     if variables is not None and variables.logo:
         return {"site_logo_url": f"{reverse('logo')}?v={variables.logo_etag}"}
     return {"site_logo_url": static("images/mcr_logo.png")}
+
+
+def public_site(request):
+    """Expose the spectator-site URL advertised on projector screens and printed
+    cards: `public_site_url` (with scheme, for QR/links) and `public_site_host`
+    (bare host, for a compact caption). PUBLIC_SITE_URL overrides for the
+    standalone build; otherwise it's the tenant's <subdomain>.mahj.ovh."""
+    try:
+        tenant = get_tenant(request)
+        subdomain = tenant.subdomain if tenant else ''
+    except Exception:
+        subdomain = ''
+    return {
+        "public_site_url": public_site_url(subdomain),
+        "public_site_host": public_site_host(subdomain),
+    }

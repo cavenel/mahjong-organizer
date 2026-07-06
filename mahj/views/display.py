@@ -31,7 +31,8 @@ def _spectator_qr_svg(subdomain):
         import segno
     except ImportError:
         return ''
-    url = f'https://{subdomain}.mahj.ovh'
+    from .helpers import public_site_url
+    url = public_site_url(subdomain)
     return segno.make(url, error='m').svg_inline(scale=3, border=2)
 
 

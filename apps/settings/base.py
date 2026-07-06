@@ -79,6 +79,7 @@ TEMPLATES = [
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
                 'mahj.context_processors.site_logo',
+                'mahj.context_processors.public_site',
             ],
         },
     },
@@ -150,6 +151,12 @@ SCAN_ENABLED = True
 # backup/restore from the Postgres worker path to sqlite snapshots + a
 # restore-on-relaunch applied by the launcher.
 STANDALONE = False
+
+# Public spectator-site URL advertised to spectators (projector QR + caption,
+# printed player cards). Unset in the cloud → falls back to the tenant's
+# <subdomain>.mahj.ovh. The standalone build sets it to wherever it publishes the
+# static site (see PUBLISH_SFTP_*), since 'local.mahj.ovh' isn't reachable.
+PUBLIC_SITE_URL = env('PUBLIC_SITE_URL', '')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

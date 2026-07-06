@@ -48,6 +48,11 @@ LOCAL_TENANT=
 # Venue wall-clock timezone (IANA name), for the projector clock.
 VENUE_TZ=Europe/Stockholm
 
+# Public site URL shown to spectators (projector QR + caption, printed cards).
+# Set it to where you publish the static site below; leave blank to show nothing
+# meaningful. Example: PUBLIC_SITE_URL=https://scores.example.org
+PUBLIC_SITE_URL=
+
 # --- Publish the public spectator site (optional) ---------------------------
 # Leave PUBLISH_SFTP_HOST blank to disable web publishing.
 PUBLISH_SFTP_HOST=

@@ -50,6 +50,21 @@ class PositionForm(ModelForm):
         fields = ['id', 'minipoints', 'tablepoints']
 
 
+def public_site_url(subdomain):
+    """Public spectator-site URL to advertise (projector QR + caption, printed
+    cards). settings.PUBLIC_SITE_URL overrides for the standalone build, which
+    publishes to an external host; otherwise the tenant's cloud subdomain."""
+    url = (getattr(settings, 'PUBLIC_SITE_URL', '') or '').strip().rstrip('/')
+    if url:
+        return url if '://' in url else f'https://{url}'
+    return f'https://{subdomain}.mahj.ovh'
+
+
+def public_site_host(subdomain):
+    """`public_site_url` without the scheme, for a compact on-screen caption."""
+    return public_site_url(subdomain).split('://', 1)[-1]
+
+
 def get_domain(request):
     # Local instance: a venue laptop is reached at localhost / a bare LAN IP,
     # which carries no subdomain, so normal host parsing can't find the tenant.
