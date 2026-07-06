@@ -60,7 +60,9 @@
           Stats
         </button>
       </nav>
-      <!-- Live indicator -->
+      <!-- Live indicator (WebSocket-backed — meaningless on the static export,
+           which only polls version.json for a new snapshot) -->
+      {% if not static_export %}
       <div class="flex items-center gap-2 shrink-0 ml-auto md:ml-0">
         <span x-show="wsConnected" class="text-green-600 text-xs font-medium flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-green-500 inline-block"></span> Live
@@ -69,6 +71,7 @@
           <span class="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block"></span> Offline
         </span>
       </div>
+      {% endif %}
       <!-- Overflow menu (auth actions — omitted from the static export, which has
            no login/admin on a plain host) -->
       {% if not static_export %}

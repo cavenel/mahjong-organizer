@@ -96,6 +96,11 @@ class TestAuthMenu:
         assert 'accounts/login' not in html
         assert 'open = !open' not in html   # the ⋮ overflow-menu toggle
 
+    def test_export_drops_live_indicator(self, tmp_path, tournament):
+        # No live socket on a static snapshot — the Live/Offline pill is gone.
+        html = (_export(tmp_path) / 'index.html').read_text()
+        assert 'x-show="wsConnected"' not in html
+
     def test_live_anon_view_keeps_login(self, tournament):
         # Regression guard: the normal (served) anon page still offers Login.
         from django.test import Client
