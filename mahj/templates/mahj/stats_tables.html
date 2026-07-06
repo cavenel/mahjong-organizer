@@ -53,7 +53,15 @@ plain span (a ratio spans many tables, so there's no single table to link to).
 
 {# 6 — Luck (self-draws / victims of self-draws) #}
 <h3 class="font-semibold text-gray-600 text-sm mb-3">Luck — self-draws{% if rn %} — Round {{ rn }}{% endif %}</h3>
-<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
   {% include "mahj/stats_ratio_card.html" with title="Luckiest — most self-draws" items=stats.luckiest %}
   {% include "mahj/stats_ratio_card.html" with title="Unluckiest — most victim of self-draws" items=stats.unluckiest %}
+</div>
+
+{# 7 — Self-draw rate: share of a player's own wins that were self-drawn #}
+<h3 class="font-semibold text-gray-600 text-sm mb-1">Self-draw rate — share of a player's wins{% if rn %} — Round {{ rn }}{% endif %}</h3>
+<p class="text-xs text-gray-400 mb-3">Proportion of wins taken by self-draw (count / total wins).</p>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  {% include "mahj/stats_ratio_card.html" with title="Highest self-draw rate" items=stats.sd_win_rate %}
+  {% include "mahj/stats_ratio_card.html" with title="Lowest self-draw rate" items=stats.sd_win_rate_low %}
 </div>

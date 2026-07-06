@@ -228,13 +228,20 @@
           </tr>
           {% endfor %}
         </tbody>
-        {% if extra_stats.total_hands %}
         <tfoot>
+          {% if extra_stats.total_wins %}
+          <tr class="border-t border-gray-200">
+            <td class="px-4 py-2.5 font-medium text-gray-800">Self-draws (share of wins)</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ extra_stats.sd_win_share_pct|floatformat:1 }}%</td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ extra_stats.sd_win }}/{{ extra_stats.total_wins }}</td>
+          </tr>
+          {% endif %}
+          {% if extra_stats.total_hands %}
           <tr class="border-t border-gray-200 text-xs text-gray-400">
             <td class="px-4 py-2" colspan="3">{{ extra_stats.total_hands }} hands played</td>
           </tr>
+          {% endif %}
         </tfoot>
-        {% endif %}
       </table>
     </div>
 

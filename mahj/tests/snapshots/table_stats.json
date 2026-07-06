@@ -278,6 +278,190 @@
     }
   ],
   "nb_won": 128,
+  "sd_win_rate": [
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00002",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player2",
+        "full_name": "Player2 Lastname",
+        "id": 2,
+        "pk": 2,
+        "rand_id": 2,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00003",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player3",
+        "full_name": "Player3 Lastname",
+        "id": 3,
+        "pk": 3,
+        "rand_id": 3,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00004",
+        "__model__": "Player",
+        "country": "France",
+        "email": "",
+        "first_name": "Player4",
+        "full_name": "Player4 Lastname",
+        "id": 4,
+        "pk": 4,
+        "rand_id": 4,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00001",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player1",
+        "full_name": "Player1 Lastname",
+        "id": 1,
+        "pk": 1,
+        "rand_id": 1,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00007",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player7",
+        "full_name": "Player7 Lastname",
+        "id": 7,
+        "pk": 7,
+        "rand_id": 7,
+        "team": "",
+        "tenant_id": 1
+      }
+    }
+  ],
+  "sd_win_rate_low": [
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00002",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player2",
+        "full_name": "Player2 Lastname",
+        "id": 2,
+        "pk": 2,
+        "rand_id": 2,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00003",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player3",
+        "full_name": "Player3 Lastname",
+        "id": 3,
+        "pk": 3,
+        "rand_id": 3,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00004",
+        "__model__": "Player",
+        "country": "France",
+        "email": "",
+        "first_name": "Player4",
+        "full_name": "Player4 Lastname",
+        "id": 4,
+        "pk": 4,
+        "rand_id": 4,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00001",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player1",
+        "full_name": "Player1 Lastname",
+        "id": 1,
+        "pk": 1,
+        "rand_id": 1,
+        "team": "",
+        "tenant_id": 1
+      }
+    },
+    {
+      "count": 0,
+      "nb_hands": 8,
+      "pct": 0.0,
+      "player": {
+        "EMA_ID": "E00007",
+        "__model__": "Player",
+        "country": "Sweden",
+        "email": "",
+        "first_name": "Player7",
+        "full_name": "Player7 Lastname",
+        "id": 7,
+        "pk": 7,
+        "rand_id": 7,
+        "team": "",
+        "tenant_id": 1
+      }
+    }
+  ],
   "tables_finished": 8,
   "tables_total": 8,
   "unluckiest": [

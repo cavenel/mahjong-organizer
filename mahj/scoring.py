@@ -180,6 +180,7 @@ def _table_stats_for(positions, hands, valid):
     deal_ins = defaultdict(int)
     self_draws = defaultdict(int)
     sd_victims = defaultdict(int)
+    wins = defaultdict(int)
     won_pts = won_count = 0
     for rt, table_hands in hand_by_table.items():
         for h in table_hands:
@@ -187,8 +188,10 @@ def _table_stats_for(positions, hands, valid):
                 continue
             won_pts += h.pts
             won_count += 1
+            winner = pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
+            if winner is not None:
+                wins[winner] += 1
             if _is_self_draw(h):
-                winner = pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
                 if winner is not None:
                     self_draws[winner] += 1
                 for seat in (1, 2, 3, 4):
@@ -224,6 +227,18 @@ def _table_stats_for(positions, hands, valid):
     luckiest = sorted(_ratio_items(self_draws), key=lambda d: d['pct'], reverse=True)[:5]
     unluckiest = sorted(_ratio_items(sd_victims), key=lambda d: d['pct'], reverse=True)[:5]
 
+    # Self-draw rate = share of a player's own wins that were self-drawn (denominator
+    # is wins, not hands played). For the top card, ties on the rate are broken by the
+    # raw self-draw count (a 5/5 outranks a 1/1); for the bottom card, by the win count
+    # (0/10 is a more telling "never self-drew" than 0/1).
+    sd_rate_items = [
+        {'player': player, 'count': self_draws.get(player, 0), 'nb_hands': w,
+         'pct': round(100 * self_draws.get(player, 0) / w, 1)}
+        for player, w in wins.items() if w > 0
+    ]
+    sd_win_rate = sorted(sd_rate_items, key=lambda d: (d['pct'], d['count']), reverse=True)[:5]
+    sd_win_rate_low = sorted(sd_rate_items, key=lambda d: (d['pct'], -d['nb_hands']))[:5]
+
     return {
         'tables_finished': tables_finished,
         'tables_total': tables_total,
@@ -234,6 +249,8 @@ def _table_stats_for(positions, hands, valid):
         'gave_least': gave_least,
         'luckiest': luckiest,
         'unluckiest': unluckiest,
+        'sd_win_rate': sd_win_rate,
+        'sd_win_rate_low': sd_win_rate_low,
     }
 
 
@@ -581,6 +598,11 @@ def player_extra_stats(tenant, player, variables, max_round=None):
     total_won = sum(won_count.values())
     avg_hand_value = sum(won_pts.values()) / total_won if total_won else None
 
+    # Share of the player's own wins that came by self-draw (denominator is wins,
+    # not hands — distinct from the "Win by self-draw" rate, which is over all hands).
+    total_wins = sd_win + ron_win
+    sd_win_share_pct = sd_win / total_wins * 100 if total_wins else None
+
     def _pct(n):
         return n / total_hands if total_hands else 0
 
@@ -597,6 +619,9 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         'total_rounds': total_rounds,
         'hand_stats': hand_stats,
         'total_hands': total_hands,
+        'sd_win': sd_win,
+        'total_wins': total_wins,
+        'sd_win_share_pct': sd_win_share_pct,
         'hand_value': hand_value,
         'avg_hand_value': avg_hand_value,
         'total_won': total_won,
