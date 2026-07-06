@@ -39,6 +39,9 @@ def _make_request(subdomain, tenant):
     request = RequestFactory().get('/', HTTP_HOST=f'{subdomain}.mahj.ovh')
     request.user = AnonymousUser()
     request._tenant = tenant
+    # Signals the desktop view to drop the auth menu (no login on a static host)
+    # and skip the shared anon HTML cache.
+    request._static_export = True
     return request
 
 

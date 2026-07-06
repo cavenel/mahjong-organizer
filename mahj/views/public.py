@@ -44,12 +44,18 @@ def desktop(request):
     view = ('staff' if is_admin else 'admin' if user_can_access_admin
             else 'user' if authenticated else 'anon')
 
+    # A static-export render has no auth on the target host, so it drops the
+    # login/admin menu — and must neither read nor write the live anon HTML cache
+    # (that variant still needs the menu).
+    static_export = getattr(request, '_static_export', False)
+
     # Cache the full rendered HTML — it only changes when scores/variables are written,
     # both of which already call invalidate_leaderboard() which deletes this key.
     html_key = f'desktop_html:{subdomain}:{view}'
-    cached_html = cache.get(html_key)
-    if cached_html is not None:
-        return HttpResponse(cached_html)
+    if not static_export:
+        cached_html = cache.get(html_key)
+        if cached_html is not None:
+            return HttpResponse(cached_html)
 
     variables = get_variables(request)
     nb_rounds = variables.nb_rounds
@@ -150,10 +156,12 @@ def desktop(request):
         'team_rows': team_rows,
         'user_authenticated': authenticated,
         'user_can_access_admin': user_can_access_admin,
+        'static_export': static_export,
     }
     template = loader.get_template('mahj/desktop.html')
     html = template.render(context, request)
-    cache.set(html_key, html, HTML_CACHE_TTL)
+    if not static_export:
+        cache.set(html_key, html, HTML_CACHE_TTL)
     return HttpResponse(html)
 
 

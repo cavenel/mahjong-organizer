@@ -89,6 +89,22 @@ class TestRewrites:
         assert not (out / 'logo.png').exists()
 
 
+class TestAuthMenu:
+    def test_export_drops_login_menu(self, tmp_path, tournament):
+        # No auth on a static host — the overflow menu and its login link are gone.
+        html = (_export(tmp_path) / 'index.html').read_text()
+        assert 'accounts/login' not in html
+        assert 'open = !open' not in html   # the ⋮ overflow-menu toggle
+
+    def test_live_anon_view_keeps_login(self, tournament):
+        # Regression guard: the normal (served) anon page still offers Login.
+        from django.test import Client
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        html = c.get('/').content.decode()
+        assert 'accounts/login' in html
+
+
 class TestRevealMasking:
     def test_unpublished_round_hidden(self, tmp_path, tournament):
         # Round 3 is unpublished in the fixture; the anonymous export must not
