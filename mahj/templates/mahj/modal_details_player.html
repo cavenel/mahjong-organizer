@@ -238,6 +238,42 @@
       </table>
     </div>
 
+    <!-- Average Winning Hand -->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">Average Winning Hand</span>
+      </div>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+            <th class="px-4 py-2 text-left font-medium">Round</th>
+            <th class="px-4 py-2 text-right font-medium">Avg value</th>
+            <th class="px-4 py-2 text-right font-medium">Wins</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+          {% for row in extra_stats.hand_value %}
+          <tr class="{% if row.count %}hover:bg-gray-50{% else %}text-gray-300{% endif %}">
+            <td class="px-4 py-2.5 font-medium text-gray-800">Round {{ row.round_nb }}</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if row.count %}{{ row.avg|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ row.count }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="border-t border-gray-200 font-semibold">
+            <td class="px-4 py-2.5 text-gray-700">Overall</td>
+            <td class="px-4 py-2.5 text-right font-bold text-amber-600">
+              {% if extra_stats.total_won %}{{ extra_stats.avg_hand_value|floatformat:1 }}{% else %}—{% endif %}
+            </td>
+            <td class="px-4 py-2.5 text-right text-gray-500">{{ extra_stats.total_won }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+
     <!-- Strength of Schedule -->
     {% if extra_stats.opp_strength.count %}
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

@@ -4,8 +4,8 @@ their detail page, and the value is a plain badge (no per-table link, since a
 ratio spans many tables).
 
 Arguments:
-  title — card heading ("Gave most" / "Gave least")
-  items — list of {player, nb_from, nb_hands, pct}
+  title — card heading ("Gave most" / "Gave least" / "Luckiest" / …)
+  items — list of {player, count, nb_hands, pct}
 {% endcomment %}
 <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
   <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
@@ -23,7 +23,7 @@ Arguments:
         {% endif %}
         <span class="ml-3 shrink-0">
           <span class="font-bold text-amber-600">{{ item.pct }}%</span>
-          <span class="ml-1 text-gray-400 text-xs">({{ item.nb_from }}/{{ item.nb_hands }})</span>
+          <span class="ml-1 text-gray-400 text-xs">({{ item.count }}/{{ item.nb_hands }})</span>
         </span>
       </div>
       {% endfor %}

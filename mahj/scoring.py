@@ -168,16 +168,41 @@ def _table_stats_for(positions, hands, valid):
     tables_finished = sum(1 for n in hands_played.values() if n == 16)
     avg_hands = round(sum(hands_played.values()) / tables_total, 1) if tables_total else 0
 
-    # Deal-ins: win_from is a seat, resolve it to a player via the position lookup
-    # (same N+1-avoidance as _hand_item). Only real wins from another player count.
+    # Per-player win/luck tallies from every game hand on a validated table. A seat
+    # (win_by / win_from) is resolved to a player via the position lookup, the same
+    # N+1-avoidance as _hand_item.
+    #   deal_ins    — gave the winning tile (a discard win from another seat)
+    #   self_draws  — won by self-draw (the "luckiest": no one had to feed them)
+    #   sd_victims  — sat through someone else's self-draw (the "unluckiest": paid
+    #                 out without dealing in; all three non-winners are victims)
+    # Alongside them, the tournament-wide average value of a won hand.
     pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in positions}
     deal_ins = defaultdict(int)
+    self_draws = defaultdict(int)
+    sd_victims = defaultdict(int)
+    won_pts = won_count = 0
     for rt, table_hands in hand_by_table.items():
         for h in table_hands:
-            if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0 and not _is_self_draw(h):
+            if h.hand_nb >= COMPLETION_HAND_NB or h.pts <= 0:
+                continue
+            won_pts += h.pts
+            won_count += 1
+            if _is_self_draw(h):
+                winner = pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
+                if winner is not None:
+                    self_draws[winner] += 1
+                for seat in (1, 2, 3, 4):
+                    if seat == h.win_by:
+                        continue
+                    victim = pos_lookup.get((h.round_nb, h.table_nb, seat))
+                    if victim is not None:
+                        sd_victims[victim] += 1
+            else:
                 giver = pos_lookup.get((h.round_nb, h.table_nb, h.win_from))
                 if giver is not None:
                     deal_ins[giver] += 1
+
+    avg_hand_value = round(won_pts / won_count, 1) if won_count else 0
 
     # Hands played by a player = the played-count of every validated table they sat at.
     played = defaultdict(int)
@@ -186,20 +211,29 @@ def _table_stats_for(positions, hands, valid):
         if rt in valid:
             played[p.player] += hands_played[rt]
 
-    items = [
-        {'player': player, 'nb_from': deal_ins.get(player, 0), 'nb_hands': n,
-         'pct': round(100 * deal_ins.get(player, 0) / n, 1)}
-        for player, n in played.items() if n > 0
-    ]
-    gave_most = sorted(items, key=lambda d: d['pct'], reverse=True)[:5]
-    gave_least = sorted(items, key=lambda d: d['pct'])[:5]
+    def _ratio_items(tally):
+        return [
+            {'player': player, 'count': tally.get(player, 0), 'nb_hands': n,
+             'pct': round(100 * tally.get(player, 0) / n, 1)}
+            for player, n in played.items() if n > 0
+        ]
+
+    deal_in_items = _ratio_items(deal_ins)
+    gave_most = sorted(deal_in_items, key=lambda d: d['pct'], reverse=True)[:5]
+    gave_least = sorted(deal_in_items, key=lambda d: d['pct'])[:5]
+    luckiest = sorted(_ratio_items(self_draws), key=lambda d: d['pct'], reverse=True)[:5]
+    unluckiest = sorted(_ratio_items(sd_victims), key=lambda d: d['pct'], reverse=True)[:5]
 
     return {
         'tables_finished': tables_finished,
         'tables_total': tables_total,
         'avg_hands': avg_hands,
+        'avg_hand_value': avg_hand_value,
+        'nb_won': won_count,
         'gave_most': gave_most,
         'gave_least': gave_least,
+        'luckiest': luckiest,
+        'unluckiest': unluckiest,
     }
 
 
@@ -505,6 +539,10 @@ def player_extra_stats(tenant, player, variables, max_round=None):
             hands_played[h.round_nb] = h.hand_nb
 
     sd_win = ron_win = deal_in = sd_lose = draw = total_hands = 0
+    # Value (pts) of the hands this player won, kept per round so the modal can show
+    # a per-round average alongside the tournament average.
+    won_pts = defaultdict(int)
+    won_count = defaultdict(int)
     for h in hands:
         info = round_table_seat.get(h.round_nb)
         if info is None or h.table_nb != info[0]:
@@ -521,6 +559,8 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         total_hands += 1
         is_sd = h.win_from == 0 or h.win_from == h.win_by
         if h.win_by == seat:
+            won_pts[h.round_nb] += h.pts
+            won_count[h.round_nb] += 1
             if is_sd:
                 sd_win += 1
             else:
@@ -529,6 +569,17 @@ def player_extra_stats(tenant, player, variables, max_round=None):
             deal_in += 1
         elif h.win_by != seat and is_sd:
             sd_lose += 1
+
+    hand_value = [
+        {
+            'round_nb': rn,
+            'count': won_count[rn],
+            'avg': won_pts[rn] / won_count[rn] if won_count[rn] else None,
+        }
+        for rn in sorted(round_table_seat)
+    ]
+    total_won = sum(won_count.values())
+    avg_hand_value = sum(won_pts.values()) / total_won if total_won else None
 
     def _pct(n):
         return n / total_hands if total_hands else 0
@@ -546,6 +597,9 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         'total_rounds': total_rounds,
         'hand_stats': hand_stats,
         'total_hands': total_hands,
+        'hand_value': hand_value,
+        'avg_hand_value': avg_hand_value,
+        'total_won': total_won,
         'opp_strength': _opponent_strength(tenant, positions, variables, max_round),
     }
 
