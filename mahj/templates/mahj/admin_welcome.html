@@ -54,65 +54,23 @@
             class="px-4 py-2 text-sm font-medium text-white bg-amber-600 rounded-lg hover:bg-amber-700 disabled:opacity-50">
       Publish to web
     </button>
-    <!-- Non-blocking progress: the upload runs in the background; we poll and
-         update this bar without freezing the page. -->
-    <div id="publish-progress" class="hidden mt-3">
-      <div class="h-2 w-full rounded-full bg-gray-200 overflow-hidden">
-        <div id="publish-bar" class="h-full bg-amber-500 transition-all duration-300 ease-out" style="width:0%"></div>
-      </div>
-      <p id="publish-msg" class="text-xs text-gray-500 mt-1"></p>
-    </div>
   </div>
   <script>
-    (function() {
-      var btn = $("#publish-web-btn"), box = $("#publish-progress"),
-          bar = $("#publish-bar"), msg = $("#publish-msg"), polling = false;
-
-      function paint(j) {
-        var pct = (j.pct == null ? 0 : j.pct);
-        if (j.phase === 'error') {
-          bar.css('width', '100%').removeClass('bg-amber-500 bg-green-500').addClass('bg-rose-500');
-          msg.removeClass('text-gray-500').addClass('text-rose-600').text(j.error || 'Publish failed.');
-        } else if (j.phase === 'done') {
-          bar.css('width', '100%').removeClass('bg-amber-500 bg-rose-500').addClass('bg-green-500');
-          msg.removeClass('text-rose-600').addClass('text-green-600').text(j.message || 'Published.');
-        } else {
-          bar.css('width', pct + '%').removeClass('bg-rose-500 bg-green-500').addClass('bg-amber-500');
-          msg.removeClass('text-rose-600 text-green-600').addClass('text-gray-500').text(j.message || 'Working…');
-        }
-      }
-
-      function poll() {
-        $.getJSON('publish_status')
-          .done(function(j) {
-            if (!j || j.phase === 'idle') { setTimeout(poll, 800); return; }
-            paint(j);
-            if (j.phase === 'done' || j.phase === 'error') {
-              polling = false;
-              btn.prop('disabled', false);
-              return;
-            }
-            setTimeout(poll, 800);
-          })
-          .fail(function() { setTimeout(poll, 1200); });
-      }
-
-      btn.on('click', function() {
-        btn.prop('disabled', true);
-        box.removeClass('hidden');
-        paint({ phase: 'starting', pct: 0, message: 'Starting…' });
-        $.ajax({
-          type: "POST", url: "publish_web", dataType: "json",
-          data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-          success: function() { if (!polling) { polling = true; poll(); } },
-          error: function(xhr) {
-            var m = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'Publish failed.';
-            paint({ phase: 'error', error: m });
-            btn.prop('disabled', false);
-          }
-        });
+    // Kick off the publish; the shell-wide toast (admin.html) shows the progress,
+    // so it stays visible across page changes and for auto-publishes too.
+    $("#publish-web-btn").on('click', function() {
+      var btn = $(this);
+      btn.prop('disabled', true);
+      $.ajax({
+        type: "POST", url: "publish_web", dataType: "json",
+        data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+        error: function(xhr) {
+          var m = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'Publish failed.';
+          window.alertAction({ title: 'Couldn’t publish', body: m });
+        },
+        complete: function() { setTimeout(function() { btn.prop('disabled', false); }, 1500); }
       });
-    })();
+    });
   </script>
   {% endif %}
 

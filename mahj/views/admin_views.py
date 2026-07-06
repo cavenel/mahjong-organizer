@@ -597,10 +597,12 @@ def publish_web(request):
     return JsonResponse({'status': 'ok', 'message': 'Publishing to the web…'})
 
 
-@user_passes_test(lambda u: u.is_staff)
+@user_passes_test(can_access_admin)
 def publish_status(request):
-    """Poll the running (or last) 'Publish to web' job — drives the progress bar.
-    Returns {phase, pct, message, error}; phase is idle when nothing has run."""
+    """Poll the running (or last) publish job — drives the shell progress toast.
+    Any admin role can read it (auto-publish fires on a publisher's round publish,
+    not just staff's manual push). Returns {phase, pct, message, error}; phase is
+    idle when nothing is running."""
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     from ..publish.trigger import get_progress
@@ -945,6 +947,7 @@ def options(request, error=None):
     else:
         page_content = "None"
 
+    from ..publish.sftp_upload import is_configured as _static_publish_configured
     context = {
         "username": request.user.username,
         "page": page,
@@ -953,5 +956,8 @@ def options(request, error=None):
         "user_is_display_op": is_display_op(request.user),
         "user_is_publisher": is_publisher(request.user),
         "uses_teams": Player.objects.filter(tenant=tenant).exclude(team="").exists(),
+        # Drives the shell-wide publish progress toast (polls publish_status) — only
+        # when web publishing is configured, so idle installs don't poll.
+        "static_publish_enabled": _static_publish_configured(),
     }
     return HttpResponse(template.render(context, request))

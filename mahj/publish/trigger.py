@@ -23,9 +23,11 @@ _export_lock = threading.Lock()
 
 # Progress is written to the cache (shared between the daemon thread and the
 # admin poll requests: LocMem in the single-process standalone build, Redis in
-# the cloud) so the "Publish to web" button can show a live bar. Short TTL — it's
-# only meaningful while a publish is running or just finished.
+# the cloud) so the shell-wide toast can show a live bar on any page. In-progress
+# state lingers (in case a publish hangs); terminal state (done/error) expires
+# fast so the toast auto-clears instead of re-appearing on every navigation.
 _PROGRESS_TTL = 300
+_TERMINAL_TTL = 20
 
 
 def _progress_key(subdomain):
@@ -33,9 +35,10 @@ def _progress_key(subdomain):
 
 
 def set_progress(subdomain, phase, pct=None, message='', error=''):
+    ttl = _TERMINAL_TTL if phase in ('done', 'error') else _PROGRESS_TTL
     cache.set(_progress_key(subdomain),
               {'phase': phase, 'pct': pct, 'message': message, 'error': error},
-              _PROGRESS_TTL)
+              ttl)
 
 
 def get_progress(subdomain):
