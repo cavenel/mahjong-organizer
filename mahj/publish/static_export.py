@@ -181,6 +181,12 @@ def export_public(subdomain, out_dir, copy_static=True):
         write(f'detailed_scores_{round_nb}_{table_nb}.html',
               render(public_modals.detailed_scores, round_nb, table_nb))
 
+    # The stats tab's "Download stats" button links here. stats_xlsx returns a
+    # binary workbook (not HTML), so it bypasses render()/write(); the anonymous
+    # request gives it the same reveal-masked public data as every other page.
+    stats_resp = public.stats_xlsx(_make_request(subdomain, tenant))
+    (out / 'stats.xlsx').write_bytes(stats_resp.content)
+
     if copy_static:
         _copy_static(out)
 

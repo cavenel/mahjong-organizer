@@ -52,6 +52,20 @@ class TestFilesProduced:
         assert (out / f'details_team_{_team_slug("Alpha")}.html').exists()
         assert (out / f'details_team_{_team_slug("Beta")}.html').exists()
 
+    def test_stats_xlsx_produced_and_linked(self, tmp_path, tournament):
+        import io
+        from openpyxl import load_workbook
+        out = _export(tmp_path)
+        f = out / 'stats.xlsx'
+        assert f.exists()
+        wb = load_workbook(io.BytesIO(f.read_bytes()))
+        headers = [c.value for c in wb['Players'][1]]
+        assert 'Rank' in headers and 'Player' in headers
+        assert wb['Players'].max_row >= 2   # header + at least one player
+        # The stats-tab button links to it; the href stays relative (not .html-suffixed
+        # like the modal links) so it resolves to the exported file in the flat dir.
+        assert 'href="stats.xlsx"' in (out / 'index.html').read_text()
+
 
 class TestRewrites:
     def test_modal_links_get_html_suffix(self, tmp_path, tournament):
