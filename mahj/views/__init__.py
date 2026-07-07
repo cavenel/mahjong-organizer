@@ -34,7 +34,7 @@ from .score_entry import (
     update_positions_bulk,
 )
 from .ceremony import ceremony_control, ceremony_data
-from .public import desktop
+from .public import desktop, stats_xlsx
 from .public_modals import (
     detailed_scores,
     details_player,

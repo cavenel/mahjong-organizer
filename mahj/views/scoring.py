@@ -108,6 +108,13 @@ def table_stats_rounds(request, check_final=False, positions=None, hands=None):
     return result
 
 
+def stats_export(request, check_final=False, positions=None, hands=None):
+    return _scoring.stats_export(
+        get_tenant(request), get_variables(request), check_final,
+        positions=positions, hands=hands,
+    )
+
+
 def tournament_seating(request, check_final=True, force_all=False, valid_pairs=None, positions=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''

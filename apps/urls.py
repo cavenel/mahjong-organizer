@@ -5,6 +5,7 @@ from mahj import views
 
 urlpatterns = [
     path('', views.desktop, name='home'),
+    path('stats.xlsx', views.stats_xlsx, name='stats_xlsx'),
     path('admin', views.options),
     path('options', views.options, name='options'),
     path('admin_db/', admin.site.urls),

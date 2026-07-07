@@ -1,15 +1,21 @@
 """Public `/` landing page: the tournament desktop view."""
+import io
+
 from django.contrib.auth import logout
 from django.core.cache import cache
 from django.http import HttpResponse, HttpResponseRedirect
 from django.template import loader
+from openpyxl import Workbook
+from openpyxl.formatting.rule import ColorScaleRule
+from openpyxl.styles import Alignment, Font
+from openpyxl.utils import get_column_letter
 
 from ..models import Hand, Position, Schedule
 from ..scoring import team_standings
 from .helpers import can_access_admin, get_tenant, get_variables
 from .scoring import (
     LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
-    table_stats, table_stats_rounds, tournament_seating,
+    stats_export, table_stats, table_stats_rounds, tournament_seating,
 )
 
 HTML_CACHE_TTL = LEADERBOARD_TTL  # same TTL as data; also invalidated by signals
@@ -149,3 +155,120 @@ def desktop(request):
     html = template.render(context, request)
     cache.set(html_key, html, HTML_CACHE_TTL)
     return HttpResponse(html)
+
+
+# Excel color-scale endpoints: red (worst) → yellow → green (best). 'down' columns
+# (rank, deal-ins, losses) are where a *lower* value is better, so their scale is
+# flipped so green still marks the good end.
+_XLSX_RED, _XLSX_MID, _XLSX_GREEN = 'F8696B', 'FFEB84', '63BE7B'
+
+
+def _color_scale(good='up'):
+    lo, hi = (_XLSX_RED, _XLSX_GREEN) if good == 'up' else (_XLSX_GREEN, _XLSX_RED)
+    return ColorScaleRule(
+        start_type='min', start_color=lo,
+        mid_type='percentile', mid_value=50, mid_color=_XLSX_MID,
+        end_type='max', end_color=hi,
+    )
+
+
+def stats_xlsx(request):
+    """Download every displayed per-player stat as one colour-scaled Excel sheet.
+
+    Same visibility as the stats tab: public viewers get published rounds, admins
+    get every scored round. Each numeric column carries a red→green colour scale
+    (green = the better end), matching the on-screen player/tournament stats.
+    """
+    tenant = get_tenant(request)
+    if tenant is None:
+        return HttpResponseRedirect('admin')
+    subdomain = tenant.subdomain if tenant else ''
+    is_admin = request.user.is_staff
+    check_final = not is_admin
+
+    positions = list(
+        Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
+    )
+    hands = list(Hand.objects.filter(tenant=tenant))
+    data = stats_export(request, check_final=check_final, positions=positions, hands=hands)
+
+    is_mcr = data['rules'] == 'MCR'
+    uses_teams = data['uses_teams']
+    nb_rounds = data['round_max']
+
+    # (header, row-accessor, colour direction | None). Per-round columns are spliced
+    # in after the totals; everything after is a stat straight from stats_export.
+    cols = [
+        ('Rank', lambda r: r['rank'], 'down'),
+        ('Player', lambda r: r['name'], None),
+        ('Country', lambda r: r['country'], None),
+    ]
+    if uses_teams:
+        cols.append(('Team', lambda r: r['team'], None))
+    if is_mcr:
+        cols.append(('Total TP', lambda r: r['total_tp'], 'up'))
+    cols.append(('Total MP', lambda r: r['total_mp'], 'up'))
+    for i in range(nb_rounds):
+        cols.append((f'R{i + 1} MP', (lambda i: lambda r: (r['scores'][i]['mp'] if i < len(r['scores']) else None))(i), 'up'))
+        if is_mcr:
+            cols.append((f'R{i + 1} TP', (lambda i: lambda r: (r['scores'][i]['tp'] if i < len(r['scores']) else None))(i), 'up'))
+    cols += [
+        ('1st', lambda r: r['placement'][1], 'up'),
+        ('2nd', lambda r: r['placement'][2], 'up'),
+        ('3rd', lambda r: r['placement'][3], 'down'),
+        ('4th', lambda r: r['placement'][4], 'down'),
+        ('Hands', lambda r: r['total_hands'], 'up'),
+        ('Wins', lambda r: r['wins'], 'up'),
+        ('Win self-draw', lambda r: r['sd_win'], 'up'),
+        ('Win discard', lambda r: r['ron_win'], 'up'),
+        ('Self-draw % of wins', lambda r: r['sd_win_share_pct'], 'up'),
+        ('Self-draw rate %', lambda r: r['sd_rate_pct'], 'up'),
+        ('Avg hand value', lambda r: r['avg_hand_value'], 'up'),
+        ('Biggest hand', lambda r: r['biggest_hand'], 'up'),
+        ('Deal-ins', lambda r: r['deal_in'], 'down'),
+        ('Deal-in %', lambda r: r['deal_in_pct'], 'down'),
+        ('Self-draw victim', lambda r: r['sd_lose'], 'down'),
+        ('Self-draw victim %', lambda r: r['sd_lose_pct'], 'down'),
+        ('Draws', lambda r: r['draws'], 'up'),
+        ("Opp strength total", lambda r: r['opp_total'], 'up'),
+        ('Opp strength avg', lambda r: r['opp_avg'], 'up'),
+        ('Opponents', lambda r: r['opp_count'], 'up'),
+    ]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Players'
+
+    header_font = Font(bold=True)
+    for c, (header, _accessor, _good) in enumerate(cols, start=1):
+        cell = ws.cell(row=1, column=c, value=header)
+        cell.font = header_font
+        cell.alignment = Alignment(horizontal='center', vertical='bottom', wrap_text=True)
+
+    for r, row in enumerate(data['players'], start=2):
+        for c, (_header, accessor, _good) in enumerate(cols, start=1):
+            ws.cell(row=r, column=c, value=accessor(row))
+
+    last_row = len(data['players']) + 1
+    if last_row >= 2:
+        for c, (_header, _accessor, good) in enumerate(cols, start=1):
+            if good is None:
+                continue
+            letter = get_column_letter(c)
+            ws.conditional_formatting.add(
+                f'{letter}2:{letter}{last_row}', _color_scale(good),
+            )
+
+    # Freeze the header + first two identity columns; size columns to their headers.
+    ws.freeze_panes = 'D2' if uses_teams else 'C2'
+    for c, (header, _accessor, _good) in enumerate(cols, start=1):
+        ws.column_dimensions[get_column_letter(c)].width = max(9, min(len(header) + 2, 22))
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{subdomain or "tournament"}_stats.xlsx"'
+    return response

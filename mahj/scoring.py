@@ -133,6 +133,161 @@ def table_stats_rounds(tenant, variables, check_final=False, positions=None, han
     ]
 
 
+def stats_export(tenant, variables, check_final=False, positions=None, hands=None):
+    """One comprehensive per-player stats row for the 'Download stats' export.
+
+    Folds together everything the player-detail modal and the tournament stats tab
+    show — standings, per-round scores, placement, win/loss breakdown, self-draw
+    luck, average/biggest hand, strength of schedule — computed in a single pass
+    over the prefetched positions/hands (no per-player queries). Rounds are capped
+    exactly like the on-screen stats: public viewers see published rounds, admins
+    see every scored round.
+    """
+    if check_final:
+        round_max = public_round_max(tenant, variables, force_all=False)
+    else:
+        round_max = _last_complete_round(tenant, variables)
+
+    if positions is None:
+        positions = list(
+            Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
+        )
+    if hands is None:
+        hands = list(Hand.objects.filter(tenant=tenant))
+
+    scored = [p for p in positions if p.round_nb <= round_max]
+    valid = _validated_tables(hands, round_max)
+    rank_field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
+
+    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in scored}
+    pos_by_table = _group_by(scored, key=lambda p: (p.round_nb, p.table_nb))
+
+    # Each player's full-tournament total of the ranking field (for strength of schedule).
+    field_total = defaultdict(float)
+    for p in scored:
+        v = getattr(p, rank_field)
+        if v is not None:
+            field_total[p.player_id] += float(v)
+
+    hand_by_table = _group_by(
+        (h for h in hands if (h.round_nb, h.table_nb) in valid),
+        key=lambda h: (h.round_nb, h.table_nb),
+    )
+    hands_played = {
+        rt: max((h.hand_nb for h in hand_by_table[rt]
+                 if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0), default=0)
+        for rt in valid
+    }
+
+    total_hands = defaultdict(int)  # every played hand at a validated table they sat at
+    draws = defaultdict(int)
+    sd_win = defaultdict(int)
+    ron_win = defaultdict(int)
+    deal_in = defaultdict(int)
+    sd_lose = defaultdict(int)      # sat through someone else's self-draw
+    won_pts = defaultdict(int)
+    biggest = defaultdict(int)
+
+    for (r, t), table_hands in hand_by_table.items():
+        hp = hands_played[(r, t)]
+        decided = 0
+        for h in table_hands:
+            if h.hand_nb >= COMPLETION_HAND_NB or h.hand_nb > hp:
+                continue
+            if h.pts <= 0:
+                continue  # mid-table draw — credited to every seat via draw_table below
+            decided += 1
+            winner = pos_lookup.get((r, t, h.win_by))
+            if winner is not None:
+                won_pts[winner.id] += h.pts
+                biggest[winner.id] = max(biggest[winner.id], h.pts)
+                if _is_self_draw(h):
+                    sd_win[winner.id] += 1
+                else:
+                    ron_win[winner.id] += 1
+            if _is_self_draw(h):
+                for seat in (1, 2, 3, 4):
+                    if seat == h.win_by:
+                        continue
+                    victim = pos_lookup.get((r, t, seat))
+                    if victim is not None:
+                        sd_lose[victim.id] += 1
+            else:
+                giver = pos_lookup.get((r, t, h.win_from))
+                if giver is not None:
+                    deal_in[giver.id] += 1
+        draw_table = hp - decided
+        for seat in (1, 2, 3, 4):
+            seated = pos_lookup.get((r, t, seat))
+            if seated is not None:
+                total_hands[seated.id] += hp
+                draws[seated.id] += draw_table
+
+    placement = defaultdict(lambda: {1: 0, 2: 0, 3: 0, 4: 0})
+    opp_total = defaultdict(float)
+    opp_count = defaultdict(int)
+    for peers in pos_by_table.values():
+        scored_peers = [p for p in peers if getattr(p, rank_field) is not None]
+        for p in peers:
+            mine = getattr(p, rank_field)
+            if mine is not None:
+                place = 1 + sum(1 for q in scored_peers if getattr(q, rank_field) > mine)
+                if place <= 4:
+                    placement[p.player_id][place] += 1
+            for q in peers:
+                if q.player_id != p.player_id:
+                    opp_total[p.player_id] += field_total.get(q.player_id, 0.0)
+                    opp_count[p.player_id] += 1
+
+    # Standings drive rank, totals and per-round scores, masked exactly like the
+    # public leaderboard (mirrors desktop's scores_per_player_json call).
+    standings = player_standings(
+        tenant, variables, check_final=True, force_all=not check_final, positions=positions,
+    )
+
+    def _rate(n, d):
+        return round(100 * n / d, 1) if d else None
+
+    rows = []
+    for s in standings:
+        pid = s['player_id']
+        th = total_hands.get(pid, 0)
+        wins = sd_win.get(pid, 0) + ron_win.get(pid, 0)
+        rows.append({
+            'rank': s['pos'],
+            'name': s['name'],
+            'country': s.get('country', ''),
+            'team': s.get('team', ''),
+            'total_tp': s['total']['tp'],
+            'total_mp': s['total']['mp'],
+            'scores': s.get('scores', []),
+            'placement': placement.get(pid, {1: 0, 2: 0, 3: 0, 4: 0}),
+            'total_hands': th,
+            'wins': wins,
+            'sd_win': sd_win.get(pid, 0),
+            'ron_win': ron_win.get(pid, 0),
+            'sd_win_share_pct': _rate(sd_win.get(pid, 0), wins),
+            'sd_rate_pct': _rate(sd_win.get(pid, 0), th),
+            'deal_in': deal_in.get(pid, 0),
+            'deal_in_pct': _rate(deal_in.get(pid, 0), th),
+            'sd_lose': sd_lose.get(pid, 0),
+            'sd_lose_pct': _rate(sd_lose.get(pid, 0), th),
+            'draws': draws.get(pid, 0),
+            'avg_hand_value': round(won_pts.get(pid, 0) / wins, 1) if wins else None,
+            'biggest_hand': biggest.get(pid, 0) or None,
+            'opp_total': round(opp_total.get(pid, 0.0), 1) if opp_count.get(pid) else None,
+            'opp_avg': round(opp_total.get(pid, 0.0) / opp_count[pid], 1) if opp_count.get(pid) else None,
+            'opp_count': opp_count.get(pid, 0),
+        })
+
+    return {
+        'round_max': round_max,
+        'rules': variables.rules,
+        'uses_teams': any(r['team'] for r in rows),
+        'players': rows,
+    }
+
+
 def _validated_tables(hands, round_max):
     """(round, table) pairs with a hand_nb=17, pts=1 marker, capped at round_max.
 
