@@ -737,9 +737,35 @@ def options(request, error=None):
     if page == "welcome" or page is None:
         page = "welcome"
         from ..publish.sftp_upload import is_configured as _static_publish_configured
+        from ..scoring import _last_complete_round, publish_state
+        variables = get_variables(request)
+        nb_players = Player.objects.filter(tenant=tenant).count()
+        nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
+        nb_screens = Screen.objects.filter(tenant=tenant).count()
+        # _last_complete_round returns nb_rounds when it finds no incomplete seat —
+        # which also happens with no seats at all, a false "all complete". Guard on
+        # the seating chart actually existing.
+        has_seats = Seat.objects.filter(tenant=tenant).exists()
+        complete_round = _last_complete_round(tenant, variables) if has_seats else 0
+        last_published, _ = publish_state(tenant, variables)
         template2 = loader.get_template('mahj/admin_welcome.html')
         page_content = template2.render(
-            {"error": error, "static_publish_enabled": _static_publish_configured()},
+            {
+                "error": error,
+                "static_publish_enabled": _static_publish_configured(),
+                "variables": variables,
+                "nb_players": nb_players,
+                # A player is "drawn in" once assigned a draw number; the roster is
+                # ready to play when every player holds one.
+                "draw_done": nb_players > 0 and nb_drawn == nb_players,
+                "nb_drawn": nb_drawn,
+                "nb_screens": nb_screens,
+                "complete_round": complete_round,
+                "last_published": last_published,
+                # Server-authoritative round timer: >0 and in the future means a
+                # round is counting down / running (the dashboard shows it live).
+                "counter": get_counter(tenant),
+            },
             request,
         )
     elif page == "display":

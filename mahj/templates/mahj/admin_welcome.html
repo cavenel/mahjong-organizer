@@ -22,25 +22,61 @@
 </div>
 {% endif %}
 
-<div class="max-w-3xl space-y-4">
-  <h2 class="text-2xl font-bold text-gray-800">Admin dashboard</h2>
+<div class="max-w-3xl space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">{{ variables.title|default:"Dashboard" }}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{ variables.fullname }}{% if variables.city %} · {{ variables.city }}{% endif %}{% if variables.period %} · {{ variables.period }}{% endif %}</p>
+  </div>
 
-  <p class="text-gray-700">
-    <span class="font-semibold">{{ base_domain }}</span>
-    <span class="italic text-gray-500">(Mahjong Organizer Virtual Hub)</span>
-    is an &ldquo;all-in-one&rdquo; toolbox for organizing Mahjong Tournaments.
-  </p>
-
+  <!-- Setup checklist --------------------------------------------------------->
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-    <h3 class="text-sm font-semibold text-gray-700 mb-3">Features</h3>
-    <ul class="space-y-2 text-sm text-gray-700">
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Import players, positions and schedule from a spreadsheet file.</li>
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Print player cards, table positions, etc.</li>
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Write scores during tournament.</li>
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Print scores.</li>
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Manage displays / projectors (show counter, scores between rounds, schedule, etc.).</li>
-      <li class="flex gap-2"><span class="text-amber-500">›</span>Export EMA report.</li>
+    <h3 class="text-sm font-bold text-gray-800 mb-4">Setup</h3>
+    <ul class="space-y-3 text-sm">
+      <li class="flex items-center gap-3">
+        {% if nb_players %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700"><span class="font-medium">{{ nb_players }}</span> player{{ nb_players|pluralize }} imported</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No players yet — <a href="admin?page=import_template" class="text-amber-600 hover:underline">import a roster</a></span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        {% if draw_done %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700">Draw complete — every player has a seat</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500"><span class="font-medium">{{ nb_drawn }}</span>/{{ nb_players }} players drawn in — <a href="admin?page=randomize" class="text-amber-600 hover:underline">run the draw</a></span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        {% if nb_screens %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700"><span class="font-medium">{{ nb_screens }}</span> display screen{{ nb_screens|pluralize }} configured</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No display screens — <a href="admin?page=display" class="text-amber-600 hover:underline">add screens</a> (optional)</span>
+        {% endif %}
+      </li>
     </ul>
+  </div>
+
+  <!-- Progress + counter ------------------------------------------------------>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Rounds</h3>
+      <p class="text-2xl font-bold text-gray-800">{{ complete_round }} <span class="text-lg font-normal text-gray-400">/ {{ variables.nb_rounds }}</span></p>
+      <p class="text-xs text-gray-500 mt-1">scored{% if last_published %} · published up to R{{ last_published }}{% else %} · nothing published yet{% endif %}</p>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5"
+         x-data="dashCounter({{ counter }}, {{ variables.total_time }})" x-init="tick()">
+      <h3 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Round timer</h3>
+      <p class="text-2xl font-bold" :class="state==='running' ? 'text-green-600' : 'text-gray-400'" x-text="label"></p>
+      <p class="text-xs text-gray-500 mt-1">
+        <a href="admin?page=display" class="text-amber-600 hover:underline">Manage on the Displays page</a>
+      </p>
+    </div>
   </div>
 
   {% if static_publish_enabled and request.user.is_staff %}
@@ -78,3 +114,35 @@
     Note that this application is not in any way related to the European Mahjong Association.
   </p>
 </div>
+
+<script>
+  // Round-timer summary for the dashboard card. `counter` is the server's gong
+  // moment (epoch-ms); `total_time` the round length (s). Mirrors the display
+  // page's read-only view — start/stop lives on the Displays page.
+  function dashCounter(counter, totalTime) {
+    return {
+      counter: counter, totalTime: totalTime, state: 'stopped', label: 'Stopped',
+      tick() {
+        var self = this;
+        function update() {
+          if (!self.counter || self.counter <= 0) { self.state = 'stopped'; self.label = 'Stopped'; return; }
+          var elapsedMs = Date.now() - self.counter;
+          if (elapsedMs < 0) {
+            self.state = 'running';
+            self.label = 'Starting in ' + Math.ceil(-elapsedMs / 1000) + 's';
+          } else if (elapsedMs < self.totalTime * 1000) {
+            self.state = 'running';
+            var left = Math.max(0, self.totalTime - Math.floor(elapsedMs / 1000));
+            var m = Math.floor(left / 60), s = left % 60;
+            self.label = m + ':' + (s < 10 ? '0' : '') + s + ' left';
+          } else {
+            self.state = 'stopped';
+            self.label = 'Round ended';
+          }
+        }
+        update();
+        setInterval(update, 1000);
+      }
+    };
+  }
+</script>

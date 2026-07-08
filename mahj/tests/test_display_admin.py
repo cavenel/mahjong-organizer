@@ -379,3 +379,34 @@ def test_player_editor_save_requires_staff(client_, display_op, tournament):
         content_type='application/json')
     # user_passes_test redirects non-staff to login rather than serving the view.
     assert resp.status_code in (302, 403)
+
+
+# ── Dashboard (admin?page=welcome) ───────────────────────────────────────────
+# The landing page: a setup checklist + round/timer progress, shown to every
+# admin role.
+
+def test_dashboard_shows_setup_and_progress(client_, staff, tournament):
+    client_.force_login(staff)
+    html = client_.get('/admin?page=welcome').content.decode()
+    assert 'Setup' in html
+    # 16 players seeded, all with draw numbers → roster + draw ticks (the count
+    # sits in its own <span>, so match the surrounding text, not the whole line).
+    assert 'players imported' in html
+    assert '>16<' in html
+    assert 'Draw complete' in html
+    # The live round-timer card is present.
+    assert 'dashCounter' in html
+
+
+def test_dashboard_empty_tenant_does_not_claim_all_rounds(client_, staff, tenant):
+    """With no seats, the round-progress must read 0 — not nb_rounds — even though
+    _last_complete_round returns nb_rounds when it finds no incomplete seat."""
+    TournamentSettings.objects.create(tenant=tenant, welcome='W', nb_rounds=7)
+    client_.force_login(staff)
+    resp = client_.get('/admin?page=welcome')
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'No players yet' in html
+    # complete_round rendered as "0 / 7", never "7 / 7".
+    assert '/ 7' in html
+    assert '>7 <' not in html
