@@ -216,13 +216,9 @@ def ceremony_control(request):
         broadcast_display(subdomain, 'ceremony.update', {'event': 'ceremony', 'phase': 'idle'})
 
         # Only now — after the ceremony — push the full final standings to the
-        # webhook. During play the last round is published with its result
-        # hidden for suspense, so this is the first time complete results leave.
-        from ..webhook import fire_webhook, leaderboard_payload
-        standings = scores_per_player_json(request, check_final=True)
-        fire_webhook(leaderboard_payload('round_published', standings, variables), subdomain)
-
-        # Push the now-complete final standings to the static spectator site too.
+        # static spectator site. During play the last round is published with its
+        # result hidden for suspense, so this is the first time complete results
+        # leave the venue.
         from ..publish.trigger import fire_static_export
         fire_static_export(subdomain)
 

@@ -604,8 +604,7 @@ order, or skip them entirely.
 
 > The "Publish to everyone & end" step is how the **final standings** become
 > public: during play the last round is published with its result hidden for
-> suspense, and this reveal is the first time complete results leave the building
-> (it also pushes the final standings to any configured webhook).
+> suspense, and this reveal is the first time complete results leave the building.
 
 ### If a screen looks stuck
 

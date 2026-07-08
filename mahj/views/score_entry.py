@@ -470,12 +470,6 @@ def set_round_published(request):
     )
     broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
 
-    from ..webhook import fire_webhook, leaderboard_payload
-    from .scoring import scores_per_player_json
-    standings = scores_per_player_json(request, check_final=True)
-    event = 'round_published' if published else 'round_unpublished'
-    fire_webhook(leaderboard_payload(event, standings, tournament, round_nb), subdomain)
-
     # Regenerate + upload the static spectator site (no-op unless SFTP configured).
     from ..publish.trigger import fire_static_export
     fire_static_export(subdomain)

@@ -475,7 +475,6 @@ On success:
   publishing freezes the official numbers.)
 - The **public leaderboard updates** and all display screens refresh to show the
   newly official standings.
-- If a webhook is configured, a `round_published` event is sent.
 
 > ![Published round](screenshots/31-published-round.png)<br>
 > 📸 **Screenshot — a published (locked) round: green "Published", grey inputs.**
@@ -757,8 +756,7 @@ order, or skip them entirely.
 
 > The "Publish to everyone & end" step is how the **final standings** become
 > public: during play the last round is published with its result hidden for
-> suspense, and this reveal is the first time complete results leave the building
-> (it also pushes the final standings to any configured webhook).
+> suspense, and this reveal is the first time complete results leave the building.
 
 ### If a screen looks stuck
 

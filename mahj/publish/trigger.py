@@ -1,11 +1,9 @@
 """Fire a public-site export+upload after a publish, off the request thread.
 
-Mirrors webhook.fire_webhook: publish/unpublish already pushes leaderboard JSON
-to the optional webhook; this does the parallel job of regenerating the static
-spectator site and SFTP-uploading it. It runs in a daemon thread so a publish
-request never blocks on rendering or the network, and is a no-op unless SFTP is
-configured (PUBLISH_SFTP_HOST) and — if PUBLISH_TENANT is set — the publishing
-tenant matches it.
+Publish/unpublish regenerates the static spectator site and SFTP-uploads it. It
+runs in a daemon thread so a publish request never blocks on rendering or the
+network, and is a no-op unless SFTP is configured (PUBLISH_SFTP_HOST) and — if
+PUBLISH_TENANT is set — the publishing tenant matches it.
 """
 import logging
 import os

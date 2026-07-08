@@ -215,20 +215,6 @@ class TestControlEndpoint:
         for rn in range(1, nb_rounds + 1):
             assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).withheld is False
 
-    def test_publish_fires_webhook_with_full_final_standings(self, op_client, monkeypatch):
-        """The full final standings reach the webhook only after the ceremony."""
-        sent = []
-        monkeypatch.setattr('mahj.webhook.fire_webhook',
-                            lambda payload, subdomain=None: sent.append(payload))
-
-        op_client.get('/ceremony_control?action=publish')
-
-        assert len(sent) == 1
-        payload = sent[0]
-        assert payload['event'] == 'round_published'
-        # Standings include every round (no suspense truncation once published).
-        assert any(s['total']['mp'] for s in payload['standings'])
-
 
 class TestScreenTakeover:
     def test_idle_shows_normal_view(self, teamed):

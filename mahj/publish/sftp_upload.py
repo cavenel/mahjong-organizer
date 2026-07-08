@@ -10,9 +10,8 @@ robust profile, or by the standalone launcher):
     PUBLISH_SFTP_KEY          path to a private key (optional; preferred)
     PUBLISH_SFTP_PATH         remote directory the site is served from
     PUBLISH_SFTP_KNOWN_HOSTS  known_hosts file (optional; else auto-add)
-    PUBLISH_TENANT            only this tenant's exports upload (mirrors
-                              WEBHOOK_TENANT) — guards a shared target against a
-                              test tenant clobbering the live site.
+    PUBLISH_TENANT            only this tenant's exports upload — guards a shared
+                              target against a test tenant clobbering the live site.
 
 `version.json` is uploaded last so a polling client never sees a new version
 before the files it points at have landed.
