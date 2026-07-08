@@ -11,7 +11,7 @@ from django.contrib.auth.models import Group, User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
-from mahj.models import Hand
+from mahj.models import Hand, ScoreSheet
 
 
 HOST = 'test.mahj.ovh'
@@ -49,15 +49,15 @@ class TestScanPrefill:
         assert resp.json()['ok'] is True
 
         h1 = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
-        assert h1.pts == 20 and h1.win_by == 1 and h1.win_from == 2
+        assert h1.points == 20 and h1.win_by == 1 and h1.win_from == 2
         assert h1.confidence == pytest.approx(0.3)  # 'unsure'
 
         h2 = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=2)
         assert h2.confidence == pytest.approx(1.0)  # 'certain'
 
-        # Sheet stays NOT valid: the validation marker (hand_nb=17) is pts=0.
-        valid = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=17)
-        assert valid.pts == 0
+        # Sheet stays NOT valid: the ScoreSheet exists but is not validated.
+        sheet = ScoreSheet.objects.get(tenant=tenant, round_nb=3, table_nb=1)
+        assert sheet.validated is False
 
     def test_filled_table_conflicts_for_anonymous_no_force(self, client_, tournament):
         """A filled table is never overwritten by a scan — there is no `force`
@@ -65,7 +65,7 @@ class TestScanPrefill:
         tenant = tournament['tenant']
         h = Hand.objects.create(
             tenant=tenant, round_nb=3, table_nb=3, hand_nb=1,
-            pts=20, win_by=1, win_from=2, confidence=1.0,
+            points=20, win_by=1, win_from=2, confidence=1.0,
         )
         body = {
             'round_nb': 3, 'table_nb': 3, 'validate': False, 'force': True,
@@ -76,17 +76,17 @@ class TestScanPrefill:
         assert resp.json()['conflict'] is True
         # `force` is ignored; the original row is intact.
         h.refresh_from_db()
-        assert h.pts == 20
+        assert h.points == 20
 
     def test_manual_edit_resets_confidence(self, client_, tournament, scorer):
         client_.force_login(scorer)
         tenant = tournament['tenant']
         h = Hand.objects.create(
             tenant=tenant, round_nb=3, table_nb=2, hand_nb=1,
-            pts=20, win_by=1, win_from=2, confidence=0.3,
+            points=20, win_by=1, win_from=2, confidence=0.3,
         )
         resp = client_.post('/update_hand_points', {
-            'id': h.id, 'version': h.version, 'pts': 24, 'by': 1, 'from': 2,
+            'id': h.id, 'version': h.version, 'points': 24, 'by': 1, 'from': 2,
         })
         assert resp.status_code == 200
         h.refresh_from_db()

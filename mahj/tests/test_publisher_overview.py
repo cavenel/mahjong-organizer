@@ -3,13 +3,13 @@ its data block is only rendered for publishers/staff.
 
 The fixture (see conftest.tournament) seeds 3 rounds: rounds 1 & 2 are complete
 (all tables scored, every score sheet validated) and published; round 3 has
-Positions but no scores and is unpublished.
+seats but no scores and is unpublished.
 """
 import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Hand, Position
+from mahj.models import Seat, ScoreSheet
 from mahj.views.admin_views import publisher_overview_rows
 
 HOST = 'test.mahj.ovh'
@@ -75,18 +75,19 @@ class TestOverviewRows:
         # Wipe the validation marker on round 1 / table 1 but keep its 1-16 hands:
         # the sheet is now "in progress", not validated.
         tenant = tournament['tenant']
-        Hand.objects.filter(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17).delete()
+        ScoreSheet.objects.filter(
+            tenant=tenant, round_nb=1, table_nb=1).update(validated=False)
         r1 = self._rows(tournament)[1]
         assert 1 in r1['inprogress_tables']
         assert 1 not in r1['validated_tables']
         assert sorted(r1['validated_tables']) == [2, 3, 4]
 
     def test_scored_requires_all_four_positions(self, tournament):
-        # Blank one position's minipoints in round 1 / table 1 → no longer scored.
+        # Blank one seat's minipoints in round 1 / table 1 → no longer scored.
         tenant = tournament['tenant']
-        pos = Position.objects.filter(tenant=tenant, round_nb=1, table_nb=1).first()
-        pos.minipoints = None
-        pos.save()
+        seat = Seat.objects.filter(tenant=tenant, round_nb=1, table_nb=1).first()
+        seat.minipoints = None
+        seat.save()
         r1 = self._rows(tournament)[1]
         assert 1 not in r1['scored_tables']
         assert r1['complete'] is False

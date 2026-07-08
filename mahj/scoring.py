@@ -1,8 +1,13 @@
 """Pure scoring/stats helpers — no request/view dependencies.
 
-Each public function takes (tenant, variables, ...) and returns the same data
+Each public function takes (tenant, tournament, ...) and returns the same data
 shape as the corresponding view previously produced. Golden-file tests in
 tests/test_scoring_golden.py lock the output shape.
+
+Hand encoding (see docs/data-model.md): a hand is a draw when ``win_by is None``
+and a self-draw when ``win_from is None``; ``points`` is its value. A validated
+score sheet stores exactly the hands played (draws included), so "hands played at
+a table" is simply its Hand row count — there is no unplayed-slot heuristic.
 """
 from collections import defaultdict
 from functools import lru_cache
@@ -11,43 +16,69 @@ from itertools import groupby
 import pycountry
 from django.db.models import Q, Sum
 
-from .models import Hand, Player, Position, PublishedRound, Schedule
+from .models import Hand, Player, ScoreSheet, Seat, PublishedRound, Schedule
 
 
 WINDS = ('East', 'South', 'West', 'North')
-COMPLETION_HAND_NB = 17  # a hand_nb=17 row with pts=0 marks a (round, table) as not yet final
+
+
+def _attach_players(tenant, seats):
+    """Resolve each Seat's competitor from its draw_number and attach it as
+    transient ``.player`` / ``.player_id`` attributes.
+
+    The draw lives on ``Player.draw_number`` (a Seat links to a competitor only by
+    draw number), so code that reads ``seat.player`` / ``seat.player_id`` gets it
+    from here. One players query, then in-memory. Returns the same list.
+    """
+    players = {
+        p.draw_number: p
+        for p in Player.objects.filter(tenant=tenant, draw_number__isnull=False)
+    }
+    for s in seats:
+        s.player = players.get(s.draw_number)
+        s.player_id = s.player.id if s.player else None
+    return seats
 
 
 # ---- public API -----------------------------------------------------------
 
-def scores_per_table(tenant, variables):
-    """Nested list [round][table][position] = {} or {'position': Position}."""
+def scores_per_table(tenant, tournament):
+    """Nested list [round][table][seat] = {} or {'seat': Seat}."""
     nb_tables = Player.objects.filter(tenant=tenant).count() // 4
     grid = [
         [[{} for _ in range(4)] for _ in range(nb_tables)]
-        for _ in range(variables.nb_rounds)
+        for _ in range(tournament.nb_rounds)
     ]
-    for p in Position.objects.filter(tenant=tenant).select_related('player').order_by('id'):
-        grid[p.round_nb - 1][p.table_nb - 1][p.position - 1] = {'position': p}
+    seats = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('id')))
+    for p in seats:
+        grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = {'position': p}
     return grid
 
 
-def round_winners(tenant, variables, check_final=False, positions=None, hands=None):
+def round_winners(tenant, tournament, check_final=False, positions=None, hands=None):
     """Per-round top minipoints / single-hand score / same-seat-win streaks."""
     if check_final:
         # Public viewers see the same rounds as the standings and the detail
         # modals: capped at the last published round, with the withheld final
-        # round dropped during the ceremony-pending (reveal==0) window.
-        round_max = public_round_max(tenant, variables, force_all=False)
+        # round dropped during the ceremony-pending window.
+        round_max = public_round_max(tenant, tournament, force_all=False)
     else:
-        round_max = _last_complete_round(tenant, variables)
+        round_max = _last_complete_round(tenant, tournament)
 
     if positions is None:
-        positions = list(
-            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
-        )
+        positions = _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+        ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
+
+    # A round is "complete" (stats shown) once no table in it has an open,
+    # not-yet-validated score sheet. Tables never opened don't block it.
+    open_rounds = {
+        s.round_nb for s in ScoreSheet.objects.filter(
+            tenant=tenant, validated=False, round_nb__lte=round_max)
+    }
 
     pos_by_round = _group_by(
         (p for p in positions if p.round_nb <= round_max),
@@ -59,19 +90,19 @@ def round_winners(tenant, variables, check_final=False, positions=None, hands=No
     )
 
     return [
-        _winners_for_round(pos_by_round[rn], hand_by_round[rn])
+        _winners_for_round(pos_by_round[rn], hand_by_round[rn], rn not in open_rounds)
         for rn in range(1, round_max + 1)
     ]
 
 
-def overall_winners(tenant, variables, check_final=False, positions=None, hands=None):
+def overall_winners(tenant, tournament, check_final=False, positions=None, hands=None):
     """Aggregate round_winners across rounds: items from rounds tying for overall top.
 
     ``check_final`` is forwarded to ``round_winners`` so the overall roll-up honours
     the same end-of-tournament masking as the per-round stats: while the final round
     is prepared but not yet published, its hands/scores stay out of these cards.
     """
-    rounds = round_winners(tenant, variables, check_final, positions=positions, hands=hands)
+    rounds = round_winners(tenant, tournament, check_final, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
         'hand_max':      _roll_up(rounds, 'hand_max',      lambda h: h['pts']),
@@ -83,45 +114,44 @@ def overall_winners(tenant, variables, check_final=False, positions=None, hands=
     }
 
 
-def table_stats(tenant, variables, check_final=False, positions=None, hands=None):
+def table_stats(tenant, tournament, check_final=False, positions=None, hands=None):
     """Validated-table completion + per-player deal-in ("From") ratios.
 
-    Scope: only tables carrying a hand_nb=17, pts=1 validation marker, capped at
-    the same published round as the other stats. Draws and unplayed
-    slots are indistinguishable in the data (both pts=0), so hands-played is read
-    as the index of the last hand with pts>0 — trailing zeros count as not played.
+    Scope: only validated score sheets, capped at the same published round as the
+    other stats. A validated sheet stores exactly the hands played, so hands-played
+    is just its Hand row count.
     """
     if check_final:
-        round_max = public_round_max(tenant, variables, force_all=False)
+        round_max = public_round_max(tenant, tournament, force_all=False)
     else:
-        round_max = _last_complete_round(tenant, variables)
+        round_max = _last_complete_round(tenant, tournament)
 
     if positions is None:
-        positions = list(
-            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
-        )
+        positions = _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+        ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
 
-    valid = _validated_tables(hands, round_max)
+    valid = _validated_tables(tenant, round_max)
     return _table_stats_for(positions, hands, valid)
 
 
-def table_stats_rounds(tenant, variables, check_final=False, positions=None, hands=None):
+def table_stats_rounds(tenant, tournament, check_final=False, positions=None, hands=None):
     """Per-round version of table_stats: one dict per round, like round_winners."""
     if check_final:
-        round_max = public_round_max(tenant, variables, force_all=False)
+        round_max = public_round_max(tenant, tournament, force_all=False)
     else:
-        round_max = _last_complete_round(tenant, variables)
+        round_max = _last_complete_round(tenant, tournament)
 
     if positions is None:
-        positions = list(
-            Position.objects.filter(tenant=tenant, round_nb__lte=round_max).select_related('player')
-        )
+        positions = _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+        ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
 
-    valid = _validated_tables(hands, round_max)
+    valid = _validated_tables(tenant, round_max)
     pos_by_round = _group_by((p for p in positions if p.round_nb <= round_max), key=lambda p: p.round_nb)
     hand_by_round = _group_by((h for h in hands if h.round_nb <= round_max), key=lambda h: h.round_nb)
     return [
@@ -133,33 +163,33 @@ def table_stats_rounds(tenant, variables, check_final=False, positions=None, han
     ]
 
 
-def stats_export(tenant, variables, check_final=False, positions=None, hands=None):
+def stats_export(tenant, tournament, check_final=False, positions=None, hands=None):
     """One comprehensive per-player stats row for the 'Download stats' export.
 
     Folds together everything the player-detail modal and the tournament stats tab
     show — standings, per-round scores, placement, win/loss breakdown, self-draw
     luck, average/biggest hand, strength of schedule — computed in a single pass
-    over the prefetched positions/hands (no per-player queries). Rounds are capped
+    over the prefetched seats/hands (no per-player queries). Rounds are capped
     exactly like the on-screen stats: public viewers see published rounds, admins
     see every scored round.
     """
     if check_final:
-        round_max = public_round_max(tenant, variables, force_all=False)
+        round_max = public_round_max(tenant, tournament, force_all=False)
     else:
-        round_max = _last_complete_round(tenant, variables)
+        round_max = _last_complete_round(tenant, tournament)
 
     if positions is None:
-        positions = list(
-            Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
-        )
+        positions = _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant).order_by('round_nb')
+        ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant))
 
     scored = [p for p in positions if p.round_nb <= round_max]
-    valid = _validated_tables(hands, round_max)
-    rank_field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
+    valid = _validated_tables(tenant, round_max)
+    rank_field = 'tablepoints' if tournament.rules == 'MCR' else 'minipoints'
 
-    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in scored}
+    pos_lookup = {(p.round_nb, p.table_nb, p.wind): p.player for p in scored}
     pos_by_table = _group_by(scored, key=lambda p: (p.round_nb, p.table_nb))
 
     # Each player's full-tournament total of the ranking field (for strength of schedule).
@@ -169,15 +199,13 @@ def stats_export(tenant, variables, check_final=False, positions=None, hands=Non
         if v is not None:
             field_total[p.player_id] += float(v)
 
+    # Validated sheets store exactly the hands played, so a table's hands played is
+    # its Hand row count and its draws are the hands with no winner.
     hand_by_table = _group_by(
         (h for h in hands if (h.round_nb, h.table_nb) in valid),
         key=lambda h: (h.round_nb, h.table_nb),
     )
-    hands_played = {
-        rt: max((h.hand_nb for h in hand_by_table[rt]
-                 if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0), default=0)
-        for rt in valid
-    }
+    hands_played = {rt: len(hand_by_table[rt]) for rt in valid}
 
     total_hands = defaultdict(int)  # every played hand at a validated table they sat at
     draws = defaultdict(int)
@@ -192,24 +220,22 @@ def stats_export(tenant, variables, check_final=False, positions=None, hands=Non
         hp = hands_played[(r, t)]
         decided = 0
         for h in table_hands:
-            if h.hand_nb >= COMPLETION_HAND_NB or h.hand_nb > hp:
-                continue
-            if h.pts <= 0:
-                continue  # mid-table draw — credited to every seat via draw_table below
+            if h.is_draw:
+                continue  # draw — credited to every seat via draw_table below
             decided += 1
             winner = pos_lookup.get((r, t, h.win_by))
             if winner is not None:
-                won_pts[winner.id] += h.pts
-                biggest[winner.id] = max(biggest[winner.id], h.pts)
-                if _is_self_draw(h):
+                won_pts[winner.id] += h.points
+                biggest[winner.id] = max(biggest[winner.id], h.points)
+                if h.is_self_draw:
                     sd_win[winner.id] += 1
                 else:
                     ron_win[winner.id] += 1
-            if _is_self_draw(h):
-                for seat in (1, 2, 3, 4):
-                    if seat == h.win_by:
+            if h.is_self_draw:
+                for wind in (1, 2, 3, 4):
+                    if wind == h.win_by:
                         continue
-                    victim = pos_lookup.get((r, t, seat))
+                    victim = pos_lookup.get((r, t, wind))
                     if victim is not None:
                         sd_lose[victim.id] += 1
             else:
@@ -217,8 +243,8 @@ def stats_export(tenant, variables, check_final=False, positions=None, hands=Non
                 if giver is not None:
                     deal_in[giver.id] += 1
         draw_table = hp - decided
-        for seat in (1, 2, 3, 4):
-            seated = pos_lookup.get((r, t, seat))
+        for wind in (1, 2, 3, 4):
+            seated = pos_lookup.get((r, t, wind))
             if seated is not None:
                 total_hands[seated.id] += hp
                 draws[seated.id] += draw_table
@@ -242,7 +268,7 @@ def stats_export(tenant, variables, check_final=False, positions=None, hands=Non
     # Standings drive rank, totals and per-round scores, masked exactly like the
     # public leaderboard (mirrors desktop's scores_per_player_json call).
     standings = player_standings(
-        tenant, variables, check_final=True, force_all=not check_final, positions=positions,
+        tenant, tournament, check_final=True, force_all=not check_final, positions=positions,
     )
 
     def _rate(n, d):
@@ -282,56 +308,46 @@ def stats_export(tenant, variables, check_final=False, positions=None, hands=Non
 
     return {
         'round_max': round_max,
-        'rules': variables.rules,
+        'rules': tournament.rules,
         'uses_teams': any(r['team'] for r in rows),
         'players': rows,
     }
 
 
-def _validated_tables(hands, round_max):
-    """(round, table) pairs with a hand_nb=17, pts=1 marker, capped at round_max.
-
-    Derived from the in-memory hands (same rule as completed_tables / public.py's
-    valid_pairs) so the cached-HTML path fires no extra query.
-    """
+def _validated_tables(tenant, round_max):
+    """(round, table) pairs whose score sheet is validated, capped at round_max."""
     return {
-        (h.round_nb, h.table_nb) for h in hands
-        if h.hand_nb == COMPLETION_HAND_NB and h.pts == 1 and h.round_nb <= round_max
+        (s.round_nb, s.table_nb)
+        for s in ScoreSheet.objects.filter(
+            tenant=tenant, validated=True, round_nb__lte=round_max)
     }
 
 
 def _table_stats_for(positions, hands, valid):
     """Table-completion + deal-in ("From") ratios over the given validated tables.
 
-    Draws and unplayed slots are indistinguishable (both pts=0), so hands-played is
-    read as the index of the last hand with pts>0 — trailing zeros count as unplayed.
+    A validated sheet stores exactly the hands played, so hands-played is the Hand
+    row count and draws are the hands with no winner.
     """
     hand_by_table = _group_by(
         (h for h in hands if (h.round_nb, h.table_nb) in valid),
         key=lambda h: (h.round_nb, h.table_nb),
     )
-    hands_played = {
-        rt: max(
-            (h.hand_nb for h in hand_by_table[rt]
-             if h.hand_nb < COMPLETION_HAND_NB and h.pts > 0),
-            default=0,
-        )
-        for rt in valid
-    }
+    hands_played = {rt: len(hand_by_table[rt]) for rt in valid}
 
     tables_total = len(valid)
     tables_finished = sum(1 for n in hands_played.values() if n == 16)
     avg_hands = round(sum(hands_played.values()) / tables_total, 1) if tables_total else 0
 
     # Per-player win/luck tallies from every game hand on a validated table. A seat
-    # (win_by / win_from) is resolved to a player via the position lookup, the same
+    # (win_by / win_from wind) is resolved to a player via the seat lookup, the same
     # N+1-avoidance as _hand_item.
     #   deal_ins    — gave the winning tile (a discard win from another seat)
     #   self_draws  — won by self-draw (the "luckiest": no one had to feed them)
     #   sd_victims  — sat through someone else's self-draw (the "unluckiest": paid
     #                 out without dealing in; all three non-winners are victims)
     # Alongside them, the tournament-wide average value of a won hand.
-    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in positions}
+    pos_lookup = {(p.round_nb, p.table_nb, p.wind): p.player for p in positions}
     deal_ins = defaultdict(int)
     self_draws = defaultdict(int)
     sd_victims = defaultdict(int)
@@ -339,20 +355,20 @@ def _table_stats_for(positions, hands, valid):
     won_pts = won_count = 0
     for rt, table_hands in hand_by_table.items():
         for h in table_hands:
-            if h.hand_nb >= COMPLETION_HAND_NB or h.pts <= 0:
+            if h.is_draw:
                 continue
-            won_pts += h.pts
+            won_pts += h.points
             won_count += 1
             winner = pos_lookup.get((h.round_nb, h.table_nb, h.win_by))
             if winner is not None:
                 wins[winner] += 1
-            if _is_self_draw(h):
+            if h.is_self_draw:
                 if winner is not None:
                     self_draws[winner] += 1
-                for seat in (1, 2, 3, 4):
-                    if seat == h.win_by:
+                for wind in (1, 2, 3, 4):
+                    if wind == h.win_by:
                         continue
-                    victim = pos_lookup.get((h.round_nb, h.table_nb, seat))
+                    victim = pos_lookup.get((h.round_nb, h.table_nb, wind))
                     if victim is not None:
                         sd_victims[victim] += 1
             else:
@@ -418,10 +434,10 @@ def player_schedule(tenant):
 
 
 def completed_tables(tenant):
-    """Set of (round_nb, table_nb) that have a completion hand recorded."""
+    """Set of (round_nb, table_nb) whose score sheet is validated."""
     return {
-        (h.round_nb, h.table_nb)
-        for h in Hand.objects.filter(tenant=tenant, hand_nb=COMPLETION_HAND_NB, pts=1)
+        (s.round_nb, s.table_nb)
+        for s in ScoreSheet.objects.filter(tenant=tenant, validated=True)
     }
 
 
@@ -436,14 +452,15 @@ def player_rounds(tenant, player, schedule=None, completed=None):
     if completed is None:
         completed = completed_tables(tenant)
 
-    my_positions = list(Position.objects.filter(tenant=tenant, player=player).order_by('round_nb'))
+    my_positions = list(Seat.objects.filter(
+        tenant=tenant, draw_number=player.draw_number).order_by('round_nb'))
     if not my_positions:
         return []
 
     rounds_set = {p.round_nb for p in my_positions}
     positions_by_rt = _group_by(
-        Position.objects.filter(tenant=tenant, round_nb__in=rounds_set)
-                        .select_related('player').order_by('position'),
+        _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant, round_nb__in=rounds_set).order_by('wind'))),
         key=lambda p: (p.round_nb, p.table_nb),
     )
 
@@ -454,7 +471,7 @@ def _rounds_for(my_positions, positions_by_rt, schedule, completed):
     return [
         {
             'other_pos': positions_by_rt[(p.round_nb, p.table_nb)],
-            'player_pos': WINDS[p.position - 1],
+            'player_pos': WINDS[p.wind - 1],
             'time': schedule[p.round_nb - 1].time,
             'day': schedule[p.round_nb - 1].day,
             'name': schedule[p.round_nb - 1].name,
@@ -467,18 +484,17 @@ def _rounds_for(my_positions, positions_by_rt, schedule, completed):
 def all_player_rounds(tenant, players):
     """player_rounds for many players in a constant number of queries.
 
-    player_rounds re-queries a large slice of the Position table for every
-    player; over ~168 players that materializes hundreds of thousands of rows.
-    Here every player's positions come from one query, grouped once and sliced
-    per player. Returns {player_id: rounds_list}.
+    player_rounds re-queries a large slice of the Seat table for every player;
+    over ~168 players that materializes hundreds of thousands of rows. Here every
+    player's seats come from one query, grouped once and sliced per player.
+    Returns {player_id: rounds_list}.
     """
     schedule = player_schedule(tenant)
     completed = completed_tables(tenant)
 
-    all_positions = list(
-        Position.objects.filter(tenant=tenant)
-                        .select_related('player').order_by('round_nb', 'position')
-    )
+    all_positions = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('round_nb', 'wind')
+    ))
     positions_by_rt = _group_by(all_positions, key=lambda p: (p.round_nb, p.table_nb))
     positions_by_player = _group_by(all_positions, key=lambda p: p.player_id)
 
@@ -490,38 +506,47 @@ def all_player_rounds(tenant, players):
     }
 
 
-def player_standings(tenant, variables, check_final=True, force_all=False, positions=None):
+def player_standings(tenant, tournament, check_final=True, force_all=False, positions=None):
     """Cumulative player totals with rank evolution across rounds."""
-    players = list(Player.objects.filter(tenant=tenant).order_by('rand_id'))
+    players = list(Player.objects.filter(tenant=tenant).order_by('id'))
+    # Resolve each seat's competitor from the players we already have (the draw
+    # lives on Player.draw_number), so no extra query is needed to group seats.
+    id_by_draw = {p.draw_number: p.id for p in players if p.draw_number is not None}
 
     if positions is None:
-        positions = list(Position.objects.filter(tenant=tenant).order_by('round_nb'))
+        positions = list(Seat.objects.filter(tenant=tenant).order_by('round_nb'))
 
     positions_by_player = defaultdict(list)
-    round_max = variables.nb_rounds
+    round_max = tournament.nb_rounds
     for pos in positions:
-        positions_by_player[pos.player_id].append(pos)
+        pid = getattr(pos, 'player_id', None)
+        if pid is None:
+            pid = id_by_draw.get(pos.draw_number)
+        if pid is None:
+            continue  # an undrawn seat has no scores; ignore it here
+        positions_by_player[pid].append(pos)
         if pos.minipoints is None or pos.tablepoints is None:
             round_max = min(round_max, pos.round_nb - 1)
 
-    # One query for both: highest published round and last-round reveal level.
+    # One query for both: highest published round and whether the final round is
+    # withheld for the ceremony.
     pub_rows = {
-        r.round_nb: r.reveal_level
+        r.round_nb: r.withheld
         for r in PublishedRound.objects.filter(tenant=tenant)
     }
     last_published = max(pub_rows) if pub_rows else 0
-    reveal = pub_rows.get(variables.nb_rounds)  # None if last round not published
+    final_withheld = pub_rows.get(tournament.nb_rounds)  # None if last round not published
 
     # Public viewers only see rounds that have been explicitly published.
     if check_final and not force_all:
         round_max = min(round_max, last_published)
 
-    # End-of-tournament suspense: the last round is in the pre-publish state
-    # (reveal == 0) — prepared for the ceremony but withheld from the public.
-    # Public viewers see standings through round_max-1 until it's published.
+    # End-of-tournament suspense: the last round is published but withheld —
+    # prepared for the ceremony yet held back from the public. Public viewers see
+    # standings through round_max-1 until it's revealed.
     end_of_tournament = (
-        round_max == variables.nb_rounds and not force_all
-        and reveal == 0
+        round_max == tournament.nb_rounds and not force_all
+        and final_withheld
     )
     if end_of_tournament and check_final:
         round_max = max(0, round_max - 1)
@@ -529,8 +554,8 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     flags = {p.id: _country_flag(p.country) for p in players}
     history = {p.id: [1] for p in players}
 
-    sort_key = _standings_sort_key(variables)
-    rank_key = _standings_rank_key(variables)
+    sort_key = _standings_sort_key(tournament)
+    rank_key = _standings_rank_key(tournament)
 
     ranked = []
     for current_round in range(round_max + 1):
@@ -548,10 +573,9 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     for r in ranked:
         r['history_pos'] = history[r['player_id']]
 
-    # Admin/display viewers (check_final=False) get the full standings, but
-    # every row is masked while the last round is unpublished. The reveal
-    # animation is the ceremony page's job, so these rows stay hidden until
-    # the results are published.
+    # Admin/display viewers (check_final=False) get the full standings, but every
+    # row is masked while the final round is withheld. The reveal animation is the
+    # ceremony page's job, so these rows stay hidden until the results are revealed.
     if end_of_tournament and not check_final:
         for r in ranked:
             r['visible'] = False
@@ -559,7 +583,7 @@ def player_standings(tenant, variables, check_final=True, force_all=False, posit
     return ranked
 
 
-def team_standings(rows, variables, nb_rounds):
+def team_standings(rows, tournament, nb_rounds):
     """Aggregate per-player standing rows into ranked team rows.
 
     `rows` are player rows as produced by `player_standings` / desktop, each
@@ -591,37 +615,36 @@ def team_standings(rows, variables, nb_rounds):
                 rslot = slot['scores'][r_idx]
                 rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
-    team_rows = sorted(by_team.values(), key=_standings_sort_key(variables))
-    _assign_ranks(team_rows, _standings_rank_key(variables), field='pos')
+    team_rows = sorted(by_team.values(), key=_standings_sort_key(tournament))
+    _assign_ranks(team_rows, _standings_rank_key(tournament), field='pos')
     for tr in team_rows:
         flags = tr.pop('_flags')
         tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
     return team_rows
 
 
-def tournament_seating(tenant, variables, check_final=True, force_all=False, valid_pairs=None, positions=None):
+def tournament_seating(tenant, tournament, check_final=True, force_all=False, valid_pairs=None, positions=None):
     """seating grid + player→table lookup. Applies the same end-of-tournament
-    masking as player_standings: when the last round is published but the
-    podium reveal hasn't completed, check_final viewers see the final round's
-    seats without MP/TP. Public viewers also see MP/TP masked for any
-    unpublished round.
+    masking as player_standings: when the last round is published but withheld for
+    the ceremony, check_final viewers see the final round's seats without MP/TP.
+    Public viewers also see MP/TP masked for any unpublished round.
     """
     if positions is None:
-        position_vals = list(
-            Position.objects.filter(tenant=tenant).select_related('player').order_by('id')
-        )
+        position_vals = _attach_players(tenant, list(
+            Seat.objects.filter(tenant=tenant).order_by('id')
+        ))
     else:
         position_vals = positions
     round_max = max((p.round_nb for p in position_vals), default=0)
     table_max = max((p.table_nb for p in position_vals), default=0)
 
-    pub_rows = {r.round_nb: r.reveal_level for r in PublishedRound.objects.filter(tenant=tenant)}
-    last_complete = _last_complete_round(tenant, variables)
+    pub_rows = {r.round_nb: r.withheld for r in PublishedRound.objects.filter(tenant=tenant)}
+    last_complete = _last_complete_round(tenant, tournament)
     last_published = max(pub_rows) if pub_rows else 0
-    reveal = pub_rows.get(variables.nb_rounds)
+    final_withheld = pub_rows.get(tournament.nb_rounds)
     end_of_tournament = (
-        last_complete == variables.nb_rounds and not force_all
-        and reveal == 0
+        last_complete == tournament.nb_rounds and not force_all
+        and final_withheld
     )
     hide_scores_round = last_complete if (end_of_tournament and check_final) else None
 
@@ -629,7 +652,7 @@ def tournament_seating(tenant, variables, check_final=True, force_all=False, val
 
     grid = [[[None] * 4 for _ in range(table_max)] for _ in range(round_max)]
     for p in position_vals:
-        grid[p.round_nb - 1][p.table_nb - 1][p.position - 1] = p
+        grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = p
 
     seating = []
     for r_idx, round_positions in enumerate(grid):
@@ -664,19 +687,19 @@ def tournament_seating(tenant, variables, check_final=True, force_all=False, val
     return seating, player_table
 
 
-def player_extra_stats(tenant, player, variables, max_round=None):
+def player_extra_stats(tenant, player, tournament, max_round=None):
     """Placement rates and win/loss hand stats for one player.
 
-    `max_round` caps the rounds folded in: a public viewer must not see a
-    withheld final round leak into these cards (the per-round score grid in the
-    same modal already hides it). None = no cap, for admin/ceremony callers.
+    `max_round` caps the rounds folded in: a public viewer must not see a withheld
+    final round leak into these cards (the per-round score grid in the same modal
+    already hides it). None = no cap, for admin/ceremony callers.
     """
-    qs = Position.objects.filter(tenant=tenant, player=player, tablepoints__isnull=False)
+    qs = Seat.objects.filter(tenant=tenant, draw_number=player.draw_number, tablepoints__isnull=False)
     if max_round is not None:
         qs = qs.filter(round_nb__lte=max_round)
     positions = list(qs.order_by('round_nb'))
 
-    counts = _placement_counts(tenant, positions, variables)
+    counts = _placement_counts(tenant, positions, tournament)
     total_rounds = sum(counts.values())
     placement = [
         {
@@ -691,28 +714,17 @@ def player_extra_stats(tenant, player, variables, max_round=None):
     # Win / loss hand stats. Only count hands from validated score sheets — an
     # un-validated table's hand detail (e.g. freshly scanned, not yet human-checked)
     # must not feed these rates, exactly like the per-table detailed-hands modal.
+    # A validated sheet stores exactly the hands played, so every one counts.
     completed = completed_tables(tenant)
-    round_table_seat = {pos.round_nb: (pos.table_nb, pos.position) for pos in positions}
+    round_table_seat = {pos.round_nb: (pos.table_nb, pos.wind) for pos in positions}
     hands = list(Hand.objects.filter(
         tenant=tenant,
         round_nb__in=list(round_table_seat.keys()),
-        hand_nb__lt=COMPLETION_HAND_NB,
     ))
 
-    # A genuine draw and an unplayed trailing slot are both pts=0. Only hands up to
-    # the last decided hand of the table were actually played; hands_played[round]
-    # is that last hand_nb, so a pts=0 hand after it is an unplayed slot, not a draw.
-    hands_played = defaultdict(int)
-    for h in hands:
-        info = round_table_seat.get(h.round_nb)
-        if info is None or h.table_nb != info[0] or (h.round_nb, h.table_nb) not in completed:
-            continue
-        if h.pts > 0 and h.hand_nb > hands_played[h.round_nb]:
-            hands_played[h.round_nb] = h.hand_nb
-
     sd_win = ron_win = deal_in = sd_lose = draw = total_hands = 0
-    # Value (pts) of the hands this player won, kept per round so the modal can show
-    # a per-round average alongside the tournament average.
+    # Value (points) of the hands this player won, kept per round so the modal can
+    # show a per-round average alongside the tournament average.
     won_pts = defaultdict(int)
     won_count = defaultdict(int)
     for h in hands:
@@ -721,25 +733,21 @@ def player_extra_stats(tenant, player, variables, max_round=None):
             continue
         if (h.round_nb, h.table_nb) not in completed:
             continue
-        seat = info[1]
-        if h.pts == 0:
-            # Mid-table draw counts as a played hand; a trailing unplayed slot doesn't.
-            if h.hand_nb <= hands_played[h.round_nb]:
-                total_hands += 1
-                draw += 1
-            continue
+        wind = info[1]
         total_hands += 1
-        is_sd = h.win_from == 0 or h.win_from == h.win_by
-        if h.win_by == seat:
-            won_pts[h.round_nb] += h.pts
+        if h.is_draw:
+            draw += 1
+            continue
+        if h.win_by == wind:
+            won_pts[h.round_nb] += h.points
             won_count[h.round_nb] += 1
-            if is_sd:
+            if h.is_self_draw:
                 sd_win += 1
             else:
                 ron_win += 1
-        elif not is_sd and h.win_from == seat:
+        elif not h.is_self_draw and h.win_from == wind:
             deal_in += 1
-        elif h.win_by != seat and is_sd:
+        elif h.win_by != wind and h.is_self_draw:
             sd_lose += 1
 
     hand_value = [
@@ -780,11 +788,11 @@ def player_extra_stats(tenant, player, variables, max_round=None):
         'hand_value': hand_value,
         'avg_hand_value': avg_hand_value,
         'total_won': total_won,
-        'opp_strength': _opponent_strength(tenant, positions, variables, max_round),
+        'opp_strength': _opponent_strength(tenant, positions, tournament, max_round),
     }
 
 
-def team_extra_stats(tenant, team_name, variables, max_round=None):
+def team_extra_stats(tenant, team_name, tournament, max_round=None):
     """Placement rates and win/loss stats aggregated over all players in a team.
 
     `max_round` caps the rounds folded in, exactly like `player_extra_stats` —
@@ -794,13 +802,13 @@ def team_extra_stats(tenant, team_name, variables, max_round=None):
     if not players:
         return None
 
-    player_ids = [p.id for p in players]
-    qs = Position.objects.filter(tenant=tenant, player_id__in=player_ids, tablepoints__isnull=False)
+    draw_numbers = [p.draw_number for p in players if p.draw_number is not None]
+    qs = Seat.objects.filter(tenant=tenant, draw_number__in=draw_numbers, tablepoints__isnull=False)
     if max_round is not None:
         qs = qs.filter(round_nb__lte=max_round)
-    positions = list(qs.order_by('round_nb'))
+    positions = _attach_players(tenant, list(qs.order_by('round_nb')))
 
-    counts = _placement_counts(tenant, positions, variables)
+    counts = _placement_counts(tenant, positions, tournament)
     total_rounds = sum(counts.values())
     placement = [
         {
@@ -816,47 +824,34 @@ def team_extra_stats(tenant, team_name, variables, max_round=None):
     completed = completed_tables(tenant)
     round_table_seat = {}
     for pos in positions:
-        round_table_seat.setdefault(pos.player_id, {})[pos.round_nb] = (pos.table_nb, pos.position)
+        round_table_seat.setdefault(pos.player_id, {})[pos.round_nb] = (pos.table_nb, pos.wind)
 
     hands = list(Hand.objects.filter(
         tenant=tenant,
         round_nb__in=list({p.round_nb for p in positions}),
-        hand_nb__lt=COMPLETION_HAND_NB,
     ))
-
-    # Mid-table draws are played hands; trailing pts=0 slots are unplayed. Per table,
-    # hands_played is the last decided hand_nb (see player_extra_stats for the why).
-    hands_played = defaultdict(int)
-    for h in hands:
-        if (h.round_nb, h.table_nb) in completed and h.pts > 0 \
-                and h.hand_nb > hands_played[(h.round_nb, h.table_nb)]:
-            hands_played[(h.round_nb, h.table_nb)] = h.hand_nb
 
     sd_win = ron_win = deal_in = sd_lose = draw = total_hands = 0
     for h in hands:
         if (h.round_nb, h.table_nb) not in completed:
             continue
-        is_draw = h.pts == 0
-        if is_draw and h.hand_nb > hands_played[(h.round_nb, h.table_nb)]:
-            continue  # unplayed trailing slot, not a real draw
         for pid, rts_map in round_table_seat.items():
             info = rts_map.get(h.round_nb)
             if info is None or h.table_nb != info[0]:
                 continue
-            seat = info[1]
+            wind = info[1]
             total_hands += 1
-            if is_draw:
+            if h.is_draw:
                 draw += 1
                 continue
-            is_sd = h.win_from == 0 or h.win_from == h.win_by
-            if h.win_by == seat:
-                if is_sd:
+            if h.win_by == wind:
+                if h.is_self_draw:
                     sd_win += 1
                 else:
                     ron_win += 1
-            elif not is_sd and h.win_from == seat:
+            elif not h.is_self_draw and h.win_from == wind:
                 deal_in += 1
-            elif h.win_by != seat and is_sd:
+            elif h.win_by != wind and h.is_self_draw:
                 sd_lose += 1
 
     def _pct(n):
@@ -882,15 +877,15 @@ def team_extra_stats(tenant, team_name, variables, max_round=None):
 
 # ---- helpers --------------------------------------------------------------
 
-def _last_complete_round(tenant, variables):
+def _last_complete_round(tenant, tournament):
     first_incomplete = (
-        Position.objects.filter(tenant=tenant)
+        Seat.objects.filter(tenant=tenant)
         .filter(Q(tablepoints=None) | Q(minipoints=None))
         .order_by('round_nb')
         .values('round_nb')
         .first()
     )
-    return (first_incomplete['round_nb'] - 1) if first_incomplete else variables.nb_rounds
+    return (first_incomplete['round_nb'] - 1) if first_incomplete else tournament.nb_rounds
 
 
 def _last_published_round(tenant):
@@ -899,41 +894,35 @@ def _last_published_round(tenant):
     return row.round_nb if row else 0
 
 
-def _last_round_reveal(tenant, nb_rounds):
-    """Publish state of the last round, read from its PublishedRound row.
-
-    One of three values:
-      None → last round not published at all
-      0    → pre-publish: results prepared for the ceremony but withheld from
-             the public (standings stay masked)
-      100  → published to everyone (results public)
-
-    The live podium animation is driven by the ceremony page; this is only the
-    publish flag, so 0 and 100 are the only non-None values that occur.
+def _final_round_withheld(tenant, nb_rounds):
+    """Publish state of the last round, read from its PublishedRound row:
+      None  → last round not published at all
+      True  → published but withheld from the public for the ceremony
+      False → published and visible to everyone
     """
     row = PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
-    return row.reveal_level if row else None
+    return row.withheld if row else None
 
 
-def public_round_max(tenant, variables, force_all=False):
+def public_round_max(tenant, tournament, force_all=False):
     """Highest round number a public viewer may see, mirroring `player_standings`.
 
     Public viewers (`force_all=False`) are clamped to the last published round,
-    and during the end-of-tournament suspense window (final round prepared but
-    held back, reveal==0) one further round is dropped. `force_all=True` (admin
-    /ceremony) sees every scored round. Use this to cap auxiliary surfaces — e.g.
-    the modal's placement/hand cards — to the same rounds the standings expose.
+    and during the end-of-tournament suspense window (final round published but
+    withheld) one further round is dropped. `force_all=True` (admin/ceremony) sees
+    every scored round. Use this to cap auxiliary surfaces — e.g. the modal's
+    placement/hand cards — to the same rounds the standings expose.
     """
     if force_all:
-        return variables.nb_rounds
-    round_max = min(_last_complete_round(tenant, variables), _last_published_round(tenant))
-    if round_max == variables.nb_rounds and _last_round_reveal(tenant, variables.nb_rounds) == 0:
+        return tournament.nb_rounds
+    round_max = min(_last_complete_round(tenant, tournament), _last_published_round(tenant))
+    if round_max == tournament.nb_rounds and _final_round_withheld(tenant, tournament.nb_rounds):
         round_max = max(0, round_max - 1)
     return round_max
 
 
-def _placement_counts(tenant, positions, variables):
-    """How often these positions placed 1st/2nd/3rd/4th at their own table.
+def _placement_counts(tenant, positions, tournament):
+    """How often these seats placed 1st/2nd/3rd/4th at their own table.
 
     A seat's place is its rank within its (round, table): by table points for MCR,
     by minipoints otherwise. Tied seats share a place (1, 1, 3, 4 — standard
@@ -944,9 +933,9 @@ def _placement_counts(tenant, positions, variables):
     the table peers are fetched per round so every seat can be ranked against its
     own table.
     """
-    rank_field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
+    rank_field = 'tablepoints' if tournament.rules == 'MCR' else 'minipoints'
     table_positions = _group_by(
-        Position.objects.filter(
+        Seat.objects.filter(
             tenant=tenant,
             round_nb__in={p.round_nb for p in positions},
             **{f'{rank_field}__isnull': False},
@@ -965,24 +954,26 @@ def _placement_counts(tenant, positions, variables):
     return counts
 
 
-def _opponent_strength(tenant, positions, variables, max_round=None):
-    """Strength of schedule: total & average full-tournament table points of
-    every opponent this player faced (an opponent faced twice counts twice).
+def _opponent_strength(tenant, positions, tournament, max_round=None):
+    """Strength of schedule: total & average full-tournament table points of every
+    opponent this player faced (an opponent faced twice counts twice).
 
-    Mirrors _placement_counts: ranks on tablepoints for MCR, minipoints
-    otherwise. `max_round` caps the opponents' totals to the rounds this modal
-    is allowed to show, so a withheld final round can't leak in.
+    Mirrors _placement_counts: ranks on tablepoints for MCR, minipoints otherwise.
+    `max_round` caps the opponents' totals to the rounds this modal is allowed to
+    show, so a withheld final round can't leak in.
     """
     if not positions:
         return {'total': 0, 'avg': 0, 'count': 0}
-    field = 'tablepoints' if variables.rules == 'MCR' else 'minipoints'
-    totals_qs = Position.objects.filter(tenant=tenant, **{f'{field}__isnull': False})
+    field = 'tablepoints' if tournament.rules == 'MCR' else 'minipoints'
+    # Competitors are identified by draw_number here (a Seat has no player FK; the
+    # draw_number maps 1:1 to a Player), so opponent totals are summed per slot.
+    totals_qs = Seat.objects.filter(tenant=tenant, **{f'{field}__isnull': False})
     if max_round is not None:
         totals_qs = totals_qs.filter(round_nb__lte=max_round)
-    totals = dict(totals_qs.values_list('player_id').annotate(Sum(field)))
+    totals = dict(totals_qs.values_list('draw_number').annotate(Sum(field)))
 
     table_positions = _group_by(
-        Position.objects.filter(
+        Seat.objects.filter(
             tenant=tenant, round_nb__in={p.round_nb for p in positions},
         ),
         key=lambda p: (p.round_nb, p.table_nb),
@@ -991,9 +982,9 @@ def _opponent_strength(tenant, positions, variables, max_round=None):
     count = 0
     for pos in positions:
         for peer in table_positions[(pos.round_nb, pos.table_nb)]:
-            if peer.player_id == pos.player_id:
+            if peer.draw_number == pos.draw_number:
                 continue
-            total += totals.get(peer.player_id, 0) or 0
+            total += totals.get(peer.draw_number, 0) or 0
             count += 1
     return {'total': total, 'avg': total / count if count else 0, 'count': count}
 
@@ -1040,16 +1031,16 @@ def _country_flag(country):
         return ''
 
 
-def _standings_sort_key(variables):
+def _standings_sort_key(tournament):
     """Order standing rows best-first by the active rules. MCR ranks on TP (MP
     breaks ties); other rules rank on MP. Used for both players and teams so a
     team's row is ordered exactly like a player's."""
-    if variables.rules == 'MCR':
+    if tournament.rules == 'MCR':
         return lambda s: (-s['total']['tp'], -s['total']['mp'])
     return lambda s: -s['total']['mp']
 
 
-def _standings_rank_key(variables):
+def _standings_rank_key(tournament):
     """Tie key for `_assign_ranks`, mirroring `_standings_sort_key` so rows tie
     (share a position) exactly when they're level on every value the active rules
     order by. MCR ranks on TP with MP as the tie-breaker, so a shared position
@@ -1057,7 +1048,7 @@ def _standings_rank_key(variables):
     must not split them, since the sort doesn't order by TP at all (rows level on
     MP keep their input order, so a (MP, TP) key would also assign positions
     non-deterministically)."""
-    if variables.rules == 'MCR':
+    if tournament.rules == 'MCR':
         return lambda s: (s['total']['tp'], s['total']['mp'])
     return lambda s: s['total']['mp']
 
@@ -1072,35 +1063,29 @@ def _assign_ranks(rows, key, field):
         index += len(members)
 
 
-def _is_self_draw(h):
-    """Self-draw: winner drew their own tile (win_from == 0 or win_from == win_by)."""
-    return h.win_from == 0 or h.win_from == h.win_by
-
-
-def _winners_for_round(positions, hands):
+def _winners_for_round(positions, hands, round_complete):
     mp_max = _top_by(positions, key=lambda p: p.minipoints)
-    round_complete = not any(h.hand_nb == COMPLETION_HAND_NB and h.pts == 0 for h in hands)
     empty = {'mp_max': mp_max, 'hand_max': [], 'sd_hand_max': [], 'ron_hand_max': [],
              'sd_win_max': [], 'ron_win_max': [], 'total_win_max': []}
     if not round_complete:
         return empty
-    # Pre-resolve player from positions to avoid N+1 in template via Hand.win_by_player().
-    pos_lookup = {(p.round_nb, p.table_nb, p.position): p.player for p in positions}
-    game_hands = [h for h in hands if h.hand_nb != COMPLETION_HAND_NB and h.pts > 0]
-    sd_hands = [h for h in game_hands if _is_self_draw(h)]
-    ron_hands = [h for h in game_hands if not _is_self_draw(h)]
+    # Pre-resolve player from seats to avoid N+1 in template via Hand.win_by_player().
+    pos_lookup = {(p.round_nb, p.table_nb, p.wind): p.player for p in positions}
+    game_hands = [h for h in hands if not h.is_draw]
+    sd_hands = [h for h in game_hands if h.is_self_draw]
+    ron_hands = [h for h in game_hands if not h.is_self_draw]
     def _hand_item(h):
         return {
-            'pts': h.pts,
+            'pts': h.points,
             'round_nb': h.round_nb,
             'table_nb': h.table_nb,
             'player': pos_lookup.get((h.round_nb, h.table_nb, h.win_by)),
         }
     return {
         'mp_max':        mp_max,
-        'hand_max':      [_hand_item(h) for h in _top_by(game_hands, key=lambda h: h.pts, exclude_zero=True)],
-        'sd_hand_max':   [_hand_item(h) for h in _top_by(sd_hands,  key=lambda h: h.pts, exclude_zero=True)],
-        'ron_hand_max':  [_hand_item(h) for h in _top_by(ron_hands, key=lambda h: h.pts, exclude_zero=True)],
+        'hand_max':      [_hand_item(h) for h in _top_by(game_hands, key=lambda h: h.points, exclude_zero=True)],
+        'sd_hand_max':   [_hand_item(h) for h in _top_by(sd_hands,  key=lambda h: h.points, exclude_zero=True)],
+        'ron_hand_max':  [_hand_item(h) for h in _top_by(ron_hands, key=lambda h: h.points, exclude_zero=True)],
         'sd_win_max':    _top_win_streaks(sd_hands, pos_lookup),
         'ron_win_max':   _top_win_streaks(ron_hands, pos_lookup),
         'total_win_max': _top_win_streaks(game_hands, pos_lookup),
@@ -1120,7 +1105,7 @@ def _top_by(items, key, exclude_zero=False):
 def _top_win_streaks(hands, pos_lookup=None):
     """For each (table, winning-seat) pair, count wins; keep groups tying for max.
 
-    `pos_lookup` maps (round_nb, table_nb, position) -> Player; when provided it
+    `pos_lookup` maps (round_nb, table_nb, wind) -> Player; when provided it
     resolves the winning player without triggering Hand.win_by_player()'s N+1.
     """
     if not hands:
@@ -1129,7 +1114,7 @@ def _top_win_streaks(hands, pos_lookup=None):
     for h in hands:
         by_seat[(h.table_nb, h.win_by)].append(h)
     tables = sorted({h.table_nb for h in hands})
-    ordered = [by_seat.get((t, seat), []) for t in tables for seat in (1, 2, 3, 4)]
+    ordered = [by_seat.get((t, wind), []) for t in tables for wind in (1, 2, 3, 4)]
     max_wins = max(len(g) for g in ordered)
     if max_wins == 0:
         return []

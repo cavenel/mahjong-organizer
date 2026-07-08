@@ -57,11 +57,11 @@ class TestDetailedScoresReadOnly:
         assert 'id="by_1"' in body and 'id="from_1"' in body
 
     def test_no_nplus1_on_players(self, client_, tournament, django_assert_max_num_queries):
-        # positions (select_related player) + hands + tenant resolve + the reveal
-        # gate's fixed lookups (variables, complete/published/reveal) — a constant
-        # number that must not grow with the 4 seated players. Pre-fix the player
-        # query did +1 per player.
-        with django_assert_max_num_queries(7):
+        # seats + one bulk players-attach query + hands + tenant resolve + the
+        # reveal gate's fixed lookups (variables, complete/published/reveal) — a
+        # constant number that must not grow with the 4 seated players. Pre-fix
+        # the player query did +1 per player.
+        with django_assert_max_num_queries(8):
             client_.get('/detailed_scores_1_1')
 
 
@@ -70,10 +70,10 @@ class TestDetailedScoresPenalties:
     non-zero; they are score-sheet figures, never the official MP."""
 
     def _first_pos(self, tournament, round_nb, table_nb):
-        from mahj.models import Position
-        return Position.objects.filter(
+        from mahj.models import Seat
+        return Seat.objects.filter(
             tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
-        ).order_by('position').first()
+        ).order_by('wind').first()
 
     def test_penalty_row_shown_when_set(self, client_, tournament):
         from django.core.cache import cache

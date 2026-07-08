@@ -10,12 +10,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -28,12 +28,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -46,12 +46,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -64,12 +64,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -82,12 +82,12 @@
         "EMA_ID": "E00005",
         "__model__": "Player",
         "country": "Japan",
+        "draw_number": 5,
         "email": "",
         "first_name": "Player5",
         "full_name": "Player5 Lastname",
         "id": 5,
         "pk": 5,
-        "rand_id": 5,
         "team": "",
         "tenant_id": 1
       }
@@ -102,12 +102,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -120,12 +120,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -138,12 +138,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -156,12 +156,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -174,12 +174,12 @@
         "EMA_ID": "E00005",
         "__model__": "Player",
         "country": "Japan",
+        "draw_number": 5,
         "email": "",
         "first_name": "Player5",
         "full_name": "Player5 Lastname",
         "id": 5,
         "pk": 5,
-        "rand_id": 5,
         "team": "",
         "tenant_id": 1
       }
@@ -194,12 +194,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -212,12 +212,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -230,12 +230,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -248,12 +248,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -266,12 +266,12 @@
         "EMA_ID": "E00005",
         "__model__": "Player",
         "country": "Japan",
+        "draw_number": 5,
         "email": "",
         "first_name": "Player5",
         "full_name": "Player5 Lastname",
         "id": 5,
         "pk": 5,
-        "rand_id": 5,
         "team": "",
         "tenant_id": 1
       }
@@ -287,12 +287,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -305,12 +305,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -323,12 +323,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -341,12 +341,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -359,12 +359,12 @@
         "EMA_ID": "E00007",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 7,
         "email": "",
         "first_name": "Player7",
         "full_name": "Player7 Lastname",
         "id": 7,
         "pk": 7,
-        "rand_id": 7,
         "team": "",
         "tenant_id": 1
       }
@@ -379,12 +379,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -397,12 +397,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -415,12 +415,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -433,12 +433,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -451,12 +451,12 @@
         "EMA_ID": "E00007",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 7,
         "email": "",
         "first_name": "Player7",
         "full_name": "Player7 Lastname",
         "id": 7,
         "pk": 7,
-        "rand_id": 7,
         "team": "",
         "tenant_id": 1
       }
@@ -473,12 +473,12 @@
         "EMA_ID": "E00001",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 1,
         "email": "",
         "first_name": "Player1",
         "full_name": "Player1 Lastname",
         "id": 1,
         "pk": 1,
-        "rand_id": 1,
         "team": "",
         "tenant_id": 1
       }
@@ -491,12 +491,12 @@
         "EMA_ID": "E00002",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 2,
         "email": "",
         "first_name": "Player2",
         "full_name": "Player2 Lastname",
         "id": 2,
         "pk": 2,
-        "rand_id": 2,
         "team": "",
         "tenant_id": 1
       }
@@ -509,12 +509,12 @@
         "EMA_ID": "E00003",
         "__model__": "Player",
         "country": "Sweden",
+        "draw_number": 3,
         "email": "",
         "first_name": "Player3",
         "full_name": "Player3 Lastname",
         "id": 3,
         "pk": 3,
-        "rand_id": 3,
         "team": "",
         "tenant_id": 1
       }
@@ -527,12 +527,12 @@
         "EMA_ID": "E00004",
         "__model__": "Player",
         "country": "France",
+        "draw_number": 4,
         "email": "",
         "first_name": "Player4",
         "full_name": "Player4 Lastname",
         "id": 4,
         "pk": 4,
-        "rand_id": 4,
         "team": "",
         "tenant_id": 1
       }
@@ -545,12 +545,12 @@
         "EMA_ID": "E00005",
         "__model__": "Player",
         "country": "Japan",
+        "draw_number": 5,
         "email": "",
         "first_name": "Player5",
         "full_name": "Player5 Lastname",
         "id": 5,
         "pk": 5,
-        "rand_id": 5,
         "team": "",
         "tenant_id": 1
       }

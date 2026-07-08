@@ -11,7 +11,7 @@ class Tenant(models.Model):
             defaults=dict(name='Empty subdomain'),
         )
         return tenant.pk
-    
+
     def __str__(self):
         return self.subdomain
 
@@ -20,50 +20,68 @@ class TenantAwareModel(models.Model):
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, default=Tenant.get_default_pk)
     class Meta:
         abstract = True
-      
 
-class Player_data(TenantAwareModel):
-    full_name = models.CharField(max_length=70)
-    first_name = models.CharField(max_length=70,default="")
-    EMA_ID    = models.CharField(max_length=70)
-    country   = models.CharField(max_length=70)
-    email     = models.CharField(max_length=70)
-    team      = models.CharField(max_length=70, default="", blank=True)
-    
-    def last_name (self):
-        return " ".join(self.full_name.split(" ")[1:]).upper()
-        
-    def __str__(self):
-        return self.full_name
-    
+
 class Player(TenantAwareModel):
-    full_name = models.CharField(max_length=70,default="")
-    first_name = models.CharField(max_length=70,default="")
-    EMA_ID    = models.CharField(max_length=70,default="")
-    country   = models.CharField(max_length=70,default="")
-    email     = models.CharField(max_length=70,default="")
-    rand_id   = models.IntegerField(default=0)
-    team      = models.CharField(max_length=70, default="", blank=True)
+    """A human competitor — the roster, one row per real person.
+
+    Holds the person's own data (name, federation id, country, team) and their
+    ``draw_number``: the single place the draw is recorded (unique per tenant,
+    null until the person is drawn in). The seating chart (Seat) is keyed by draw
+    number, so the competitor at a seat is the Player holding that number — a
+    name/country/team correction here shows everywhere at once with nothing
+    duplicated, and re-drawing is just re-assigning draw numbers here. A Player
+    with ``draw_number`` null is on the roster but not yet in the draw.
+    """
+    full_name  = models.CharField(max_length=70, default="")
+    first_name = models.CharField(max_length=70, default="")
+    EMA_ID     = models.CharField(max_length=70, default="")
+    country    = models.CharField(max_length=70, default="")
+    email      = models.CharField(max_length=70, default="")
+    team       = models.CharField(max_length=70, default="", blank=True)
+    draw_number = models.IntegerField(null=True, blank=True, default=None)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'draw_number'],
+                name='unique_draw_number_per_tenant'),
+        ]
 
     def save(self, *args, **kwargs):
         if self.first_name == "":
-            if "Player" in self.full_name:
-                self.first_name = self.full_name.replace("Player ","")
-            else:
-                self.first_name = self.full_name.split(" ")[0]
+            self.first_name = self.full_name.split(" ")[0]
         return super().save(*args, **kwargs)
-            
-    def last_name (self):
+
+    def last_name(self):
         return " ".join(self.full_name.split(" ")[1:]).upper()
-        
+
     def __str__(self):
         return self.full_name
-    
-class Position(TenantAwareModel):
+
+
+class Seat(TenantAwareModel):
+    """One place at a table in one round: its wind, the draw slot it belongs to,
+    and the score recorded there for the round.
+
+    The seating chart is fixed by the draw (which *draw_number* sits at which
+    table/wind each round) and comes straight from the imported schedule, so it
+    exists before the draw is made and never changes when the draw does. The
+    competitor sitting here is the Player whose ``draw_number`` matches this
+    seat's; an unclaimed draw number is shown as "Player #<n>".
+    """
+    class Wind(models.IntegerChoices):
+        EAST  = 1, 'East'
+        SOUTH = 2, 'South'
+        WEST  = 3, 'West'
+        NORTH = 4, 'North'
+
     round_nb    = models.IntegerField()
     table_nb    = models.IntegerField()
-    player      = models.ForeignKey(Player, on_delete=models.CASCADE)
-    position    = models.IntegerField()
+    wind        = models.IntegerField(choices=Wind.choices)
+    # Which draw slot occupies this seat (the structural key of the seating
+    # chart). The competitor is the Player with this draw_number — see Player.
+    draw_number = models.IntegerField()
 
     minipoints  = models.IntegerField(default=None, null=True)
     tablepoints = models.FloatField(default=None, null=True)
@@ -76,20 +94,33 @@ class Position(TenantAwareModel):
     class Meta:
         indexes = [
             models.Index(fields=['tenant', 'round_nb', 'table_nb']),
-            models.Index(fields=['tenant', 'player']),
+            models.Index(fields=['tenant', 'draw_number']),
         ]
 
     def __str__(self):
-        return "R{0}, T{1}, {2}: {3} [{4}MP / {5}TP]({6})".format(self.round_nb, self.table_nb, ["","E","S","W","N"][self.position], str(self.player), self.minipoints, self.tablepoints, str(self.id))
+        return "R{0}, T{1}, {2}: #{3} [{4}MP / {5}TP]({6})".format(
+            self.round_nb, self.table_nb, self.get_wind_display(),
+            self.draw_number, self.minipoints, self.tablepoints, str(self.id))
+
 
 class Hand(TenantAwareModel):
+    """One hand played at a table in a round.
+
+    Winner/discarder are seat winds (1=East .. 4=North), each with a single
+    meaning:
+      - draw       -> ``win_by`` is NULL (no winner).
+      - self-draw  -> ``win_from`` is NULL (winner drew their own tile).
+      - discard win -> both set; ``win_from`` is the seat that dealt in.
+    Only hands actually played are stored, so the number of hands played at a
+    table is just its Hand row count.
+    """
     round_nb    = models.IntegerField()
     table_nb    = models.IntegerField()
     hand_nb     = models.IntegerField()
 
-    pts         = models.IntegerField(default=0)
-    win_by      = models.IntegerField(blank=True, default=None)
-    win_from    = models.IntegerField(blank=True, default=None)
+    points      = models.IntegerField(default=0)
+    win_by      = models.IntegerField(blank=True, null=True, default=None)
+    win_from    = models.IntegerField(blank=True, null=True, default=None)
     version     = models.IntegerField(default=0)
     confidence  = models.FloatField(default=1.0)
 
@@ -103,25 +134,63 @@ class Hand(TenantAwareModel):
                 name='unique_hand_per_cell'),
         ]
 
-    def win_by_player (self):
-        try:
-            position_vals = Position.objects.using(self._state.db).filter(tenant=self.tenant, round_nb=self.round_nb, table_nb=self.table_nb, position=self.win_by)
-            pos = position_vals[0]
-            return pos.player
-        except Exception:
-            return None
-        
+    @property
+    def is_draw(self):
+        return self.win_by is None
 
-    def win_from_player (self):
+    @property
+    def is_self_draw(self):
+        """A win with no discarder — the winner drew their own tile."""
+        return self.win_by is not None and self.win_from is None
+
+    def _seat_player(self, wind):
+        if wind is None:
+            return None
         try:
-            position_vals = Position.objects.using(self._state.db).filter(tenant=self.tenant, round_nb=self.round_nb, table_nb=self.table_nb, position=self.win_from)
-            pos = position_vals[0]
-            return pos.player
+            seat = Seat.objects.using(self._state.db).filter(
+                tenant=self.tenant, round_nb=self.round_nb,
+                table_nb=self.table_nb, wind=wind).first()
+            if seat is None:
+                return None
+            return Player.objects.using(self._state.db).filter(
+                tenant=self.tenant, draw_number=seat.draw_number).first()
         except Exception:
             return None
+
+    def win_by_player(self):
+        return self._seat_player(self.win_by)
+
+    def win_from_player(self):
+        return self._seat_player(self.win_from)
 
     def __str__(self):
-        return "R{0}, T{1}, {2} pts by {3} in pos {4} from {5} in pos {6} ({7})".format(self.round_nb, self.table_nb, self.pts, self.win_by_player(), self.win_by, self.win_from_player(), self.win_from, str(self.id))
+        return "R{0}, T{1}, {2} pts by {3} in seat {4} from {5} in seat {6} ({7})".format(
+            self.round_nb, self.table_nb, self.points, self.win_by_player(),
+            self.win_by, self.win_from_player(), self.win_from, str(self.id))
+
+
+class ScoreSheet(TenantAwareModel):
+    """Score-entry state for one (round, table).
+
+    A row exists once a sheet has been opened for the table; ``validated`` marks
+    it human-checked. "Sheet started" is the row's existence; "sheet validated"
+    is the flag.
+    """
+    round_nb   = models.IntegerField()
+    table_nb   = models.IntegerField()
+    validated  = models.BooleanField(default=False)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['tenant', 'round_nb', 'table_nb'],
+                name='unique_scoresheet_per_cell'),
+        ]
+
+    def __str__(self):
+        return f"R{self.round_nb} T{self.table_nb} sheet ({'valid' if self.validated else 'open'})"
+
 
 class Screen(TenantAwareModel):
     name         = models.CharField(default="Unknown",max_length=70)
@@ -144,15 +213,16 @@ class Screen(TenantAwareModel):
 
 class ScreenMode(TenantAwareModel):
     name         = models.CharField(default="Unknown",max_length=70)
-    # JSON blob of every screen's view string; its length grows with the screen
-    # count, so it must be unbounded (a fixed max_length overflows once there are
-    # many screens and the INSERT fails with 500). See add_mode in admin_views.
-    views        = models.TextField(default="Unknown")
-    
+    # One view string per screen; the list grows with the screen count, so it is
+    # stored as JSON (see add_mode in admin_views).
+    views        = models.JSONField(default=list)
+
     def __str__(self):
         return str(self.name)
 
-class Variable(TenantAwareModel):
+class TournamentSettings(TenantAwareModel):
+    """Per-tournament configuration (one row per tenant). Exposed to templates as
+    ``tournament``."""
     welcome      = models.CharField(default="",max_length=255)
     title        = models.CharField(default="",max_length=70)
     fullname     = models.CharField(default="",max_length=70)
@@ -179,18 +249,19 @@ class Variable(TenantAwareModel):
 
 class PublishedRound(TenantAwareModel):
     round_nb     = models.IntegerField()
-    # Only two values are ever written: 100 = fully visible (non-last rounds, or
-    # the last round once revealed), and 0 = hidden for the last round during the
-    # podium-reveal suspense. The reveal animation is driven client-side by the
+    # A published round is normally visible to everyone. ``withheld`` marks the
+    # final round as published-but-held-back during the podium-reveal suspense:
+    # the results are prepared for the ceremony but hidden from the public until
+    # the reveal. The reveal animation itself is driven client-side by the
     # ceremony page, not by mutating this field.
-    reveal_level = models.IntegerField(default=100)
+    withheld     = models.BooleanField(default=False)
     published_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         unique_together = [('tenant', 'round_nb')]
 
     def __str__(self):
-        return f"R{self.round_nb} published (reveal={self.reveal_level})"
+        return f"R{self.round_nb} published (withheld={self.withheld})"
 
 
 class CeremonyState(TenantAwareModel):
@@ -224,6 +295,6 @@ class Schedule(TenantAwareModel):
     day          = models.CharField(default="",max_length=70)
     time         = models.CharField(default="",null=True,max_length=70)
     name         = models.CharField(default="",null=True,max_length=70)
-    
+
     def __str__(self):
         return str(self.day) + " - " + self.time + " : " + self.time

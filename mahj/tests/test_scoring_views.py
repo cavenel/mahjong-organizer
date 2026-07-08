@@ -7,7 +7,7 @@ Swedish ranking, hidden final cut-off, etc.
 import pytest
 
 from mahj import views
-from mahj.models import Hand, Player, Position, PublishedRound, Variable
+from mahj.models import Hand, Player, Seat, ScoreSheet, PublishedRound, TournamentSettings
 from mahj.scoring import player_extra_stats, public_round_max, team_extra_stats
 
 
@@ -16,34 +16,38 @@ def completed_tournament(tournament):
     """Score round 3 so the fixture represents a finished tournament.
 
     All non-last rounds are published fully; the last round is published
-    with reveal_level=0 — i.e. podium ceremony ready but not yet started,
-    equivalent to the old `variables.final == 0` state.
+    withheld — i.e. podium ceremony ready but not yet started.
     """
-    for pos in Position.objects.filter(tenant=tournament['tenant'], round_nb=3):
-        pos.minipoints = (pos.player_id * 7 + 11) % 200
-        pos.tablepoints = float([4, 2, 1, 0][pos.position - 1])
+    for pos in Seat.objects.filter(tenant=tournament['tenant'], round_nb=3):
+        pos.minipoints = (pos.draw_number * 7 + 11) % 200
+        pos.tablepoints = float([4, 2, 1, 0][pos.wind - 1])
         pos.save()
     for tn in range(1, 5):
         for hn in range(1, 17):
-            Hand.objects.create(
-                tenant=tournament['tenant'], round_nb=3, table_nb=tn, hand_nb=hn,
-                pts=(300 + tn * 10 + hn) % 50,
-                win_by=((tn + hn) % 4) + 1,
-                win_from=((tn + hn + 1) % 4) + 1,
-            )
-        Hand.objects.create(
-            tenant=tournament['tenant'], round_nb=3, table_nb=tn, hand_nb=17,
-            pts=1, win_by=0, win_from=0,
-        )
+            pts = (300 + tn * 10 + hn) % 50
+            if pts > 0:
+                Hand.objects.create(
+                    tenant=tournament['tenant'], round_nb=3, table_nb=tn, hand_nb=hn,
+                    points=pts,
+                    win_by=((tn + hn) % 4) + 1,
+                    win_from=((tn + hn + 1) % 4) + 1,
+                )
+            else:
+                Hand.objects.create(
+                    tenant=tournament['tenant'], round_nb=3, table_nb=tn, hand_nb=hn,
+                    points=0, win_by=None, win_from=None,
+                )
+        ScoreSheet.objects.create(
+            tenant=tournament['tenant'], round_nb=3, table_nb=tn, validated=True)
     nb_rounds = tournament['variable'].nb_rounds
     for r in range(1, nb_rounds):
         PublishedRound.objects.update_or_create(
             tenant=tournament['tenant'], round_nb=r,
-            defaults={'reveal_level': 100},
+            defaults={'withheld': False},
         )
     PublishedRound.objects.update_or_create(
         tenant=tournament['tenant'], round_nb=nb_rounds,
-        defaults={'reveal_level': 0},
+        defaults={'withheld': True},
     )
     return tournament
 
@@ -107,21 +111,21 @@ class TestPlayerStandings:
 
 
 def _seat_one_table(tenant, seats, rules='MCR'):
-    """Create a Variable + one 4-seat table. `seats` is [(minipoints, tablepoints), …]
-    in seat order. Returns (variables, [players])."""
-    variables = Variable.objects.create(
+    """Create a TournamentSettings + one 4-seat table. `seats` is
+    [(minipoints, tablepoints), …] in seat order. Returns (variables, [players])."""
+    variables = TournamentSettings.objects.create(
         tenant=tenant, welcome='W', title='T', fullname='F',
         nb_rounds=1, rules=rules,
     )
     players = []
     for i, (mp, tp) in enumerate(seats):
         p = Player.objects.create(
-            tenant=tenant, rand_id=i + 1, full_name=f'P{i + 1} L',
+            tenant=tenant, draw_number=i + 1, full_name=f'P{i + 1} L',
             first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}', email='',
         )
-        Position.objects.create(
-            tenant=tenant, round_nb=1, table_nb=1, position=i + 1,
-            player=p, minipoints=mp, tablepoints=tp,
+        Seat.objects.create(
+            tenant=tenant, round_nb=1, table_nb=1, wind=i + 1,
+            draw_number=p.draw_number, minipoints=mp, tablepoints=tp,
         )
         players.append(p)
     return variables, players
@@ -210,47 +214,45 @@ class TestPlacementStatsRiichi:
 
 
 class TestWinLossStatsValidationGate:
-    """Win/loss hand stats only count hands from a validated score sheet (a
-    hand_nb=17, pts=1 marker), like the detailed-hands modal — an un-validated
-    sheet (e.g. freshly scanned, not yet human-checked) must not feed the rates."""
+    """Win/loss hand stats only count hands from a validated score sheet
+    (a ScoreSheet with validated=True), like the detailed-hands modal — an
+    un-validated sheet (e.g. freshly scanned, not yet human-checked) must not
+    feed the rates."""
 
     def _table_with_hands(self, tenant):
         variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         # Two real hands won by seat 1 (players[0]) on a discard from seat 2.
         for hn, pts in ((1, 20), (2, 30)):
             Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=hn,
-                                pts=pts, win_by=1, win_from=2)
+                                points=pts, win_by=1, win_from=2)
         return variables, players
 
     def test_unvalidated_sheet_hands_are_not_counted(self, tenant):
         variables, players = self._table_with_hands(tenant)
-        # No hand_nb=17 pts=1 marker -> table is not validated.
+        # No validated ScoreSheet -> table is not validated.
         stats = player_extra_stats(tenant, players[0], variables)
         assert stats['total_hands'] == 0
 
     def test_validated_sheet_hands_are_counted(self, tenant):
         variables, players = self._table_with_hands(tenant)
-        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
-                            pts=1, win_by=0, win_from=0)
+        ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
         stats = player_extra_stats(tenant, players[0], variables)
         assert stats['total_hands'] == 2
         by_label = {s['label']: s['count'] for s in stats['hand_stats']}
         assert by_label['Win by discard'] == 2
 
-    def test_mid_table_draw_counts_trailing_empty_excluded(self, tenant):
+    def test_draw_hand_counts_as_played(self, tenant):
         variables, players = self._table_with_hands(tenant)  # hands 1,2 discard-win seat 1
-        # hand 3 = genuine mid-table draw (a later hand is decided), hand 5 = trailing
-        # unplayed slot. Both are pts=0; only the mid-table one is a played hand.
+        # A validated sheet stores exactly the hands played: hand 3 is a genuine
+        # draw (no winner), hand 4 a decided hand. There is no trailing unplayed
+        # row (the entry/prune flow never persists one).
         Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=3,
-                            pts=0, win_by=0, win_from=0)
+                            points=0, win_by=None, win_from=None)
         Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=4,
-                            pts=25, win_by=1, win_from=2)
-        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=5,
-                            pts=0, win_by=0, win_from=0)
-        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
-                            pts=1, win_by=0, win_from=0)
+                            points=25, win_by=1, win_from=2)
+        ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
         stats = player_extra_stats(tenant, players[0], variables)
-        assert stats['total_hands'] == 4  # 3 decided + 1 mid-table draw; hand 5 excluded
+        assert stats['total_hands'] == 4  # 3 decided + 1 draw
         by_label = {s['label']: s['count'] for s in stats['hand_stats']}
         assert by_label['Draw'] == 1
         assert by_label['Win by discard'] == 3
@@ -261,8 +263,7 @@ class TestWinLossStatsValidationGate:
             p.team = 'Reds'
             p.save()
         assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 0
-        Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=17,
-                            pts=1, win_by=0, win_from=0)
+        ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
         # All 4 team members sit at this table, so team stats see each hand from
         # every member's seat: 2 hands x 4 players = 8 player-hand observations.
         assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 8
@@ -355,7 +356,7 @@ class TestEndOfTournamentHideLastRound:
         last_pub = PublishedRound.objects.get(
             tenant=completed_tournament['tenant'], round_nb=nb_rounds,
         )
-        last_pub.reveal_level = 12
+        last_pub.withheld = False  # final round revealed to everyone
         last_pub.save()
         rows = views.scores_per_player_json(request_, check_final=True)
         for r in rows:
@@ -394,11 +395,11 @@ class TestOverallWinnersMaskFinalRound:
         nb_rounds = completed_tournament['variable'].nb_rounds
         tenant = completed_tournament['tenant']
         PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).delete()
-        pos = Position.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
+        pos = Seat.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
         pos.minipoints = 100000
         pos.save()
         h = Hand.objects.filter(tenant=tenant, round_nb=nb_rounds, hand_nb=1).first()
-        h.pts, h.win_by, h.win_from = 100000, 1, 0  # self-draw
+        h.points, h.win_by, h.win_from = 100000, 1, None  # self-draw (no discarder)
         h.save()
         return completed_tournament
 
@@ -466,7 +467,7 @@ class TestNoRoundsFallback:
     def unscored_tournament(self, tournament):
         # Wipe every scored round: no hands, and Positions carry no points.
         Hand.objects.filter(tenant=tournament['tenant']).delete()
-        Position.objects.filter(tenant=tournament['tenant']).update(
+        Seat.objects.filter(tenant=tournament['tenant']).update(
             minipoints=None, tablepoints=None,
         )
         PublishedRound.objects.filter(tenant=tournament['tenant']).delete()
@@ -510,7 +511,7 @@ class TestNextRoundBadge:
         # but the wall clock stays.
         PublishedRound.objects.update_or_create(
             tenant=completed_tournament['tenant'], round_nb=3,
-            defaults={'reveal_level': 100},
+            defaults={'withheld': False},
         )
         html = views.render_scores(request_, "detailed", None).content.decode()
         assert 'Scores after round 3' in html

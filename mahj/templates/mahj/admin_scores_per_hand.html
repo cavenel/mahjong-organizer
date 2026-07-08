@@ -97,10 +97,10 @@
       {% for hand in hands %}
         <tr>
           <th rowspan="2" class="bg-gray-50 text-gray-500 font-medium">{{ hand.hand_nb }}</th>
-          <td rowspan="2" class="input-cell"><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='pts_{{ hand.hand_nb }}' value='{{ hand.pts }}' style="{{ hand.conf_bg }}"></td>
-          <td rowspan="2" class="input-cell"><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='by_{{ hand.hand_nb }}' value='{{ hand.win_by }}' style="{{ hand.conf_bg }}"></td>
+          <td rowspan="2" class="input-cell"><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='pts_{{ hand.hand_nb }}' value='{{ hand.points }}' style="{{ hand.conf_bg }}"></td>
+          <td rowspan="2" class="input-cell"><input type="number" data-hand_nb='{{ hand.hand_nb }}' id='by_{{ hand.hand_nb }}' value='{{ hand.win_by|default_if_none:"" }}' style="{{ hand.conf_bg }}"></td>
           <td rowspan="2" class="input-cell">
-            <input type="number" data-hand_nb='{{ hand.hand_nb }}' id='from_{{ hand.hand_nb }}' value='{{ hand.win_from }}' style="{{ hand.conf_bg }}">
+            <input type="number" data-hand_nb='{{ hand.hand_nb }}' id='from_{{ hand.hand_nb }}' value='{{ hand.win_from|default_if_none:"" }}' style="{{ hand.conf_bg }}">
             <input type="hidden" id='id_{{ hand.hand_nb }}' value='{{ hand.id }}'>
             <input type="hidden" id='version_{{ hand.hand_nb }}' value='{{ hand.version }}'>
           </td>
@@ -169,10 +169,9 @@
       </div>
       {% endif %}
       <label class="validate-label mt-auto pt-5 inline-flex flex-col items-center gap-2 cursor-pointer select-none rounded-xl border-2 border-amber-300 bg-amber-50 px-4 py-3 hover:bg-amber-100 transition-colors text-center">
-        <input type="checkbox" data-hand_nb="17" id="valid_17" {% if completed.pts == 1 %}checked{% endif %}
+        <input type="checkbox" data-hand_nb="17" id="valid_17" {% if validated %}checked{% endif %}
                class="w-7 h-7 accent-amber-500 cursor-pointer">
         <span class="text-sm font-bold text-amber-700 leading-tight">Validate<br>score sheet</span>
-        <input type="hidden" id="version_17" value="{{ completed.version }}">
       </label>
       <button type="button" id="clear-all" onclick="confirmClearAll()"
               class="mt-3 inline-flex items-center justify-center gap-2 rounded-xl border-2 border-rose-300 bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 transition-colors">
@@ -235,23 +234,20 @@
       if (!ajax_timeouts[row]) continue;
       clearTimeout(ajax_timeouts[row]);
       delete ajax_timeouts[row];
-      var id, pts, from, by;
-      if ($("#valid_" + row).length) {
-        id = {{ completed.id }};
-        pts = $("#valid_" + row).prop("checked") ? 1 : 0;
-        from = 0; by = 0;
-      } else {
-        id   = $("#id_"   + row).val();
-        pts  = $("#pts_"  + row).val();
-        from = $("#from_" + row).val();
-        by   = $("#by_"   + row).val();
-      }
-      var version = $("#version_" + row).val() || 0;
       var fd = new FormData();
       fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-      fd.append('id', id); fd.append('pts', pts);
-      fd.append('from', from); fd.append('by', by);
-      fd.append('version', version);
+      if (row == "17") {
+        fd.append('round_nb', '{{ round_nb }}');
+        fd.append('table_nb', '{{ table_nb }}');
+        fd.append('validated', $("#valid_17").prop("checked") ? 1 : 0);
+        navigator.sendBeacon("validate_score_sheet", fd);
+        continue;
+      }
+      fd.append('id', $("#id_" + row).val());
+      fd.append('points', $("#pts_" + row).val());
+      fd.append('from', $("#from_" + row).val());
+      fd.append('by', $("#by_" + row).val());
+      fd.append('version', $("#version_" + row).val() || 0);
       navigator.sendBeacon("update_hand_points", fd);
     }
     flushPendingPenalties();
@@ -297,21 +293,22 @@
   };
 
   function send_ajax (table_row) {
-    var id, pts, from, by;
-    if ($("#valid_" + table_row).length) {
-      id = {{ completed.id }};
-      pts = $("#valid_" + table_row).prop("checked") ? 1 : 0;
-      from = 0; by = 0;
-    } else {
-      id   = $("#id_"   + table_row).val();
-      pts  = $("#pts_"  + table_row).val();
-      from = $("#from_" + table_row).val();
-      by   = $("#by_"   + table_row).val();
+    if (table_row == "17") {
+      $.post("validate_score_sheet", {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        'round_nb': '{{ round_nb }}', 'table_nb': '{{ table_nb }}',
+        'validated': $("#valid_17").prop("checked") ? 1 : 0,
+      });
+      return;
     }
+    var id      = $("#id_"   + table_row).val();
+    var points  = $("#pts_"  + table_row).val();
+    var from    = $("#from_" + table_row).val();
+    var by      = $("#by_"   + table_row).val();
     var version = $("#version_" + table_row).val() || 0;
     var data = {
       'csrfmiddlewaretoken': '{{ csrf_token }}',
-      'id': id, 'pts': pts, 'from': from, 'by': by, 'version': version,
+      'id': id, 'points': points, 'from': from, 'by': by, 'version': version,
     };
     $.ajax({
       type: "POST", url: "update_hand_points", data: data,
@@ -339,14 +336,9 @@
   function applyServerHand(table_row, current) {
     if (!current) return;
     $("#version_" + table_row).val(current.version);
-    if ($("#valid_" + table_row).length) {
-      $("#valid_" + table_row).prop("checked", current.pts === 1);
-      updateDisabledState();
-    } else {
-      $("#pts_"  + table_row).val(current.pts);
-      $("#by_"   + table_row).val(current.win_by);
-      $("#from_" + table_row).val(current.win_from);
-    }
+    $("#pts_"  + table_row).val(current.points);
+    $("#by_"   + table_row).val(current.win_by == null ? "" : current.win_by);
+    $("#from_" + table_row).val(current.win_from == null ? "" : current.win_from);
     update_scores();
   }
 

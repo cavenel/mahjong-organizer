@@ -18,7 +18,7 @@ from django.core.files.storage import FileSystemStorage
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
 
-from ..models import CeremonyState, Hand, Player, Player_data, Position, PublishedRound, Schedule, Screen, ScreenMode
+from ..models import CeremonyState, Hand, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
 from .print_views import _country_flag
@@ -87,10 +87,7 @@ def _mode_breakdowns(modes, screens):
               for i, s in enumerate(screens)]
     out = []
     for mode in modes:
-        try:
-            views = json.loads(mode.views)
-        except (ValueError, TypeError):
-            views = []
+        views = mode.views if isinstance(mode.views, list) else []
         normalised = [v or "black" for v in views]
         rows = []
         for i in range(len(current)):
@@ -125,23 +122,23 @@ def publisher_overview_rows(tenant, variables):
 
     total_per = defaultdict(int)
     mp_per = defaultdict(int)
-    for rn, tn, mp in Position.objects.filter(tenant=tenant).values_list('round_nb', 'table_nb', 'minipoints'):
+    for rn, tn, mp in Seat.objects.filter(tenant=tenant).values_list('round_nb', 'table_nb', 'minipoints'):
         total_per[(rn, tn)] += 1
         if mp is not None:
             mp_per[(rn, tn)] += 1
 
     tables_per_round = defaultdict(int)
-    scored_tables = defaultdict(list)  # round -> [table_nb] (every position has minipoints)
+    scored_tables = defaultdict(list)  # round -> [table_nb] (every seat has minipoints)
     for (rn, tn), total in total_per.items():
         tables_per_round[rn] += 1
         if total > 0 and mp_per[(rn, tn)] == total:
             scored_tables[rn].append(tn)
 
     validated_keys = set(
-        Hand.objects.filter(tenant=tenant, hand_nb=17, pts=1).values_list('round_nb', 'table_nb')
+        ScoreSheet.objects.filter(tenant=tenant, validated=True).values_list('round_nb', 'table_nb')
     )
     filled_keys = set(
-        Hand.objects.filter(tenant=tenant, pts__gt=0).exclude(hand_nb=17)
+        Hand.objects.filter(tenant=tenant, win_by__isnull=False)
             .values_list('round_nb', 'table_nb').distinct()
     ) - validated_keys
 
@@ -232,7 +229,6 @@ def admin_upload_from_template(request):
             fs.save("template.xlsx", attached_file)
 
             Player.objects.filter(tenant=tenant).delete()
-            Player_data.objects.filter(tenant=tenant).delete()
 
             wb = load_workbook(filename=str(tmp_file), data_only=True, read_only=True)
 
@@ -255,25 +251,22 @@ def admin_upload_from_template(request):
             variables.rules = opt_vals[5] or "MCR"
             variables.save()
 
+            # Roster: one Player per real person. The optional 'rand' column is a
+            # pre-assigned draw number; when present the person is linked to their
+            # seats below, otherwise the draw is made later (randomize / team draw).
             players_sheet = wb['Players']
             player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
-            player_data_objs = []
             player_objs = []
+            draw_of = []  # parallel to player_objs: pre-assigned draw number, or None
             any_team = False
             all_have_team = True
-            for idx, row in enumerate(player_rows, start=1):
+            for row in player_rows:
                 if row[0] is None:
                     break
                 last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
                 # Make first_name, last_name into title-case strings:
-                if isinstance(first_name_raw, str):
-                    first_name_raw = first_name_raw.strip().title()
-                else:
-                    first_name_raw = ""
-                if isinstance(last_name_raw, str):
-                    last_name_raw = last_name_raw.strip().title()
-                else:
-                    last_name_raw = ""
+                first_name_raw = first_name_raw.strip().title() if isinstance(first_name_raw, str) else ""
+                last_name_raw = last_name_raw.strip().title() if isinstance(last_name_raw, str) else ""
                 full_name = f"{first_name_raw} {last_name_raw}"
                 team = (team_raw or "").strip()
                 if team:
@@ -284,88 +277,81 @@ def admin_upload_from_template(request):
                     ema = f"{ema_raw:08d}"
                 except Exception:
                     ema = ""
-                player_data_objs.append(Player_data(
+                player_objs.append(Player(
                     tenant=tenant, full_name=full_name, EMA_ID=ema,
-                    country=country, email="", team=team,
+                    country=country or "", email="", team=team,
                 ))
-                if rand_raw is None:
-                    player_objs.append(Player(
-                        tenant=tenant, full_name="Player #" + str(idx),
-                        EMA_ID="", country="", email="", rand_id=idx, team="",
-                    ))
-                else:
-                    player_objs.append(Player(
-                        tenant=tenant, full_name=full_name, EMA_ID=ema,
-                        country=country, email="", rand_id=int(rand_raw), team=team,
-                    ))
+                try:
+                    draw_of.append(int(rand_raw) if rand_raw is not None else None)
+                except (TypeError, ValueError):
+                    draw_of.append(None)
             if any_team and not all_have_team:
                 raise ValueError("All players must have a team when teams are used, but some team cells are empty.")
-            Player_data.objects.bulk_create(player_data_objs)
             Player.objects.bulk_create(player_objs)
 
-            # Reload to get assigned PKs; compute disambiguated first_name, then
-            # rand_id prefix on Player.full_name, then a single bulk_update.
-            players_ = list(Player.objects.filter(tenant=tenant))
-            player_datas = list(Player_data.objects.filter(tenant=tenant))
-            for players in (players_, player_datas):
-                firstNames = [unidecode(p.full_name) for p in players]
-                for player in players:
-                    value = player.full_name.split(" ")[0]
-                    firstname = value
-                    if value == "Player":
+            # Disambiguate first names for display (two "Chris" -> "Chris."/"Christo").
+            # bulk_create skips Player.save(), so set first_name here in one bulk_update.
+            first_names = [unidecode(p.full_name) for p in player_objs]
+            for player in player_objs:
+                value = player.full_name.split(" ")[0]
+                firstname = value
+                for _ in range(10):
+                    ud_value = unidecode(value)
+                    if sum(fn[:len(ud_value)] == ud_value for fn in first_names) > 1:
+                        value += player.full_name[len(value):len(value) + 1]
+                    else:
                         break
-                    for _ in range(10):
-                        ud_value = unidecode(value)
-                        if sum(p[:len(ud_value)] == ud_value for p in firstNames) > 1:
-                            value += player.full_name[len(value):len(value) + 1]
-                        else:
-                            break
-                    value = value.rstrip()
-                    player.first_name = value + "." if value != firstname else value
-            for player in players_:
-                player.full_name = f"{player.full_name}"
-            Player.objects.bulk_update(players_, ['first_name', 'full_name'])
-            Player_data.objects.bulk_update(player_datas, ['first_name'])
+                value = value.rstrip()
+                player.first_name = value + "." if value != firstname else value
+            Player.objects.bulk_update(player_objs, ['first_name'])
+
+            # Each pre-assigned draw number -> its competitor, used to link seats.
+            human_by_draw = {
+                draw_of[i]: p for i, p in enumerate(player_objs) if draw_of[i] is not None
+            }
 
             Hand.objects.filter(tenant=tenant).delete()
-            Position.objects.filter(tenant=tenant).delete()
+            ScoreSheet.objects.filter(tenant=tenant).delete()
+            Seat.objects.filter(tenant=tenant).delete()
             # The new schedule starts with empty scores, so any rounds that were
             # published for the previous tournament are now stale — unpublish them all.
             PublishedRound.objects.filter(tenant=tenant).delete()
-            nb_players = len(players_)
+            nb_players = len(player_objs)
             nb_tables = nb_players // 4
-            players_by_rand = {p.rand_id: p for p in players_}
             pos_sheet = wb['{0} players'.format(nb_players)]
-            # Materialize the full sheet once (rows 3..3+nb_rounds-1, cols 2..2+5*nb_tables-1).
+            # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
+            # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated there.
             pos_rows = list(pos_sheet.iter_rows(
                 min_row=3, max_row=2 + variables.nb_rounds,
                 min_col=2, max_col=1 + 5 * nb_tables,
                 values_only=True,
             ))
-            positions_to_create = []
+            seats_to_create = []
             for round_idx, row in enumerate(pos_rows):
                 for table_nb in range(nb_tables):
-                    for position in range(4):
-                        player_rand_id = row[position + 5 * table_nb]
-                        positions_to_create.append(Position(
+                    for wind in range(4):
+                        cell = row[wind + 5 * table_nb]
+                        draw_number = int(cell) if cell is not None else 0
+                        seats_to_create.append(Seat(
                             tenant=tenant,
-                            player=players_by_rand.get(player_rand_id),
+                            draw_number=draw_number,
+                            player=human_by_draw.get(draw_number),
                             round_nb=round_idx + 1,
                             table_nb=table_nb + 1,
-                            position=position + 1,
+                            wind=wind + 1,
                             minipoints=None,
                             tablepoints=None,
                         ))
-            Position.objects.bulk_create(positions_to_create, batch_size=500)
+            Seat.objects.bulk_create(seats_to_create, batch_size=500)
             wb.close()
             from ..signals import invalidate_leaderboard
             invalidate_leaderboard(tenant.subdomain)
             broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
         except Exception:
             Player.objects.filter(tenant=tenant).delete()
-            Player_data.objects.filter(tenant=tenant).delete()
             Hand.objects.filter(tenant=tenant).delete()
-            Position.objects.filter(tenant=tenant).delete()
+            ScoreSheet.objects.filter(tenant=tenant).delete()
+            Seat.objects.filter(tenant=tenant).delete()
             PublishedRound.objects.filter(tenant=tenant).delete()
             Schedule.objects.filter(tenant=tenant).delete()
             variables = get_variables(request)
@@ -382,54 +368,54 @@ def admin_upload_from_template(request):
 
 @user_passes_test(lambda u: u.is_staff)
 def randomize(request):
+    """Assign competitors to draw slots. A draw slot is a draw_number; the draw is
+    made by setting the competitor's Player.draw_number. A competitor holds at most
+    one slot, so assigning them a slot frees whoever held it and frees their own
+    previous slot. Seats are fixed structure and are never touched here."""
     tenant = get_tenant(request)
-    players = Player.objects.filter(tenant=tenant).order_by('rand_id')
-    players_data = Player_data.objects.filter(tenant=tenant).order_by('full_name')
-    for player in players:
-        val = request.POST.get('player_' + str(player.id))
-        if val and val not in ('no', ''):
-            if val == "clear":
-                player.full_name = "Player #" + str(player.rand_id)
-                player.first_name = "#" + str(player.rand_id)
-                player.EMA_ID = ""
-                player.country = ""
-                player.email = ""
-                player.team = ""
-            else:
-                try:
-                    player_data = [p for p in players_data if p.id == int(val)][0]
-                except IndexError:
-                    continue
-                player.full_name = player_data.full_name
-                player.first_name = player_data.first_name
-                player.EMA_ID = player_data.EMA_ID
-                player.country = player_data.country
-                player.email = player_data.email
-                player.team = player_data.team
-            player.save()
+    seats = list(Seat.objects.filter(tenant=tenant))
+    draw_numbers = sorted({s.draw_number for s in seats})
 
-    position_vals = Position.objects.filter(tenant=tenant).order_by('id')
+    if request.method == 'POST':
+        roster_by_id = {p.id: p for p in Player.objects.filter(tenant=tenant)}
+        for dn in draw_numbers:
+            val = request.POST.get('slot_' + str(dn))
+            if not val or val == 'no':
+                continue
+            if val == 'clear':
+                Player.objects.filter(tenant=tenant, draw_number=dn).update(draw_number=None)
+                continue
+            try:
+                player = roster_by_id.get(int(val))
+            except (TypeError, ValueError):
+                continue
+            if player is None:
+                continue
+            # Free the target slot from its current holder and the player's old slot,
+            # then give the player the slot.
+            Player.objects.filter(tenant=tenant, draw_number=dn).exclude(id=player.id).update(draw_number=None)
+            if player.draw_number != dn:
+                player.draw_number = dn
+                player.save(update_fields=['draw_number'])
 
-    round_max = 0
-    table_max = 0
-    for position_val in position_vals:
-        round_max = max(round_max, position_val.round_nb)
-        table_max = max(table_max, position_val.table_nb)
-    positions = []
-    for _ in range(table_max):
-        positions.append([])
-        for _ in range(round_max):
-            positions[-1].append([None, None, None, None])
-    for position_val in position_vals:
-        positions[position_val.table_nb - 1][position_val.round_nb - 1][position_val.position - 1] = position_val.player
+    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
+    player_by_draw = {p.draw_number: p for p in roster if p.draw_number is not None}
 
-    remaining_players = [p.full_name for p in players_data if p.full_name not in [p1.full_name for p1 in players]]
+    round_max = max((s.round_nb for s in seats), default=0)
+    table_max = max((s.table_nb for s in seats), default=0)
+    grid = [[[None] * 4 for _ in range(round_max)] for _ in range(table_max)]
+    for s in seats:
+        s.player = player_by_draw.get(s.draw_number)  # for the template
+        grid[s.table_nb - 1][s.round_nb - 1][s.wind - 1] = s
+
+    slots = [{'draw_number': dn, 'player': player_by_draw.get(dn)} for dn in draw_numbers]
+    remaining = [p for p in roster if p.draw_number is None]
+
     template = loader.get_template('mahj/admin_randomize.html')
     context = {
-        "positions": positions,
-        "players_data": players_data,
-        "players": players,
-        "remaining_players": remaining_players,
+        "grid": grid,
+        "slots": slots,
+        "remaining": remaining,
     }
     return template.render(context, request)
 
@@ -437,26 +423,23 @@ def randomize(request):
 @user_passes_test(lambda u: u.is_staff)
 def admin_team_draw(request):
     tenant = get_tenant(request)
-    players_data = Player_data.objects.filter(tenant=tenant).order_by('full_name')
+    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
-    # Players are created in import order, so id order is the original row order
-    # of the Excel "Players" sheet. The CSV export sorts on this so the drawn
-    # numbers line up with the template rows.
-    pd_order = {pd.id: i for i, pd in enumerate(sorted(players_data, key=lambda p: p.id), start=1)}
+    # id order is the original row order of the Excel "Players" sheet. The CSV
+    # export sorts on this so the drawn numbers line up with the template rows.
+    order = {p.id: i for i, p in enumerate(sorted(roster, key=lambda p: p.id), start=1)}
 
     teams_dict = {}
-    for pd in players_data:
-        if pd.team:
-            if pd.team not in teams_dict:
-                teams_dict[pd.team] = []
-            teams_dict[pd.team].append({
-                "id": pd.id,
-                "original_index": pd_order[pd.id],
-                "full_name": pd.full_name,
-                "first_name": pd.first_name,
-                "country": pd.country,
-                "flag": _country_flag(pd.country),
-                "EMA_ID": pd.EMA_ID,
+    for p in roster:
+        if p.team:
+            teams_dict.setdefault(p.team, []).append({
+                "id": p.id,
+                "original_index": order[p.id],
+                "full_name": p.full_name,
+                "first_name": p.first_name,
+                "country": p.country,
+                "flag": _country_flag(p.country),
+                "EMA_ID": p.EMA_ID,
             })
 
     teams_list = [
@@ -466,19 +449,18 @@ def admin_team_draw(request):
 
     nb_teams = len(teams_list)
 
+    # Existing draw, if any: the competitors who already have a draw number,
+    # grouped by team.
+    drawn = [p for p in roster if p.draw_number is not None and p.team]
+
     saved_draw = []
-    players_with_team = Player.objects.filter(tenant=tenant).exclude(team="").order_by('rand_id')
-    if players_with_team.exists():
-        p_order = {p.id: i for i, p in enumerate(
-            Player.objects.filter(tenant=tenant).order_by('id'), start=1)}
+    if drawn:
         draw_teams = {}
-        for p in players_with_team:
-            if p.team not in draw_teams:
-                draw_teams[p.team] = []
-            draw_teams[p.team].append({
+        for p in drawn:
+            draw_teams.setdefault(p.team, []).append({
                 "full_name": p.full_name,
-                "rand_id": p.rand_id,
-                "original_index": p_order[p.id],
+                "rand_id": p.draw_number,
+                "original_index": order.get(p.id, 0),
             })
         slot = 1
         for team_name in sorted(draw_teams.keys()):
@@ -506,33 +488,24 @@ def admin_team_draw_save(request):
 
     tenant = get_tenant(request)
     data = json.loads(request.body)
-    assignments = data.get('assignments', [])
+    assignments = data.get('assignments', [])  # [{player_id, rand_id}] rand_id = draw number
 
-    pd_ids = [a['player_data_id'] for a in assignments]
-    player_datas = {
-        pd.id: pd
-        for pd in Player_data.objects.filter(tenant=tenant, id__in=pd_ids)
-    }
+    player_ids = [a['player_id'] for a in assignments]
+    draw_numbers = [a['rand_id'] for a in assignments]  # rand_id = the drawn number
+    players = {p.id: p for p in Player.objects.filter(tenant=tenant, id__in=player_ids)}
 
-    players_by_rand = {
-        p.rand_id: p
-        for p in Player.objects.filter(tenant=tenant)
-    }
-
-    updated = []
+    # Free the target draw numbers from any current holder and clear these
+    # competitors' current numbers, then assign each their drawn number. Clearing
+    # first keeps the per-tenant unique draw_number constraint satisfied.
+    Player.objects.filter(tenant=tenant, draw_number__in=draw_numbers).update(draw_number=None)
+    Player.objects.filter(tenant=tenant, id__in=player_ids).update(draw_number=None)
+    to_update = []
     for a in assignments:
-        pd = player_datas.get(a['player_data_id'])
-        player = players_by_rand.get(a['rand_id'])
-        if pd and player:
-            player.full_name = pd.full_name
-            player.first_name = pd.first_name
-            player.EMA_ID = pd.EMA_ID
-            player.country = pd.country
-            player.email = pd.email
-            player.team = pd.team
-            updated.append(player)
-
-    Player.objects.bulk_update(updated, ['full_name', 'first_name', 'EMA_ID', 'country', 'email', 'team'])
+        player = players.get(a['player_id'])
+        if player is not None:
+            player.draw_number = a['rand_id']
+            to_update.append(player)
+    Player.objects.bulk_update(to_update, ['draw_number'])
 
     return HttpResponse('OK')
 
@@ -570,7 +543,7 @@ def update_logo(request):
         variables.logo_etag = hashlib.md5(data).hexdigest()
     # Scope the write to the logo fields: a full-row save would also persist this
     # (possibly stale) instance's `counter`, which could stop a running round
-    # timer. signals.py still invalidates the cached Variable on post_save.
+    # timer. signals.py still invalidates the cached settings on post_save.
     variables.save(update_fields=['logo', 'logo_etag'])
     return HttpResponse("OK")
 
@@ -746,7 +719,7 @@ def options(request, error=None):
             mode_name = request.POST.get('mode_name')
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             views_list = [str(screen.view) for screen in screens]
-            ScreenMode(tenant=tenant, name=mode_name, views=json.dumps(views_list)).save()
+            ScreenMode(tenant=tenant, name=mode_name, views=views_list).save()
             return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('rm_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('rm_mode'))
@@ -768,7 +741,7 @@ def options(request, error=None):
             return JsonResponse({'screens': applied})
         elif request.GET.get('set_mode'):
             mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('set_mode'))
-            views_list = json.loads(mode.views)
+            views_list = mode.views if isinstance(mode.views, list) else []
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             applied = []
             for view, screen in zip(views_list, screens):
@@ -839,13 +812,12 @@ def options(request, error=None):
         )
         validated_keys = {
             f"{rn}-{tn}"
-            for rn, tn in Hand.objects.filter(tenant=tenant, hand_nb=17, pts=1)
+            for rn, tn in ScoreSheet.objects.filter(tenant=tenant, validated=True)
                                        .values_list('round_nb', 'table_nb')
         }
         filled_keys = {
             f"{rn}-{tn}"
-            for rn, tn in Hand.objects.filter(tenant=tenant, pts__gt=0)
-                                       .exclude(hand_nb=17)
+            for rn, tn in Hand.objects.filter(tenant=tenant, win_by__isnull=False)
                                        .values_list('round_nb', 'table_nb')
                                        .distinct()
         } - validated_keys

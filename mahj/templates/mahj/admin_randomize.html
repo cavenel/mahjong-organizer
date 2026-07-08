@@ -5,7 +5,7 @@
 
   <!-- Tables -->
   <div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
-    {% for table in positions %}
+    {% for table in grid %}
       <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
         <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">
           <h5 class="text-sm font-semibold text-gray-700">Table {{ forloop.counter }}</h5>
@@ -25,11 +25,11 @@
               {% for round in table %}
                 <tr>
                   <th class="py-1 pr-2 text-right text-gray-400 font-medium">R{{ forloop.counter }}</th>
-                  {% for player in round %}
-                    {% if "Player" in player.full_name %}
-                      <td class="py-1 px-1 text-gray-400">{{ player.first_name }}</td>
+                  {% for seat in round %}
+                    {% if seat.player %}
+                      <td class="py-1 px-1 font-semibold text-rose-600">{{ seat.player.first_name }}</td>
                     {% else %}
-                      <td class="py-1 px-1 font-semibold text-rose-600">{{ player.first_name }}</td>
+                      <td class="py-1 px-1 text-gray-400">#{{ seat.draw_number }}</td>
                     {% endif %}
                   {% endfor %}
                 </tr>
@@ -41,31 +41,29 @@
     {% endfor %}
   </div>
 
-  <!-- Player list -->
+  <!-- Draw slots -->
   <div class="w-full lg:w-80 shrink-0">
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div class="px-4 py-2 bg-gray-50 border-b border-gray-100">
-        <h4 class="text-sm font-semibold text-gray-700">List of players</h4>
+        <h4 class="text-sm font-semibold text-gray-700">Draw slots</h4>
       </div>
       <form action="admin?page=randomize" method="post" class="p-2">
         {% csrf_token %}
         <ul class="divide-y divide-gray-100">
-          {% for player in players %}
+          {% for slot in slots %}
             <li class="flex items-center gap-2 px-2 py-1.5">
-              <label for="player_{{ player.id }}" class="w-10 shrink-0 text-xs text-gray-500 font-medium">P_{{ forloop.counter }}</label>
-              <select name="player_{{ player.id }}" onchange="this.form.submit()"
+              <label for="slot_{{ slot.draw_number }}" class="w-10 shrink-0 text-xs text-gray-500 font-medium">#{{ slot.draw_number }}</label>
+              <select name="slot_{{ slot.draw_number }}" onchange="this.form.submit()"
                       class="flex-1 min-w-0 text-xs border border-gray-200 rounded px-2 py-1 bg-white
                              focus:outline-none focus:ring-2 focus:ring-amber-300">
-                {% if not "Player" in player.full_name %}
-                  <option value="no">{{ player.full_name }}</option>
-                  <option value="clear"></option>
+                {% if slot.player %}
+                  <option value="no">{{ slot.player.full_name }}</option>
+                  <option value="clear">— clear —</option>
                 {% else %}
-                  <option value="no"></option>
+                  <option value="no">— unassigned —</option>
                 {% endif %}
-                {% for player_data in players_data %}
-                  {% if player_data.full_name in remaining_players %}
-                    <option value="{{ player_data.id }}">{{ player_data }}</option>
-                  {% endif %}
+                {% for player in remaining %}
+                  <option value="{{ player.id }}">{{ player.full_name }}</option>
                 {% endfor %}
               </select>
             </li>

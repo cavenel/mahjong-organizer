@@ -5,7 +5,7 @@ from django.db.models import ForeignKey, Model
 from django.db.models.query import QuerySet
 from django.test import RequestFactory
 
-from mahj.models import Tenant, Player, Variable, Schedule, Position, Hand, PublishedRound
+from mahj.models import Tenant, Player, TournamentSettings, Schedule, Seat, ScoreSheet, Hand, PublishedRound
 
 
 @pytest.fixture
@@ -16,7 +16,7 @@ def tenant(db):
 @pytest.fixture
 def tournament(tenant):
     """Seed: 16 players, 3 rounds (2 complete with hands, 1 partial — Positions but no points)."""
-    variable = Variable.objects.create(
+    variable = TournamentSettings.objects.create(
         tenant=tenant, welcome='Welcome', title='T', fullname='FT',
         nb_rounds=3, rules='MCR', total_time=60 * 60, zoom=1.0, score_lines=20,
     )
@@ -25,9 +25,11 @@ def tournament(tenant):
 
     countries = ['Sweden', 'Sweden', 'Sweden', 'France', 'Japan', 'Germany', 'Sweden', 'France',
                  'Japan', 'Germany', 'Sweden', 'France', 'Japan', 'Germany', 'Sweden', 'France']
+    # draw_number is the competitor's slot in the draw; the seating chart (Seat)
+    # is keyed by it (Seat has no player FK).
     players = [
         Player.objects.create(
-            tenant=tenant, rand_id=i + 1,
+            tenant=tenant, draw_number=i + 1,
             full_name=f'Player{i + 1} Lastname',
             first_name=f'Player{i + 1}',
             country=countries[i], EMA_ID=f'E{i + 1:05d}', email='',
@@ -45,31 +47,39 @@ def tournament(tenant):
             for pos in range(4):
                 p_idx = rotations[rn][tn][pos]
                 complete = rn < 2
-                Position.objects.create(
+                Seat.objects.create(
                     tenant=tenant, round_nb=rn + 1, table_nb=tn + 1,
-                    position=pos + 1, player=players[p_idx],
+                    wind=pos + 1, draw_number=players[p_idx].draw_number,
                     minipoints=(p_idx * 10 + rn * 5) % 200 if complete else None,
                     tablepoints=float([4, 2, 1, 0][pos]) if complete else None,
                 )
 
+    # 16 played hands per table on the two complete rounds. A hand worth >0 is a
+    # win (a discard win here: win_from != win_by); a hand worth 0 is a draw
+    # (win_by/win_from NULL) — matching the value distribution the suite expects.
     for rn in range(2):
         for tn in range(4):
             for hn in range(1, 17):
-                Hand.objects.create(
-                    tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, hand_nb=hn,
-                    pts=((rn + 1) * 100 + tn * 10 + hn) % 50,
-                    win_by=((rn + tn + hn) % 4) + 1,
-                    win_from=((rn + tn + hn + 1) % 4) + 1,
-                )
-            Hand.objects.create(
-                tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, hand_nb=17,
-                pts=1, win_by=0, win_from=0,
-            )
+                pts = ((rn + 1) * 100 + tn * 10 + hn) % 50
+                if pts > 0:
+                    Hand.objects.create(
+                        tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, hand_nb=hn,
+                        points=pts,
+                        win_by=((rn + tn + hn) % 4) + 1,
+                        win_from=((rn + tn + hn + 1) % 4) + 1,
+                    )
+                else:
+                    Hand.objects.create(
+                        tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, hand_nb=hn,
+                        points=0, win_by=None, win_from=None,
+                    )
+            ScoreSheet.objects.create(
+                tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, validated=True)
 
     # Publish the two completed rounds so public viewers see them
     # (mirrors scorer-admin workflow: complete a round, then publish it).
     for rn in range(1, 3):
-        PublishedRound.objects.create(tenant=tenant, round_nb=rn, reveal_level=100)
+        PublishedRound.objects.create(tenant=tenant, round_nb=rn, withheld=False)
 
     return {'tenant': tenant, 'variable': variable, 'players': players}
 

@@ -11,9 +11,9 @@ from django.shortcuts import render
 from django.template import loader
 from django.utils import timezone
 
-from ..models import Player, Position, Schedule, Screen, ScreenMode
+from ..models import Player, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
-from ..scoring import _last_round_reveal, player_schedule, team_standings
+from ..scoring import _final_round_withheld, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, is_display_op
@@ -247,7 +247,7 @@ def render_scores(request, density, page_nb=None):
     show_rounds = density == DETAILED
     score_lines = variables.score_lines
 
-    prepublish = _last_round_reveal(tenant, variables.nb_rounds) == 0
+    prepublish = _final_round_withheld(tenant, variables.nb_rounds) is True
     check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
     try:

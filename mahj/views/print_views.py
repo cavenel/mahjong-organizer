@@ -4,8 +4,8 @@ from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse
 from django.template import loader
 
-from ..models import Player, Player_data, Position, Schedule
-from ..scoring import _country_flag
+from ..models import Player, Seat, Schedule
+from ..scoring import _attach_players, _country_flag
 from .helpers import get_tenant, get_variables
 from .. import scoring as _scoring
 from .scoring import scores_per_player_json, scores_per_table_json
@@ -30,7 +30,7 @@ def cross_positions(request):
                     team_a = pos_a["position"].player.team
                     if team_a not in team_idx:
                         continue
-                    if pos_a["position"].position == 1:
+                    if pos_a["position"].wind == 1:
                         cross[team_idx[team_a]]["east"] += 1
                     for j, pos_b in enumerate(table):
                         if i == j:
@@ -40,9 +40,9 @@ def cross_positions(request):
                             cross[team_idx[team_a]]["cross"][team_idx[team_b]] += 1
     else:
         cross = []
-        for player in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+        for player in Player.objects.filter(tenant=tenant).order_by('draw_number'):
             cross.append({"player": player.first_name, "east": 0, "cross": []})
-            for _ in Player.objects.filter(tenant=tenant).order_by('rand_id'):
+            for _ in Player.objects.filter(tenant=tenant).order_by('draw_number'):
                 cross[-1]["cross"].append(0)
 
         for round_ in scores:
@@ -50,10 +50,10 @@ def cross_positions(request):
                 players = [position["position"].player for position in table]
                 for position in table:
                     for player in players:
-                        if player.rand_id != position["position"].player.rand_id:
-                            cross[position["position"].player.rand_id - 1]["cross"][player.rand_id - 1] += 1
-                    if position["position"].position == 1:
-                        cross[position["position"].player.rand_id - 1]["east"] += 1
+                        if player.draw_number != position["position"].player.draw_number:
+                            cross[position["position"].player.draw_number - 1]["cross"][player.draw_number - 1] += 1
+                    if position["position"].wind == 1:
+                        cross[position["position"].player.draw_number - 1]["east"] += 1
 
     template = loader.get_template('mahj/print_cross_positions.html')
     return HttpResponse(template.render({'cross': cross}, request))
@@ -106,9 +106,9 @@ def player_cards(request):
     if wanted:
         player_rounds = [
             pr for pr in player_rounds
-            if pr["player"].rand_id in wanted
+            if pr["player"].draw_number in wanted
             or (not main_only
-                and any(pos.player.rand_id in wanted
+                and any(pos.player and pos.player.draw_number in wanted
                         for rnd in pr["rounds"] for pos in rnd["other_pos"]))
         ]
 
@@ -124,7 +124,7 @@ def player_cards(request):
 
 def player_names(request):
     tenant = get_tenant(request)
-    players = Player_data.objects.filter(tenant=tenant).all()
+    players = Player.objects.filter(tenant=tenant).all()
     template = loader.get_template('mahj/print_player_names.html')
     return HttpResponse(template.render({"names": players}, request))
 
@@ -145,7 +145,8 @@ def team_names(request):
 def table_posters(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
-    position_vals = Position.objects.filter(tenant=tenant).order_by('id')
+    position_vals = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('id')))
 
     round_max = 0
     table_max = 0
@@ -154,7 +155,7 @@ def table_posters(request):
         table_max = max(table_max, position_val.table_nb)
     positions = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
     for position_val in position_vals:
-        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.position - 1] = position_val.player
+        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.wind - 1] = position_val.player
 
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     schedule = [s for s in schedule if "Round" in s.name or "Session" in s.name]

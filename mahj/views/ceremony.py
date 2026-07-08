@@ -8,8 +8,8 @@ reloads (their blind `onmessage -> reload`) into `index()`, which renders the
 ceremony slide instead of the screen's configured view while a ceremony is
 active. The ceremony page itself applies later updates live without reloading.
 
-Nothing here changes the existing players-only `reveal_level` podium logic; the
-final "Publish to everyone" simply reuses the publish path (reveal_level=100).
+Nothing here changes the existing players-only withheld-podium logic; the final
+"Publish to everyone" simply reuses the publish path (withheld=False).
 """
 import json
 
@@ -61,7 +61,7 @@ def _stat_winners(key, items):
     """Normalise an overall_winners category into [{value, name, flag, round_nb, table_nb}]."""
     winners = []
     for it in items:
-        if key == 'mp_max':                       # Position instances
+        if key == 'mp_max':                       # Seat instances
             player, value = it.player, it.minipoints
             round_nb, table_nb = it.round_nb, it.table_nb
         elif key in ('sd_hand_max', 'ron_hand_max'):
@@ -209,7 +209,7 @@ def ceremony_control(request):
         # Reveal everything to everyone: publish all rounds fully.
         for rnd in range(1, variables.nb_rounds + 1):
             PublishedRound.objects.update_or_create(
-                tenant=tenant, round_nb=rnd, defaults={'reveal_level': 100})
+                tenant=tenant, round_nb=rnd, defaults={'withheld': False})
         state.phase, state.step, state.stat_key = 'idle', 0, ''
         state.save()
         invalidate_leaderboard(subdomain)  # busts caches + wakes desktop

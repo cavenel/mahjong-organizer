@@ -44,11 +44,9 @@ $COMPOSE exec -T -e PGPASSWORD="$DB_PASSWORD" db \
   pg_restore -U "$DB_USER" -d "$SCRATCH" --no-owner --no-acl < "$dump"
 
 echo "restore_test: row counts in restored copy —"
-# Tables are mixed-case (Django app_label 'SOMMC2018'), so identifiers must be
-# double-quoted or Postgres folds them to lowercase and the lookup fails.
 psql -d "$SCRATCH" -c 'SELECT
-  (SELECT count(*) FROM "SOMMC2018_player")   AS players,
-  (SELECT count(*) FROM "SOMMC2018_position") AS positions,
-  (SELECT count(*) FROM "SOMMC2018_hand")     AS hands;'
+  (SELECT count(*) FROM mahj_player) AS players,
+  (SELECT count(*) FROM mahj_seat)   AS seats,
+  (SELECT count(*) FROM mahj_hand)   AS hands;'
 
 echo "restore_test: OK (scratch DB will be dropped)"

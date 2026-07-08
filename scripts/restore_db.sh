@@ -116,11 +116,10 @@ $COMPOSE exec -T -e PGPASSWORD="$DB_PASSWORD" db \
   pg_restore -U "$DB_USER" -d "$DB_NAME" --no-owner --no-acl < "$dump"
 
 echo "restore_db: restored row counts —"
-# Tables are mixed-case (app_label 'SOMMC2018'), so identifiers must be quoted.
 psql -d "$DB_NAME" -c 'SELECT
-  (SELECT count(*) FROM "SOMMC2018_player")   AS players,
-  (SELECT count(*) FROM "SOMMC2018_position") AS positions,
-  (SELECT count(*) FROM "SOMMC2018_hand")     AS hands;'
+  (SELECT count(*) FROM mahj_player) AS players,
+  (SELECT count(*) FROM mahj_seat)   AS seats,
+  (SELECT count(*) FROM mahj_hand)   AS hands;'
 
 echo "restore_db: bringing the stack back up (web re-runs migrate on boot) …"
 $COMPOSE up -d --wait

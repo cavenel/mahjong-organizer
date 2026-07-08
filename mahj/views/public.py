@@ -10,8 +10,8 @@ from openpyxl.formatting.rule import ColorScaleRule
 from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
-from ..models import Hand, Position, Schedule
-from ..scoring import team_standings
+from ..models import Hand, ScoreSheet, Schedule, Seat
+from ..scoring import _attach_players, team_standings
 from .helpers import can_access_admin, get_tenant, get_variables
 from .scoring import (
     LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
@@ -61,11 +61,14 @@ def desktop(request):
     nb_rounds = variables.nb_rounds
 
     # Fetch positions and hands once; share between standings, seating, and stats.
-    positions = list(
-        Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
-    )
+    positions = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('round_nb')
+    ))
     hands = list(Hand.objects.filter(tenant=tenant))
-    valid_pairs = {(h.round_nb, h.table_nb) for h in hands if h.hand_nb == 17 and h.pts == 1}
+    valid_pairs = set(
+        ScoreSheet.objects.filter(tenant=tenant, validated=True)
+        .values_list('round_nb', 'table_nb')
+    )
     scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin, positions=positions)
     seating, player_table = tournament_seating(
         request, check_final=check_final, force_all=is_admin, valid_pairs=valid_pairs, positions=positions,
@@ -194,9 +197,9 @@ def stats_xlsx(request):
     is_admin = request.user.is_staff
     check_final = not is_admin
 
-    positions = list(
-        Position.objects.filter(tenant=tenant).select_related('player').order_by('round_nb')
-    )
+    positions = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('round_nb')
+    ))
     hands = list(Hand.objects.filter(tenant=tenant))
     data = stats_export(request, check_final=check_final, positions=positions, hands=hands)
 

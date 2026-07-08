@@ -8,7 +8,7 @@ from django.http import HttpResponse, JsonResponse
 from django.template import loader
 from django.urls import reverse
 
-from ..models import Hand, Position, PublishedRound
+from ..models import Hand, ScoreSheet, Seat, PublishedRound
 from ..signals import (
     broadcast_publish_state,
     broadcast_scorer_filled,
@@ -38,24 +38,61 @@ def _round_is_published(tenant, round_nb):
     return PublishedRound.objects.filter(tenant=tenant, round_nb=round_nb).exists()
 
 
+def _seat(raw):
+    """A seat wind entered on the sheet: an int 1-4, or None (blank/0/out of range)."""
+    try:
+        v = int(raw)
+    except (TypeError, ValueError):
+        return None
+    return v if 1 <= v <= 4 else None
+
+
+def _parse_hand(points_raw, by_raw, from_raw):
+    """Map the raw score-sheet inputs to the stored hand encoding.
+
+    A hand is a win only if it has a value and a winning seat; otherwise it is a
+    draw (no winner). Self-draw = a win with no discarder. This keeps the
+    invariant "win_by is set  <=>  points > 0", so hands played can be counted by
+    row without a pts>0 heuristic.
+    """
+    try:
+        points = int(points_raw)
+    except (TypeError, ValueError):
+        points = 0
+    win_by = _seat(by_raw)
+    if points <= 0 or win_by is None:
+        return {'points': 0, 'win_by': None, 'win_from': None}  # draw / not a win
+    win_from = _seat(from_raw)
+    if win_from == win_by:
+        win_from = None  # self-draw
+    return {'points': points, 'win_by': win_by, 'win_from': win_from}
+
+
 def _row_payload(tenant, round_nb, table_nb):
     """Assemble a scorer-row event payload for a single (round, table)."""
-    rows = Position.objects.filter(
+    rows = Seat.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb,
-    ).order_by('position')
+    ).order_by('wind')
     return {
         'round_nb': round_nb,
         'table_nb': table_nb,
         'positions': [
             {
                 'id': p.id,
-                'wind': WINDS[p.position - 1] if 1 <= p.position <= 4 else '',
+                'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
                 'mp': p.minipoints,
                 'tp': float(p.tablepoints) if p.tablepoints is not None else None,
             }
             for p in rows
         ],
     }
+
+
+def _sheet_has_content(tenant, round_nb, table_nb):
+    """True once any hand on the sheet has a winner (the in-progress badge)."""
+    return Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
+    ).exists()
 
 
 def _scan_qr_svg(request, round_nb, table_nb):
@@ -77,31 +114,28 @@ def _scan_qr_svg(request, round_nb, table_nb):
 @user_passes_test(is_scorer)
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
-    position_vals = Position.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
-    hand_vals = Hand.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
+    position_vals = Seat.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
+    hand_vals = {h.hand_nb: h for h in Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb)}
 
-    all_hands = [None for _ in range(17)]
-    for hand_val in hand_vals:
-        all_hands[hand_val.hand_nb - 1] = hand_val
-
-    if all_hands[16] is None:
-        # get_or_create (not save()) so two concurrent first-opens of the same
-        # fresh table — or an open racing a scan_prefill — don't have the loser
-        # 500 on the unique_hand_per_cell constraint; it re-fetches the winner's
-        # row instead. Safe: these are pts=0 placeholders, so no version clobber.
-        h, _ = Hand.objects.get_or_create(
-            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
-            defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
-        )
-        all_hands[16] = h
+    # Opening a sheet records it (unvalidated) so the round-completeness and
+    # in-progress badges can see it, and materializes the 16 editable hand rows so
+    # each cell has a row id + version to drive the per-cell optimistic-lock save.
+    sheet, _ = ScoreSheet.objects.get_or_create(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+    )
 
     hands = []
     for i in range(16):
-        h = all_hands[i]
+        hand_nb = i + 1
+        h = hand_vals.get(hand_nb)
         if h is None:
+            # get_or_create (not save()) so two concurrent first-opens of the same
+            # fresh table — or an open racing a scan_prefill — don't have the loser
+            # 500 on the unique_hand_per_cell constraint.
             h, _ = Hand.objects.get_or_create(
-                tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=i + 1,
-                defaults={'pts': 0, 'win_by': 0, 'win_from': 0},
+                tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
+                defaults={'points': 0, 'win_by': None, 'win_from': None},
             )
         # Tint low-confidence (OCR-guessed) cells; manual edits reset confidence to 1.0.
         conf_bg = ''
@@ -109,7 +143,7 @@ def admin_scores_per_hand(request, round_nb, table_nb):
             conf_bg = 'background:rgba(254,202,202,{:.2f});'.format(1.0 - h.confidence)
         hands.append({
             'hand_nb': h.hand_nb,
-            'pts': h.pts,
+            'points': h.points,
             'win_by': h.win_by,
             'win_from': h.win_from,
             'id': h.id,
@@ -119,12 +153,12 @@ def admin_scores_per_hand(request, round_nb, table_nb):
 
     scores = [None, None, None, None]
     for position_val in position_vals:
-        scores[position_val.position - 1] = position_val
+        scores[position_val.wind - 1] = position_val
 
     template = loader.get_template('mahj/admin_scores_per_hand.html')
     context = {
         'hands': hands,
-        'completed': all_hands[16],
+        'validated': sheet.validated,
         'scores': scores,
         'round_nb': round_nb,
         'table_nb': table_nb,
@@ -147,21 +181,15 @@ def create_hand_points(request):
     table_nb = request.POST.get('table_nb')
     round_nb = request.POST.get('round_nb')
 
-    def _int(name):
-        try:
-            return int(request.POST.get(name))
-        except (TypeError, ValueError):
-            return 0
-
     with transaction.atomic():
         for i in range(16):
             hand_nb = i + 1
-            fields = {
-                'pts': _int('pts_' + str(hand_nb)),
-                'win_by': _int('by_' + str(hand_nb)),
-                'win_from': _int('from_' + str(hand_nb)),
-                'confidence': 1.0,
-            }
+            fields = _parse_hand(
+                request.POST.get('points_' + str(hand_nb)),
+                request.POST.get('by_' + str(hand_nb)),
+                request.POST.get('from_' + str(hand_nb)),
+            )
+            fields['confidence'] = 1.0
             updated = Hand.objects.filter(
                 tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
             ).update(version=F('version') + 1, **fields)
@@ -171,14 +199,11 @@ def create_hand_points(request):
                     **fields,
                 )
 
-    filled = Hand.objects.filter(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb, pts__gt=0,
-    ).exclude(hand_nb=17).exists()
     broadcast_scorer_filled(tenant.subdomain, {
         'type': 'scorer.filled',
         'round_nb': int(round_nb),
         'table_nb': int(table_nb),
-        'filled': filled,
+        'filled': _sheet_has_content(tenant, round_nb, table_nb),
     })
     return HttpResponse("")
 
@@ -189,25 +214,16 @@ def update_hand_points(request):
     hand_id = request.POST.get('id')
     client_version = int(request.POST.get('version', 0))
 
-    try:
-        pts = int(request.POST.get('pts'))
-    except (TypeError, ValueError):
-        pts = 0
-    try:
-        win_from = int(request.POST.get('from'))
-    except (TypeError, ValueError):
-        win_from = 0
-    try:
-        win_by = int(request.POST.get('by'))
-    except (TypeError, ValueError):
-        win_by = 0
+    fields = _parse_hand(
+        request.POST.get('points'), request.POST.get('by'), request.POST.get('from'),
+    )
 
     updated = Hand.objects.filter(
         tenant=tenant, id=hand_id, version=client_version,
     ).update(
-        pts=pts, win_by=win_by, win_from=win_from,
         confidence=1.0,
         version=F('version') + 1,
+        **fields,
     )
 
     if updated == 0:
@@ -216,7 +232,7 @@ def update_hand_points(request):
             return JsonResponse({
                 'status': 'conflict',
                 'current': {
-                    'pts': current.pts,
+                    'points': current.points,
                     'win_by': current.win_by,
                     'win_from': current.win_from,
                     'version': current.version,
@@ -227,60 +243,61 @@ def update_hand_points(request):
 
     try:
         updated_hand = Hand.objects.get(tenant=tenant, id=hand_id)
-        if updated_hand.hand_nb == 17:
-            broadcast_scorer_validation(tenant.subdomain, {
-                'type': 'scorer.validation',
-                'round_nb': updated_hand.round_nb,
-                'table_nb': updated_hand.table_nb,
-                'valid': updated_hand.pts == 1,
-            })
-        else:
-            filled = Hand.objects.filter(
-                tenant=tenant, round_nb=updated_hand.round_nb,
-                table_nb=updated_hand.table_nb, pts__gt=0,
-            ).exclude(hand_nb=17).exists()
-            broadcast_scorer_filled(tenant.subdomain, {
-                'type': 'scorer.filled',
-                'round_nb': updated_hand.round_nb,
-                'table_nb': updated_hand.table_nb,
-                'filled': filled,
-            })
+        broadcast_scorer_filled(tenant.subdomain, {
+            'type': 'scorer.filled',
+            'round_nb': updated_hand.round_nb,
+            'table_nb': updated_hand.table_nb,
+            'filled': _sheet_has_content(tenant, updated_hand.round_nb, updated_hand.table_nb),
+        })
     except Hand.DoesNotExist:
         pass
 
     return JsonResponse({'status': 'ok', 'version': client_version + 1})
 
 
+def _prune_to_played_hands(tenant, round_nb, table_nb):
+    """Trim a sheet to exactly the hands played: drop trailing rows past the last
+    winning hand (unplayed slots). Winner-less rows before it stay as draws. Run
+    on validation so the validated sheet's row count is its hands played."""
+    hand_nbs = Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
+    ).values_list('hand_nb', flat=True)
+    last_win = max(hand_nbs, default=0)
+    Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb__gt=last_win,
+    ).delete()
+
+
 @user_passes_test(is_scorer)
 def validate_score_sheet(request):
-    """Set hand_nb=17 pts=1 (Valid) for a given (round_nb, table_nb)."""
+    """Mark a table's score sheet validated (or not). Validating prunes the sheet
+    to the hands actually played."""
     tenant = get_tenant(request)
     round_nb = int(request.POST.get('round_nb'))
     table_nb = int(request.POST.get('table_nb'))
-    updated = Hand.objects.filter(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
-    ).update(version=F('version') + 1, pts=1)
-    if not updated:
-        Hand.objects.create(
-            tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=17,
-            pts=1, win_by=0, win_from=0,
-        )
+    validated = request.POST.get('validated', '1')
+    validated = str(validated).lower() in ('1', 'true', 'yes', 'on')
+
+    if validated:
+        _prune_to_played_hands(tenant, round_nb, table_nb)
+    ScoreSheet.objects.update_or_create(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+        defaults={'validated': validated},
+    )
     broadcast_scorer_validation(tenant.subdomain, {
         'type': 'scorer.validation',
         'round_nb': round_nb,
         'table_nb': table_nb,
-        'valid': True,
+        'valid': validated,
     })
     return JsonResponse({'status': 'ok'})
 
 
 @user_passes_test(is_scorer)
 def clear_score_sheet(request):
-    """Wipe a table's score sheet: delete all its hands (1-16 and the hand_nb=17
-    validation marker) and reset the four seats' penalties to 0, so the sheet
-    reads as neither filled nor validated and carries no leftover penalty.
-    Symmetric with create_hand_points + validate_score_sheet (the random-fill
-    tools).
+    """Wipe a table's score sheet: delete all its hands and the ScoreSheet record,
+    and reset the four seats' penalties to 0, so the sheet reads as neither filled
+    nor validated and carries no leftover penalty.
 
     Broadcasts validation=False *then* filled=False, in that order, so a remote
     scorer's badge lands grey: validation clears the green/active state, then
@@ -290,7 +307,8 @@ def clear_score_sheet(request):
     round_nb = int(request.POST.get('round_nb'))
     table_nb = int(request.POST.get('table_nb'))
     Hand.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).delete()
-    Position.objects.filter(
+    ScoreSheet.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).delete()
+    Seat.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb).update(penalty=0)
     broadcast_scorer_validation(tenant.subdomain, {
         'type': 'scorer.validation', 'round_nb': round_nb, 'table_nb': table_nb, 'valid': False,
@@ -303,7 +321,7 @@ def clear_score_sheet(request):
 
 @user_passes_test(is_scorer)
 def update_position_penalty(request):
-    """Set a single position's penalty (an integer minipoint adjustment, +/-).
+    """Set a single seat's penalty (an integer minipoint adjustment, +/-).
 
     Entered from the MCR score sheet. The penalty is a sheet-balance figure only:
     the player's ranking minipoints already fold it in, so it never feeds the
@@ -313,22 +331,22 @@ def update_position_penalty(request):
     """
     tenant = get_tenant(request)
     try:
-        position = Position.objects.get(tenant=tenant, id=request.POST.get('id'))
-    except Position.DoesNotExist:
+        seat = Seat.objects.get(tenant=tenant, id=request.POST.get('id'))
+    except Seat.DoesNotExist:
         return JsonResponse({'status': 'not_found'}, status=404)
 
     try:
-        position.penalty = int(request.POST.get('penalty'))
+        seat.penalty = int(request.POST.get('penalty'))
     except (TypeError, ValueError):
-        position.penalty = 0
-    position.save(update_fields=['penalty'])
+        seat.penalty = 0
+    seat.save(update_fields=['penalty'])
 
     return JsonResponse({'status': 'ok'})
 
 
 @user_passes_test(is_scorer)
 def update_positions_bulk(request):
-    """Update all 4 positions of a table row in a single request and transaction."""
+    """Update all 4 seats of a table row in a single request and transaction."""
     tenant = get_tenant(request)
     try:
         data = json.loads(request.body)
@@ -337,7 +355,7 @@ def update_positions_bulk(request):
 
     entries = data.get('positions', [])
     ids = [int(e['id']) for e in entries]
-    positions_map = {p.id: p for p in Position.objects.filter(tenant=tenant, id__in=ids)}
+    positions_map = {p.id: p for p in Seat.objects.filter(tenant=tenant, id__in=ids)}
 
     to_update = []
     for entry in entries:
@@ -373,7 +391,7 @@ def update_positions_bulk(request):
         }, status=409)
 
     with transaction.atomic():
-        Position.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
+        Seat.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
 
     # Scorer-to-scorer live sync: cheap, no cache bust, not sent to public displays.
     broadcast_scorer_row(subdomain, _row_payload(tenant, round_nb, table_nb))
@@ -386,9 +404,9 @@ def set_round_published(request):
     """Publish or unpublish a round. Restricted to staff and the Publisher role:
     publishing locks a round's scores, so plain scorers must not be able to
     publish/unpublish (a stray unpublish would reopen finalized scores for
-    editing). Publishing requires all 4 positions of every
-    table in that round to have both minipoints and tablepoints set. On success,
-    invalidates the public leaderboard cache and broadcasts a refresh to displays.
+    editing). Publishing requires all 4 seats of every table in that round to have
+    both minipoints and tablepoints set. On success, invalidates the public
+    leaderboard cache and broadcasts a refresh to displays.
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
@@ -409,13 +427,13 @@ def set_round_published(request):
         published = published.lower() in ('1', 'true', 'yes', 'on')
     published = bool(published)
 
-    variables = get_variables(request)
-    is_last_round = (round_nb == variables.nb_rounds)
+    tournament = get_variables(request)
+    is_last_round = (round_nb == tournament.nb_rounds)
 
     if published:
-        qs = Position.objects.filter(tenant=tenant, round_nb=round_nb)
+        qs = Seat.objects.filter(tenant=tenant, round_nb=round_nb)
         if not qs.exists():
-            return JsonResponse({'status': 'error', 'error': 'round has no positions'}, status=400)
+            return JsonResponse({'status': 'error', 'error': 'round has no seats'}, status=400)
         if qs.filter(minipoints=None).exists() or qs.filter(tablepoints=None).exists():
             return JsonResponse({'status': 'error', 'error': 'round is incomplete'}, status=400)
 
@@ -431,10 +449,11 @@ def set_round_published(request):
                     'error': f'Cannot publish round {round_nb} — round(s) {", ".join(map(str, missing))} not published yet',
                 }, status=400)
 
-        reveal = 0 if is_last_round else 100
+        # The last round is published but withheld from the public until the
+        # ceremony reveals it; every other round is public immediately.
         PublishedRound.objects.update_or_create(
             tenant=tenant, round_nb=round_nb,
-            defaults={'reveal_level': reveal},
+            defaults={'withheld': is_last_round},
         )
     else:
         # Unpublishing this round also unpublishes any later rounds (no gaps).
@@ -443,9 +462,8 @@ def set_round_published(request):
     subdomain = tenant.subdomain if tenant else ''
     # Announce the round number to the standings screens (they show a 3-2-1
     # countdown before refreshing) only for a normal publish. The last round is
-    # withheld for the ceremony (reveal_level=0 → the "waiting for ceremony"
-    # holding screen), and unpublish shouldn't count down either — both reload
-    # instantly.
+    # withheld for the ceremony (the "waiting for ceremony" holding screen), and
+    # unpublish shouldn't count down either — both reload instantly.
     invalidate_leaderboard(
         subdomain,
         published_round=(round_nb if (published and not is_last_round) else None),
@@ -456,7 +474,7 @@ def set_round_published(request):
     from .scoring import scores_per_player_json
     standings = scores_per_player_json(request, check_final=True)
     event = 'round_published' if published else 'round_unpublished'
-    fire_webhook(leaderboard_payload(event, standings, variables, round_nb), subdomain)
+    fire_webhook(leaderboard_payload(event, standings, tournament, round_nb), subdomain)
 
     # Regenerate + upload the static spectator site (no-op unless SFTP configured).
     from ..publish.trigger import fire_static_export

@@ -5,56 +5,56 @@
     "name": "Round 1",
     "other_pos": [
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 1,
         "id": 1,
         "minipoints": 0,
         "penalty": 0,
         "pk": 1,
-        "player_id": 1,
-        "position": 1,
         "round_nb": 1,
         "table_nb": 1,
         "tablepoints": 4.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 1
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 2,
         "id": 2,
         "minipoints": 10,
         "penalty": 0,
         "pk": 2,
-        "player_id": 2,
-        "position": 2,
         "round_nb": 1,
         "table_nb": 1,
         "tablepoints": 2.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 2
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 3,
         "id": 3,
         "minipoints": 20,
         "penalty": 0,
         "pk": 3,
-        "player_id": 3,
-        "position": 3,
         "round_nb": 1,
         "table_nb": 1,
         "tablepoints": 1.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 3
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 4,
         "id": 4,
         "minipoints": 30,
         "penalty": 0,
         "pk": 4,
-        "player_id": 4,
-        "position": 4,
         "round_nb": 1,
         "table_nb": 1,
         "tablepoints": 0.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 4
       }
     ],
     "player_pos": "East",
@@ -66,56 +66,56 @@
     "name": "Round 2",
     "other_pos": [
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 1,
         "id": 17,
         "minipoints": 5,
         "penalty": 0,
         "pk": 17,
-        "player_id": 1,
-        "position": 1,
         "round_nb": 2,
         "table_nb": 1,
         "tablepoints": 4.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 1
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 6,
         "id": 18,
         "minipoints": 55,
         "penalty": 0,
         "pk": 18,
-        "player_id": 6,
-        "position": 2,
         "round_nb": 2,
         "table_nb": 1,
         "tablepoints": 2.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 2
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 11,
         "id": 19,
         "minipoints": 105,
         "penalty": 0,
         "pk": 19,
-        "player_id": 11,
-        "position": 3,
         "round_nb": 2,
         "table_nb": 1,
         "tablepoints": 1.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 3
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 16,
         "id": 20,
         "minipoints": 155,
         "penalty": 0,
         "pk": 20,
-        "player_id": 16,
-        "position": 4,
         "round_nb": 2,
         "table_nb": 1,
         "tablepoints": 0.0,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 4
       }
     ],
     "player_pos": "East",
@@ -127,56 +127,56 @@
     "name": "Round 3",
     "other_pos": [
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 1,
         "id": 33,
         "minipoints": null,
         "penalty": 0,
         "pk": 33,
-        "player_id": 1,
-        "position": 1,
         "round_nb": 3,
         "table_nb": 1,
         "tablepoints": null,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 1
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 7,
         "id": 34,
         "minipoints": null,
         "penalty": 0,
         "pk": 34,
-        "player_id": 7,
-        "position": 2,
         "round_nb": 3,
         "table_nb": 1,
         "tablepoints": null,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 2
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 12,
         "id": 35,
         "minipoints": null,
         "penalty": 0,
         "pk": 35,
-        "player_id": 12,
-        "position": 3,
         "round_nb": 3,
         "table_nb": 1,
         "tablepoints": null,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 3
       },
       {
-        "__model__": "Position",
+        "__model__": "Seat",
+        "draw_number": 14,
         "id": 36,
         "minipoints": null,
         "penalty": 0,
         "pk": 36,
-        "player_id": 14,
-        "position": 4,
         "round_nb": 3,
         "table_nb": 1,
         "tablepoints": null,
-        "tenant_id": 1
+        "tenant_id": 1,
+        "wind": 4
       }
     ],
     "player_pos": "East",

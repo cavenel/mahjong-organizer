@@ -35,13 +35,13 @@ DB_DIRECT_HOST = os.environ.get('RESTORE_DB_HOST', 'db')
 PGBOUNCER_HOST = os.environ.get('RESTORE_PGBOUNCER_HOST', 'pgbouncer')
 DB_PORT = os.environ.get('DB_PORT', '5432')
 
-# Core scoring tables for the post-restore sanity counts (mixed-case app_label,
-# so identifiers must stay double-quoted — see scripts/restore_db.sh).
+# Core scoring tables for the post-restore sanity counts (double-quoted for
+# consistency with scripts/restore_db.sh).
 _COUNT_SQL = (
     'SELECT '
-    '(SELECT count(*) FROM "SOMMC2018_player")   AS players, '
-    '(SELECT count(*) FROM "SOMMC2018_position") AS positions, '
-    '(SELECT count(*) FROM "SOMMC2018_hand")     AS hands;'
+    '(SELECT count(*) FROM "mahj_player") AS players, '
+    '(SELECT count(*) FROM "mahj_seat")   AS positions, '
+    '(SELECT count(*) FROM "mahj_hand")   AS hands;'
 )
 
 

@@ -23,7 +23,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.templatetags.static import static as static_url
 from django.test import RequestFactory
 
-from ..models import Player, Position, Tenant, Variable
+from ..models import Player, Seat, Tenant, TournamentSettings
 from ..signals import leaderboard_gen
 from ..views import public, public_modals
 
@@ -147,7 +147,7 @@ def export_public(subdomain, out_dir, copy_static=True):
     poll_url = static_url('js/static_poll.js')
 
     # Tenant logo: dump the DB BLOB to a file and repoint the HTML at it.
-    variables = Variable.objects.filter(tenant=tenant).first()
+    variables = TournamentSettings.objects.filter(tenant=tenant).first()
     logo_replacement = ''
     if variables and variables.logo:
         (out / 'logo.png').write_bytes(bytes(variables.logo))
@@ -175,7 +175,7 @@ def export_public(subdomain, out_dir, copy_static=True):
               render(public_modals.details_team, team))
 
     # Per-table hand-by-hand modals, for every (round, table) that exists.
-    pairs = (Position.objects.filter(tenant=tenant)
+    pairs = (Seat.objects.filter(tenant=tenant)
              .values_list('round_nb', 'table_nb').distinct())
     for round_nb, table_nb in pairs:
         write(f'detailed_scores_{round_nb}_{table_nb}.html',

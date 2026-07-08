@@ -1,8 +1,8 @@
-"""Cache invalidation and WebSocket broadcast for leaderboard and tournament variables.
+"""Cache invalidation and WebSocket broadcast for leaderboard and tournament settings.
 
 Broadcast groups:
   leaderboard_{subdomain} — public displays: fired ONLY on round publish/unpublish.
-  display_{subdomain}     — Variable saves, screen switches, counter writes.
+  display_{subdomain}     — TournamentSettings saves, screen switches, counter writes.
   scorers_{subdomain}     — fine-grained row sync between scorer pages (no cache bust).
 """
 import logging
@@ -12,7 +12,7 @@ from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
-from .models import Tenant, Variable
+from .models import Tenant, TournamentSettings
 
 logger = logging.getLogger(__name__)
 
@@ -112,8 +112,8 @@ def invalidate_leaderboard(subdomain, published_round=None):
     When a round has just been published normally, pass its number as
     `published_round` so the standings screens can show a "Showing scores after
     round N in 3, 2, 1" countdown before refreshing. Left None (unpublish,
-    ceremony, variable changes, and the final withheld round) the screens just
-    reload instantly, as before.
+    ceremony, tournament-settings changes, and the final withheld round) the
+    screens just reload instantly, as before.
     """
     _invalidate_leaderboard(subdomain)
     data = {'event': 'leaderboard_update'}
@@ -122,7 +122,7 @@ def invalidate_leaderboard(subdomain, published_round=None):
     _broadcast(f'leaderboard_{subdomain}', 'leaderboard.update', data)
 
 
-@receiver([post_save, post_delete], sender=Variable)
+@receiver([post_save, post_delete], sender=TournamentSettings)
 def on_variable_change(sender, instance, **kwargs):
     subdomain = instance.tenant.subdomain if instance.tenant_id else ''
     cache.delete(f'variables:{subdomain}')

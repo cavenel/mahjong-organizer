@@ -5,10 +5,10 @@ from django.core.cache import cache
 from django.http import HttpResponse
 from django.template import loader
 
-from ..models import Hand, Player, Position
+from ..models import Hand, Player, Seat
 from .helpers import get_tenant, get_variables
 from ..scoring import (
-    _assign_ranks, _standings_rank_key, _standings_sort_key,
+    _assign_ranks, _attach_players, _standings_rank_key, _standings_sort_key,
     player_extra_stats, public_round_max, team_extra_stats, team_standings,
 )
 from ..signals import leaderboard_gen
@@ -159,18 +159,17 @@ def detailed_scores(request, round_nb, table_nb):
         cache.set(cache_key, html, MODAL_CACHE_TTL)
         return HttpResponse(html)
 
-    position_vals = (
-        Position.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb)
-        .select_related('player').order_by('id')
-    )
+    position_vals = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')
+    ))
     hand_vals = Hand.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')
 
-    all_hands = [None for _ in range(17)]
+    all_hands = [None for _ in range(16)]
     for hand_val in hand_vals:
-        if 1 <= hand_val.hand_nb <= 17:
+        if 1 <= hand_val.hand_nb <= 16:
             all_hands[hand_val.hand_nb - 1] = hand_val
 
-    # Build the 17-slot grid in memory. Missing slots get an UNSAVED placeholder:
+    # Build the 16-slot grid in memory. Missing slots get an UNSAVED placeholder:
     # this is a read path, so a spectator opening an unplayed table must not write
     # rows to the DB. Score entry (admin_scores_per_hand) owns row creation.
     hands_per_wind = []
@@ -180,13 +179,13 @@ def detailed_scores(request, round_nb, table_nb):
             h = all_hands[i * 4 + j]
             if h is None:
                 h = Hand(tenant=tenant, round_nb=round_nb, table_nb=table_nb,
-                         hand_nb=i * 4 + j + 1, pts=0, win_by=0, win_from=0)
+                         hand_nb=i * 4 + j + 1, points=0, win_by=None, win_from=None)
             hands_per_wind[-1][1].append(h)
 
     scores = [None, None, None, None]
     for position_val in position_vals:
-        if 1 <= position_val.position <= 4:
-            scores[position_val.position - 1] = position_val
+        if 1 <= position_val.wind <= 4:
+            scores[position_val.wind - 1] = position_val
 
     # Per-player penalties only surface here when at least one is non-zero, so a
     # clean table stays clean.

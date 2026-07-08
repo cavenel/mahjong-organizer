@@ -77,9 +77,9 @@
                       id="total_{{ hand.hand_nb }}_{{ i }}"></td>
                 {% endfor %}
                 <td class="px-2 py-1.5 border border-gray-200 text-center text-gray-400 w-8"
-                    id="pts_{{ hand.hand_nb }}">{{ hand.pts }}</td>
-                <td style="display:none;" id="by_{{ hand.hand_nb }}">{{ hand.win_by }}</td>
-                <td style="display:none;" id="from_{{ hand.hand_nb }}">{{ hand.win_from }}</td>
+                    id="pts_{{ hand.hand_nb }}">{{ hand.points }}</td>
+                <td style="display:none;" id="by_{{ hand.hand_nb }}">{{ hand.win_by|default_if_none:"" }}</td>
+                <td style="display:none;" id="from_{{ hand.hand_nb }}">{{ hand.win_from|default_if_none:"" }}</td>
               </tr>
             {% endfor %}
           {% endfor %}
@@ -183,7 +183,8 @@
           continue;
         }
 
-        const selfDraw = (from === 0 || from === by);
+        // A self-draw has no discarder: win_from is NULL, so `from` is NaN here.
+        const selfDraw = (isNaN(from) || from === by);
         for (let p = 1; p <= 4; p++) {
           let delta;
           if (selfDraw) {

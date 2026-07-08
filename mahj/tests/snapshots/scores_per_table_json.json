@@ -3,248 +3,248 @@
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 1,
           "id": 1,
           "minipoints": 0,
           "penalty": 0,
           "pk": 1,
-          "player_id": 1,
-          "position": 1,
           "round_nb": 1,
           "table_nb": 1,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 2,
           "id": 2,
           "minipoints": 10,
           "penalty": 0,
           "pk": 2,
-          "player_id": 2,
-          "position": 2,
           "round_nb": 1,
           "table_nb": 1,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 3,
           "id": 3,
           "minipoints": 20,
           "penalty": 0,
           "pk": 3,
-          "player_id": 3,
-          "position": 3,
           "round_nb": 1,
           "table_nb": 1,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 4,
           "id": 4,
           "minipoints": 30,
           "penalty": 0,
           "pk": 4,
-          "player_id": 4,
-          "position": 4,
           "round_nb": 1,
           "table_nb": 1,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 5,
           "id": 5,
           "minipoints": 40,
           "penalty": 0,
           "pk": 5,
-          "player_id": 5,
-          "position": 1,
           "round_nb": 1,
           "table_nb": 2,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 6,
           "id": 6,
           "minipoints": 50,
           "penalty": 0,
           "pk": 6,
-          "player_id": 6,
-          "position": 2,
           "round_nb": 1,
           "table_nb": 2,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 7,
           "id": 7,
           "minipoints": 60,
           "penalty": 0,
           "pk": 7,
-          "player_id": 7,
-          "position": 3,
           "round_nb": 1,
           "table_nb": 2,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 8,
           "id": 8,
           "minipoints": 70,
           "penalty": 0,
           "pk": 8,
-          "player_id": 8,
-          "position": 4,
           "round_nb": 1,
           "table_nb": 2,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 9,
           "id": 9,
           "minipoints": 80,
           "penalty": 0,
           "pk": 9,
-          "player_id": 9,
-          "position": 1,
           "round_nb": 1,
           "table_nb": 3,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 10,
           "id": 10,
           "minipoints": 90,
           "penalty": 0,
           "pk": 10,
-          "player_id": 10,
-          "position": 2,
           "round_nb": 1,
           "table_nb": 3,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 11,
           "id": 11,
           "minipoints": 100,
           "penalty": 0,
           "pk": 11,
-          "player_id": 11,
-          "position": 3,
           "round_nb": 1,
           "table_nb": 3,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 12,
           "id": 12,
           "minipoints": 110,
           "penalty": 0,
           "pk": 12,
-          "player_id": 12,
-          "position": 4,
           "round_nb": 1,
           "table_nb": 3,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 13,
           "id": 13,
           "minipoints": 120,
           "penalty": 0,
           "pk": 13,
-          "player_id": 13,
-          "position": 1,
           "round_nb": 1,
           "table_nb": 4,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 14,
           "id": 14,
           "minipoints": 130,
           "penalty": 0,
           "pk": 14,
-          "player_id": 14,
-          "position": 2,
           "round_nb": 1,
           "table_nb": 4,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 15,
           "id": 15,
           "minipoints": 140,
           "penalty": 0,
           "pk": 15,
-          "player_id": 15,
-          "position": 3,
           "round_nb": 1,
           "table_nb": 4,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 16,
           "id": 16,
           "minipoints": 150,
           "penalty": 0,
           "pk": 16,
-          "player_id": 16,
-          "position": 4,
           "round_nb": 1,
           "table_nb": 4,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ]
@@ -253,248 +253,248 @@
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 1,
           "id": 17,
           "minipoints": 5,
           "penalty": 0,
           "pk": 17,
-          "player_id": 1,
-          "position": 1,
           "round_nb": 2,
           "table_nb": 1,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 6,
           "id": 18,
           "minipoints": 55,
           "penalty": 0,
           "pk": 18,
-          "player_id": 6,
-          "position": 2,
           "round_nb": 2,
           "table_nb": 1,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 11,
           "id": 19,
           "minipoints": 105,
           "penalty": 0,
           "pk": 19,
-          "player_id": 11,
-          "position": 3,
           "round_nb": 2,
           "table_nb": 1,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 16,
           "id": 20,
           "minipoints": 155,
           "penalty": 0,
           "pk": 20,
-          "player_id": 16,
-          "position": 4,
           "round_nb": 2,
           "table_nb": 1,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 5,
           "id": 21,
           "minipoints": 45,
           "penalty": 0,
           "pk": 21,
-          "player_id": 5,
-          "position": 1,
           "round_nb": 2,
           "table_nb": 2,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 10,
           "id": 22,
           "minipoints": 95,
           "penalty": 0,
           "pk": 22,
-          "player_id": 10,
-          "position": 2,
           "round_nb": 2,
           "table_nb": 2,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 15,
           "id": 23,
           "minipoints": 145,
           "penalty": 0,
           "pk": 23,
-          "player_id": 15,
-          "position": 3,
           "round_nb": 2,
           "table_nb": 2,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 4,
           "id": 24,
           "minipoints": 35,
           "penalty": 0,
           "pk": 24,
-          "player_id": 4,
-          "position": 4,
           "round_nb": 2,
           "table_nb": 2,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 9,
           "id": 25,
           "minipoints": 85,
           "penalty": 0,
           "pk": 25,
-          "player_id": 9,
-          "position": 1,
           "round_nb": 2,
           "table_nb": 3,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 14,
           "id": 26,
           "minipoints": 135,
           "penalty": 0,
           "pk": 26,
-          "player_id": 14,
-          "position": 2,
           "round_nb": 2,
           "table_nb": 3,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 3,
           "id": 27,
           "minipoints": 25,
           "penalty": 0,
           "pk": 27,
-          "player_id": 3,
-          "position": 3,
           "round_nb": 2,
           "table_nb": 3,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 8,
           "id": 28,
           "minipoints": 75,
           "penalty": 0,
           "pk": 28,
-          "player_id": 8,
-          "position": 4,
           "round_nb": 2,
           "table_nb": 3,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 13,
           "id": 29,
           "minipoints": 125,
           "penalty": 0,
           "pk": 29,
-          "player_id": 13,
-          "position": 1,
           "round_nb": 2,
           "table_nb": 4,
           "tablepoints": 4.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 2,
           "id": 30,
           "minipoints": 15,
           "penalty": 0,
           "pk": 30,
-          "player_id": 2,
-          "position": 2,
           "round_nb": 2,
           "table_nb": 4,
           "tablepoints": 2.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 7,
           "id": 31,
           "minipoints": 65,
           "penalty": 0,
           "pk": 31,
-          "player_id": 7,
-          "position": 3,
           "round_nb": 2,
           "table_nb": 4,
           "tablepoints": 1.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 12,
           "id": 32,
           "minipoints": 115,
           "penalty": 0,
           "pk": 32,
-          "player_id": 12,
-          "position": 4,
           "round_nb": 2,
           "table_nb": 4,
           "tablepoints": 0.0,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ]
@@ -503,248 +503,248 @@
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 1,
           "id": 33,
           "minipoints": null,
           "penalty": 0,
           "pk": 33,
-          "player_id": 1,
-          "position": 1,
           "round_nb": 3,
           "table_nb": 1,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 7,
           "id": 34,
           "minipoints": null,
           "penalty": 0,
           "pk": 34,
-          "player_id": 7,
-          "position": 2,
           "round_nb": 3,
           "table_nb": 1,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 12,
           "id": 35,
           "minipoints": null,
           "penalty": 0,
           "pk": 35,
-          "player_id": 12,
-          "position": 3,
           "round_nb": 3,
           "table_nb": 1,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 14,
           "id": 36,
           "minipoints": null,
           "penalty": 0,
           "pk": 36,
-          "player_id": 14,
-          "position": 4,
           "round_nb": 3,
           "table_nb": 1,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 5,
           "id": 37,
           "minipoints": null,
           "penalty": 0,
           "pk": 37,
-          "player_id": 5,
-          "position": 1,
           "round_nb": 3,
           "table_nb": 2,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 11,
           "id": 38,
           "minipoints": null,
           "penalty": 0,
           "pk": 38,
-          "player_id": 11,
-          "position": 2,
           "round_nb": 3,
           "table_nb": 2,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 16,
           "id": 39,
           "minipoints": null,
           "penalty": 0,
           "pk": 39,
-          "player_id": 16,
-          "position": 3,
           "round_nb": 3,
           "table_nb": 2,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 2,
           "id": 40,
           "minipoints": null,
           "penalty": 0,
           "pk": 40,
-          "player_id": 2,
-          "position": 4,
           "round_nb": 3,
           "table_nb": 2,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 9,
           "id": 41,
           "minipoints": null,
           "penalty": 0,
           "pk": 41,
-          "player_id": 9,
-          "position": 1,
           "round_nb": 3,
           "table_nb": 3,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 15,
           "id": 42,
           "minipoints": null,
           "penalty": 0,
           "pk": 42,
-          "player_id": 15,
-          "position": 2,
           "round_nb": 3,
           "table_nb": 3,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 4,
           "id": 43,
           "minipoints": null,
           "penalty": 0,
           "pk": 43,
-          "player_id": 4,
-          "position": 3,
           "round_nb": 3,
           "table_nb": 3,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 6,
           "id": 44,
           "minipoints": null,
           "penalty": 0,
           "pk": 44,
-          "player_id": 6,
-          "position": 4,
           "round_nb": 3,
           "table_nb": 3,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ],
     [
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 13,
           "id": 45,
           "minipoints": null,
           "penalty": 0,
           "pk": 45,
-          "player_id": 13,
-          "position": 1,
           "round_nb": 3,
           "table_nb": 4,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 1
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 3,
           "id": 46,
           "minipoints": null,
           "penalty": 0,
           "pk": 46,
-          "player_id": 3,
-          "position": 2,
           "round_nb": 3,
           "table_nb": 4,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 2
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 8,
           "id": 47,
           "minipoints": null,
           "penalty": 0,
           "pk": 47,
-          "player_id": 8,
-          "position": 3,
           "round_nb": 3,
           "table_nb": 4,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 3
         }
       },
       {
         "position": {
-          "__model__": "Position",
+          "__model__": "Seat",
+          "draw_number": 10,
           "id": 48,
           "minipoints": null,
           "penalty": 0,
           "pk": 48,
-          "player_id": 10,
-          "position": 4,
           "round_nb": 3,
           "table_nb": 4,
           "tablepoints": null,
-          "tenant_id": 1
+          "tenant_id": 1,
+          "wind": 4
         }
       }
     ]

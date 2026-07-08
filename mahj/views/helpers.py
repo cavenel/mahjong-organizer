@@ -5,23 +5,23 @@ from django.conf import settings
 from django.core.cache import cache
 from django.forms import ModelForm
 
-from ..models import Position, Tenant, Variable, Hand
+from ..models import Seat, Tenant, TournamentSettings, Hand
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 
-VARIABLES_TTL = 300  # 5 minutes; invalidated on Variable writes via signals.
+VARIABLES_TTL = 300  # 5 minutes; invalidated on TournamentSettings writes via signals.
 TENANT_TTL = 600     # 10 minutes; invalidated on Tenant writes via signals.
 
 
 def get_counter(tenant):
-    v = Variable.objects.filter(tenant=tenant).first()
+    v = TournamentSettings.objects.filter(tenant=tenant).first()
     return v.counter if v else -1
 
 
 def set_counter(tenant, value):
     # .update() skips signals: counter writes don't need to invalidate leaderboard cache.
-    Variable.objects.filter(tenant=tenant).update(counter=value)
+    TournamentSettings.objects.filter(tenant=tenant).update(counter=value)
     if tenant is not None:
         cache.delete(f'variables:{tenant.subdomain}')
 
@@ -46,7 +46,7 @@ def can_access_admin(user):
 
 class PositionForm(ModelForm):
     class Meta:
-        model = Position
+        model = Seat
         fields = ['id', 'minipoints', 'tablepoints']
 
 
@@ -133,9 +133,9 @@ def get_variables(request):
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    variables = Variable.objects.filter(tenant=tenant).first()
+    variables = TournamentSettings.objects.filter(tenant=tenant).first()
     if variables is None:
-        variables = Variable(tenant=tenant, welcome="Welcome")
+        variables = TournamentSettings(tenant=tenant, welcome="Welcome")
         variables.save()
     cache.set(cache_key, variables, VARIABLES_TTL)
     return variables
@@ -143,7 +143,7 @@ def get_variables(request):
 
 def player_statistics(request, player, variables):
     tenant = get_tenant(request)
-    position_vals = Position.objects.filter(tenant=tenant, player=player).order_by('round_nb')
+    position_vals = Seat.objects.filter(tenant=tenant, draw_number=player.draw_number).order_by('round_nb')
     position_vals = [p for p in position_vals if p.minipoints is not None]
     hand_vals = []
     num_wins = {"num": 0, "round": ""}
@@ -151,13 +151,13 @@ def player_statistics(request, player, variables):
         win_hands = Hand.objects.filter(tenant=tenant).order_by('id').filter(
             round_nb=position_val.round_nb,
             table_nb=position_val.table_nb,
-            win_by=position_val.position,
+            win_by=position_val.wind,
         )
         hand_vals += win_hands
         if len(win_hands) > num_wins["num"]:
             num_wins = {"num": len(win_hands), "round": position_val.round_nb}
     biggest_hands = sorted(
-        [{"pts": h.pts, "round": h.round_nb} for h in hand_vals],
+        [{"pts": h.points, "round": h.round_nb} for h in hand_vals],
         reverse=True, key=lambda x: x["pts"],
     )
     biggest_total = sorted(

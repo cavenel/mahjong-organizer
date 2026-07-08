@@ -8,7 +8,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.test import RequestFactory, override_settings
 
 from mahj import signals
-from mahj.models import Player, Position
+from mahj.models import Player, Seat
 from mahj.views import details_player, details_team, render_scores
 
 LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
@@ -65,13 +65,15 @@ def test_team_modal_is_cached(tournament):
 
 def test_scores_per_player_page_with_under_12_players(tournament):
     """E8: standings render with < 12 players instead of raising IndexError."""
-    # Trim to 10 players (and their positions) so scores_json[11] is out of range.
-    keep = {p.id for p in tournament['players'][:10]}
-    Position.objects.filter(tenant=tournament['tenant']).exclude(
-        player_id__in=keep
+    # Trim to 10 players (and their seats) so scores_json[11] is out of range.
+    keep_players = tournament['players'][:10]
+    keep_ids = {p.id for p in keep_players}
+    keep_draws = {p.draw_number for p in keep_players}
+    Seat.objects.filter(tenant=tournament['tenant']).exclude(
+        draw_number__in=keep_draws
     ).delete()
     Player.objects.filter(tenant=tournament['tenant']).exclude(
-        id__in=keep
+        id__in=keep_ids
     ).delete()
 
     resp = render_scores(_req(), 'detailed', 1)  # fixed page with few players

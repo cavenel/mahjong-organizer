@@ -13,7 +13,7 @@ import json
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Screen, ScreenMode, Variable
+from mahj.models import Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
 
 HOST = 'test.mahj.ovh'
@@ -48,8 +48,8 @@ def _screen(view, friendly_name=''):
 def test_mode_breakdown_rows_and_active_match():
     screens = [_screen('scores:detailed:all'), _screen('counter')]
     modes = [
-        _mode(1, 'Tournament', json.dumps(['scores:detailed:all', 'counter'])),
-        _mode(2, 'Break', json.dumps(['black', 'black'])),
+        _mode(1, 'Tournament', ['scores:detailed:all', 'counter']),
+        _mode(2, 'Break', ['black', 'black']),
     ]
     out = _mode_breakdowns(modes, screens)
 
@@ -65,7 +65,7 @@ def test_mode_breakdown_normalizes_blank_views():
     """Empty/None views read as 'black' on both sides, so a saved all-blank mode
     matches screens whose stored view is the empty-string default."""
     screens = [_screen(''), _screen('')]
-    modes = [_mode(1, 'Off', json.dumps(['black', 'black']))]
+    modes = [_mode(1, 'Off', ['black', 'black'])]
     out = _mode_breakdowns(modes, screens)
 
     assert out[0]['is_active'] is True
@@ -79,7 +79,7 @@ def test_mode_breakdown_fewer_views_than_screens():
     screens = [_screen('scores:detailed:all'), _screen('counter'),
                _screen('schedule'), _screen('black')]
     modes = [_mode(1, 'ThreeOfFour',
-                   json.dumps(['scores:detailed:all', 'counter', 'schedule']))]
+                   ['scores:detailed:all', 'counter', 'schedule'])]
     out = _mode_breakdowns(modes, screens)[0]
 
     assert out['is_active'] is True
@@ -90,7 +90,7 @@ def test_mode_breakdown_fewer_views_than_screens():
 def test_mode_breakdown_covered_screen_differs_is_not_active():
     """If a screen the mode controls doesn't match, the mode isn't active."""
     screens = [_screen('counter'), _screen('schedule')]
-    modes = [_mode(1, 'M', json.dumps(['counter', 'black']))]
+    modes = [_mode(1, 'M', ['counter', 'black'])]
     assert _mode_breakdowns(modes, screens)[0]['is_active'] is False
 
 
@@ -98,7 +98,7 @@ def test_mode_breakdown_more_views_than_screens():
     """A mode saved with more screens than now exist: surplus views are dropped,
     and it's active when the remaining screens match."""
     screens = [_screen('counter')]
-    modes = [_mode(1, 'Two', json.dumps(['counter', 'schedule']))]
+    modes = [_mode(1, 'Two', ['counter', 'schedule'])]
     out = _mode_breakdowns(modes, screens)[0]
 
     assert out['is_active'] is True
@@ -106,10 +106,10 @@ def test_mode_breakdown_more_views_than_screens():
 
 
 def test_mode_breakdown_handles_malformed_views():
-    """Malformed JSON degrades to an empty mode: it covers no screens (every row
-    reads 'unchanged') and is never active."""
+    """A non-list views value degrades to an empty mode: it covers no screens
+    (every row reads 'unchanged') and is never active."""
     screens = [_screen('counter')]
-    modes = [_mode(1, 'Broken', 'not valid json')]
+    modes = [_mode(1, 'Broken', None)]
     out = _mode_breakdowns(modes, screens)
 
     assert [r['unchanged'] for r in out[0]['rows']] == [True]
@@ -121,7 +121,7 @@ def test_mode_breakdown_views_json_is_compact():
     """views_json must match JS JSON.stringify() byte-for-byte (no spaces) so the
     client-side active-mode comparison works."""
     screens = [_screen('scores:detailed:all'), _screen('counter')]
-    modes = [_mode(1, 'T', json.dumps(['scores:detailed:all', 'counter']))]
+    modes = [_mode(1, 'T', ['scores:detailed:all', 'counter'])]
     assert _mode_breakdowns(modes, screens)[0]['views_json'] == \
         '["scores:detailed:all","counter"]'
 
@@ -129,7 +129,7 @@ def test_mode_breakdown_views_json_is_compact():
 def test_mode_breakdown_label_includes_friendly_name():
     """A renamed screen appends its name to the positional endpoint label."""
     screens = [_screen('counter', friendly_name='Main hall'), _screen('black')]
-    modes = [_mode(1, 'T', json.dumps(['counter', 'black']))]
+    modes = [_mode(1, 'T', ['counter', 'black'])]
     rows = _mode_breakdowns(modes, screens)[0]['rows']
     assert [r['label'] for r in rows] == ['/1 — Main hall', '/2']
 
@@ -157,9 +157,9 @@ def test_display_page_marks_active_mode(client_, display_op, tournament):
     Screen.objects.create(tenant=tenant, view='counter')
     ScreenMode.objects.create(
         tenant=tenant, name='Tournament',
-        views=json.dumps(['scores:detailed:all', 'counter']))
+        views=['scores:detailed:all', 'counter'])
     ScreenMode.objects.create(
-        tenant=tenant, name='Break', views=json.dumps(['black', 'black']))
+        tenant=tenant, name='Break', views=['black', 'black'])
 
     client_.force_login(display_op)
     html = client_.get('/admin?page=display').content.decode()
@@ -178,7 +178,7 @@ def test_display_page_marks_active_mode(client_, display_op, tournament):
 def test_display_page_no_active_mode_when_nothing_matches(client_, display_op, tournament):
     tenant = tournament['tenant']
     Screen.objects.create(tenant=tenant, view='schedule')
-    ScreenMode.objects.create(tenant=tenant, name='Break', views=json.dumps(['black']))
+    ScreenMode.objects.create(tenant=tenant, name='Break', views=['black'])
 
     client_.force_login(display_op)
     html = client_.get('/admin?page=display').content.decode()
@@ -189,7 +189,7 @@ def test_display_page_no_active_mode_when_nothing_matches(client_, display_op, t
 # ── Add mode ──────────────────────────────────────────────────────────────────
 
 def test_views_field_is_unbounded():
-    # add_mode stores json.dumps of every screen's view, which grows past any
+    # add_mode stores the list of every screen's view, which grows past any
     # fixed CharField cap once there are many screens (a varchar(100) overflowed
     # in prod with a 500). The field must stay unbounded. SQLite ignores
     # max_length, so this model-level guard is what catches a regression.
@@ -211,8 +211,8 @@ def test_add_mode_snapshots_all_screen_views(client_, display_op, tournament):
 
     assert resp.status_code == 302
     mode = ScreenMode.objects.get(tenant=tenant, name='Full house')
-    assert json.loads(mode.views) == views
-    assert len(mode.views) > 100
+    assert mode.views == views
+    assert len(json.dumps(mode.views)) > 100
 
 
 # ── Screen rename ─────────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ def test_update_screen_name_persists_and_clears(client_, display_op, tournament)
 
 def test_set_variable_rejects_over_long_message(client_, display_op, tournament):
     tenant = tournament['tenant']
-    Variable.objects.filter(tenant=tenant).update(welcome='ok')
+    TournamentSettings.objects.filter(tenant=tenant).update(welcome='ok')
     client_.force_login(display_op)
 
     too_long = 'x' * 300  # welcome is max_length=255
@@ -269,7 +269,7 @@ def test_set_variable_rejects_over_long_message(client_, display_op, tournament)
     assert 'Counter message is too long' in body
     assert '255' in body
     # The rejected value was not persisted.
-    assert Variable.objects.get(tenant=tenant).welcome == 'ok'
+    assert TournamentSettings.objects.get(tenant=tenant).welcome == 'ok'
 
 
 def test_set_variable_saves_valid_message(client_, display_op, tournament):
@@ -281,4 +281,4 @@ def test_set_variable_saves_valid_message(client_, display_op, tournament):
         {'csrfmiddlewaretoken': 'x'})
 
     assert resp.status_code == 200
-    assert Variable.objects.get(tenant=tenant).welcome == 'Round 3 starts soon'
+    assert TournamentSettings.objects.get(tenant=tenant).welcome == 'Round 3 starts soon'

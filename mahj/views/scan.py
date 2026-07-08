@@ -13,9 +13,11 @@ from django.db.models import F
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
-from ..models import Hand, Position
+from ..models import Hand, ScoreSheet, Seat
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
 from .helpers import BASE_DIR, get_tenant, is_scorer
+from .score_entry import _parse_hand, _prune_to_played_hands
+from ..scoring import _attach_players
 
 
 def _require_scan_enabled():
@@ -316,25 +318,27 @@ def scan_positions(request):
     if not round_nb or not table_nb:
         return JsonResponse({"ok": False, "error": "round_nb and table_nb required"}, status=400)
 
-    positions = Position.objects.filter(
+    positions = _attach_players(tenant, list(Seat.objects.filter(
         tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
-    ).order_by('position').select_related('player')
+    ).order_by('wind')))
 
     has_hands = Hand.objects.filter(
         tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
-    ).exclude(hand_nb=17).filter(pts__gt=0).exists()
+        win_by__isnull=False,
+    ).exists()
 
-    valid_hand = Hand.objects.filter(
+    valid_hand = ScoreSheet.objects.filter(
         tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
-        hand_nb=17, pts=1,
+        validated=True,
     ).exists()
 
     data = []
     for p in positions:
+        first = p.player.first_name if p.player else ''
         data.append({
-            'position': p.position,
-            'wind': WINDS[p.position - 1] if 1 <= p.position <= 4 else '',
-            'player': f"{p.player.rand_id}. {p.player.first_name}",
+            'position': p.wind,
+            'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
+            'player': f"{p.draw_number}. {first}",
             'mp': p.minipoints,
             'tp': float(p.tablepoints) if p.tablepoints is not None else None,
         })
@@ -357,7 +361,7 @@ def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
     ).update(version=F('version') + 1, **fields)
     if not updated:
-        defaults = {'pts': 0, 'win_by': 0, 'win_from': 0}
+        defaults = {'points': 0, 'win_by': None, 'win_from': None}
         defaults.update(fields)
         Hand.objects.create(
             tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
@@ -384,10 +388,9 @@ def scan_prefill(request):
     # A filled table is never overwritten by a scan: anyone (including
     # unregistered users) may scan an empty table, but existing data can only be
     # changed on the score sheet. Clear it there to re-scan.
-    existing = Hand.objects.filter(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
-    ).exclude(hand_nb=17)
-    already_filled = existing.filter(pts__gt=0).exists()
+    already_filled = Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
+    ).exists()
     if already_filled:
         return JsonResponse({
             "ok": False,
@@ -399,20 +402,18 @@ def scan_prefill(request):
         hand_nb = int(entry['Hand'])
         if hand_nb < 1 or hand_nb > 16:
             continue
-        value = entry.get('Value')
-        winner = entry.get('Winner')
-        discarder = entry.get('Discarder')
         confidence = entry.get('Confidence')
-        fields = {
-            'pts': int(value) if value is not None else 0,
-            'win_by': int(winner) if winner is not None else 0,
-            'win_from': int(discarder) if discarder is not None else 0,
-            'confidence': CONFIDENCE_LEVELS.get(confidence, 0.3),
-        }
+        fields = _parse_hand(entry.get('Value'), entry.get('Winner'), entry.get('Discarder'))
+        fields['confidence'] = CONFIDENCE_LEVELS.get(confidence, 0.3)
         _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
 
     validate = body.get('validate', True)
-    _write_hand(tenant, round_nb, table_nb, 17, {'pts': 1 if validate else 0})
+    if validate:
+        _prune_to_played_hands(tenant, round_nb, table_nb)
+    ScoreSheet.objects.update_or_create(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+        defaults={'validated': bool(validate)},
+    )
 
     subdomain = tenant.subdomain if tenant else ''
     if validate:
@@ -424,8 +425,8 @@ def scan_prefill(request):
         })
     else:
         filled = Hand.objects.filter(
-            tenant=tenant, round_nb=round_nb, table_nb=table_nb, pts__gt=0,
-        ).exclude(hand_nb=17).exists()
+            tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
+        ).exists()
         broadcast_scorer_filled(subdomain, {
             'type': 'scorer.filled',
             'round_nb': round_nb,

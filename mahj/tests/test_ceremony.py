@@ -6,7 +6,7 @@ import pytest
 from django.contrib.auth.models import AnonymousUser, User
 from django.test import Client, RequestFactory
 
-from mahj.models import CeremonyState, Position, PublishedRound, Screen
+from mahj.models import CeremonyState, PublishedRound, Screen, Seat
 from mahj.views import ceremony
 
 
@@ -38,7 +38,9 @@ def tied_players(teamed):
     tenant = teamed['tenant']
     a, b = teamed['players'][0], teamed['players'][1]
     for rn in (1, 2):  # the two completed (counted) rounds
-        Position.objects.filter(tenant=tenant, round_nb=rn, player__in=[a, b]).update(
+        Seat.objects.filter(
+            tenant=tenant, round_nb=rn,
+            draw_number__in=[a.draw_number, b.draw_number]).update(
             minipoints=120, tablepoints=2.0)
     return teamed, a, b
 
@@ -211,7 +213,7 @@ class TestControlEndpoint:
         state = CeremonyState.objects.get(tenant=tenant)
         assert state.phase == 'idle'
         for rn in range(1, nb_rounds + 1):
-            assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).reveal_level == 100
+            assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).withheld is False
 
     def test_publish_fires_webhook_with_full_final_standings(self, op_client, monkeypatch):
         """The full final standings reach the webhook only after the ceremony."""

@@ -13,7 +13,7 @@ import pytest
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Hand, Variable
+from mahj.models import Hand, TournamentSettings
 
 
 HOST = 'test.mahj.ovh'
@@ -73,7 +73,7 @@ def publisher_group_user(db):
 
 
 def _counter(tournament):
-    return Variable.objects.get(tenant=tournament['tenant']).counter
+    return TournamentSettings.objects.get(tenant=tournament['tenant']).counter
 
 
 class TestStaffOnlyEndpointsRedirectAnonymous:
@@ -137,7 +137,7 @@ class TestScorerWriteEndpointsGated:
 
     def test_update_hand_points_anonymous_redirected(self, client_, tournament, hand):
         resp = client_.post('/update_hand_points', {
-            'id': hand.id, 'version': hand.version, 'pts': 1, 'by': 1, 'from': 2,
+            'id': hand.id, 'version': hand.version, 'points': 1, 'by': 1, 'from': 2,
         })
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
@@ -145,7 +145,7 @@ class TestScorerWriteEndpointsGated:
     def test_non_scorer_redirected(self, client_, tournament, anonymous_user, hand):
         client_.force_login(anonymous_user)
         resp = client_.post('/update_hand_points', {
-            'id': hand.id, 'version': hand.version, 'pts': 1, 'by': 1, 'from': 2,
+            'id': hand.id, 'version': hand.version, 'points': 1, 'by': 1, 'from': 2,
         })
         assert resp.status_code == 302
 
@@ -216,18 +216,18 @@ class TestScanEndpointsPublic:
         resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
         assert resp.status_code == 200 and resp.json()['ok'] is True
         h = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
-        assert h.pts == 20 and h.win_by == 1 and h.win_from == 2
+        assert h.points == 20 and h.win_by == 1 and h.win_from == 2
 
     def test_scan_prefill_filled_table_anonymous_conflicts(self, client_, tournament):
         tenant = tournament['tenant']
         # Round 1 table 1 is fully seeded — must never be overwritten by a scan.
-        before = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).pts
+        before = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).points
         body = {'round_nb': 1, 'table_nb': 1, 'validate': False,
                 'scores': [{'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 1.0}]}
         resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
         assert resp.status_code == 409 and resp.json()['conflict'] is True
         # Original data is untouched.
-        after = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).pts
+        after = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).points
         assert after == before
 
 
@@ -311,7 +311,7 @@ class TestCsrfEnforcement:
     def test_update_hand_points_rejects_without_csrf_token(self, csrf_client, hand, staff_user):
         csrf_client.force_login(staff_user)
         resp = csrf_client.post('/update_hand_points', {
-            'id': hand.id, 'version': hand.version, 'pts': 10, 'by': 1, 'from': 2,
+            'id': hand.id, 'version': hand.version, 'points': 10, 'by': 1, 'from': 2,
         })
         assert resp.status_code == 403
 
@@ -323,7 +323,7 @@ class TestCsrfEnforcement:
         token = csrf_client.cookies['csrftoken'].value
         resp = csrf_client.post(
             '/update_hand_points',
-            {'id': hand.id, 'version': hand.version, 'pts': 10, 'by': 1, 'from': 2},
+            {'id': hand.id, 'version': hand.version, 'points': 10, 'by': 1, 'from': 2},
             HTTP_X_CSRFTOKEN=token,
         )
         assert resp.status_code == 200
