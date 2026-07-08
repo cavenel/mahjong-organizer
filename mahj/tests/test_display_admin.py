@@ -282,3 +282,43 @@ def test_set_variable_saves_valid_message(client_, display_op, tournament):
 
     assert resp.status_code == 200
     assert TournamentSettings.objects.get(tenant=tenant).welcome == 'Round 3 starts soon'
+
+
+# ── Tournament settings page (admin?page=settings) ───────────────────────────
+# Staff-only page exposing tournament identity (title/full name/city/period/
+# rules), round count/length and the logo. The shared set_variable handler
+# persists edits regardless of which page posts them.
+
+@pytest.fixture
+def staff(db):
+    return User.objects.create_user('boss', password='pw', is_staff=True)
+
+
+def test_settings_page_renders_identity_fields_for_staff(client_, staff, tournament):
+    client_.force_login(staff)
+    html = client_.get('/admin?page=settings').content.decode()
+    assert 'Tournament settings' in html
+    assert 'variables-title' in html
+    assert 'variables-nb_rounds' in html
+    # Round length + logo are staff surfaces, shown here.
+    assert 'variables-total_time' in html
+
+
+def test_settings_page_forbidden_for_non_staff(client_, display_op, tournament):
+    """A display op reaching ?page=settings must get nothing (nav hides it, but
+    the route has to enforce it too)."""
+    client_.force_login(display_op)
+    html = client_.get('/admin?page=settings').content.decode()
+    assert 'variables-title' not in html
+
+
+def test_settings_page_saves_identity_via_set_variable(client_, staff, tournament):
+    tenant = tournament['tenant']
+    client_.force_login(staff)
+    resp = client_.post(
+        '/admin?page=settings&action=set_variable&variables-city=Uppsala&variables-nb_rounds=9',
+        {'csrfmiddlewaretoken': 'x'})
+    assert resp.status_code == 200
+    v = TournamentSettings.objects.get(tenant=tenant)
+    assert v.city == 'Uppsala'
+    assert v.nb_rounds == 9
