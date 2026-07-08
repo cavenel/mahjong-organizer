@@ -5,7 +5,7 @@ Part 2 (rehearsal) before the event, with internet**; Parts 3–4 are the emerge
 reference. Replace the `<…>` placeholders.
 
 **Golden rule:** only one instance accepts score writes. While the laptop is
-live, **nobody scores on `mahj.ovh`** — a Postgres restore replaces the whole DB,
+live, **nobody scores on `your-domain`** — a Postgres restore replaces the whole DB,
 it does not merge.
 
 ---
@@ -23,7 +23,7 @@ git clone <REPO_URL> mahj && cd mahj
 # 3. Environment — copy the VPS .env verbatim (SECRET_KEY + DB creds),
 #    then add the tenant line. (scp over port 19022, or a USB stick.)
 scp -P 19022 <YOU>@<VPS>:/path/to/mahj/.env .env
-printf '\nLOCAL_TENANT=<LIVE_SUBDOMAIN>\n' >> .env     # e.g. varberg
+printf '\nLOCAL_TENANT=<LIVE_SUBDOMAIN>\n' >> .env     # e.g. myevent
 
 # 4. Backup config for THIS box (venue source, dev stack, home dir, SSH port)
 cat > scripts/backup_db.env <<EOF
@@ -75,7 +75,7 @@ sudo ufw allow 8000/proto tcp 2>/dev/null || true
 Then **from another device on the same network**, open `http://<laptop-ip>:8000`
 and verify all four:
 
-- [ ] Leaderboard shows the **real tournament** (not `devvarberg`/empty) → `LOCAL_TENANT` works
+- [ ] Leaderboard shows the **real tournament** (not `myevent`/empty) → `LOCAL_TENANT` works
 - [ ] You can **log in**
 - [ ] You can **submit a score** → CSRF works over plain HTTP/IP (the one unknown)
 - [ ] A score change shows up live on the display page → WebSockets work
@@ -100,7 +100,7 @@ hostname -I                                          # announce http://<ip>:8000
 ```
 
 Announce the temporary address **`http://<laptop-ip>:8000`** and make sure
-**nobody keeps scoring on `mahj.ovh`**. The laptop's cron now writes
+**nobody keeps scoring on `your-domain`**. The laptop's cron now writes
 `mahj_venue_*` dumps — those hold the live data.
 
 ---
@@ -125,4 +125,4 @@ scripts/restore_db.sh /path/to/mahj_venue_<stamp>.dump
 
 `restore_db.sh` stops the writers, drops/recreates the DB, restores, and brings
 the stack back (web re-runs migrations on boot). The cloud is authoritative again
-— point everyone back at `https://mahj.ovh`.
+— point everyone back at `https://your-domain`.

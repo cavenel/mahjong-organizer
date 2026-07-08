@@ -66,7 +66,7 @@ A **pull** job just rsyncs the remote down into `/backups` (non-destructive).
 
 `restore_worker` runs as the image's `app` user (uid 1000 — ssh needs a real
 passwd entry, so we don't run it as an arbitrary uid). The backups dir and pull
-key are usually owned by the *host* backup user (e.g. `cavenel`, uid 1001), so for
+key are usually owned by the *host* backup user (e.g. `youruser`, uid 1001), so for
 **pull** the worker must be able to read the key and write the dir without us
 chowning those away from the backup cron. Grant access via the owning **group**:
 

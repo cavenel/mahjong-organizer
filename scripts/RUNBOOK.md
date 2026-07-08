@@ -1,12 +1,12 @@
 # Backup & disaster-recovery runbook
 
-The cloud VPS (`mahj.ovh`) is the **only** authoritative scoring instance. The
+The cloud VPS (`your-domain`) is the **only** authoritative scoring instance. The
 venue laptop is an emergency fallback for a real internet/server outage, run on a
 plain LAN IP, by hand. Scanning/OCR is unavailable while local (manual entry only).
 
 **Golden rule:** exactly one instance accepts score writes at a time. A
 Postgres restore replaces the whole database — it does not merge. So while you
-are live on the laptop, **nobody scores on `mahj.ovh`**, or you get an
+are live on the laptop, **nobody scores on `your-domain`**, or you get an
 unmergeable split brain.
 
 ---
@@ -43,7 +43,7 @@ scripts/install_backup_cron.sh   # schedule every 5 min
 ```bash
 git clone <repo> && cd <repo>
 cp /path/to/vps/.env .env                # same DB creds; ANTHROPIC_API_KEY may be blank
-#   ⚠️ edit .env: set LOCAL_TENANT=<live tournament subdomain, e.g. varberg>
+#   ⚠️ edit .env: set LOCAL_TENANT=<live tournament subdomain, e.g. myevent>
 cp scripts/backup_db.env.example scripts/backup_db.env   # same REMOTE/SSH_KEY, BACKUP_SOURCE=venue
 docker compose build                     # pre-build the image so failover is fast
 scripts/pull_backups.sh --install        # start mirroring dumps down every 5 min
@@ -57,7 +57,7 @@ scripts/pull_backups.sh --install        # start mirroring dumps down every 5 mi
 > LAN IP doesn't have. `LOCAL_TENANT=<subdomain>` in the laptop's `.env` forces
 > every request to the live tenant (DEBUG-gated; ignored by the prod cloud). Get
 > the live subdomain from the cloud (Django admin → Tenants, or the URL you
-> normally run on, e.g. `varberg` from `varberg.mahj.ovh`).
+> normally run on, e.g. `myevent` from `myevent.your-domain`).
 
 Rehearse before the event: bring the laptop stack up, restore the latest pulled
 dump, and confirm you can **log in and submit a score** at `http://<laptop-ip>:8000`
@@ -75,7 +75,7 @@ docker compose up -d --build                 # dev stack on :8000
 COMPOSE="docker compose" scripts/restore_db.sh   # pick the newest mahj_cloud_*.dump
 ```
 Then announce the temporary address: **`http://<laptop-ip>:8000`** (find it with
-`hostname -I`). Make sure **nobody keeps scoring on `mahj.ovh`**.
+`hostname -I`). Make sure **nobody keeps scoring on `your-domain`**.
 
 The laptop's own cron now writes `mahj_venue_*.dump` — these hold the live data.
 
@@ -83,7 +83,7 @@ The laptop's own cron now writes `mahj_venue_*.dump` — these hold the live dat
 
 ## RECOVERY → fail back to cloud
 
-Once `mahj.ovh` is reachable again and you're ready to move the venue's data back:
+Once `your-domain` is reachable again and you're ready to move the venue's data back:
 
 **If internet is back** (laptop can rsync):
 ```bash
@@ -101,7 +101,7 @@ scripts/restore_db.sh /path/to/mahj_venue_<stamp>.dump
 
 `restore_db.sh` stops the writers, drops/recreates the DB, restores, and brings
 the stack back (web re-runs migrations on boot). The cloud is authoritative again
-— point everyone back at `https://mahj.ovh`.
+— point everyone back at `https://your-domain`.
 
 ---
 
