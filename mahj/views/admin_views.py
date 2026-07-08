@@ -15,6 +15,7 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
+from django.db.models import F
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
 
@@ -505,6 +506,52 @@ def admin_team_draw_save(request):
     return HttpResponse('OK')
 
 
+# The metadata fields the Player editor may change. draw_number is deliberately
+# NOT here: it's the draw itself (set by Randomize / Team draw / import) and the
+# seating chart is keyed by it, so reassigning it belongs to those tools, not to
+# a free-text metadata edit.
+_PLAYER_EDITABLE_FIELDS = ['full_name', 'first_name', 'EMA_ID', 'country', 'email', 'team']
+
+
+@user_passes_test(lambda u: u.is_staff)
+def player_editor_save(request):
+    """Persist inline edits from the Player editor table. Accepts JSON
+    ``{"players": [{"id", <field>...}]}`` and bulk-updates the editable
+    metadata; unknown ids are ignored, over-long values are rejected up front."""
+    if request.method != 'POST':
+        return HttpResponse('POST required', status=405)
+
+    tenant = get_tenant(request)
+    rows = json.loads(request.body).get('players', [])
+    by_id = {p.id: p for p in Player.objects.filter(
+        tenant=tenant, id__in=[r.get('id') for r in rows])}
+
+    to_update = []
+    for r in rows:
+        player = by_id.get(r.get('id'))
+        if player is None:
+            continue
+        for field in _PLAYER_EDITABLE_FIELDS:
+            if field not in r:
+                continue
+            value = (r.get(field) or '').strip()
+            max_length = Player._meta.get_field(field).max_length
+            if max_length and len(value) > max_length:
+                return HttpResponse(
+                    f"{field} is too long: {len(value)} characters "
+                    f"(maximum {max_length}).", status=400)
+            setattr(player, field, value)
+        # Mirror Player.save(): a blank first name falls back to the first token
+        # of the full name (bulk_update bypasses the model's save()).
+        if player.first_name == "":
+            player.first_name = player.full_name.split(" ")[0]
+        to_update.append(player)
+
+    if to_update:
+        Player.objects.bulk_update(to_update, _PLAYER_EDITABLE_FIELDS)
+    return HttpResponse('OK')
+
+
 # Public (display screens are public, like /scan and counter_start): serve the
 # tenant's uploaded logo. Templates fall back to the static mcr_logo when unset,
 # so this is only hit when a logo exists.
@@ -804,6 +851,21 @@ def options(request, error=None):
                 return _apply_set_variable(request, variables)
             template2 = loader.get_template('mahj/admin_settings.html')
             page_content = template2.render({"variables": variables}, request)
+    elif page == "player_editor":
+        # Staff-only: a scorer/display op reaching ?page=player_editor gets nothing.
+        if not request.user.is_staff:
+            page_content = "None"
+        else:
+            players = Player.objects.filter(tenant=tenant).order_by(
+                F('draw_number').asc(nulls_last=True), 'full_name')
+            player_rows = [
+                {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
+                 'first_name': p.first_name, 'EMA_ID': p.EMA_ID, 'country': p.country,
+                 'email': p.email, 'team': p.team}
+                for p in players
+            ]
+            template2 = loader.get_template('mahj/admin_player_editor.html')
+            page_content = template2.render({"player_rows": player_rows}, request)
     elif page == "import_template":
         template2 = loader.get_template('mahj/admin_import_template.html')
         page_content = template2.render({}, request)

@@ -322,3 +322,60 @@ def test_settings_page_saves_identity_via_set_variable(client_, staff, tournamen
     v = TournamentSettings.objects.get(tenant=tenant)
     assert v.city == 'Uppsala'
     assert v.nb_rounds == 9
+
+
+# ── Player editor (admin?page=player_editor) ─────────────────────────────────
+# Staff-only inline table for correcting roster metadata. draw_number is shown
+# but never editable here — reassigning it belongs to Randomize / Team draw.
+
+def test_player_editor_renders_roster_for_staff(client_, staff, tournament):
+    client_.force_login(staff)
+    html = client_.get('/admin?page=player_editor').content.decode()
+    assert 'Edit players' in html
+    assert 'playerEditor()' in html
+    assert 'Player1 Lastname' in html
+
+
+def test_player_editor_forbidden_for_non_staff(client_, display_op, tournament):
+    client_.force_login(display_op)
+    html = client_.get('/admin?page=player_editor').content.decode()
+    assert 'playerEditor()' not in html
+
+
+def test_player_editor_save_persists_metadata(client_, staff, tournament):
+    tenant = tournament['tenant']
+    from mahj.models import Player
+    p = Player.objects.filter(tenant=tenant).first()
+    client_.force_login(staff)
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': [{
+            'id': p.id, 'full_name': 'Corrected Name', 'first_name': '',
+            'country': 'Norway', 'EMA_ID': 'E99999', 'email': 'x@y.z', 'team': 'Reds',
+        }]}),
+        content_type='application/json')
+    assert resp.status_code == 200
+    p.refresh_from_db()
+    assert p.full_name == 'Corrected Name'
+    assert p.country == 'Norway'
+    # Blank first name mirrors Player.save(): first token of the full name.
+    assert p.first_name == 'Corrected'
+
+
+def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):
+    client_.force_login(staff)
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': [{'id': 999999, 'full_name': 'Ghost'}]}),
+        content_type='application/json')
+    assert resp.status_code == 200
+
+
+def test_player_editor_save_requires_staff(client_, display_op, tournament):
+    client_.force_login(display_op)
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': []}),
+        content_type='application/json')
+    # user_passes_test redirects non-staff to login rather than serving the view.
+    assert resp.status_code in (302, 403)

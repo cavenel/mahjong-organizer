@@ -51,6 +51,7 @@ from .admin_views import (
     randomize,
     admin_team_draw,
     admin_team_draw_save,
+    player_editor_save,
     update_logo,
 )
 from .user_admin import (

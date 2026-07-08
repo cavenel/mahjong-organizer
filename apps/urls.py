@@ -26,6 +26,7 @@ urlpatterns = [
     path('randomize', views.randomize, name='randomize'),
     path('admin_team_draw', views.admin_team_draw, name='admin_team_draw'),
     path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
+    path('player_editor_save', views.player_editor_save, name='player_editor_save'),
     path('logo', views.logo, name='logo'),
     path('update_logo', views.update_logo, name='update_logo'),
     path('publish_web', views.publish_web, name='publish_web'),
