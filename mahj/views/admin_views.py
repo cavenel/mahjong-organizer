@@ -257,7 +257,6 @@ def admin_upload_from_template(request):
             players_sheet = wb['Players']
             player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
             player_objs = []
-            draw_of = []  # parallel to player_objs: pre-assigned draw number, or None
             any_team = False
             all_have_team = True
             for row in player_rows:
@@ -277,14 +276,16 @@ def admin_upload_from_template(request):
                     ema = f"{ema_raw:08d}"
                 except Exception:
                     ema = ""
+                # The optional 'rand' column is the competitor's draw number. The
+                # draw lives on the Player; seats are keyed by it. None until drawn.
+                try:
+                    draw_number = int(rand_raw) if rand_raw is not None else None
+                except (TypeError, ValueError):
+                    draw_number = None
                 player_objs.append(Player(
                     tenant=tenant, full_name=full_name, EMA_ID=ema,
-                    country=country or "", email="", team=team,
+                    country=country or "", email="", team=team, draw_number=draw_number,
                 ))
-                try:
-                    draw_of.append(int(rand_raw) if rand_raw is not None else None)
-                except (TypeError, ValueError):
-                    draw_of.append(None)
             if any_team and not all_have_team:
                 raise ValueError("All players must have a team when teams are used, but some team cells are empty.")
             Player.objects.bulk_create(player_objs)
@@ -304,11 +305,6 @@ def admin_upload_from_template(request):
                 value = value.rstrip()
                 player.first_name = value + "." if value != firstname else value
             Player.objects.bulk_update(player_objs, ['first_name'])
-
-            # Each pre-assigned draw number -> its competitor, used to link seats.
-            human_by_draw = {
-                draw_of[i]: p for i, p in enumerate(player_objs) if draw_of[i] is not None
-            }
 
             Hand.objects.filter(tenant=tenant).delete()
             ScoreSheet.objects.filter(tenant=tenant).delete()
@@ -335,7 +331,6 @@ def admin_upload_from_template(request):
                         seats_to_create.append(Seat(
                             tenant=tenant,
                             draw_number=draw_number,
-                            player=human_by_draw.get(draw_number),
                             round_nb=round_idx + 1,
                             table_nb=table_nb + 1,
                             wind=wind + 1,
