@@ -84,39 +84,49 @@ def print_schedule(request):
 def player_cards(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
-    players = list(Player.objects.filter(tenant=tenant).all())
 
-    # rounds for every player from a constant number of queries (vs ~2 each),
-    # and _country_flag is lru_cached so the ~10 distinct countries among the
-    # players are resolved once each rather than per player.
-    rounds_by_player = _scoring.all_player_rounds(tenant, players)
-    player_rounds = [
-        {"player": p, "rounds": rounds_by_player[p.id], "flag": _country_flag(p.country)}
-        for p in players
+    # One card per draw slot, not per roster player: the seating (and so a slot's
+    # rounds and opponents) exists before the draw is made, so an undrawn slot
+    # still gets a usable card, labelled "Player <n>" until a player is assigned.
+    players_by_draw = {
+        p.draw_number: p
+        for p in Player.objects.filter(tenant=tenant, draw_number__isnull=False)
+    }
+    # rounds for every slot from a constant number of queries, and _country_flag is
+    # lru_cached so the ~10 distinct countries are resolved once each, not per card.
+    rounds_by_draw = _scoring.all_slot_rounds(tenant)
+    cards = [
+        {
+            "draw_number": draw,
+            "player": players_by_draw.get(draw),
+            "rounds": rounds,
+            "flag": _country_flag(players_by_draw[draw].country) if draw in players_by_draw else "",
+        }
+        for draw, rounds in sorted(rounds_by_draw.items())
     ]
 
-    # ?players=1,2,3 keeps only those players plus anyone who shares a table
+    # ?players=1,2,3 keeps only those draw slots plus anyone who shares a table
     # with them in some round (their opponents), so a card is printed for every
-    # player relevant to the requested rand numbers. ?main=true drops the
-    # opponents and prints only the requested players' own badges.
+    # slot relevant to the requested draw numbers. ?main=true drops the
+    # opponents and prints only the requested slots' own badges.
     wanted = {
         int(pid) for pid in request.GET.get('players', '').split(',') if pid.strip().isdigit()
     }
     main_only = request.GET.get('main', '').lower() in ('1', 'true', 'yes')
     if wanted:
-        player_rounds = [
-            pr for pr in player_rounds
-            if pr["player"].draw_number in wanted
+        cards = [
+            c for c in cards
+            if c["draw_number"] in wanted
             or (not main_only
-                and any(pos.player and pos.player.draw_number in wanted
-                        for rnd in pr["rounds"] for pos in rnd["other_pos"]))
+                and any(pos.draw_number in wanted
+                        for rnd in c["rounds"] for pos in rnd["other_pos"]))
         ]
 
     def grouper(n, iterable, fillvalue=None):
         args = [iter(iterable)] * n
         return itertools.zip_longest(*args, fillvalue=fillvalue)
 
-    pages = list(grouper(4, player_rounds))
+    pages = list(grouper(4, cards))
 
     template = loader.get_template('mahj/print_player_cards.html')
     return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
@@ -153,9 +163,11 @@ def table_posters(request):
     for position_val in position_vals:
         round_max = max(round_max, position_val.round_nb)
         table_max = max(table_max, position_val.table_nb)
+    # Store the Seat itself (not just its player) so the poster can label an
+    # unclaimed draw slot "Player <n>" via Seat.player_short_name.
     positions = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
     for position_val in position_vals:
-        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.wind - 1] = position_val.player
+        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.wind - 1] = position_val
 
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     schedule = [s for s in schedule if "Round" in s.name or "Session" in s.name]

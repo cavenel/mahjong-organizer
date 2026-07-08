@@ -139,7 +139,7 @@ def _ceremony_master(request):
                           'round_label': _round_label(winners)})
 
     return {'rules': rules, 'teams': teams, 'players': players,
-            'stats': stats, 'uses_teams': bool(teams)}
+            'stats': stats, 'uses_teams': variables.has_teams}
 
 
 def _slide_payload(master, state):

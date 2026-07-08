@@ -47,7 +47,7 @@
             {% for score in scores %}
               <th colspan="2"
                   class="px-2 py-2 border border-gray-200 bg-gray-100 text-gray-800 font-semibold text-center whitespace-nowrap">
-                {% if score %}{{ score.player.first_name }}{% else %}—{% endif %}
+                {% if score %}{{ score.player_short_name }}{% else %}—{% endif %}
               </th>
             {% endfor %}
             <th class="px-2 py-2 border border-gray-200 bg-gray-100 text-gray-400 text-center w-8">pts</th>

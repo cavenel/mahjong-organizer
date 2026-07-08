@@ -68,7 +68,7 @@ class Seat(TenantAwareModel):
     table/wind each round) and comes straight from the imported schedule, so it
     exists before the draw is made and never changes when the draw does. The
     competitor sitting here is the Player whose ``draw_number`` matches this
-    seat's; an unclaimed draw number is shown as "Player #<n>".
+    seat's; an unclaimed draw number is shown as "Player <n>".
     """
     class Wind(models.IntegerChoices):
         EAST  = 1, 'East'
@@ -96,6 +96,18 @@ class Seat(TenantAwareModel):
             models.Index(fields=['tenant', 'round_nb', 'table_nb']),
             models.Index(fields=['tenant', 'draw_number']),
         ]
+
+    def player_name(self):
+        """The competitor's full name, or the "Player <n>" placeholder for a draw
+        number no player claims yet. ``player`` is the transient attribute
+        _attach_players sets from the draw; absent means it was never resolved."""
+        player = getattr(self, 'player', None)
+        return player.full_name if player else f"Player {self.draw_number}"
+
+    def player_short_name(self):
+        """Short form of ``player_name`` (first name) for the compact seat views."""
+        player = getattr(self, 'player', None)
+        return player.first_name if player else f"Player {self.draw_number}"
 
     def __str__(self):
         return "R{0}, T{1}, {2}: #{3} [{4}MP / {5}TP]({6})".format(
@@ -228,7 +240,6 @@ class TournamentSettings(TenantAwareModel):
     fullname     = models.CharField(default="",max_length=70)
     city         = models.CharField(default="",max_length=70)
     period       = models.CharField(default="",max_length=70)
-    rules        = models.CharField(default="",max_length=70)
     # Optional home nation. When set, standings compute a national sub-ranking
     # (``pos_se``) over the players whose ``country`` matches this, and the EMA
     # report stamps ``countrycourt`` as the organising federation. Both empty by
@@ -237,6 +248,12 @@ class TournamentSettings(TenantAwareModel):
     countrycourt = models.CharField(default="",max_length=8,blank=True)
     total_time   = models.IntegerField(default=1*60*60 + 55 * 60,null=False)
     nb_rounds    = models.IntegerField(default=7,null=False)
+    # Discipline: only "MCR" vs "Riichi" are meaningful — MCR ranks on table
+    # points then minipoints, everything else on minipoints alone.
+    rules        = models.CharField(default="MCR",max_length=70)
+    # Team tournament? The single source of truth for whether team standings,
+    # columns and printouts appear (was inferred from "any player has a team").
+    has_teams    = models.BooleanField(default=False)
     zoom         = models.FloatField(default=1.0,null=False)
     score_lines  = models.IntegerField(default=20,null=False)
     total_columns = models.IntegerField(default=3,null=False)  # columns in the "totals" standings layout

@@ -27,6 +27,14 @@
   <div>
     <h2 class="text-2xl font-bold text-gray-800">{{ variables.title|default:"Dashboard" }}</h2>
     <p class="text-sm text-gray-500 mt-1">{{ variables.fullname }}{% if variables.city %} · {{ variables.city }}{% endif %}{% if variables.period %} · {{ variables.period }}{% endif %}</p>
+    <div class="flex flex-wrap gap-2 mt-2">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+        {% if variables.rules == 'Riichi' %}Riichi{% else %}MCR{% endif %}
+      </span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {% if variables.has_teams %}bg-amber-50 text-amber-700 border border-amber-200{% else %}bg-gray-100 text-gray-500 border border-gray-200{% endif %}">
+        {% if variables.has_teams %}Team tournament{% else %}Individual{% endif %}
+      </span>
+    </div>
   </div>
 
   <!-- Setup checklist --------------------------------------------------------->

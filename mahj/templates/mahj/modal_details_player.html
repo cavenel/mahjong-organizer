@@ -118,7 +118,7 @@
                       {% else %}North{% endif %}
                     </span>
                     <span class="flex-1 truncate {% if seat.player == player %}font-medium text-gray-900{% else %}text-gray-700{% endif %}">
-                      {{ seat.player.full_name }}
+                      {{ seat.player_name }}
                     </span>
                     {% if seat.round_nb <= scores_json.scores|length %}
                       {% if variables.rules == "MCR" %}

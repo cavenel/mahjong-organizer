@@ -596,3 +596,46 @@ class TestSpectatorQr:
     def test_qr_helper_empty_without_subdomain(self):
         from mahj.views.display import _spectator_qr_svg
         assert _spectator_qr_svg('') == ''
+
+
+class TestUnclaimedDrawSlot:
+    """An undrawn draw slot (a Seat whose draw_number no Player holds) reads as
+    "Player <n>" everywhere a competitor name is shown, rather than blank."""
+
+    def _unclaim(self, tournament, draw_number):
+        """Drop the player holding `draw_number`, leaving its seats unclaimed."""
+        Player.objects.filter(
+            tenant=tournament['tenant'], draw_number=draw_number).delete()
+
+    def test_seat_helpers_fall_back_to_player_label(self, tournament):
+        self._unclaim(tournament, 5)
+        from mahj.scoring import _attach_players
+        seat = _attach_players(tournament['tenant'], list(
+            Seat.objects.filter(tenant=tournament['tenant'], draw_number=5)))[0]
+        assert seat.player is None
+        assert seat.player_name() == 'Player 5'
+        assert seat.player_short_name() == 'Player 5'
+
+    def test_slot_rounds_still_builds_a_card_for_the_unclaimed_slot(self, tournament):
+        self._unclaim(tournament, 5)
+        from mahj.scoring import all_slot_rounds
+        rounds = all_slot_rounds(tournament['tenant'])
+        # The slot keeps its seats (and so a printable card) even with no player.
+        assert 5 in rounds and rounds[5]
+
+    def test_seating_grid_labels_the_unclaimed_seat(self, tournament):
+        self._unclaim(tournament, 5)
+        from mahj.scoring import tournament_seating
+        seating, _ = tournament_seating(
+            tournament['tenant'], tournament['variable'], force_all=True)
+        names = [
+            s['name']
+            for r in seating for t in r['tables'] for s in t['seats']
+            if s['player'] is None
+        ]
+        assert 'Player 5' in names
+
+    def test_player_cards_page_shows_player_label(self, request_, tournament):
+        self._unclaim(tournament, 5)
+        html = views.player_cards(request_).content.decode()
+        assert 'Player 5' in html

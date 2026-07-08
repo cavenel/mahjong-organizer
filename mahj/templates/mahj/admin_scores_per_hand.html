@@ -85,7 +85,7 @@
         <th class="w-16 py-1">From</th>
         {% for score in scores %}
           <th class="pl-col py-1 px-1 text-[12px] font-medium">
-            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{% if score %}{{ score.player.first_name }}{% else %}P{{ forloop.counter }}{% endif %}</span>
+            <span style="display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{% if score %}{{ score.player_short_name }}{% else %}P{{ forloop.counter }}{% endif %}</span>
           </th>
         {% endfor %}
       </tr>

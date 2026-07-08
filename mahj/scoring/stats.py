@@ -283,7 +283,7 @@ def stats_export(tenant, tournament, check_final=False, positions=None, hands=No
     return {
         'round_max': round_max,
         'rules': tournament.rules,
-        'uses_teams': any(r['team'] for r in rows),
+        'uses_teams': tournament.has_teams,
         'players': rows,
     }
 
@@ -461,6 +461,29 @@ def all_player_rounds(tenant, players):
             positions_by_player.get(player.id, []), positions_by_rt, schedule, completed,
         )
         for player in players
+    }
+
+
+def all_slot_rounds(tenant):
+    """player_rounds for every draw slot in the seating chart, keyed by draw_number.
+
+    Cards are printed per draw slot, not per player: a slot may not have an
+    assigned player yet, but its seats (and so its rounds and opponents) exist in
+    the schedule regardless. Grouping by draw_number instead of player_id gives a
+    card for every slot, including the undrawn ones. Returns {draw_number: rounds}.
+    """
+    schedule = player_schedule(tenant)
+    completed = completed_tables(tenant)
+
+    all_positions = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant).order_by('round_nb', 'wind')
+    ))
+    positions_by_rt = _group_by(all_positions, key=lambda p: (p.round_nb, p.table_nb))
+    positions_by_draw = _group_by(all_positions, key=lambda p: p.draw_number)
+
+    return {
+        draw: _rounds_for(positions, positions_by_rt, schedule, completed)
+        for draw, positions in positions_by_draw.items()
     }
 
 

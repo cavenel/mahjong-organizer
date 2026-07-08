@@ -12,11 +12,14 @@ from mahj.views import ceremony
 
 @pytest.fixture
 def teamed(tournament):
-    """Assign the 16 players to 4 teams of 4."""
+    """Assign the 16 players to 4 teams of 4 and flag it a team tournament."""
     players = tournament['players']
     for i, p in enumerate(players):
         p.team = f'Team {chr(ord("A") + i % 4)}'
         p.save()
+    v = tournament['variable']
+    v.has_teams = True
+    v.save()
     return tournament
 
 

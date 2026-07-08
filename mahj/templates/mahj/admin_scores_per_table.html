@@ -189,7 +189,7 @@
                 {% for s in table_json %}
                   <td class="col-wind">
                     <div class="position_div" data-id="{{ s.position.id }}">
-                      <div class="player-name" title="{{ s.position.player.full_name }}">{{ s.position.player.full_name }}</div>
+                      <div class="player-name" title="{{ s.position.player_name }}">{{ s.position.player_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
                                value="{{ s.position.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">

@@ -85,6 +85,7 @@ def desktop(request):
                             'wind': s['wind'],
                             'mp': s['mp'],
                             'tp': s['tp'],
+                            'name': s['name'],
                             'player': (
                                 {'id': s['player'].id, 'full_name': s['player'].full_name}
                                 if s['player'] else None
@@ -123,7 +124,7 @@ def desktop(request):
             'scores': scores_with_table,
         })
 
-    uses_teams = any(r['team'] for r in rows)
+    uses_teams = variables.has_teams
     team_rows = team_standings(rows, variables, nb_rounds) if uses_teams else []
 
     schedule_key = f'schedule:{subdomain}'

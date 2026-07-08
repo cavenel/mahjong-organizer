@@ -690,7 +690,13 @@ def _apply_set_variable(request, variables):
             if field in staff_only_fields and not request.user.is_staff:
                 continue
             if hasattr(variables, field):
-                setattr(variables, field, request.GET.get(var))
+                value = request.GET.get(var)
+                # Coerce booleans: every GET value is a string, and a non-empty
+                # string ("false") is truthy — so a raw setattr would store True
+                # for both. Map the usual truthy spellings instead.
+                if variables._meta.get_field(field).get_internal_type() == 'BooleanField':
+                    value = value.strip().lower() in ('true', '1', 'on', 'yes')
+                setattr(variables, field, value)
                 touched_fields.append(field)
     if touched_fields:
         # Reject over-long text here, before it reaches the DB: on
@@ -1029,7 +1035,7 @@ def options(request, error=None):
         "user_is_scorer": is_scorer(request.user),
         "user_is_display_op": is_display_op(request.user),
         "user_is_publisher": is_publisher(request.user),
-        "uses_teams": Player.objects.filter(tenant=tenant).exclude(team="").exists(),
+        "uses_teams": get_variables(request).has_teams,
         # Drives the shell-wide publish progress toast (polls publish_status) — only
         # when web publishing is configured, so idle installs don't poll.
         "static_publish_enabled": _static_publish_configured(),

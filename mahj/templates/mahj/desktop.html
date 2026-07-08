@@ -210,6 +210,8 @@
                             {% if seat.player %}
                               <a href="details_player_{{ seat.player.id }}"
                                  class="flex-1 truncate text-gray-800 hover:text-amber-600 transition-colors">{{ seat.player.full_name }}</a>
+                            {% elif seat.name %}
+                              <span class="flex-1 truncate text-gray-400">{{ seat.name }}</span>
                             {% else %}
                               <span class="flex-1 text-gray-300 italic">—</span>
                             {% endif %}
@@ -265,7 +267,9 @@
                                  x-text="seat.player.full_name"></a>
                             </template>
                             <template x-if="!seat.player">
-                              <span class="flex-1 text-gray-300 italic">—</span>
+                              <span class="flex-1 truncate"
+                                    :class="seat.name ? 'text-gray-400' : 'text-gray-300 italic'"
+                                    x-text="seat.name || '—'"></span>
                             </template>
                             {% if variables.rules == "MCR" %}
                               <template x-if="seat.mp !== null && seat.mp !== undefined">

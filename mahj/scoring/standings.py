@@ -165,6 +165,10 @@ def tournament_seating(tenant, tournament, check_final=True, force_all=False, va
                 seats.append({
                     'wind': WINDS[i],
                     'player': pos.player if pos else None,
+                    # Display label for the seat: the real name, or "Player <n>"
+                    # for a drawn slot no one holds yet. None only when the seat
+                    # itself is absent (an empty slot in a partial table).
+                    'name': pos.player_name() if pos else None,
                     'mp': mp,
                     'tp': tp,
                 })

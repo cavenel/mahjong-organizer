@@ -29,11 +29,6 @@
         <input id="variables-period" type="text" placeholder="" value="{{ variables.period }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
-      <div class="md:col-span-2">
-        <label for="variables-rules" class="block text-xs font-medium text-gray-600 mb-1">Rules</label>
-        <input id="variables-rules" type="text" placeholder="" value="{{ variables.rules }}" maxlength="70"
-               class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-      </div>
       <div>
         <label for="variables-home_country" class="block text-xs font-medium text-gray-600 mb-1">Home nation <span class="text-gray-400 font-normal">(optional)</span></label>
         <input id="variables-home_country" type="text" placeholder="e.g. Sweden" value="{{ variables.home_country }}" maxlength="70"
@@ -45,6 +40,31 @@
         <input id="variables-countrycourt" type="text" placeholder="e.g. SE" value="{{ variables.countrycourt }}" maxlength="8"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <p class="text-xs text-gray-400 mt-1">Organising federation stamped on the EMA report.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Format ------------------------------------------------------------------>
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+    <h3 class="text-sm font-bold text-gray-800 mb-4">Format</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label for="variables-rules" class="block text-xs font-medium text-gray-600 mb-1">Ruleset</label>
+        <select id="variables-rules"
+                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+          <option value="MCR" {% if variables.rules != 'Riichi' %}selected{% endif %}>MCR (Mahjong Competition Rules)</option>
+          <option value="Riichi" {% if variables.rules == 'Riichi' %}selected{% endif %}>Riichi</option>
+        </select>
+        <p class="text-xs text-gray-400 mt-1">MCR ranks on table points then minipoints; Riichi on minipoints.</p>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Teams</label>
+        <label class="inline-flex items-center gap-2 mt-1.5 cursor-pointer">
+          <input id="variables-has_teams" type="checkbox" {% if variables.has_teams %}checked{% endif %}
+                 class="variable-input w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
+          <span class="text-sm text-gray-700">Team tournament</span>
+        </label>
+        <p class="text-xs text-gray-400 mt-1">Show team standings, columns and printouts.</p>
       </div>
     </div>
   </div>
@@ -99,7 +119,11 @@
   // Autosave each field on change — posts every variables-* input in one call.
   $(".variable-input").on('change', function() {
     var getVariables = $(".variable-input").map(function() {
-      return $(this)[0].id + "=" + encodeURIComponent($(this)[0].value) + "&";
+      var el = $(this)[0];
+      // A checkbox's .value is always "on"; send its checked state instead so
+      // the boolean coercion server-side sees true/false.
+      var val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
+      return el.id + "=" + encodeURIComponent(val) + "&";
     }).get().join("");
     $.ajax({
       type: "POST",

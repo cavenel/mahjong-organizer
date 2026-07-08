@@ -1,5 +1,5 @@
 {% load static %}
-{% if card and card.player %}
+{% if card %}
 <div class="card" style="{% if card == page.0 or  card == page.1 %}transform: rotate(180deg);{% endif %}">
 
   {# ── Header ── #}
@@ -26,8 +26,9 @@
   <div style="padding: 1.4mm 5mm 1mm; flex-shrink: 0;">
     <div style="display:flex; align-items:center; justify-content:space-between;">
       <div class="display" style="font-size:18pt; line-height:1; font-weight:500; color:var(--ink);">
-        {{ card.player.full_name }}
+        {% if card.player %}{{ card.player.full_name }}{% else %}Player {{ card.draw_number }}{% endif %}
       </div>
+      {% if card.player %}
       <div style="text-align:right; line-height:1.2;">
         <div class="mono" style="font-size:5.2pt; letter-spacing:0.24em; text-transform:uppercase; color:var(--muted);">Country</div>
         <div style="display:flex; align-items:center; gap:1mm; margin-top:0.6mm; justify-content:flex-end;">
@@ -38,6 +39,7 @@
           {% endif %}
         </div>
       </div>
+      {% endif %}
     </div>
   </div>
 
