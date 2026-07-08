@@ -1,18 +1,14 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Round {{ round_nb }} – Table {{ table_nb }}</title>
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% block title %}Round {{ round_nb }} – Table {{ table_nb }}{% endblock %}
+{% block head_extra %}
   <style>
     .win-self  { background-color: #dbeafe; }
     .win-ron   { background-color: #dcfce7; }
     .lose-ron  { background-color: #fee2e2; }
   </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+{% endblock %}
+{% block content %}
 
   <!-- Header -->
   <header class="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
@@ -117,7 +113,9 @@
       </table>
     </div>
   </main>
+{% endblock %}
 
+{% block scripts %}
   <script>
     function goBack() {
       if (window.parent !== window && typeof window.parent.modalGoBack === 'function') {
@@ -223,5 +221,4 @@
 
     updateScores();
   </script>
-</body>
-</html>
+{% endblock %}

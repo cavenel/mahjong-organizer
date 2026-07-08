@@ -1,18 +1,15 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{{ player.full_name }}</title>
+{% block title %}{{ player.full_name }}{% endblock %}
+{% block head_extra %}
   <meta name="player-flag" content="{{ scores_json.flag }}">
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <script src="{% static 'js/chart-3.9.1.min.js' %}"></script>
   <script defer src="{% static 'js/alpine-3.14.8.min.js' %}"></script>
   <style>[x-cloak] { display: none !important; }</style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ open: {} }">
+{% endblock %}
+{% block body_attrs %}class="bg-gray-50 text-gray-900 min-h-screen" x-data="{ open: {} }"{% endblock %}
+{% block content %}
 
   <div class="sticky top-0 z-10 bg-white border-b border-gray-200 px-4 pt-2 pb-2.5 space-y-1">
     <button onclick="goBack()" class="text-amber-600 text-sm font-medium">‹ Back</button>
@@ -310,7 +307,9 @@
     {% endif %}
 
   </main>
+{% endblock %}
 
+{% block scripts %}
   <script>
     const historyData = {{ scores_json.history_pos }}.slice(2);
     const ctx = document.getElementById('rankChart');
@@ -353,5 +352,4 @@
       }
     }
   </script>
-</body>
-</html>
+{% endblock %}

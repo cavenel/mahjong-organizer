@@ -1,14 +1,7 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login</title>
-  <link rel="icon" type="image/png" href="{% static 'images/mcr_logo.png' %}" sizes="192x192">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center px-4">
+{% extends "mahj/base.html" %}
+{% block title %}Login{% endblock %}
+{% block body_attrs %}class="bg-gray-50 text-gray-900 min-h-screen flex items-center justify-center px-4"{% endblock %}
+{% block content %}
   <div class="w-full max-w-sm">
 
     <!-- Logo + title -->
@@ -60,5 +53,4 @@
       <a href="/" class="hover:text-gray-600">← Back to tournament</a>
     </p>
   </div>
-</body>
-</html>
+{% endblock %}
