@@ -4,8 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="{% block viewport %}width=device-width, initial-scale=1.0{% endblock %}">
   <title>{% block title %}{{ variables.title|default:"Mahjong Tournament" }}{% endblock %}</title>
-  {# Favicon is the tenant's uploaded logo when set, else the bundled logo — one
-     source (site_logo context processor) instead of a hardcoded path per page. #}
+  {# Favicon: tenant's uploaded logo when set, else the bundled logo (site_logo context processor) — one source, not a per-page hardcoded path. #}
   <link rel="icon" type="image/png" href="{{ site_logo_url }}" sizes="192x192">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   {% block head_extra %}{% endblock %}
