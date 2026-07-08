@@ -43,12 +43,25 @@ so consider doing them while the surrounding code is being rewritten:
 - Hands: prune-to-played-hands happens at validation time, so the entry UX and
   the per-cell optimistic-lock save are unchanged; validated sheets carry exactly
   the hands played. Draw = `win_by` NULL, self-draw = `win_from` NULL.
-- Doing the plan's `variables` → `tournament` template context-key rename.
+- **Deferred:** the plan's `variables` → `tournament` template context-key rename
+  (~90 sites, silent-failure risk). Kept `variables`; the model is
+  TournamentSettings, which is the substantive readability win.
+
+## Phase 3 — done, with one deliberate stop-short
+
+- scoring.py split into `mahj/scoring/` (visibility / standings / stats / _common
+  + __init__ re-exporting the full surface). Visibility policy centralized in
+  `visibility.py` (`publish_state`, `final_withheld_now`, `public_round_max`) — the
+  end-of-tournament "withhold the final round" rule is stated once and shared by
+  player_standings, tournament_seating and public_round_max. Goldens byte-identical.
+- **Deferred:** the fuller ask was to replace the `check_final`/`force_all` boolean
+  pair with a single `viewer` concept. Kept the flags (documented with their
+  viewer-mode mapping in visibility.py) to avoid churning ~7 signatures + view
+  callers and risking the reveal-masking. Collapsing to `viewer ∈ {public, admin,
+  display}` is a safe follow-up if wanted.
 
 ## Later phases — reminders
 
-- Phase 3: centralize the visibility policy (check_final/force_all) into one
-  helper; split scoring.py into a package.
 - Phase 4: `mahj.ovh` still hardcoded in several templates/helpers (BASE_DOMAIN).
 - Phase 7: author/venue strings (`© 2018 … Christophe Avenel` footer in
   admin.html; `"SE"` countrycourt and `'Sweden'`/`pos_se` host-nation ranking in

@@ -26,6 +26,9 @@ staticfiles/
 bakup/
 tmp/
 
+# Local static export of a tournament (e.g. `export_public --out ./old-results`)
+old-results/
+
 # Score-sheet scan debug crops (runtime output)
 captures/
 

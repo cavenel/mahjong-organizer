@@ -1,8 +1,5 @@
-"""Pure scoring/stats helpers — no request/view dependencies.
-
-Each public function takes (tenant, tournament, ...) and returns the same data
-shape as the corresponding view previously produced. Golden-file tests in
-tests/test_scoring_golden.py lock the output shape.
+"""Per-round and per-player/team statistics, the seating-grid table, and the
+per-player rounds/opponents used by the modals and the projector cards.
 
 Hand encoding (see docs/data-model.md): a hand is a draw when ``win_by is None``
 and a self-draw when ``win_from is None``; ``points`` is its value. A validated
@@ -10,40 +7,17 @@ score sheet stores exactly the hands played (draws included), so "hands played a
 a table" is simply its Hand row count — there is no unplayed-slot heuristic.
 """
 from collections import defaultdict
-from functools import lru_cache
-from itertools import groupby
 
-import pycountry
-from django.db.models import Q, Sum
+from django.db.models import Sum
 
-from .models import Hand, Player, ScoreSheet, Seat, PublishedRound, Schedule
+from ..models import Hand, Player, ScoreSheet, Seat
+from ._common import WINDS, _attach_players, _group_by, completed_tables, player_schedule
+from .visibility import public_round_max, _last_complete_round
+from .standings import player_standings
 
-
-WINDS = ('East', 'South', 'West', 'North')
-
-
-def _attach_players(tenant, seats):
-    """Resolve each Seat's competitor from its draw_number and attach it as
-    transient ``.player`` / ``.player_id`` attributes.
-
-    The draw lives on ``Player.draw_number`` (a Seat links to a competitor only by
-    draw number), so code that reads ``seat.player`` / ``seat.player_id`` gets it
-    from here. One players query, then in-memory. Returns the same list.
-    """
-    players = {
-        p.draw_number: p
-        for p in Player.objects.filter(tenant=tenant, draw_number__isnull=False)
-    }
-    for s in seats:
-        s.player = players.get(s.draw_number)
-        s.player_id = s.player.id if s.player else None
-    return seats
-
-
-# ---- public API -----------------------------------------------------------
 
 def scores_per_table(tenant, tournament):
-    """Nested list [round][table][seat] = {} or {'seat': Seat}."""
+    """Nested list [round][table][seat] = {} or {'position': Seat}."""
     nb_tables = Player.objects.filter(tenant=tenant).count() // 4
     grid = [
         [[{} for _ in range(4)] for _ in range(nb_tables)]
@@ -425,22 +399,6 @@ def _table_stats_for(positions, hands, valid):
     }
 
 
-def player_schedule(tenant):
-    """The round/session rows used by player_rounds, fetched once."""
-    return [
-        s for s in Schedule.objects.filter(tenant=tenant).order_by('id')
-        if 'Round' in s.name or 'Session' in s.name
-    ]
-
-
-def completed_tables(tenant):
-    """Set of (round_nb, table_nb) whose score sheet is validated."""
-    return {
-        (s.round_nb, s.table_nb)
-        for s in ScoreSheet.objects.filter(tenant=tenant, validated=True)
-    }
-
-
 def player_rounds(tenant, player, schedule=None, completed=None):
     """Per-round info for one player: own seat wind, opponents, schedule, completion flag.
 
@@ -504,187 +462,6 @@ def all_player_rounds(tenant, players):
         )
         for player in players
     }
-
-
-def player_standings(tenant, tournament, check_final=True, force_all=False, positions=None):
-    """Cumulative player totals with rank evolution across rounds."""
-    players = list(Player.objects.filter(tenant=tenant).order_by('id'))
-    # Resolve each seat's competitor from the players we already have (the draw
-    # lives on Player.draw_number), so no extra query is needed to group seats.
-    id_by_draw = {p.draw_number: p.id for p in players if p.draw_number is not None}
-
-    if positions is None:
-        positions = list(Seat.objects.filter(tenant=tenant).order_by('round_nb'))
-
-    positions_by_player = defaultdict(list)
-    round_max = tournament.nb_rounds
-    for pos in positions:
-        pid = getattr(pos, 'player_id', None)
-        if pid is None:
-            pid = id_by_draw.get(pos.draw_number)
-        if pid is None:
-            continue  # an undrawn seat has no scores; ignore it here
-        positions_by_player[pid].append(pos)
-        if pos.minipoints is None or pos.tablepoints is None:
-            round_max = min(round_max, pos.round_nb - 1)
-
-    # One query for both: highest published round and whether the final round is
-    # withheld for the ceremony.
-    pub_rows = {
-        r.round_nb: r.withheld
-        for r in PublishedRound.objects.filter(tenant=tenant)
-    }
-    last_published = max(pub_rows) if pub_rows else 0
-    final_withheld = pub_rows.get(tournament.nb_rounds)  # None if last round not published
-
-    # Public viewers only see rounds that have been explicitly published.
-    if check_final and not force_all:
-        round_max = min(round_max, last_published)
-
-    # End-of-tournament suspense: the last round is published but withheld —
-    # prepared for the ceremony yet held back from the public. Public viewers see
-    # standings through round_max-1 until it's revealed.
-    end_of_tournament = (
-        round_max == tournament.nb_rounds and not force_all
-        and final_withheld
-    )
-    if end_of_tournament and check_final:
-        round_max = max(0, round_max - 1)
-
-    flags = {p.id: _country_flag(p.country) for p in players}
-    history = {p.id: [1] for p in players}
-
-    sort_key = _standings_sort_key(tournament)
-    rank_key = _standings_rank_key(tournament)
-
-    ranked = []
-    for current_round in range(round_max + 1):
-        ranked = [
-            _cumulative_row(p, positions_by_player[p.id], current_round, flags[p.id])
-            for p in players
-        ]
-        ranked.sort(key=sort_key)
-        _assign_ranks(ranked, rank_key, field='pos')
-        _assign_ranks([r for r in ranked if r['country'].strip() == 'Sweden'],
-                      rank_key, field='pos_se')
-        for r in ranked:
-            history[r['player_id']].append(r['pos'])
-
-    for r in ranked:
-        r['history_pos'] = history[r['player_id']]
-
-    # Admin/display viewers (check_final=False) get the full standings, but every
-    # row is masked while the final round is withheld. The reveal animation is the
-    # ceremony page's job, so these rows stay hidden until the results are revealed.
-    if end_of_tournament and not check_final:
-        for r in ranked:
-            r['visible'] = False
-
-    return ranked
-
-
-def team_standings(rows, tournament, nb_rounds):
-    """Aggregate per-player standing rows into ranked team rows.
-
-    `rows` are player rows as produced by `player_standings` / desktop, each
-    carrying 'team', 'flag', 'player_id', 'total' {tp, mp} and per-round
-    'scores' [{tp, mp}]. Returns team rows sorted by the active rules, each with
-    'team', 'flag', 'player_ids', 'total', per-round 'scores' and a 1-based 'pos'
-    that ties share — teams level on both TP and MP get the same position, just
-    like players.
-    """
-    by_team = {}
-    for s in rows:
-        t = s.get('team') or ''
-        if not t:
-            continue
-        slot = by_team.setdefault(t, {
-            'team': t,
-            'player_ids': [],
-            '_flags': set(),
-            'flag': '',
-            'total': {'tp': 0.0, 'mp': 0},
-            'scores': [{'tp': None, 'mp': None, 'round_nb': r} for r in range(1, nb_rounds + 1)],
-        })
-        slot['player_ids'].append(s['player_id'])
-        slot['_flags'].add(s.get('flag') or '')
-        slot['total']['tp'] += s['total'].get('tp') or 0
-        slot['total']['mp'] += s['total'].get('mp') or 0
-        for r_idx, sc in enumerate(s['scores']):
-            if r_idx < len(slot['scores']) and sc.get('tp') is not None:
-                rslot = slot['scores'][r_idx]
-                rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
-                rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
-    team_rows = sorted(by_team.values(), key=_standings_sort_key(tournament))
-    _assign_ranks(team_rows, _standings_rank_key(tournament), field='pos')
-    for tr in team_rows:
-        flags = tr.pop('_flags')
-        tr['flag'] = next(iter(flags)) if len(flags) == 1 else ''
-    return team_rows
-
-
-def tournament_seating(tenant, tournament, check_final=True, force_all=False, valid_pairs=None, positions=None):
-    """seating grid + player→table lookup. Applies the same end-of-tournament
-    masking as player_standings: when the last round is published but withheld for
-    the ceremony, check_final viewers see the final round's seats without MP/TP.
-    Public viewers also see MP/TP masked for any unpublished round.
-    """
-    if positions is None:
-        position_vals = _attach_players(tenant, list(
-            Seat.objects.filter(tenant=tenant).order_by('id')
-        ))
-    else:
-        position_vals = positions
-    round_max = max((p.round_nb for p in position_vals), default=0)
-    table_max = max((p.table_nb for p in position_vals), default=0)
-
-    pub_rows = {r.round_nb: r.withheld for r in PublishedRound.objects.filter(tenant=tenant)}
-    last_complete = _last_complete_round(tenant, tournament)
-    last_published = max(pub_rows) if pub_rows else 0
-    final_withheld = pub_rows.get(tournament.nb_rounds)
-    end_of_tournament = (
-        last_complete == tournament.nb_rounds and not force_all
-        and final_withheld
-    )
-    hide_scores_round = last_complete if (end_of_tournament and check_final) else None
-
-    player_table = {(p.player_id, p.round_nb): p.table_nb for p in position_vals}
-
-    grid = [[[None] * 4 for _ in range(table_max)] for _ in range(round_max)]
-    for p in position_vals:
-        grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = p
-
-    seating = []
-    for r_idx, round_positions in enumerate(grid):
-        round_nb = r_idx + 1
-        hide_scores = hide_scores_round == round_nb
-        # Public viewers see scores only from published rounds.
-        if check_final and not force_all and round_nb > last_published:
-            hide_scores = True
-        tables = []
-        for t_idx, table in enumerate(round_positions):
-            if all(pos is None for pos in table):
-                continue
-            seats = []
-            for i in range(4):
-                pos = table[i]
-                mp = None if hide_scores or pos is None else pos.minipoints
-                tp = None if hide_scores or pos is None or pos.tablepoints is None \
-                    else float(pos.tablepoints)
-                seats.append({
-                    'wind': WINDS[i],
-                    'player': pos.player if pos else None,
-                    'mp': mp,
-                    'tp': tp,
-                })
-            table_nb = t_idx + 1
-            has_scores = (not hide_scores) and (
-                valid_pairs is not None and (round_nb, table_nb) in valid_pairs
-            )
-            tables.append({'table_nb': table_nb, 'seats': seats, 'has_scores': has_scores})
-        seating.append({'round_nb': round_nb, 'tables': tables})
-
-    return seating, player_table
 
 
 def player_extra_stats(tenant, player, tournament, max_round=None):
@@ -875,52 +652,6 @@ def team_extra_stats(tenant, team_name, tournament, max_round=None):
     }
 
 
-# ---- helpers --------------------------------------------------------------
-
-def _last_complete_round(tenant, tournament):
-    first_incomplete = (
-        Seat.objects.filter(tenant=tenant)
-        .filter(Q(tablepoints=None) | Q(minipoints=None))
-        .order_by('round_nb')
-        .values('round_nb')
-        .first()
-    )
-    return (first_incomplete['round_nb'] - 1) if first_incomplete else tournament.nb_rounds
-
-
-def _last_published_round(tenant):
-    """Highest published round_nb for this tenant, or 0 if none published."""
-    row = PublishedRound.objects.filter(tenant=tenant).order_by('-round_nb').first()
-    return row.round_nb if row else 0
-
-
-def _final_round_withheld(tenant, nb_rounds):
-    """Publish state of the last round, read from its PublishedRound row:
-      None  → last round not published at all
-      True  → published but withheld from the public for the ceremony
-      False → published and visible to everyone
-    """
-    row = PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
-    return row.withheld if row else None
-
-
-def public_round_max(tenant, tournament, force_all=False):
-    """Highest round number a public viewer may see, mirroring `player_standings`.
-
-    Public viewers (`force_all=False`) are clamped to the last published round,
-    and during the end-of-tournament suspense window (final round published but
-    withheld) one further round is dropped. `force_all=True` (admin/ceremony) sees
-    every scored round. Use this to cap auxiliary surfaces — e.g. the modal's
-    placement/hand cards — to the same rounds the standings expose.
-    """
-    if force_all:
-        return tournament.nb_rounds
-    round_max = min(_last_complete_round(tenant, tournament), _last_published_round(tenant))
-    if round_max == tournament.nb_rounds and _final_round_withheld(tenant, tournament.nb_rounds):
-        round_max = max(0, round_max - 1)
-    return round_max
-
-
 def _placement_counts(tenant, positions, tournament):
     """How often these seats placed 1st/2nd/3rd/4th at their own table.
 
@@ -987,80 +718,6 @@ def _opponent_strength(tenant, positions, tournament, max_round=None):
             total += totals.get(peer.draw_number, 0) or 0
             count += 1
     return {'total': total, 'avg': total / count if count else 0, 'count': count}
-
-
-def _group_by(iterable, key):
-    """Return a defaultdict(list) keyed by key(item). Missing keys return []."""
-    out = defaultdict(list)
-    for item in iterable:
-        out[key(item)].append(item)
-    return out
-
-
-# Country names pycountry's exact + fuzzy lookup gets wrong or misses, mapped to
-# their ISO alpha-2 flag code. "Turkey" misses entirely (pycountry renamed it
-# "Türkiye"), so a Turkish player would get no flag and be excluded from "Best
-# European". Bare "Korea" fuzzy-matches "Korea, Democratic People's Republic of"
-# (kp, North Korea) instead of South Korea (kr). Keys are lower-cased and matched
-# after stripping a leading "The ".
-_FLAG_ALIASES = {
-    'turkey': 'tr',
-    'korea': 'kr',
-    'south korea': 'kr',
-    'chinese taipei': 'tw',
-}
-
-
-@lru_cache(maxsize=256)
-def _country_flag(country):
-    if country == "Independent":
-        return 'mi'
-    try:
-        name = country.replace('The ', '').strip()
-        if not name:
-            return ''  # search_fuzzy('') matches an arbitrary country (gb); short-circuit
-        alias = _FLAG_ALIASES.get(name.lower())
-        if alias:
-            return alias
-        match = pycountry.countries.get(name=name)
-        if match is None:
-            results = pycountry.countries.search_fuzzy(name)
-            match = results[0] if results else None
-        return match.alpha_2.lower() if match else ''
-    except Exception:
-        return ''
-
-
-def _standings_sort_key(tournament):
-    """Order standing rows best-first by the active rules. MCR ranks on TP (MP
-    breaks ties); other rules rank on MP. Used for both players and teams so a
-    team's row is ordered exactly like a player's."""
-    if tournament.rules == 'MCR':
-        return lambda s: (-s['total']['tp'], -s['total']['mp'])
-    return lambda s: -s['total']['mp']
-
-
-def _standings_rank_key(tournament):
-    """Tie key for `_assign_ranks`, mirroring `_standings_sort_key` so rows tie
-    (share a position) exactly when they're level on every value the active rules
-    order by. MCR ranks on TP with MP as the tie-breaker, so a shared position
-    needs both equal. Other rules rank on MP alone — equal MP alone ties, and TP
-    must not split them, since the sort doesn't order by TP at all (rows level on
-    MP keep their input order, so a (MP, TP) key would also assign positions
-    non-deterministically)."""
-    if tournament.rules == 'MCR':
-        return lambda s: (s['total']['tp'], s['total']['mp'])
-    return lambda s: s['total']['mp']
-
-
-def _assign_ranks(rows, key, field):
-    """In-place 1-indexed ranks with tie-sharing (1, 2, 2, 4). Rows must be pre-sorted."""
-    index = 0
-    for _, group in groupby(rows, key=key):
-        members = list(group)
-        for r in members:
-            r[field] = index + 1
-        index += len(members)
 
 
 def _winners_for_round(positions, hands, round_complete):
@@ -1147,19 +804,3 @@ def _roll_up(rounds, category, value_of):
         elif v == best_value:
             best_items += items
     return best_items
-
-
-def _cumulative_row(player, all_positions, up_to_round, flag):
-    played = [p for p in all_positions if p.round_nb <= up_to_round]
-    return {
-        'history_pos': [1], 'visible': True, 'pos': 0, 'pos_se': '',
-        'player_id': player.id, 'EMA_ID': player.EMA_ID,
-        'first_name': player.first_name, 'last_name': player.last_name(),
-        'name': player.full_name, 'country': player.country, 'flag': flag,
-        'team': player.team,
-        'scores': [{'mp': p.minipoints, 'tp': p.tablepoints} for p in played],
-        'total': {
-            'mp': sum(p.minipoints for p in played),
-            'tp': sum(p.tablepoints for p in played),
-        },
-    }
