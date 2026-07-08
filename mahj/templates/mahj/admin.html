@@ -1,12 +1,8 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mahjong Tournament Organizer</title>
-  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% block title %}Mahjong Tournament Organizer{% endblock %}
+{% block html_class %} class="h-full"{% endblock %}
+{% block head_extra %}
   <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
   <script defer src="{% static 'js/alpine-3.14.8.min.js' %}"></script>
   <style>
@@ -19,11 +15,11 @@
     #admin-sidebar[x-cloak] { display: flex !important; transform: translateX(-100%); }
     @media (min-width: 1024px) { #admin-sidebar[x-cloak] { transform: translateX(0); } }
   </style>
-</head>
-
-<body class="h-full bg-gray-50 text-gray-900"
+{% endblock %}
+{% block body_attrs %}class="h-full bg-gray-50 text-gray-900"
       x-data="adminShell()"
-      @keydown.escape.window="closeModals()">
+      @keydown.escape.window="closeModals()"{% endblock %}
+{% block content %}
 
   <!-- Sidebar overlay (mobile) -->
   <div x-show="sidebarOpen" x-transition.opacity
@@ -278,7 +274,9 @@
       </div>
     </div>
   </div>
+{% endblock %}
 
+{% block scripts %}
   <script>
     function adminShell() {
       return {
@@ -415,5 +413,4 @@
     })();
   </script>
   {% endif %}
-</body>
-</html>
+{% endblock %}

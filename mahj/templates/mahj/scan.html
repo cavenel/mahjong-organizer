@@ -1,15 +1,9 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Scan score sheet</title>
-  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}?v={% now "YmdHi" %}">
-</head>
-
-<body class="min-h-full bg-gray-50 text-gray-900 flex items-center justify-center px-4 py-12">
+{% block title %}Scan score sheet{% endblock %}
+{% block html_class %} class="h-full"{% endblock %}
+{% block body_attrs %}class="min-h-full bg-gray-50 text-gray-900 flex items-center justify-center px-4 py-12"{% endblock %}
+{% block content %}
   <div class="w-full max-w-sm">
 
     <h1 class="text-2xl font-bold text-gray-800 mb-1 text-center">Scan score sheet</h1>
@@ -64,7 +58,9 @@
     </div>
     <iframe id="overlay-frame" class="flex-1 w-full bg-white" src="about:blank"></iframe>
   </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
 const csrf = '{{ csrf_token }}';
 const roundEl  = document.getElementById('round');
@@ -346,5 +342,4 @@ window.addEventListener('online', handleOnline);
 setScanEnabled(false);
 if (!navigator.onLine) handleOffline(); else refreshStatus();
 </script>
-</body>
-</html>
+{% endblock %}

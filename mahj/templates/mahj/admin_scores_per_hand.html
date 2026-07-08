@@ -1,12 +1,8 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Round {{ round_nb }} – Table {{ table_nb }}</title>
-  <link rel="icon" type="image/png" href="{% static 'images/mcr_logo.png' %}" sizes="192x192">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% block title %}Round {{ round_nb }} – Table {{ table_nb }}{% endblock %}
+{% block viewport %}width=device-width, initial-scale=1{% endblock %}
+{% block head_extra %}
   <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
   <style>
     /* Full original width on a large window; never wider than 640px. No
@@ -71,8 +67,9 @@
       .sheet-side .validate-label { margin-top: 0 !important; padding-top: 0 !important; }
     }
   </style>
-</head>
-<body class="bg-gray-50 text-gray-900 p-4">
+{% endblock %}
+{% block body_attrs %}class="bg-gray-50 text-gray-900 p-4"{% endblock %}
+{% block content %}
 
 <div class="max-w-4xl mx-auto">
   <h2 class="text-lg font-semibold text-gray-700 mb-3">Round {{ round_nb }} – Table {{ table_nb }}</h2>
@@ -181,7 +178,9 @@
     </div>
   </div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script>
   function sortWithIndeces(toSort) {
     var len = toSort.length;
@@ -522,6 +521,4 @@
   update_scores();
   updateDisabledState();
 </script>
-
-</body>
-</html>
+{% endblock %}
