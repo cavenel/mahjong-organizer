@@ -11,7 +11,7 @@ active. The ceremony page itself applies later updates live without reloading.
 Nothing here changes the existing players-only `reveal_level` podium logic; the
 final "Publish to everyone" simply reuses the publish path (reveal_level=100).
 """
-import simplejson as json
+import json
 
 from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse, JsonResponse

@@ -15,11 +15,8 @@ django-sesame==3.2.3
 django-mathfilters==1.0.0
 openpyxl==3.1.5
 pycountry==26.2.16
-simplejson==4.1.0
 Unidecode==1.4.0
-beautifulsoup4==4.14.3
 whitenoise==6.12.0
-python-decouple==3.8
 opencv-python-headless==4.13.0.92
 Pillow==12.2.0
 numpy==2.4.6

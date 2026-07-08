@@ -6,7 +6,7 @@ import traceback
 from collections import defaultdict
 from datetime import datetime
 
-import simplejson as json
+import json
 from openpyxl import load_workbook
 from unidecode import unidecode
 

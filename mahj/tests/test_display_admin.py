@@ -9,7 +9,7 @@ current views as active.
 import types
 
 import pytest
-import simplejson as json
+import json
 from django.contrib.auth.models import Group, User
 from django.test import Client
 

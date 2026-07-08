@@ -40,7 +40,7 @@ class Player(TenantAwareModel):
     full_name = models.CharField(max_length=70,default="")
     first_name = models.CharField(max_length=70,default="")
     EMA_ID    = models.CharField(max_length=70,default="")
-    country   = models.CharField(max_length=70,default="Sweden")
+    country   = models.CharField(max_length=70,default="")
     email     = models.CharField(max_length=70,default="")
     rand_id   = models.IntegerField(default=0)
     team      = models.CharField(max_length=70, default="", blank=True)
@@ -171,11 +171,7 @@ class Variable(TenantAwareModel):
     # the served URL so projector screens refresh when the logo changes.
     logo         = models.BinaryField(null=True, blank=True, default=None, editable=True)
     logo_etag    = models.CharField(default="", max_length=32, blank=True)
-    #sw_class_1   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
-    #sw_class_2   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
-    #sw_class_3   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
-    #sw_class_4   = models.ForeignKey(Player, null=True, blank=True, default=None, related_name='+',on_delete=models.CASCADE)
-    
+
     def __str__(self):
         return self.welcome + " ; " + str(self.nb_rounds) + " ; " + str(self.title) + \
                self.fullname + " ; " + str(self.city) + " ; " + str(self.period) + " ; " + str(self.zoom) + " ; " + str(self.score_lines) + " ; " + str(self.total_time)
