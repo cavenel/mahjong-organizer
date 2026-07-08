@@ -1,10 +1,7 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-
-<html>
-<head>
-  <title>{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}</title>
-  <meta charset="utf-8">
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+{% block title %}{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}{% endblock %}
+{% block head_extra %}
 <style>
 /* Dark slate gradient matching the counter/schedule/ceremony screens, painted on
    <html> (background-attachment: fixed) so it fills the viewport. */
@@ -34,10 +31,13 @@ body {
     font-size: 10vw;
 }
 </style>
-</head>
-<body>
+{% endblock %}
+{% block body_attrs %}{% endblock %}
+{% block content %}
 <div id="message">{{ variables.welcome|safe }}</div>
+{% endblock %}
 
+{% block scripts %}
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 var el = document.getElementById('message');
@@ -90,5 +90,4 @@ connectDisplaySocket({
     onReconnect: function () { location.reload(); },
 });
 </script>
-</body>
-</html>
+{% endblock %}

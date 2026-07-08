@@ -1,17 +1,11 @@
+{% extends "mahj/base.html" %}
 {% load static %}
 {% load mathfilters %}
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-
-<head>
-    <meta charset="utf-8">
-    <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-    <title>{{ variables.title|default:variables.fullname|default:"Welcome" }}</title>
-    <meta name="viewport" content="user-scalable=no" />
-    <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
-</head>
-
-<body class="h-full overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200">
+{% block title %}{{ variables.title|default:variables.fullname|default:"Welcome" }}{% endblock %}
+{% block html_class %} class="h-full"{% endblock %}
+{% block viewport %}user-scalable=no{% endblock %}
+{% block body_attrs %}class="h-full overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200"{% endblock %}
+{% block content %}
 
     <!-- The full-height centering box is NOT zoomed, so it stays exactly one real
          viewport tall and centers on the actual screen. `zoom` only scales the hero
@@ -64,7 +58,9 @@
             {% endif %}
         </div>
     </footer>
+{% endblock %}
 
+{% block scripts %}
     <script src="{% static 'js/display_socket.js' %}"></script>
     <script>
         connectDisplaySocket({
@@ -72,6 +68,4 @@
             onUpdate: function() { location.reload(); },
         });
     </script>
-</body>
-
-</html>
+{% endblock %}

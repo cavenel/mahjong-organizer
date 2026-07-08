@@ -1,13 +1,9 @@
+{% extends "mahj/base.html" %}
 {% load static %}
 {% load mathfilters %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <title>Scores</title>
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-  <meta name="viewport" content="user-scalable=no" />
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% block title %}Scores{% endblock %}
+{% block viewport %}user-scalable=no{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
   <style>
     /* Dark slate gradient matching the schedule/ceremony screens. Painted on
@@ -24,9 +20,10 @@
        library's .flag so this wins regardless of stylesheet order. */
     img.flag { filter: none; border: 1px solid #999; width: 20px; height: 15px; margin: 0; vertical-align: middle; background-size: cover; display: inline-block; }
   </style>
-</head>
-<body class="min-h-screen overflow-hidden text-slate-200 px-10 py-4"
-      style="zoom: {{ variables.zoom|mul:1.2 }};">
+{% endblock %}
+{% block body_attrs %}class="min-h-screen overflow-hidden text-slate-200 px-10 py-4"
+      style="zoom: {{ variables.zoom|mul:1.2 }};"{% endblock %}
+{% block content %}
 
   <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
 
@@ -179,7 +176,9 @@
     <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
     {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
   </div>
+{% endblock %}
 
+{% block scripts %}
   <script src="{% static 'js/display_socket.js' %}"></script>
   <script>
     // On a normal round publish the broadcast carries `published_round`; show a
@@ -221,5 +220,4 @@
       },
     });
   </script>
-</body>
-</html>
+{% endblock %}

@@ -1,18 +1,11 @@
+{% extends "mahj/base.html" %}
 {% load static %}
 {% load mathfilters %}
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-    <meta charset="utf-8">
-    <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-    <title>Schedule</title>
-    <meta name="viewport" content="user-scalable=no" />
-    <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
-</head>
-
-<body class="min-h-screen overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200 px-14 py-11"
-      style="zoom: {{ variables.zoom|mul:1.2 }};">
+{% block title %}Schedule{% endblock %}
+{% block viewport %}user-scalable=no{% endblock %}
+{% block body_attrs %}class="min-h-screen overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200 px-14 py-11"
+      style="zoom: {{ variables.zoom|mul:1.2 }};"{% endblock %}
+{% block content %}
 
     <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
 
@@ -39,7 +32,9 @@
             </section>
         {% endfor %}
     </div>
+{% endblock %}
 
+{% block scripts %}
     <script src="{% static 'js/display_socket.js' %}"></script>
     <script>
         connectDisplaySocket({
@@ -47,6 +42,4 @@
             onUpdate: function() { location.reload(); },
         });
     </script>
-</body>
-
-</html>
+{% endblock %}

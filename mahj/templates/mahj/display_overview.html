@@ -1,10 +1,8 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-
-<html style="background-color:black;">
-<head>
-  <title>Screens overview</title>
-  <meta charset="utf-8">
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
+{% block title %}Screens overview{% endblock %}
+{% block html_class %} style="background-color:black;"{% endblock %}
+{% block head_extra %}
   <style>
     html, body { margin: 0; height: 100%; background: black; overflow: hidden; }
     body { display: flex; flex-direction: column; height: 100vh; }
@@ -113,8 +111,9 @@
       text-shadow: 0 1px 3px rgba(0,0,0,.8);
     }
   </style>
-</head>
-<body>
+{% endblock %}
+{% block body_attrs %}{% endblock %}
+{% block content %}
 
 {% if screens %}
   <div id="grid">
@@ -149,7 +148,9 @@
 {% else %}
   <div id="empty">No screens configured</div>
 {% endif %}
+{% endblock %}
 
+{% block scripts %}
 <script>
   // Scale every 1920×1080 iframe so it fills its cell (contain, keeping 16:9).
   function fitFrames() {
@@ -239,5 +240,4 @@
     onUpdate: function(msg) { if (msg && msg.event === 'screens_changed') location.reload(); },
   });
 </script>
-</body>
-</html>
+{% endblock %}

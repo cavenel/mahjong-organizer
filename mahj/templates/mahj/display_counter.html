@@ -1,11 +1,7 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-
-<html>
-<head>
-  <title>{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}</title>
-  <meta charset="utf-8">
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-
+{% block title %}{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
 <style>
 /* Dark slate gradient matching the schedule/ceremony screens, painted on <html>
@@ -103,9 +99,9 @@ body {
         background-color: white;
     }
 </style>
-
-</head>
-<body>
+{% endblock %}
+{% block body_attrs %}{% endblock %}
+{% block content %}
 <img id="logo" src="{{ site_logo_url }}" alt="">
 <div id="no_sound">
 🔇
@@ -115,7 +111,9 @@ body {
 <div style="height: 16vh; position: absolute; left: Calc(50% - 8vw); top: 3vh; width: 16vw;">
     <div id='countdown'></div>
 </div>
+{% endblock %}
 
+{% block scripts %}
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 
@@ -404,4 +402,4 @@ var tryToPlay = setInterval(function () {
         });
 }, 1000);
 </script>
-</body>
+{% endblock %}

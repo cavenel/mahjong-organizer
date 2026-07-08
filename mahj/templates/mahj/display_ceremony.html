@@ -1,12 +1,8 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Prize-giving</title>
-  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% block title %}Prize-giving{% endblock %}
+{% block html_class %} class="h-full"{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
   <script src="{% static 'js/display_socket.js' %}"></script>
   <style>
@@ -24,15 +20,18 @@
     .flag-lg { width: 64px; height: 48px; }
     .flag-xl { width: 96px; height: 72px; }
   </style>
-</head>
-<body class="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden">
+{% endblock %}
+{% block body_attrs %}class="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 text-white overflow-hidden"{% endblock %}
+{% block content %}
   <!-- Persistent corner logo: lives outside #ceremony-root so a reveal that
        re-renders the slide doesn't recreate the <img> and re-fetch it (which
        flickered the logo on every "Reveal next"). render() just toggles it. -->
   <img id="ceremony-logo" src="{{ site_logo_url }}" alt=""
        class="hidden fixed top-4 left-6 h-32 w-auto opacity-90 z-10">
   <div id="ceremony-root" class="h-full flex flex-col"></div>
+{% endblock %}
 
+{% block scripts %}
   <script>
     // The screen renders the current slide, then patches it live on each
     // `ceremony.update` — no full reload for reveals. Only the return-to-normal
@@ -197,5 +196,4 @@
       onReconnect: function () { location.reload(); },
     });
   </script>
-</body>
-</html>
+{% endblock %}

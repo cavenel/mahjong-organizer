@@ -1,18 +1,17 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en" class="h-full">
-<head>
-  <meta charset="utf-8">
-  <title>No screen</title>
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
-</head>
-<body class="h-full overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200">
+{% block title %}No screen{% endblock %}
+{% block html_class %} class="h-full"{% endblock %}
+{% block body_attrs %}class="h-full overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200"{% endblock %}
+{% block content %}
   <div class="h-full flex flex-col items-center justify-center gap-6 px-8 text-center">
     <img src="{{ site_logo_url }}" class="h-24 w-auto opacity-90" alt="">
     <h1 class="text-3xl font-extrabold tracking-tight text-white">No screen assigned</h1>
     <p class="text-lg text-amber-300/80">Add this screen from the admin page first.</p>
   </div>
+{% endblock %}
+
+{% block scripts %}
   <script src="{% static 'js/display_socket.js' %}"></script>
   <script>
     connectDisplaySocket({
@@ -20,5 +19,4 @@
         onUpdate: function() { location.reload(); },
     });
   </script>
-</body>
-</html>
+{% endblock %}

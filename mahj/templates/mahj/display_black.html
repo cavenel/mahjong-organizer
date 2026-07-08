@@ -1,13 +1,13 @@
-{% load static %} 
+{% extends "mahj/base.html" %}
+{% load static %}
+{% block title %}{{ variables.title|default:"Mahjong Tournament" }}{% endblock %}
+{% block html_class %} style="background-color:black;"{% endblock %}
+{% block body_attrs %}{% endblock %}
+{% block content %}
 
-<html style="background-color:black;">
-<head>
-  <title>{{ variables.title|default:"Mahjong Tournament" }}</title>
-  <meta charset="utf-8">
-  <link rel="icon" type="image/png" href="{% static "images/mcr_logo.png" %}" sizes="192?192">
-</head>
-<body>
+{% endblock %}
 
+{% block scripts %}
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 connectDisplaySocket({
@@ -15,4 +15,4 @@ connectDisplaySocket({
     onUpdate: function() { location.reload(); },
 });
 </script>
-</body>
+{% endblock %}

@@ -1,13 +1,9 @@
+{% extends "mahj/base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=0.8">
-  <link rel="icon" type="image/png" href="{% static 'images/mcr_logo.png' %}" sizes="192x192">
-  <title>{{ variables.title }}</title>
+{% block title %}{{ variables.title }}{% endblock %}
+{% block viewport %}width=device-width, initial-scale=0.8{% endblock %}
+{% block head_extra %}
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <script src="{% static 'js/display_socket.js' %}"></script>
   <script defer src="{% static 'js/alpine-3.14.8.min.js' %}"></script>
   <style>
@@ -23,11 +19,12 @@
     tbody tr:hover .col-f1, tbody tr:hover .col-f2 { background-color: rgb(255 251 235); } /* solid amber-50 */
     tbody td { line-height: 1; }
   </style>
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen"
+{% endblock %}
+{% block body_attrs %}class="bg-gray-50 text-gray-900 min-h-screen"
       x-data="app()"
       x-cloak
-      data-initial-round="{{ seating.0.round_nb|default:1 }}">
+      data-initial-round="{{ seating.0.round_nb|default:1 }}"{% endblock %}
+{% block content %}
 
   <!-- ── Top bar ──────────────────────────────────────────────── -->
   <header class="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm">
@@ -587,7 +584,9 @@
               @load="onIframeLoad($event)"></iframe>
     </div>
   </div>
+{% endblock %}
 
+{% block scripts %}
   <script>
     function app() {
       return {
@@ -785,5 +784,4 @@
       };
     }
   </script>
-</body>
-</html>
+{% endblock %}
