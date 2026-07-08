@@ -653,9 +653,9 @@
       var data = { csrfmiddlewaretoken: csrfToken, round_nb: roundNb, table_nb: tableNb };
       // Complete sheets: every one of the 16 hands gets a real result.
       for (var i = 1; i <= 16; i++) {
-        data['pts_' + i]  = Math.floor(Math.random() * Math.random() * Math.random() * 103) + 8;
-        data['by_' + i]   = Math.floor(Math.random() * 4) + 1;
-        data['from_' + i] = Math.floor(Math.random() * 4) + 1;
+        data['points_' + i] = Math.floor(Math.random() * Math.random() * Math.random() * 103) + 8;
+        data['by_' + i]     = Math.floor(Math.random() * 4) + 1;
+        data['from_' + i]   = Math.floor(Math.random() * 4) + 1;
       }
       setTimeout(function() {
         $.post('create_hand_points', data, function() {
