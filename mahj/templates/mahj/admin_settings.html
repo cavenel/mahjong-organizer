@@ -34,6 +34,18 @@
         <input id="variables-rules" type="text" placeholder="" value="{{ variables.rules }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
+      <div>
+        <label for="variables-home_country" class="block text-xs font-medium text-gray-600 mb-1">Home nation <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input id="variables-home_country" type="text" placeholder="e.g. Sweden" value="{{ variables.home_country }}" maxlength="70"
+               class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+        <p class="text-xs text-gray-400 mt-1">Set to rank your own nation's players separately in the standings.</p>
+      </div>
+      <div>
+        <label for="variables-countrycourt" class="block text-xs font-medium text-gray-600 mb-1">Federation code <span class="text-gray-400 font-normal">(optional)</span></label>
+        <input id="variables-countrycourt" type="text" placeholder="e.g. SE" value="{{ variables.countrycourt }}" maxlength="8"
+               class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+        <p class="text-xs text-gray-400 mt-1">Organising federation stamped on the EMA report.</p>
+      </div>
     </div>
   </div>
 

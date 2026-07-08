@@ -8,8 +8,8 @@ SFTP host (see mahj/publish/sftp_upload and the PUBLISH_SFTP_* env vars).
 Local use::
 
     # render only, then serve it with any dumb static server to eyeball it:
-    python manage.py export_public --subdomain devvarberg --no-upload
-    python -m http.server -d captures/export/devvarberg
+    python manage.py export_public --subdomain myevent --no-upload
+    python -m http.server -d captures/export/myevent
 
     # render + upload (needs PUBLISH_SFTP_* configured):
     python manage.py export_public --subdomain myevent

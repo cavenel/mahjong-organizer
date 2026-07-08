@@ -229,6 +229,12 @@ class TournamentSettings(TenantAwareModel):
     city         = models.CharField(default="",max_length=70)
     period       = models.CharField(default="",max_length=70)
     rules        = models.CharField(default="",max_length=70)
+    # Optional home nation. When set, standings compute a national sub-ranking
+    # (``pos_se``) over the players whose ``country`` matches this, and the EMA
+    # report stamps ``countrycourt`` as the organising federation. Both empty by
+    # default so a generic install bakes in no nationality.
+    home_country = models.CharField(default="",max_length=70,blank=True)
+    countrycourt = models.CharField(default="",max_length=8,blank=True)
     total_time   = models.IntegerField(default=1*60*60 + 55 * 60,null=False)
     nb_rounds    = models.IntegerField(default=7,null=False)
     zoom         = models.FloatField(default=1.0,null=False)

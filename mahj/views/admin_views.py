@@ -43,6 +43,8 @@ _VARIABLE_LABELS = {
     "city": "City",
     "period": "Period",
     "rules": "Rules",
+    "home_country": "Home nation",
+    "countrycourt": "Federation code",
 }
 
 
@@ -193,7 +195,7 @@ def admin_print_EMA(request):
             "YES" if player["EMA_ID"] != "" else "NO",
             player["flag"].upper(),
             datetime.today().strftime('%d/%m/%Y'),
-            "SE",          # Countrycourt: organising federation (Swedish host)
+            variables.countrycourt,   # Countrycourt: organising federation code (settings)
             variables.city,
             2,
             variables.title,

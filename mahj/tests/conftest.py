@@ -19,6 +19,9 @@ def tournament(tenant):
     variable = TournamentSettings.objects.create(
         tenant=tenant, welcome='Welcome', title='T', fullname='FT',
         nb_rounds=3, rules='MCR', total_time=60 * 60, zoom=1.0, score_lines=20,
+        # Home nation drives the national sub-ranking (pos_se); the fixture keeps
+        # it 'Sweden' so the golden standings stay numerically identical.
+        home_country='Sweden',
     )
     for i in range(3):
         Schedule.objects.create(tenant=tenant, day='Sat', time=f'{10 + i:02d}:00', name=f'Round {i + 1}')

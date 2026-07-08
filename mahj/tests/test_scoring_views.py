@@ -95,6 +95,15 @@ class TestPlayerStandings:
         assert pos_se[0] == 1
         assert pos_se[-1] <= len(swedes)
 
+    def test_no_national_ranking_when_home_country_unset(self, request_, tournament):
+        """Neutral default: with no home nation configured, no national
+        sub-ranking is computed — pos_se stays blank for every player."""
+        v = tournament['variable']
+        v.home_country = ''
+        v.save()  # post_save signal busts the cached settings
+        rows = views.scores_per_player_json(request_, force_all=True)
+        assert all(r['pos_se'] == '' for r in rows)
+
     def test_history_pos_length_matches_rounds_plus_initial(self, request_, tournament):
         rows = views.scores_per_player_json(request_, force_all=True)
         # history_pos starts at 1 (initial) then appends one entry per round in the schedule.
