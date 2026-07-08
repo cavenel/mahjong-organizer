@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.templatetags.static import static
 from django.urls import reverse
 
@@ -23,7 +24,7 @@ def public_site(request):
     """Expose the spectator-site URL advertised on projector screens and printed
     cards: `public_site_url` (with scheme, for QR/links) and `public_site_host`
     (bare host, for a compact caption). PUBLIC_SITE_URL overrides for the
-    standalone build; otherwise it's the tenant's <subdomain>.mahj.ovh."""
+    standalone build; otherwise it's the tenant's <subdomain>.<BASE_DOMAIN>."""
     try:
         tenant = get_tenant(request)
         subdomain = tenant.subdomain if tenant else ''
@@ -32,4 +33,5 @@ def public_site(request):
     return {
         "public_site_url": public_site_url(subdomain),
         "public_site_host": public_site_host(subdomain),
+        "base_domain": settings.BASE_DOMAIN,
     }

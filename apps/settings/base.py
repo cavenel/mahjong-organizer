@@ -9,6 +9,12 @@ def env(key, default=_MISSING):
         return os.environ[key]  # raises KeyError loudly if unset
     return os.environ.get(key, default)
 
+# The apex domain this instance is served under. Tenants live at
+# <subdomain>.<BASE_DOMAIN>; it drives the CSRF trusted origins, the default
+# prod ALLOWED_HOSTS, the advertised spectator-site URL, and the nginx vhost.
+# Defaults to 'localhost' for local dev.
+BASE_DOMAIN = env('BASE_DOMAIN', 'localhost')
+
 INSTALLED_APPS = [
     'daphne',
     'channels',
@@ -154,8 +160,8 @@ STANDALONE = False
 
 # Public spectator-site URL advertised to spectators (projector QR + caption,
 # printed player cards). Unset in the cloud → falls back to the tenant's
-# <subdomain>.mahj.ovh. The standalone build sets it to wherever it publishes the
-# static site (see PUBLISH_SFTP_*), since 'local.mahj.ovh' isn't reachable.
+# <subdomain>.<BASE_DOMAIN>. The standalone build sets it to wherever it publishes the
+# static site (see PUBLISH_SFTP_*), since 'local.<BASE_DOMAIN>' isn't reachable.
 PUBLIC_SITE_URL = env('PUBLIC_SITE_URL', '')
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
@@ -190,7 +196,7 @@ LOGGING = {
     },
 }
 
-CSRF_TRUSTED_ORIGINS = ['https://mahj.ovh', 'https://*.mahj.ovh']
+CSRF_TRUSTED_ORIGINS = [f'https://{BASE_DOMAIN}', f'https://*.{BASE_DOMAIN}']
 
 # A home-screen app (Android) resumes a stale login page whose CSRF token no
 # longer matches the rotated cookie; this handler redirects that failed login

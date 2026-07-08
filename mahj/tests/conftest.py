@@ -87,7 +87,7 @@ def tournament(tenant):
 @pytest.fixture
 def request_(tournament):
     rf = RequestFactory()
-    req = rf.get('/', HTTP_HOST='test.mahj.ovh')
+    req = rf.get('/', HTTP_HOST='test.example.com')
     req.user = AnonymousUser()
     return req
 
@@ -105,7 +105,7 @@ def riichi_tournament(tournament):
 @pytest.fixture
 def request_riichi(riichi_tournament):
     rf = RequestFactory()
-    req = rf.get('/', HTTP_HOST='test.mahj.ovh')
+    req = rf.get('/', HTTP_HOST='test.example.com')
     req.user = AnonymousUser()
     return req
 

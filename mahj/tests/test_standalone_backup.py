@@ -114,13 +114,13 @@ class TestRestore:
 
 class TestPublicSiteUrl:
     """The spectator-site URL advertised on screens/cards: PUBLIC_SITE_URL wins,
-    else the tenant's <subdomain>.mahj.ovh (cloud default)."""
+    else the tenant's <subdomain>.example.com (cloud default)."""
 
     def test_fallback_to_subdomain(self, settings):
         from mahj.views.helpers import public_site_url, public_site_host
         settings.PUBLIC_SITE_URL = ''
-        assert public_site_url('oemc2026') == 'https://oemc2026.mahj.ovh'
-        assert public_site_host('oemc2026') == 'oemc2026.mahj.ovh'
+        assert public_site_url('oemc2026') == 'https://oemc2026.example.com'
+        assert public_site_host('oemc2026') == 'oemc2026.example.com'
 
     def test_override_used_when_set(self, settings):
         from mahj.views.helpers import public_site_url, public_site_host

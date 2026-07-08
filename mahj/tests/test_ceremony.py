@@ -45,7 +45,7 @@ def tied_players(teamed):
     return teamed, a, b
 
 
-def _request(host='test.mahj.ovh'):
+def _request(host='test.example.com'):
     rf = RequestFactory()
     req = rf.get('/', HTTP_HOST=host)
     req.user = AnonymousUser()
@@ -56,7 +56,7 @@ def _request(host='test.mahj.ovh'):
 def op_client(teamed):
     c = Client()
     c.force_login(User.objects.create_user('op', password='pw', is_staff=True))
-    c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+    c.defaults['HTTP_HOST'] = 'test.example.com'
     return c
 
 
@@ -178,7 +178,7 @@ class TestControlEndpoint:
 
 
     def test_requires_display_op(self, teamed):
-        resp = Client().get('/ceremony_control?phase=teams', HTTP_HOST='test.mahj.ovh')
+        resp = Client().get('/ceremony_control?phase=teams', HTTP_HOST='test.example.com')
         assert resp.status_code in (302, 403)
 
     def test_start_and_reveal(self, op_client, teamed):
@@ -233,14 +233,14 @@ class TestControlEndpoint:
 class TestScreenTakeover:
     def test_idle_shows_normal_view(self, teamed):
         Screen.objects.create(tenant=teamed['tenant'], name='S1', view='scores all')
-        resp = Client().get('/1', HTTP_HOST='test.mahj.ovh')
+        resp = Client().get('/1', HTTP_HOST='test.example.com')
         assert resp.status_code == 200
         assert '<title>Prize-giving</title>' not in resp.content.decode()
 
     def test_active_takes_over_screen(self, teamed):
         Screen.objects.create(tenant=teamed['tenant'], name='S1', view='scores all')
         CeremonyState.objects.create(tenant=teamed['tenant'], phase='teams', step=2)
-        resp = Client().get('/1', HTTP_HOST='test.mahj.ovh')
+        resp = Client().get('/1', HTTP_HOST='test.example.com')
         assert resp.status_code == 200
         html = resp.content.decode()
         # ceremony template took over (not the normal scores view); the current

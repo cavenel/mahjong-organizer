@@ -16,7 +16,7 @@ from django.test import Client
 from mahj.models import Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
 
-HOST = 'test.mahj.ovh'
+HOST = 'test.example.com'
 
 
 @pytest.mark.parametrize('view, label', [

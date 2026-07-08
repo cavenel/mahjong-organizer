@@ -125,7 +125,7 @@ class TestAuthMenu:
         # Regression guard: the normal (served) anon page still offers Login.
         from django.test import Client
         c = Client()
-        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.defaults['HTTP_HOST'] = 'test.example.com'
         html = c.get('/').content.decode()
         assert 'accounts/login' in html
 
@@ -134,7 +134,7 @@ class TestPublishProgress:
     def test_status_requires_staff(self, tournament):
         from django.test import Client
         c = Client()
-        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.defaults['HTTP_HOST'] = 'test.example.com'
         resp = c.get('/publish_status')
         assert resp.status_code in (301, 302)   # anonymous → login
 
@@ -143,7 +143,7 @@ class TestPublishProgress:
         from django.test import Client
         User.objects.create_user('boss', password='pw', is_staff=True)
         c = Client()
-        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.defaults['HTTP_HOST'] = 'test.example.com'
         c.force_login(User.objects.get(username='boss'))
         assert c.get('/publish_status').json()['phase'] == 'idle'
 
@@ -198,7 +198,7 @@ class TestPublishWebEndpoint:
     def test_requires_staff(self, tournament):
         from django.test import Client
         c = Client()
-        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.defaults['HTTP_HOST'] = 'test.example.com'
         resp = c.post('/publish_web')
         # Anonymous → redirected to login, not a 200/OK publish.
         assert resp.status_code in (301, 302)
@@ -209,7 +209,7 @@ class TestPublishWebEndpoint:
         monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
         User.objects.create_user('boss', password='pw', is_staff=True)
         c = Client()
-        c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+        c.defaults['HTTP_HOST'] = 'test.example.com'
         c.force_login(User.objects.get(username='boss'))
         resp = c.post('/publish_web')
         assert resp.status_code == 400

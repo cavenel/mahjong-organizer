@@ -12,7 +12,7 @@ from django.test import Client
 from mahj.models import Hand
 
 
-HOST = 'test.mahj.ovh'
+HOST = 'test.example.com'
 
 
 @pytest.fixture

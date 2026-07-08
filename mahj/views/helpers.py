@@ -74,7 +74,7 @@ def public_site_url(subdomain):
     url = (getattr(settings, 'PUBLIC_SITE_URL', '') or '').strip().rstrip('/')
     if url:
         return url if '://' in url else f'https://{url}'
-    return f'https://{subdomain}.mahj.ovh'
+    return f'https://{subdomain}.{settings.BASE_DOMAIN}'
 
 
 def public_site_host(subdomain):
@@ -108,9 +108,6 @@ def get_tenant(request):
     if hasattr(request, '_tenant'):
         return request._tenant
     subdomain = get_domain(request)
-    # Dev convenience only: map a bare LAN IP (192.168.x.x) to a known dev tenant.
-    if settings.DEBUG and subdomain == "192":
-        subdomain = "devvarberg"
     cache_key = f'tenant:{subdomain}'
     tenant = cache.get(cache_key)
     if tenant is None:

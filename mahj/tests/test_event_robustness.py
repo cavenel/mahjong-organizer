@@ -16,7 +16,7 @@ LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'
 
 def _req(user=None):
     rf = RequestFactory()
-    req = rf.get('/', HTTP_HOST='test.mahj.ovh')
+    req = rf.get('/', HTTP_HOST='test.example.com')
     req.user = user or AnonymousUser()
     return req
 

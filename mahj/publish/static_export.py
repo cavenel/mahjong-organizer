@@ -41,7 +41,7 @@ def _make_request(subdomain, tenant):
     render. AnonymousUser → is_staff/is_authenticated are False, so the views take
     the public (reveal-masked) path.
     """
-    request = RequestFactory().get('/', HTTP_HOST=f'{subdomain}.mahj.ovh')
+    request = RequestFactory().get('/', HTTP_HOST=f'{subdomain}.{settings.BASE_DOMAIN}')
     request.user = AnonymousUser()
     request._tenant = tenant
     # Signals the desktop view to drop the auth menu (no login on a static host)

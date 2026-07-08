@@ -19,7 +19,7 @@ upstream django {
 # HTTP — redirect everything to HTTPS; keep ACME challenge reachable for renewals
 server {
     listen 80;
-    server_name *.mahj.ovh mahj.ovh;
+    server_name *.${BASE_DOMAIN} ${BASE_DOMAIN};
 
     location /.well-known/acme-challenge/ {
         root /var/www/certbot;
@@ -34,10 +34,10 @@ server {
 server {
     listen 443 ssl;
     http2 on;
-    server_name *.mahj.ovh mahj.ovh;
+    server_name *.${BASE_DOMAIN} ${BASE_DOMAIN};
 
-    ssl_certificate     /etc/letsencrypt/live/mahj.ovh/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mahj.ovh/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/${BASE_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${BASE_DOMAIN}/privkey.pem;
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305;
     ssl_prefer_server_ciphers off;
@@ -118,15 +118,15 @@ server {
     }
 }
 
-# Reject anything that isn't *.mahj.ovh (direct-IP, scanners, stale vhosts)
+# Reject anything that isn't *.${BASE_DOMAIN} (direct-IP, scanners, stale vhosts)
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
     http2 on;
     server_name _;
 
-    ssl_certificate     /etc/letsencrypt/live/mahj.ovh/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/mahj.ovh/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/${BASE_DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${BASE_DOMAIN}/privkey.pem;
 
     return 444;
 }

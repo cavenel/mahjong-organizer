@@ -17,7 +17,7 @@ from mahj import restore_queue
 from mahj.views import restore_admin
 from mahj.views.user_admin import REAUTH_SESSION_KEY
 
-HOST = 'test.mahj.ovh'
+HOST = 'test.example.com'
 
 
 @pytest.fixture

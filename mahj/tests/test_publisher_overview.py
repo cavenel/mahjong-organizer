@@ -12,7 +12,7 @@ from django.test import Client
 from mahj.models import Seat, ScoreSheet
 from mahj.views.admin_views import publisher_overview_rows
 
-HOST = 'test.mahj.ovh'
+HOST = 'test.example.com'
 
 
 @pytest.fixture

@@ -16,7 +16,7 @@ from django.test import Client
 from mahj.models import Hand, TournamentSettings
 
 
-HOST = 'test.mahj.ovh'
+HOST = 'test.example.com'
 
 
 @pytest.fixture

@@ -581,7 +581,7 @@ class TestSpectatorQr:
         svg = _spectator_qr_svg('test')
         assert svg.startswith('<svg')
         # The encoded payload is the HTTPS public site, matching the visible label.
-        expected = segno.make('https://test.mahj.ovh', error='m').svg_inline(scale=3, border=2)
+        expected = segno.make('https://test.example.com', error='m').svg_inline(scale=3, border=2)
         assert svg == expected
 
     def test_qr_helper_empty_without_subdomain(self):

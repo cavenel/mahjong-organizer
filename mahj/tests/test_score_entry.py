@@ -22,7 +22,7 @@ def authed_client(scorer, tournament):
     c = Client()
     c.force_login(scorer)
     # get_tenant() reads the subdomain off the Host header — send one that matches the fixture.
-    c.defaults['HTTP_HOST'] = 'test.mahj.ovh'
+    c.defaults['HTTP_HOST'] = 'test.example.com'
     return c
 
 

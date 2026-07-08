@@ -64,13 +64,18 @@ services:
     ports:
       - "80:80"
       - "443:443"
+    environment:
+      # The nginx image renders /etc/nginx/templates/*.template -> conf.d/ at start,
+      # substituting ${BASE_DOMAIN} into server_name + cert paths (mahjong.conf.template).
+      # NGINX_ENVSUBST_FILTER limits substitution to BASE_DOMAIN so nginx's own
+      # $host/$scheme/etc. variables are left untouched.
+      BASE_DOMAIN: ${BASE_DOMAIN}
+      NGINX_ENVSUBST_FILTER: "BASE_DOMAIN"
     volumes:
-      # Mount the directory, not the single file: a single-file bind mount pins to
-      # the inode at container start, so editor (atomic-replace) edits never reach
-      # the container and `nginx -s reload` re-reads stale config. With the dir
-      # mounted, edits are live and a reload picks them up. (nginx loads conf.d/*.conf;
-      # the image's default.conf is shadowed by this mount.)
-      - ./nginx:/etc/nginx/conf.d:ro
+      # Templates are rendered once at container start, so config changes need a
+      # `docker compose restart nginx` (a plain `nginx -s reload` won't re-run the
+      # envsubst step). The image's default.conf is shadowed by the rendered output.
+      - ./nginx:/etc/nginx/templates:ro
       - gunicorn_sock:/run/gunicorn
       - static_files:/app/staticfiles:ro
       - letsencrypt:/etc/letsencrypt:ro
@@ -82,12 +87,16 @@ services:
 
   # Certbot — only runs on demand (profiles: certbot), never as a background daemon.
   #
-  # First-time setup (DNS-01 challenge, wildcard cert):
+  # First-time setup (DNS-01 challenge, wildcard cert). A wildcard needs DNS-01,
+  # so the certbot image below is provider-specific: it uses the OVH plugin
+  # (--dns-ovh + ovh.ini). For another DNS provider, swap the image (e.g.
+  # certbot/dns-cloudflare, certbot/dns-route53) and the --dns-* flags/credentials
+  # accordingly. $BASE_DOMAIN must match the value in .env:
   #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
   #     --profile certbot run --rm certbot \
   #     certonly --dns-ovh \
   #              --dns-ovh-credentials /etc/letsencrypt/ovh.ini \
-  #              -d mahj.ovh -d '*.mahj.ovh' \
+  #              -d "$BASE_DOMAIN" -d "*.$BASE_DOMAIN" \
   #              --email <your@email> --agree-tos --no-eff-email
   #
   # Renewal (add to host cron, e.g. weekly):

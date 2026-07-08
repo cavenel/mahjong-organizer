@@ -772,9 +772,9 @@ def options(request, error=None):
             "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
             # Base URL the screens are reachable at, taken from THIS request so the
             # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
-            # cloud this resolves to https://<tenant>.mahj.ovh (proxy headers); in
+            # cloud this resolves to https://<tenant>.<BASE_DOMAIN> (proxy headers); in
             # the standalone build to http://<host>:<port>. A hardcoded
-            # mahj.ovh URL would be cross-origin — and unreachable — on a laptop.
+            # <BASE_DOMAIN> URL would be cross-origin — and unreachable — on a laptop.
             "screen_base": request.build_absolute_uri('/').rstrip('/'),
         }
         # Standalone (LAN-served) build: list the addresses other devices can use
@@ -843,7 +843,7 @@ def options(request, error=None):
             "subdomain": tenant.subdomain if tenant else '',
             "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
             # Same-origin base for the preview iframes (see the display page):
-            # cloud → https://<tenant>.mahj.ovh, standalone → http://<host>:<port>.
+            # cloud → https://<tenant>.<BASE_DOMAIN>, standalone → http://<host>:<port>.
             "screen_base": request.build_absolute_uri('/').rstrip('/'),
         }, request)
     elif page == "publisher_overview":

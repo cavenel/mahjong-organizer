@@ -3,7 +3,12 @@ from .base import *
 
 SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]   # no default — fails loudly if unset
 DEBUG = False
-ALLOWED_HOSTS = os.environ["ALLOWED_HOSTS"].split(",")
+# Default to the apex domain and all its subdomains; ALLOWED_HOSTS env overrides.
+ALLOWED_HOSTS = (
+    os.environ["ALLOWED_HOSTS"].split(",")
+    if os.environ.get("ALLOWED_HOSTS")
+    else [BASE_DOMAIN, f".{BASE_DOMAIN}"]
+)
 
 SECURE_SSL_REDIRECT = True
 SECURE_HSTS_SECONDS = 31536000

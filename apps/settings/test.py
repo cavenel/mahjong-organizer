@@ -8,6 +8,9 @@ from .base import *
 
 SECRET_KEY = 'test-insecure-key'
 DEBUG = False
+# Pin the apex domain so the suite's hosts (test.example.com) and the advertised
+# spectator-site URL are deterministic regardless of the runner's BASE_DOMAIN env.
+BASE_DOMAIN = 'example.com'
 ALLOWED_HOSTS = ['*']
 
 DATABASES = {
