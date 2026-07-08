@@ -1,13 +1,6 @@
-{% load static %}
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Results not yet revealed</title>
-  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
-</head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+{% extends "mahj/base.html" %}
+{% block title %}Results not yet revealed{% endblock %}
+{% block content %}
 
   <!-- Header -->
   <header class="sticky top-0 z-10 bg-white border-b border-gray-200 shadow-sm">
@@ -29,7 +22,9 @@
       at the prize-giving ceremony.
     </p>
   </main>
+{% endblock %}
 
+{% block scripts %}
   <script>
     function goBack() {
       if (window.parent !== window && typeof window.parent.modalGoBack === 'function') {
@@ -39,5 +34,4 @@
       }
     }
   </script>
-</body>
-</html>
+{% endblock %}
