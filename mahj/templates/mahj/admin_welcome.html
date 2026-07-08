@@ -1,3 +1,4 @@
+{% load static %}
 {% if error %}
 <div x-data="{ open: true }" x-show="open" x-cloak
      class="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -115,34 +116,59 @@
   </p>
 </div>
 
+<script src="{% static 'js/display_socket.js' %}"></script>
 <script>
   // Round-timer summary for the dashboard card. `counter` is the server's gong
-  // moment (epoch-ms); `total_time` the round length (s). Mirrors the display
-  // page's read-only view — start/stop lives on the Displays page.
+  // moment (epoch-ms); `total_time` the round length (s). Read-only — start/stop
+  // lives on the Displays page — but it tracks live: a `counter-update` window
+  // event (dispatched from the display socket below) re-points the clock the
+  // instant an operator starts or stops a round elsewhere.
   function dashCounter(counter, totalTime) {
     return {
       counter: counter, totalTime: totalTime, state: 'stopped', label: 'Stopped',
-      tick() {
-        var self = this;
-        function update() {
-          if (!self.counter || self.counter <= 0) { self.state = 'stopped'; self.label = 'Stopped'; return; }
-          var elapsedMs = Date.now() - self.counter;
-          if (elapsedMs < 0) {
-            self.state = 'running';
-            self.label = 'Starting in ' + Math.ceil(-elapsedMs / 1000) + 's';
-          } else if (elapsedMs < self.totalTime * 1000) {
-            self.state = 'running';
-            var left = Math.max(0, self.totalTime - Math.floor(elapsedMs / 1000));
-            var m = Math.floor(left / 60), s = left % 60;
-            self.label = m + ':' + (s < 10 ? '0' : '') + s + ' left';
-          } else {
-            self.state = 'stopped';
-            self.label = 'Round ended';
-          }
+      render() {
+        if (!this.counter || this.counter <= 0) { this.state = 'stopped'; this.label = 'Stopped'; return; }
+        var elapsedMs = Date.now() - this.counter;
+        if (elapsedMs < 0) {
+          this.state = 'running';
+          this.label = 'Starting in ' + Math.ceil(-elapsedMs / 1000) + 's';
+        } else if (elapsedMs < this.totalTime * 1000) {
+          this.state = 'running';
+          var left = Math.max(0, this.totalTime - Math.floor(elapsedMs / 1000));
+          var m = Math.floor(left / 60), s = left % 60;
+          this.label = m + ':' + (s < 10 ? '0' : '') + s + ' left';
+        } else {
+          this.state = 'stopped';
+          this.label = 'Round ended';
         }
-        update();
-        setInterval(update, 1000);
+      },
+      tick() {
+        this.render();
+        setInterval(() => this.render(), 1000);
+        window.addEventListener('counter-update', (e) => {
+          this.counter = e.detail;
+          this.render();
+        });
       }
     };
   }
+
+  // Keep the dashboard live. The display socket carries the same events the
+  // projector screens react to; here we retint the round-timer card on
+  // start/stop, and refresh the whole page when a publish / ceremony / import
+  // changes the scored-round and published-round counts the cards show.
+  (function() {
+    if (typeof connectDisplaySocket !== 'function') return;
+    connectDisplaySocket({
+      subdomain: '{{ variables.tenant.subdomain }}',
+      onUpdate: function(msg) {
+        if (msg.event === 'counter_update') {
+          window.dispatchEvent(new CustomEvent('counter-update',
+            { detail: parseInt(msg.counter, 10) || -1 }));
+        } else if (msg.event === 'leaderboard_update' || msg.event === 'ceremony') {
+          location.reload();
+        }
+      }
+    });
+  })();
 </script>
