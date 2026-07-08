@@ -38,37 +38,42 @@
     </a>
 
     <nav class="flex-1 overflow-y-auto py-3 text-sm">
+
+      <!-- Dashboard — top-level link, all roles -->
+      <a href="admin?page=welcome"
+         class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+        Dashboard
+      </a>
+
+      <!-- CONFIGURATION -->
       {% if user.is_staff %}
-        <a href="admin?page=welcome"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-          Welcome
-        </a>
-
-        <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Preparation</p>
-
+      <button type="button" @click="toggleSection('config')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Configuration</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='config' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='config'" x-transition x-cloak>
         <a href="admin?page=import_template"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'import_template' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
           Import from template
         </a>
+      </div>
+      {% endif %}
 
+      <!-- PLAYERS -->
+      {% if user.is_staff %}
+      <button type="button" @click="toggleSection('players')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Players</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='players' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='players'" x-transition x-cloak>
         <a href="admin?page=randomize"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'randomize' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM9 9h.01M15 15h.01M9 15h.01M15 9h.01M12 12h.01"/></svg>
           Randomize players
-        </a>
-
-        <a href="admin?page=users"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          User management
-        </a>
-
-        <a href="admin?page=database_restore"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 1.105 3.582 2 8 2s8-.895 8-2V7M4 7c0 1.105 3.582 2 8 2s8-.895 8-2M4 7c0-1.105 3.582-2 8-2s8 .895 8 2m0 5c0 1.105-3.582 2-8 2s-8-.895-8-2"/></svg>
-          Database restore
         </a>
 
         <a href="admin_team_draw" target="_blank"
@@ -94,38 +99,30 @@
           <li><button type="button" @click="showPrintModal('cross_positions?per_team=1')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Cross positions (by team)</button></li>
           <li><button type="button" @click="showPrintModal('print_schedule')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Schedule</button></li>
         </ul>
+      </div>
       {% endif %}
 
-      <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">During tournament</p>
-
+      <!-- SCORING -->
       {% if user.is_staff or user_is_scorer or user_is_publisher %}
+      <button type="button" @click="toggleSection('scoring')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Scoring</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='scoring' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='scoring'" x-transition x-cloak>
         <a href="admin?page=scoring"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
           Scoring
         </a>
-      {% endif %}
 
-      {% if user.is_staff or user_is_publisher %}
+        {% if user.is_staff or user_is_publisher %}
         <a href="admin?page=publisher_overview"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
           Publisher overview
         </a>
-      {% endif %}
-
-      {% if user.is_staff or user_is_display_op %}
-        <a href="admin?page=display"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          Display on screens
-        </a>
-
-        <a href="admin?page=ceremony"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-          Ceremony console
-        </a>
+        {% endif %}
 
         <button type="button" @click="livePrintOpen=!livePrintOpen"
                 class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
@@ -138,16 +135,73 @@
         <ul x-show="livePrintOpen" x-transition class="text-gray-600" x-cloak>
           <li><button type="button" @click="showPrintModal('print_scores')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Scores</button></li>
         </ul>
-
+      </div>
       {% endif %}
 
+      <!-- DISPLAYS -->
+      {% if user.is_staff or user_is_display_op %}
+      <button type="button" @click="toggleSection('displays')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Displays</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='displays' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='displays'" x-transition x-cloak>
+        <a href="admin?page=display"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+          Display on screens
+        </a>
+
+        <a href="admin?page=ceremony"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
+          Ceremony console
+        </a>
+      </div>
+      {% endif %}
+
+      <!-- RESULTS -->
       {% if user.is_staff %}
-        <p class="px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">After tournament</p>
+      <button type="button" @click="toggleSection('results')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Results</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='results' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='results'" x-transition x-cloak>
         <a target="_blank" href="EMA_report.xlsx"
            class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-4-4m4 4l4-4"/></svg>
           Generate EMA report
         </a>
+      </div>
+      {% endif %}
+
+      <!-- ADMINISTRATION -->
+      {% if user.is_staff %}
+      <button type="button" @click="toggleSection('admin')"
+              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
+        <span>Administration</span>
+        <svg class="w-3 h-3 transition-transform" :class="openSection==='admin' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </button>
+      <div x-show="openSection==='admin'" x-transition x-cloak>
+        <a href="admin?page=users"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+          User management
+        </a>
+
+        <a href="admin?page=database_restore"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 1.105 3.582 2 8 2s8-.895 8-2V7M4 7c0 1.105 3.582 2 8 2s8-.895 8-2M4 7c0-1.105 3.582-2 8-2s8 .895 8 2m0 5c0 1.105-3.582 2-8 2s-8-.895-8-2"/></svg>
+          Database restore
+        </a>
+
+        <a target="_blank" href="admin_db"
+           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
+          Database administration
+        </a>
+      </div>
       {% endif %}
     </nav>
   </aside>
@@ -190,12 +244,6 @@
             <a target="_blank" href="/static/docs/Riichi_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — head scorer</a>
             <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
           </div>
-          {% endif %}
-          {% if user.is_staff %}
-          <a target="_blank" href="admin_db" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-            Database administration
-          </a>
           {% endif %}
           <a href="admin?logout=1" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
             <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
@@ -278,12 +326,32 @@
 
 {% block scripts %}
   <script>
+    // Map an active page slug to the sidebar DOMAIN section that should be
+    // expanded on load. welcome (Dashboard) is a top-level link, so no section.
+    function sectionForPage(p) {
+      var map = {
+        import_template: 'config',
+        randomize: 'players',
+        scoring: 'scoring',
+        publisher_overview: 'scoring',
+        display: 'displays',
+        ceremony: 'displays',
+        users: 'admin',
+        database_restore: 'admin',
+      };
+      return map[p] || '';
+    }
+
     function adminShell() {
       return {
         sidebarOpen: false,
         userMenuOpen: false,
+        // Single-open accordion: which DOMAIN section is expanded. Auto-opens the
+        // section containing the active page on load; '' = all collapsed.
+        openSection: sectionForPage('{{ page|default:"" }}'),
         prepPrintOpen: false,
         livePrintOpen: false,
+        toggleSection(id) { this.openSection = this.openSection === id ? '' : id; },
         printModal: { open: false, src: '' },
         detailsModal: { open: false, src: '' },
         confirmModal: { open: false, title: '', body: '', confirmLabel: 'Confirm',
