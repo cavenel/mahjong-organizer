@@ -25,7 +25,7 @@ The tournament lives on its own **subdomain**:
 https://<tenant>.mahj.ovh/admin
 ```
 
-For example `https://oemc2026.mahj.ovh/admin`. If you are not signed in you are
+For example `https://myevent.mahj.ovh/admin`. If you are not signed in you are
 sent to the login page; enter your username and password. As a scorer you land
 directly on the **Scoring** page.
 

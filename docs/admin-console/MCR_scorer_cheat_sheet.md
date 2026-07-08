@@ -22,7 +22,7 @@
 
 Once all tables have their MP in, fill a **score sheet** for each table.
 
-![QR code to oemc2026.mahj.ovh/scan](screenshots/qr-scan.svg){ style="float:right; margin:0 0 .4em 1em;" }
+![QR code to myevent.mahj.ovh/scan](screenshots/qr-scan.svg){ style="float:right; margin:0 0 .4em 1em;" }
 
 ### 📸 OCR (optional shortcut)
 

@@ -30,7 +30,7 @@ Every tournament lives on its own **subdomain**:
 https://<tenant>.mahj.ovh/
 ```
 
-For example `https://oemc2026.mahj.ovh/` for a real event, or
+For example `https://myevent.mahj.ovh/` for a real event, or
 `https://test.mahj.ovh/` for the test tenant (see [§9](#9-rehearsing-on-the-test-tenant)).
 
 | URL | What it is |
