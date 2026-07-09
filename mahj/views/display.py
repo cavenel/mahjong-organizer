@@ -248,7 +248,9 @@ def render_scores(request, density, page_nb=None):
     variables = get_variables(request)
     columns = 1 if density == DETAILED else max(1, variables.total_columns)
     show_rounds = density == DETAILED
-    score_lines = variables.score_lines
+    # Guard the pagination step: 0/None/negative would make range(..., step) throw
+    # (ValueError) and 500 every projector. 0 columns of scores is never intended.
+    score_lines = max(1, variables.score_lines or 0)
 
     prepublish = _final_round_withheld(tenant, variables.nb_rounds) is True
     check_final = False if prepublish else True

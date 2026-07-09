@@ -458,7 +458,9 @@
     }
     update_scores();
     if (ajax_timeouts[row]) clearTimeout(ajax_timeouts[row]);
-    ajax_timeouts[row] = setTimeout(function(){ send_ajax(row); }, 1000);
+    // Clear the entry when the debounce fires so flushPending() on unload won't
+    // re-beacon this row after send_ajax has already saved it.
+    ajax_timeouts[row] = setTimeout(function(){ delete ajax_timeouts[row]; send_ajax(row); }, 1000);
   });
 
   // Penalties are saved per-position (not per-hand) and debounced like the hands.

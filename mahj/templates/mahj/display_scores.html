@@ -134,11 +134,13 @@
       (function() {
         var pages = document.querySelectorAll(".scores_page");
         var cur = 0;
+        // Floor at 1s: a 0/negative rotation_time would flip pages every tick and flicker.
+        var rotation_ms = Math.max(1, {{ variables.rotation_time|default:10 }}) * 1000;
         setInterval(function() {
           pages[cur].style.display = "none";
           cur = (cur + 1) % pages.length;
           pages[cur].style.display = "";
-        }, {{ variables.rotation_time|default:10 }} * 1000);
+        }, rotation_ms);
       })();
     </script>
   {% endif %}

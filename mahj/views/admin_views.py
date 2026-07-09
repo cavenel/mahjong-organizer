@@ -287,7 +287,7 @@ def admin_upload_from_template(request):
                 # Make first_name, last_name into title-case strings:
                 first_name_raw = first_name_raw.strip().title() if isinstance(first_name_raw, str) else ""
                 last_name_raw = last_name_raw.strip().title() if isinstance(last_name_raw, str) else ""
-                full_name = f"{first_name_raw} {last_name_raw}"
+                full_name = f"{first_name_raw} {last_name_raw}".strip()
                 team = (team_raw or "").strip()
                 if team:
                     any_team = True
@@ -387,6 +387,10 @@ def admin_upload_from_template(request):
             )
 
         return options(request)
+
+    # GET (or any non-POST): show the settings page rather than falling through
+    # to an implicit None return, which Django turns into a 500.
+    return options(request)
 
 
 @user_passes_test(lambda u: u.is_staff)

@@ -59,9 +59,9 @@ def player_standings(tenant, tournament, check_final=True, force_all=False, posi
         # National sub-ranking over the home nation's players. Skipped (pos_se
         # stays '') when no home country is configured — a generic install has
         # no baked-in nationality.
-        home_country = (tournament.home_country or '').strip()
+        home_country = (tournament.home_country or '').strip().casefold()
         if home_country:
-            _assign_ranks([r for r in ranked if r['country'].strip() == home_country],
+            _assign_ranks([r for r in ranked if r['country'].strip().casefold() == home_country],
                           rank_key, field='pos_se')
         for r in ranked:
             history[r['player_id']].append(r['pos'])

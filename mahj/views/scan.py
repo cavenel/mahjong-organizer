@@ -381,8 +381,12 @@ def scan_prefill(request):
         return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
 
     tenant = get_tenant(request)
-    round_nb = int(body['round_nb'])
-    table_nb = int(body['table_nb'])
+    try:
+        round_nb = int(body['round_nb'])
+        table_nb = int(body['table_nb'])
+    except (KeyError, TypeError, ValueError):
+        return JsonResponse(
+            {"ok": False, "error": "round_nb and table_nb are required"}, status=400)
     scores = body.get('scores', [])
 
     # A filled table is never overwritten by a scan: anyone (including
