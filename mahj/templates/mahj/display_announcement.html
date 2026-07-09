@@ -1,5 +1,6 @@
 {% extends "mahj/base.html" %}
 {% load static %}
+{% load mathfilters %}
 {% block title %}{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}{% endblock %}
 {% block head_extra %}
 <style>
@@ -14,19 +15,25 @@ body {
     margin: 0;
     height: 100vh;
     display: flex;
+    flex-direction: column;
+}
+/* The message fills all the space between the logo and the footer; it's sized by
+   JS (fitMessage) to be as large as it can while fitting that padded region. The
+   top padding clears the fixed logo pinned in the upper-left corner. */
+#message-area {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
     justify-content: center;
     align-items: center;
+    padding: 6rem 4vw 2vh;
 }
-/* The message is sized by JS (fitMessage) to be as large as it can while fitting
-   the padded viewport; the font-size here is only a starting point. */
 #message {
     color: #fff;
     text-align: center;
     font-family: sans-serif;
     font-weight: 700;
     line-height: 1.1;
-    width: 92vw;
-    max-height: 92vh;
     overflow: hidden;
     font-size: 10vw;
 }
@@ -34,21 +41,54 @@ body {
 {% endblock %}
 {% block body_attrs %}{% endblock %}
 {% block content %}
-<div id="message">{{ variables.welcome|safe }}</div>
+    <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
+
+    <div id="message-area">
+        <div id="message">{{ variables.welcome|safe }}</div>
+    </div>
+
+    <!-- Tournament info bar, mirroring the Welcome screen's footer. -->
+    <footer class="flex-none bg-slate-900/70 ring-1 ring-white/10 backdrop-blur-sm text-slate-200">
+        <div class="relative flex flex-wrap items-center justify-center gap-x-12 gap-y-2 px-14 py-6 text-2xl min-h-[7rem]"
+             style="zoom: {{ variables.zoom|default:1|mul:1.2 }};">
+            {% if variables.title %}
+                <span class="font-bold text-white">{{ variables.title }}</span>
+            {% endif %}
+            {% if variables.city %}
+                <span class="text-slate-300">{{ variables.city }}</span>
+            {% endif %}
+            {% if variables.period %}
+                <span class="text-slate-300">{{ variables.period }}</span>
+            {% endif %}
+            {% if variables.rules %}
+                <span class="text-amber-300 font-semibold">{{ variables.rules }}</span>
+            {% endif %}
+
+            <!-- Tournament app URL + QR, pinned to the right edge -->
+            {% if subdomain %}
+                <div class="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
+                    <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
+                    {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
+                </div>
+            {% endif %}
+        </div>
+    </footer>
 {% endblock %}
 
 {% block scripts %}
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script>
 var el = document.getElementById('message');
+var area = document.getElementById('message-area');
 
-// Grow the message to the largest font-size that still fits the padded viewport,
-// by binary search between a min and max pixel size. Called on load, on resize,
-// and whenever the message text changes.
+// Grow the message to the largest font-size that still fits its area (the space
+// between the logo and the footer, minus padding), by binary search between a min
+// and max pixel size. Called on load, on resize, and when the message changes.
 function fitMessage() {
-    var maxW = window.innerWidth * 0.92;
-    var maxH = window.innerHeight * 0.92;
     if (!el.textContent.trim()) { el.style.fontSize = '0px'; return; }
+    var cs = getComputedStyle(area);
+    var maxW = area.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    var maxH = area.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom);
     var lo = 8, hi = Math.floor(window.innerHeight);   // px
     for (var i = 0; i < 22 && hi - lo > 1; i++) {
         var mid = (lo + hi) / 2;

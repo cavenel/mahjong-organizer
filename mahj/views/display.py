@@ -176,16 +176,19 @@ def counter(request):
 
 
 def announcement(request):
-    """Full-screen announcement: nothing but the "Counter message" variable
-    (`variables.welcome`), auto-sized by the template to fill the screen as
-    large as it can. Reloads live on a screen switch and patches the text in
-    place when the message is edited, like the other static screens."""
+    """Announcement screen: the "Counter message" variable (`variables.welcome`),
+    auto-sized by the template to fill the space between the logo (upper left) and
+    the tournament info bar (bottom, mirroring the Welcome screen) as large as it
+    can. Reloads live on a screen switch and patches the text in place when the
+    message is edited, like the other static screens."""
     tenant = get_tenant(request)
     variables = get_variables(request)
+    subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_announcement.html')
     context = {
         'variables': variables,
-        'subdomain': tenant.subdomain if tenant else '',
+        'subdomain': subdomain,
+        'qr_svg': _spectator_qr_svg(subdomain),
     }
     return HttpResponse(template.render(context, request))
 
