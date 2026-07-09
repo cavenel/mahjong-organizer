@@ -19,6 +19,7 @@ from django.db import transaction
 from django.db.models import F
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
+from django.utils.html import escape
 
 from ..models import CeremonyState, Hand, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
@@ -227,6 +228,13 @@ def admin_print_EMA(request):
     return response
 
 
+class TemplateImportError(Exception):
+    """A validation problem in an uploaded tournament template that the organizer
+    can fix (bad cell, wrong roster count, missing seating sheet). Its message is
+    shown to them verbatim; any other exception is treated as an unexpected error
+    and reported with a traceback instead."""
+
+
 @user_passes_test(lambda u: u.is_staff)
 def admin_upload_from_template(request):
     tenant = get_tenant(request)
@@ -264,7 +272,19 @@ def admin_upload_from_template(request):
             variables = get_variables(request)
             variables.fullname = opt_vals[0] or ""
             variables.title = opt_vals[1] or ""
-            variables.nb_rounds = opt_vals[2] or 0
+            # A blank/zero rounds count would create no seating at all and "succeed"
+            # with nothing playable, so reject it. int() also normalises Excel's
+            # float (5.0 -> 5) before it reaches iter_rows' max_row below.
+            try:
+                nb_rounds = int(opt_vals[2])
+            except (TypeError, ValueError):
+                nb_rounds = 0
+            if nb_rounds < 1:
+                raise TemplateImportError(
+                    "The Options sheet must set the number of rounds to at least 1 "
+                    "(it was blank or zero) — otherwise no seating chart is created."
+                )
+            variables.nb_rounds = nb_rounds
             variables.city = opt_vals[3] or ""
             variables.period = opt_vals[4] or ""
             variables.rules = opt_vals[5] or "MCR"
@@ -281,35 +301,71 @@ def admin_upload_from_template(request):
             any_team = False
             all_have_team = True
             for row in player_rows:
-                if row[0] is None:
-                    break
                 last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw, email_raw = row
+                # Skip fully-blank spacer / trailing rows. Ending the roster at the
+                # first empty last-name cell used to drop a competitor who has a
+                # first name but no surname (and everyone listed below them); a row
+                # is a real competitor as long as it carries any name.
+                has_name = any(
+                    isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw)
+                )
+                if not has_name:
+                    continue
                 # Make first_name, last_name into title-case strings:
                 first_name_raw = first_name_raw.strip().title() if isinstance(first_name_raw, str) else ""
                 last_name_raw = last_name_raw.strip().title() if isinstance(last_name_raw, str) else ""
                 full_name = f"{first_name_raw} {last_name_raw}".strip()
-                team = (team_raw or "").strip()
+                # Coerce to str (a numeric team cell would otherwise crash the whole
+                # import) and collapse internal whitespace, so "Team  A" and "Team A"
+                # aren't grouped as two different teams.
+                team = " ".join(str(team_raw).split()) if team_raw is not None else ""
                 if team:
                     any_team = True
                 else:
                     all_have_team = False
-                try:
-                    ema = f"{ema_raw:08d}"
-                except Exception:
+                # The EMA id is optional (many competitors have none) -> blank
+                # silently. A present-but-unparseable value is the organizer's
+                # mistake to surface, not to swallow: blanking it also silently
+                # flips the EMA-report flag.
+                if ema_raw is None or (isinstance(ema_raw, str) and not ema_raw.strip()):
                     ema = ""
-                # The optional 'rand' column is the competitor's draw number. The
-                # draw lives on the Player; seats are keyed by it. None until drawn.
-                try:
-                    draw_number = int(rand_raw) if rand_raw is not None else None
-                except (TypeError, ValueError):
+                else:
+                    try:
+                        ema = f"{int(float(str(ema_raw).strip())):08d}"
+                    except (TypeError, ValueError):
+                        raise TemplateImportError(
+                            f"Competitor '{full_name}' has an invalid EMA number "
+                            f"'{ema_raw}'. Enter digits only, or leave the cell blank."
+                        )
+                # The optional 'rand' column is the competitor's draw number. It is
+                # 1-based; 0 (or negative) collides with the empty-seat sentinel and
+                # would attach the player to every empty seat. The draw lives on the
+                # Player; seats are keyed by it. None until drawn.
+                if rand_raw is None:
                     draw_number = None
+                else:
+                    try:
+                        draw_number = int(rand_raw)
+                    except (TypeError, ValueError):
+                        raise TemplateImportError(
+                            f"Competitor '{full_name}' has an invalid draw number "
+                            f"'{rand_raw}'. Use a whole number from 1, or leave it blank."
+                        )
+                    if draw_number < 1:
+                        raise TemplateImportError(
+                            f"Competitor '{full_name}' has draw number {draw_number}; "
+                            f"draw numbers start at 1."
+                        )
                 email = (email_raw or "").strip() if isinstance(email_raw, str) else ""
                 player_objs.append(Player(
                     tenant=tenant, full_name=full_name, EMA_ID=ema,
                     country=country or "", email=email, team=team, draw_number=draw_number,
                 ))
             if any_team and not all_have_team:
-                raise ValueError("All players must have a team when teams are used, but some team cells are empty.")
+                raise TemplateImportError(
+                    "Some competitors have a team and some don't. When teams are "
+                    "used every competitor must have one — fill in the blank team cells."
+                )
             Player.objects.bulk_create(player_objs)
 
             # The roster is all-or-nothing on teams (enforced just above), so the
@@ -342,7 +398,17 @@ def admin_upload_from_template(request):
             PublishedRound.objects.filter(tenant=tenant).delete()
             nb_players = len(player_objs)
             nb_tables = nb_players // 4
-            pos_sheet = wb['{0} players'.format(nb_players)]
+            # The seating sheet is named for the field size; a mismatch usually
+            # means a blank/extra row slipped into the roster or the wrong seating
+            # sheet was uploaded. Say so, rather than leaking a raw KeyError.
+            sheet_name = '{0} players'.format(nb_players)
+            if sheet_name not in wb.sheetnames:
+                raise TemplateImportError(
+                    f"The roster has {nb_players} competitor(s) but the workbook has "
+                    f"no '{sheet_name}' seating sheet. Check for blank or extra rows in "
+                    f"the Players sheet, or that the seating sheet matches the roster."
+                )
+            pos_sheet = wb[sheet_name]
             # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
             # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated there.
             pos_rows = list(pos_sheet.iter_rows(
@@ -370,7 +436,13 @@ def admin_upload_from_template(request):
             from ..signals import invalidate_leaderboard
             invalidate_leaderboard(tenant.subdomain)
             broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
-        except Exception:
+        except Exception as exc:
+            # Import is a full replace by design (it clears scores even on success),
+            # and a half-imported tournament is worse than none — so any failure
+            # leaves the tournament fully empty rather than half-loaded or silently
+            # reverted to the old one. Wipe every roster/seating/score table and
+            # reset the settings the parse may have touched, so no half-branded
+            # "ghost" tournament survives. The organizer fixes the file and retries.
             Player.objects.filter(tenant=tenant).delete()
             Hand.objects.filter(tenant=tenant).delete()
             ScoreSheet.objects.filter(tenant=tenant).delete()
@@ -378,13 +450,23 @@ def admin_upload_from_template(request):
             PublishedRound.objects.filter(tenant=tenant).delete()
             Schedule.objects.filter(tenant=tenant).delete()
             variables = get_variables(request)
+            variables.fullname = ""
+            variables.title = ""
             variables.nb_rounds = 0
+            variables.city = ""
+            variables.period = ""
+            variables.rules = "MCR"
+            variables.has_teams = False
             variables.save()
-            error_traceback = traceback.format_exc()
-            return options(
-                request,
-                error="Error while creating tournament: <br/><code>{0}</code>".format(error_traceback),
-            )
+            if isinstance(exc, TemplateImportError):
+                # A validation problem we detected: show the actionable message.
+                message = "Import failed — nothing was loaded.<br/>{0}".format(escape(str(exc)))
+            else:
+                # Unexpected error: keep the traceback to help diagnose it.
+                message = "Error while creating tournament:<br/><code>{0}</code>".format(
+                    escape(traceback.format_exc())
+                )
+            return options(request, error=message)
 
         return options(request)
 
@@ -1281,8 +1363,18 @@ def options(request, error=None):
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "import_template":
+        # The upload confirm dialog names what it will erase, so tell the fragment
+        # how big the current tournament is and whether any scores exist.
+        existing_players = Player.objects.filter(tenant=tenant).count()
+        existing_scores = (
+            Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+            or Hand.objects.filter(tenant=tenant).exists()
+        )
         template2 = loader.get_template('mahj/admin_import_template.html')
-        page_content = template2.render({}, request)
+        page_content = template2.render({
+            'existing_players': existing_players,
+            'existing_scores': existing_scores,
+        }, request)
     elif page == "scoring":
         variables = get_variables(request)
         scores_json = scores_per_table_json(request)

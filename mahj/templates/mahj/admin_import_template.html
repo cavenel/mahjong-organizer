@@ -21,7 +21,7 @@
   </div>
 
   <form method="post" enctype="multipart/form-data" action="admin_upload_from_template"
-        onsubmit="document.getElementById('import-loading').classList.remove('hidden');"
+        onsubmit="return confirmImport(this);"
         class="space-y-4">
     {% csrf_token %}
 
@@ -52,3 +52,37 @@
     </div>
   </form>
 </div>
+
+<script>
+  // Importing replaces the whole tournament (and clears scores). When one already
+  // exists, confirm first — naming what will be erased so it isn't a click-through.
+  function confirmImport(form) {
+    var loading = document.getElementById('import-loading');
+    var fileInput = form.querySelector('input[name=myfile]');
+    if (!fileInput || !fileInput.files.length) {
+      // No file chosen: let it submit; the server just re-shows the settings page.
+      return true;
+    }
+    var nbPlayers = {{ existing_players|default:0 }};
+    var hasScores = {{ existing_scores|yesno:"true,false" }};
+    if (nbPlayers === 0) {
+      // Nothing to erase — go straight ahead.
+      loading.classList.remove('hidden');
+      return true;
+    }
+    var body = 'This replaces the current tournament (' + nbPlayers + ' competitor' +
+               (nbPlayers === 1 ? '' : 's') +
+               (hasScores ? ' and all entered scores' : '') +
+               ') with the uploaded file. This cannot be undone.';
+    window.confirmAction({
+      title: 'Replace current tournament?',
+      body: body,
+      confirmLabel: 'Erase and import',
+      onConfirm: function () {
+        loading.classList.remove('hidden');
+        form.submit();
+      },
+    });
+    return false;
+  }
+</script>
