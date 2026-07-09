@@ -632,29 +632,45 @@ def admin_team_draw(request):
 
 @user_passes_test(lambda u: u.is_staff)
 def admin_team_draw_save(request):
+    """Save a completed team draw: give each competitor the number they drew.
+
+    The whole draw is replaced at once (the operator runs it as one ceremony), so
+    the batch is validated before anything is written: every drawn number must be
+    a real seat and no competitor or number may appear twice. Only then does the
+    reassignment run, inside a single transaction, so a mid-write failure rolls
+    back instead of leaving the draw half-wiped."""
     if request.method != 'POST':
         return HttpResponse('POST required', status=405)
 
     tenant = get_tenant(request)
-    data = json.loads(request.body)
-    assignments = data.get('assignments', [])  # [{player_id, rand_id}] rand_id = draw number
+    try:
+        assignments = json.loads(request.body)['assignments']  # [{player_id, rand_id}]
+        player_ids = [a['player_id'] for a in assignments]
+        draw_numbers = [a['rand_id'] for a in assignments]  # rand_id = the drawn number
+    except (ValueError, TypeError, KeyError):
+        return HttpResponse('Malformed request', status=400)
 
-    player_ids = [a['player_id'] for a in assignments]
-    draw_numbers = [a['rand_id'] for a in assignments]  # rand_id = the drawn number
+    if len(set(player_ids)) != len(player_ids) or len(set(draw_numbers)) != len(draw_numbers):
+        return HttpResponse('Each competitor and each draw number must appear once', status=400)
+
+    valid = set(Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True))
+    unknown = sorted(set(draw_numbers) - valid)
+    if unknown:
+        return HttpResponse('#{0} is not a valid seat'.format(unknown[0]), status=400)
+
     players = {p.id: p for p in Player.objects.filter(tenant=tenant, id__in=player_ids)}
+    if len(players) != len(player_ids):
+        return HttpResponse('Roster changed — reload and draw again', status=400)
 
     # Free the target draw numbers from any current holder and clear these
     # competitors' current numbers, then assign each their drawn number. Clearing
     # first keeps the per-tenant unique draw_number constraint satisfied.
-    Player.objects.filter(tenant=tenant, draw_number__in=draw_numbers).update(draw_number=None)
-    Player.objects.filter(tenant=tenant, id__in=player_ids).update(draw_number=None)
-    to_update = []
-    for a in assignments:
-        player = players.get(a['player_id'])
-        if player is not None:
-            player.draw_number = a['rand_id']
-            to_update.append(player)
-    Player.objects.bulk_update(to_update, ['draw_number'])
+    with transaction.atomic():
+        Player.objects.filter(tenant=tenant, draw_number__in=draw_numbers).update(draw_number=None)
+        Player.objects.filter(tenant=tenant, id__in=player_ids).update(draw_number=None)
+        for a in assignments:
+            players[a['player_id']].draw_number = a['rand_id']
+        Player.objects.bulk_update(players.values(), ['draw_number'])
 
     return HttpResponse('OK')
 
