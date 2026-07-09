@@ -1,9 +1,9 @@
 """Encrypt/decrypt per-tenant publish-target secrets (SFTP password / private key).
 
-Unlike the ``PUBLISH_SFTP_*`` env fallback, a DB-stored PublishTarget's secrets
-end up in DB dumps — and this app pulls + restores dumps over SSH in-app — so
-they must not sit in plaintext. Encrypt them with Fernet, keying off
-``DJANGO_SECRET_KEY`` so no extra env var is required.
+A PublishTarget's secrets live in the DB, so they end up in DB dumps — and this
+app pulls + restores dumps over SSH in-app — so they must not sit in plaintext.
+Encrypt them with Fernet, keying off ``DJANGO_SECRET_KEY`` so no extra env var
+is required.
 
 Rotating ``DJANGO_SECRET_KEY`` therefore invalidates every stored publish
 secret; re-enter them in the admin if you rotate it. ``cryptography`` is already

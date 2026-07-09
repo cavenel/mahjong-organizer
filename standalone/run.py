@@ -56,15 +56,8 @@ VENUE_TZ=Europe/Stockholm
 # meaningful. Example: PUBLIC_SITE_URL=https://scores.example.org
 PUBLIC_SITE_URL=
 
-# --- Publish the public spectator site (optional) ---------------------------
-# Leave PUBLISH_SFTP_HOST blank to disable web publishing.
-PUBLISH_SFTP_HOST=
-PUBLISH_SFTP_PORT=22
-PUBLISH_SFTP_USER=
-PUBLISH_SFTP_KEY=
-PUBLISH_SFTP_PASSWORD=
-PUBLISH_SFTP_PATH=
-PUBLISH_TENANT=
+# To publish the public spectator site to a web host, configure a target in the
+# admin console (Administration → Publish target) — no env vars needed.
 
 # Auto-generated on first run — do not edit.
 DJANGO_SECRET_KEY=

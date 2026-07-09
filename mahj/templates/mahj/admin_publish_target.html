@@ -3,16 +3,9 @@
     <h2 class="text-2xl font-bold text-gray-800">Publish target</h2>
     <p class="text-sm text-gray-500 mt-1">
       Where this tenant's public spectator site is uploaded on each round publish.
-      A target set here overrides the server's <code class="text-xs">PUBLISH_SFTP_*</code> defaults for this tenant.
+      Leave it disabled to not publish this tenant.
     </p>
   </div>
-
-  {% if env_fallback and not target.enabled %}
-  <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm px-4 py-3">
-    No target is enabled here, so this tenant currently falls back to the server's
-    <code class="text-xs">PUBLISH_SFTP_*</code> environment defaults (subject to <code class="text-xs">PUBLISH_TENANT</code>).
-  </div>
-  {% endif %}
 
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
     <label class="inline-flex items-center gap-2 cursor-pointer">

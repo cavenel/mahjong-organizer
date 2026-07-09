@@ -634,7 +634,7 @@ def publish_web(request):
         return JsonResponse(
             {'status': 'error',
              'error': 'Static publish is not configured for this tenant '
-                      '(add a publish target, or set PUBLISH_SFTP_HOST).'},
+                      '(add a publish target first).'},
             status=400)
     from ..publish.trigger import fire_static_export
     fire_static_export(subdomain)
@@ -1016,9 +1016,6 @@ def options(request, error=None):
                 # is set, so the form can show a "configured" hint.
                 "has_password": bool(target and target.password_enc),
                 "has_key": bool(target and target.private_key_enc),
-                # A per-tenant target supersedes this, but surface it so staff know
-                # publishing would still fall back to env if no target is enabled.
-                "env_fallback": bool(os.environ.get('PUBLISH_SFTP_HOST', '')),
             }, request)
     elif page == "import_template":
         template2 = loader.get_template('mahj/admin_import_template.html')

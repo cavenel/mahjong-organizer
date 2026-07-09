@@ -1,21 +1,9 @@
 """Upload an exported static site to a plain web host over SFTP.
 
-Each tenant's target is resolved by `resolve_config`, which prefers a
-staff-configured per-tenant target stored in the DB (`PublishTarget`) and falls
-back to process env vars — so a single-tenant install still works with just
-`.env`, while a multi-tenant install can publish each tenant to its own host:
-
-    PUBLISH_SFTP_HOST         target host (unset → env fallback disabled)
-    PUBLISH_SFTP_PORT         default 22
-    PUBLISH_SFTP_USER         ssh user
-    PUBLISH_SFTP_PASSWORD     password auth (optional)
-    PUBLISH_SFTP_KEY          path to a private key (optional; preferred)
-    PUBLISH_SFTP_PATH         remote directory the site is served from
-    PUBLISH_SFTP_KNOWN_HOSTS  known_hosts file (optional; else auto-add)
-    PUBLISH_TENANT            restrict the ENV fallback to one tenant — guards a
-                              shared env target against a test tenant clobbering
-                              the live site. Per-tenant DB targets ignore it
-                              (each tenant either has its own target or doesn't).
+Each tenant's target is a staff-configured `PublishTarget` row (host, port,
+user, remote path, and a password or private key), resolved by `resolve_config`.
+A multi-tenant install publishes each tenant to its own host; a tenant with no
+enabled target simply doesn't publish. Configure targets in the admin console.
 
 `version.json` is uploaded last so a polling client never sees a new version
 before the files it points at have landed.
@@ -23,7 +11,6 @@ before the files it points at have landed.
 import io
 import json
 import logging
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,46 +27,21 @@ VERSION_FILE = 'version.json'
 # dir, never uploaded.
 MANIFEST_FILE = '.upload_manifest.json'
 
-# Env config is read live from os.environ inside the resolver below (never cached
-# at import) so the standalone launcher and tests can set it after import.
-
 
 @dataclass
 class PublishConfig:
-    """The effective SFTP target for one tenant, from a DB target or env."""
+    """The SFTP target for one tenant, resolved from its PublishTarget row."""
     host: str
     port: int
     username: str
     path: str          # remote directory the site is served from
     password: str = ''
-    key_path: str = ''      # path to a private key file (env fallback)
-    key_data: str = ''      # inline private key PEM (DB target)
-    known_hosts_file: str = ''  # a known_hosts file to load + pin (env fallback)
-    host_key: str = ''      # a single known_hosts line to pin (DB target)
+    key_data: str = ''      # inline private key PEM
+    host_key: str = ''      # a single known_hosts line to pin the host (optional)
 
 
-def _env_config(subdomain):
-    """Config from PUBLISH_SFTP_* env, honouring the PUBLISH_TENANT gate. None if
-    no host is set, or PUBLISH_TENANT is set and `subdomain` doesn't match it."""
-    host = os.environ.get('PUBLISH_SFTP_HOST', '')
-    if not host:
-        return None
-    gate = os.environ.get('PUBLISH_TENANT', '')
-    if gate and subdomain != gate:
-        return None
-    return PublishConfig(
-        host=host,
-        port=int(os.environ.get('PUBLISH_SFTP_PORT', '22') or '22'),
-        username=os.environ.get('PUBLISH_SFTP_USER', ''),
-        path=os.environ.get('PUBLISH_SFTP_PATH', '') or '.',
-        password=os.environ.get('PUBLISH_SFTP_PASSWORD', ''),
-        key_path=os.environ.get('PUBLISH_SFTP_KEY', ''),
-        known_hosts_file=os.environ.get('PUBLISH_SFTP_KNOWN_HOSTS', ''),
-    )
-
-
-def _db_config(subdomain):
-    """Config from an enabled PublishTarget for `subdomain`, or None."""
+def resolve_config(subdomain):
+    """The publish config for a tenant: its enabled PublishTarget, or None."""
     if not subdomain:
         return None
     from ..models import PublishTarget
@@ -100,14 +62,8 @@ def _db_config(subdomain):
     )
 
 
-def resolve_config(subdomain):
-    """The effective publish config for a tenant: an enabled DB PublishTarget
-    wins, else the PUBLISH_SFTP_* env fallback, else None (publishing off)."""
-    return _db_config(subdomain) or _env_config(subdomain)
-
-
 def is_configured(subdomain=None):
-    """True if this tenant has an effective publish config (DB target or env)."""
+    """True if this tenant has an enabled publish target."""
     return resolve_config(subdomain) is not None
 
 
@@ -133,22 +89,18 @@ def _pin_host_key(client, line):
 
 def _connect(cfg):
     client = paramiko.SSHClient()
-    if cfg.known_hosts_file:
-        client.load_host_keys(cfg.known_hosts_file)
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
-    elif cfg.host_key:
+    if cfg.host_key:
         _pin_host_key(client, cfg.host_key)
         client.set_missing_host_key_policy(paramiko.RejectPolicy())
     else:
-        # No host key pinned: accept it. Acceptable for a staff-configured
-        # target; set a known_hosts file (env) or host_key line (DB) to pin it.
+        # No host key pinned: accept it on first connect. Acceptable for a
+        # staff-configured target; set a host_key line to pin it instead.
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
     client.connect(
         hostname=cfg.host,
         port=cfg.port,
         username=cfg.username or None,
         password=cfg.password or None,
-        key_filename=cfg.key_path or None,
         pkey=_load_private_key(cfg.key_data) if cfg.key_data else None,
         timeout=15,
     )

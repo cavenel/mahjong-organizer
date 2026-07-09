@@ -2,8 +2,8 @@
 
 Publish/unpublish regenerates the static spectator site and SFTP-uploads it. It
 runs in a daemon thread so a publish request never blocks on rendering or the
-network, and is a no-op unless the publishing tenant has a resolved publish
-target (a per-tenant DB PublishTarget, or the PUBLISH_SFTP_* env fallback).
+network, and is a no-op unless the publishing tenant has an enabled publish
+target (see publish.sftp_upload).
 """
 import logging
 import threading

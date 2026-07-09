@@ -273,10 +273,10 @@ class TournamentSettings(TenantAwareModel):
 class PublishTarget(TenantAwareModel):
     """Per-tenant static-publish SFTP target, configured by staff in the admin.
 
-    When a row exists and is enabled it supersedes the ``PUBLISH_SFTP_*`` env
-    fallback for this tenant, so a multi-tenant instance can publish each
-    tenant's spectator site to its own web host (rather than the single global
-    ``PUBLISH_TENANT`` target). Resolution lives in ``publish.sftp_upload``.
+    When a row exists and is enabled, this tenant's spectator site is published
+    to its own web host; a multi-tenant instance thus publishes each tenant
+    independently, and a tenant with no enabled target simply doesn't publish.
+    Resolution lives in ``publish.sftp_upload``.
 
     ``password_enc`` / ``private_key_enc`` hold Fernet ciphertext (see
     ``publish.secrets``), never plaintext, and are never rendered back to the

@@ -174,27 +174,27 @@ class TestRevealMasking:
 
 @pytest.mark.django_db
 class TestTriggerGating:
-    """fire_static_export must stay a no-op unless the tenant has a resolved
-    publish target. With no per-tenant target, resolution falls back to the
-    PUBLISH_SFTP_* env, honouring the PUBLISH_TENANT gate."""
+    """fire_static_export must stay a no-op unless the tenant has an enabled
+    publish target."""
 
-    def test_unconfigured_is_noop(self, monkeypatch):
-        from mahj.publish import trigger
-        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
-        assert trigger._should_publish('test') is False
+    def _target(self, **kw):
+        from mahj.models import Tenant, PublishTarget
+        t, _ = Tenant.objects.get_or_create(subdomain='live', defaults={'name': 'Live'})
+        return PublishTarget.objects.create(tenant=t, **kw)
 
-    def test_tenant_gate_blocks_mismatch(self, monkeypatch):
+    def test_no_target_is_noop(self):
         from mahj.publish import trigger
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'host.example')
-        monkeypatch.setenv('PUBLISH_TENANT', 'live')
-        assert trigger._should_publish('test') is False
+        assert trigger._should_publish('live') is False
+
+    def test_enabled_target_publishes(self):
+        from mahj.publish import trigger
+        self._target(enabled=True, host='host.example')
         assert trigger._should_publish('live') is True
 
-    def test_configured_no_gate_allows_any(self, monkeypatch):
+    def test_disabled_target_is_noop(self):
         from mahj.publish import trigger
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'host.example')
-        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
-        assert trigger._should_publish('anything') is True
+        self._target(enabled=False, host='host.example')
+        assert trigger._should_publish('live') is False
 
 
 class TestSecrets:
@@ -212,54 +212,39 @@ class TestSecrets:
 
 @pytest.mark.django_db
 class TestPublishTargetResolution:
-    """resolve_config: an enabled per-tenant DB target wins over the env fallback."""
+    """resolve_config returns a tenant's enabled PublishTarget, or None."""
 
     def _target(self, **kw):
         from mahj.models import Tenant, PublishTarget
         t, _ = Tenant.objects.get_or_create(subdomain='acme', defaults={'name': 'Acme'})
         return PublishTarget.objects.create(tenant=t, **kw)
 
-    def test_db_target_wins_over_env(self, monkeypatch):
+    def test_enabled_target_resolves(self):
         from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
-        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
         self._target(enabled=True, host='db.example', path='/srv', username='u')
         cfg = resolve_config('acme')
-        assert cfg.host == 'db.example' and cfg.path == '/srv'
+        assert cfg.host == 'db.example' and cfg.path == '/srv' and cfg.username == 'u'
 
-    def test_disabled_target_falls_back_to_env(self, monkeypatch):
+    def test_disabled_target_is_none(self):
         from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
-        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
         self._target(enabled=False, host='db.example')
-        assert resolve_config('acme').host == 'env.example'
-
-    def test_enabled_but_no_host_falls_back_to_env(self, monkeypatch):
-        from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
-        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
-        self._target(enabled=True, host='')
-        assert resolve_config('acme').host == 'env.example'
-
-    def test_none_when_nothing_configured(self, monkeypatch):
-        from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
         assert resolve_config('acme') is None
 
-    def test_secret_decrypted_into_config(self, monkeypatch):
+    def test_enabled_but_no_host_is_none(self):
+        from mahj.publish.sftp_upload import resolve_config
+        self._target(enabled=True, host='')
+        assert resolve_config('acme') is None
+
+    def test_no_target_is_none(self):
+        from mahj.publish.sftp_upload import resolve_config
+        assert resolve_config('acme') is None
+
+    def test_secret_decrypted_into_config(self):
         from mahj.publish import secrets
         from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
         self._target(enabled=True, host='db.example',
                      password_enc=secrets.encrypt('s3cret'))
         assert resolve_config('acme').password == 's3cret'
-
-    def test_env_gate_ignored_for_db_target(self, monkeypatch):
-        from mahj.publish.sftp_upload import resolve_config
-        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
-        monkeypatch.setenv('PUBLISH_TENANT', 'someone-else')
-        self._target(enabled=True, host='db.example')
-        assert resolve_config('acme').host == 'db.example'
 
 
 class TestPublishWebEndpoint:
@@ -271,10 +256,10 @@ class TestPublishWebEndpoint:
         # Anonymous → redirected to login, not a 200/OK publish.
         assert resp.status_code in (301, 302)
 
-    def test_reports_when_unconfigured(self, tournament, monkeypatch):
+    def test_reports_when_unconfigured(self, tournament):
+        # Tenant 'test' has no publish target → 400.
         from django.contrib.auth.models import User
         from django.test import Client
-        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
         User.objects.create_user('boss', password='pw', is_staff=True)
         c = Client()
         c.defaults['HTTP_HOST'] = 'test.example.com'

@@ -2,8 +2,8 @@
 
 Renders `/` (the desktop leaderboard) plus its player/team/per-table detail
 modals to static HTML using the live views/templates, copies the referenced
-static assets, and — unless --no-upload — pushes the result to the configured
-SFTP host (see mahj/publish/sftp_upload and the PUBLISH_SFTP_* env vars).
+static assets, and — unless --no-upload — pushes the result to the tenant's
+SFTP target (a PublishTarget row; see mahj/publish/sftp_upload).
 
 Local use::
 
@@ -11,7 +11,7 @@ Local use::
     python manage.py export_public --subdomain myevent --no-upload
     python -m http.server -d captures/export/myevent
 
-    # render + upload (needs PUBLISH_SFTP_* configured):
+    # render + upload (needs an enabled publish target for the tenant):
     python manage.py export_public --subdomain myevent
 
 Requires collectstatic to have run (STATIC_ROOT populated); pass --collectstatic
@@ -62,8 +62,8 @@ class Command(BaseCommand):
         from ...publish.sftp_upload import upload_dir, is_configured
         if not is_configured(subdomain):
             self.stdout.write(self.style.WARNING(
-                f"No publish target for {subdomain!r} — nothing uploaded. "
-                "Add a publish target, set PUBLISH_SFTP_*, or pass --no-upload."))
+                f"No enabled publish target for {subdomain!r} — nothing uploaded. "
+                "Add one in the admin, or pass --no-upload."))
             return
         try:
             upload_dir(out_dir, subdomain=subdomain)

@@ -9,8 +9,8 @@ The tournament admin can run two ways from the **same** code:
   a venue laptop. Manual score entry (no camera scan/OCR).
 
 Both serve the live projector screens (`/1`, counter, ceremony, …). The public
-spectator website is published separately as static files (see the `PUBLISH_SFTP_*`
-settings and the "Publish to web" button).
+spectator website is published separately as static files (configure a target in
+the admin console, Administration → Publish target, and use "Publish to web").
 
 ## Running from source
 
@@ -43,9 +43,9 @@ Edit it and relaunch. Search order (first found wins):
 2. the user-data dir (below).
 
 Keys that matter here: `LOCAL_TENANT` (the tournament's subdomain — pins this
-laptop to one tenant), `VENUE_TZ`, and the optional `PUBLISH_SFTP_*` / `PUBLISH_TENANT`
-block for publishing the public website. (No `DB_*` or Redis vars — those are the
-Docker profile's.)
+laptop to one tenant) and `VENUE_TZ`. (No `DB_*` or Redis vars — those are the
+Docker profile's. Publishing the public website is configured in the admin, not
+via env — see Administration → Publish target.)
 
 ## Where your data lives
 
