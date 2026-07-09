@@ -7,7 +7,7 @@ from collections import defaultdict
 from datetime import datetime
 
 import json
-from openpyxl import load_workbook
+from openpyxl import Workbook, load_workbook
 from unidecode import unidecode
 
 from django.conf import settings
@@ -47,6 +47,16 @@ _VARIABLE_LABELS = {
     "home_country": "Home nation",
     "countrycourt": "Federation code",
 }
+
+
+def _name_is_round(name):
+    """Guess whether an imported schedule row is a playing round from its name.
+
+    Used only at import time to seed ``Schedule.is_round`` (the Excel template
+    carries no such column); staff can correct it afterwards in the settings UI.
+    """
+    name = name or ""
+    return "round" in name.lower() or "session" in name.lower()
 
 
 def _pretty_view(view):
@@ -238,9 +248,14 @@ def admin_upload_from_template(request):
 
             Schedule.objects.filter(tenant=tenant).delete()
             sched_sheet = wb['Schedule']
-            schedule_rows = list(sched_sheet.iter_rows(min_row=2, max_col=3, values_only=True))
+            schedule_rows = list(sched_sheet.iter_rows(min_row=2, max_col=4, values_only=True))
+            # Column 4 ("Is round") is written by our own export; the shipped template
+            # has no such column (cell is None), so fall back to guessing from the name
+            # (a row named "Round N" / "Session N" is a playing round). Either way staff
+            # can correct any misclassification afterwards in Tournament settings.
             Schedule.objects.bulk_create([
-                Schedule(tenant=tenant, day=row[0], time=row[1], name=row[2])
+                Schedule(tenant=tenant, day=row[0], time=row[1], name=row[2],
+                         is_round=bool(row[3]) if row[3] is not None else _name_is_round(row[2]))
                 for row in schedule_rows if row[0] is not None
             ])
 
@@ -259,14 +274,16 @@ def admin_upload_from_template(request):
             # pre-assigned draw number; when present the person is linked to their
             # seats below, otherwise the draw is made later (randomize / team draw).
             players_sheet = wb['Players']
-            player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
+            # Column 7 ("Email") is written by our own export; the shipped template
+            # stops at column 6, so the extra cell simply comes back as None there.
+            player_rows = list(players_sheet.iter_rows(min_row=2, max_col=7, values_only=True))
             player_objs = []
             any_team = False
             all_have_team = True
             for row in player_rows:
                 if row[0] is None:
                     break
-                last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
+                last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw, email_raw = row
                 # Make first_name, last_name into title-case strings:
                 first_name_raw = first_name_raw.strip().title() if isinstance(first_name_raw, str) else ""
                 last_name_raw = last_name_raw.strip().title() if isinstance(last_name_raw, str) else ""
@@ -286,9 +303,10 @@ def admin_upload_from_template(request):
                     draw_number = int(rand_raw) if rand_raw is not None else None
                 except (TypeError, ValueError):
                     draw_number = None
+                email = (email_raw or "").strip() if isinstance(email_raw, str) else ""
                 player_objs.append(Player(
                     tenant=tenant, full_name=full_name, EMA_ID=ema,
-                    country=country or "", email="", team=team, draw_number=draw_number,
+                    country=country or "", email=email, team=team, draw_number=draw_number,
                 ))
             if any_team and not all_have_team:
                 raise ValueError("All players must have a team when teams are used, but some team cells are empty.")
@@ -363,6 +381,100 @@ def admin_upload_from_template(request):
             )
 
         return options(request)
+
+
+@user_passes_test(lambda u: u.is_staff)
+def admin_export_to_template(request):
+    """Export the current tournament as an Excel file in the import-template format.
+
+    The workbook is built from scratch (not from MahjongTemplate.xlsx) with exactly
+    the sheets admin_upload_from_template reads back: Options, Players, Schedule and
+    a single "<N> players" seating sheet for this tournament's field size. Every
+    field the importer restores is written, so staff can round-trip a tournament
+    (back it up, edit offline, re-upload) without losing data. Scores are not
+    included — re-importing intentionally clears them.
+    """
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+
+    wb = Workbook()
+
+    # Options: label in col A (for humans), value in col B (what the importer reads).
+    opt_sheet = wb.active
+    opt_sheet.title = 'Options'
+    for row, (label, value) in enumerate([
+        ('Competition name', variables.fullname),
+        ('Short name (initials)', variables.title),
+        ('Number of rounds', variables.nb_rounds),
+        ('City', variables.city),
+        ('Period', variables.period),
+        ('Rules', variables.rules),
+    ], start=1):
+        opt_sheet.cell(row=row, column=1, value=label)
+        opt_sheet.cell(row=row, column=2, value=value)
+
+    # Players: id order is the original roster row order (matches the draw exports).
+    # Columns 1-6 mirror the shipped template; "Email" is appended so it round-trips.
+    roster = list(Player.objects.filter(tenant=tenant).order_by('id'))
+    players_sheet = wb.create_sheet('Players')
+    players_sheet.append([
+        'Last name', 'First name', 'EMA number', 'Country',
+        'Team name (optional)', 'Random position (1 - # of players)', 'Email (optional)',
+    ])
+    for player in roster:
+        first_name = player.full_name.split(" ")[0]
+        last_name = " ".join(player.full_name.split(" ")[1:])
+        players_sheet.append([
+            last_name,
+            first_name,
+            # EMA_ID is stored zero-padded ("00001234"); export the number so the
+            # importer's f"{ema:08d}" reproduces it (a blank stays blank).
+            int(player.EMA_ID) if player.EMA_ID else None,
+            player.country,
+            player.team or None,
+            player.draw_number,
+            player.email or None,
+        ])
+
+    # Schedule: Date / Time / Name; the "Is round" flag is appended so it round-trips
+    # (the importer otherwise re-guesses it from the name).
+    sched_sheet = wb.create_sheet('Schedule')
+    sched_sheet.append(['Date', 'Time', 'Name', 'Is round'])
+    for item in Schedule.objects.filter(tenant=tenant).order_by('id'):
+        sched_sheet.append([item.day, item.time, item.name, item.is_round])
+
+    # Seating: a single "<N> players" sheet for this field size, built from the real
+    # seating. Draw numbers are laid out as round rows x table blocks of E/S/W/N,
+    # with one spacer column between tables (col = 2 + wind + 5*table, both 0-based) —
+    # exactly the layout admin_upload_from_template reads back.
+    nb_players = len(roster)
+    nb_tables = nb_players // 4
+    seats = list(Seat.objects.filter(tenant=tenant))
+    if seats and nb_tables:
+        pos_sheet = wb.create_sheet('{0} players'.format(nb_players))
+        for table_nb in range(1, nb_tables + 1):
+            base = 2 + 5 * (table_nb - 1)
+            pos_sheet.cell(row=1, column=base, value='Table {0}'.format(table_nb))
+            for wind, label in enumerate(['East', 'South', 'West', 'North']):
+                pos_sheet.cell(row=2, column=base + wind, value=label)
+        nb_rounds = max(variables.nb_rounds, max(s.round_nb for s in seats))
+        for round_nb in range(1, nb_rounds + 1):
+            pos_sheet.cell(row=round_nb + 2, column=1, value='R{0}'.format(round_nb))
+        for seat in seats:
+            col = 2 + (seat.wind - 1) + 5 * (seat.table_nb - 1)
+            pos_sheet.cell(row=seat.round_nb + 2, column=col, value=seat.draw_number)
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    # Keep the download name to a safe charset (the title is free text).
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (variables.title or ""))
+    filename = safe.strip("_") or "tournament"
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="{0}.xlsx"'.format(filename)
+    return response
 
 
 @user_passes_test(lambda u: u.is_staff)
@@ -857,6 +969,48 @@ def _apply_set_variable(request, variables):
     return HttpResponse(str(variables))
 
 
+def _save_schedule(request, tenant):
+    """Replace the tenant's schedule with the rows posted from the settings editor.
+
+    The editor sends the whole agenda as JSON (ordered), so a full delete+recreate
+    keeps row order (``Schedule`` is read ``order_by('id')`` everywhere) without
+    tracking per-row ids. Returns the count of round-rows so the UI can flag a
+    mismatch with ``nb_rounds`` (the Nth round-row maps to round N)."""
+    try:
+        rows = json.loads(request.POST.get('schedule', '[]'))
+        if not isinstance(rows, list):
+            raise ValueError("schedule must be a list")
+    except (ValueError, json.JSONDecodeError) as exc:
+        return HttpResponse(f"Could not read the schedule: {exc}", status=400)
+
+    max_len = Schedule._meta.get_field('name').max_length
+    objs = []
+    for row in rows:
+        day = (row.get('day') or "").strip()
+        time = (row.get('time') or "").strip()
+        name = (row.get('name') or "").strip()
+        # A wholly blank line is dropped rather than stored as an empty agenda row.
+        if not (day or time or name):
+            continue
+        for value, label in ((day, "Day"), (time, "Time"), (name, "Name")):
+            if len(value) > max_len:
+                return HttpResponse(
+                    f"{label} is too long: {len(value)} characters "
+                    f"(maximum {max_len}).", status=400)
+        objs.append(Schedule(tenant=tenant, day=day, time=time, name=name,
+                             is_round=bool(row.get('is_round'))))
+
+    Schedule.objects.filter(tenant=tenant).delete()
+    Schedule.objects.bulk_create(objs)
+
+    # player_rounds (player modal) reads the schedule, and the projector Schedule
+    # screen renders it — refresh both.
+    invalidate_leaderboard(tenant.subdomain)
+    broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+
+    return JsonResponse({'rounds': sum(1 for o in objs if o.is_round)})
+
+
 @user_passes_test(can_access_admin)
 def options(request, error=None):
     tenant = get_tenant(request)
@@ -889,6 +1043,12 @@ def options(request, error=None):
         has_seats = Seat.objects.filter(tenant=tenant).exists()
         complete_round = _last_complete_round(tenant, variables) if has_seats else 0
         last_published, _ = publish_state(tenant, variables)
+        # Warn when a schedule exists but its playing rounds don't line up with
+        # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
+        # mismatch leaves per-round times blank/misaligned. Only flag once a
+        # schedule has been set up — a fresh, empty schedule isn't "wrong".
+        schedule_total = Schedule.objects.filter(tenant=tenant).count()
+        schedule_rounds = Schedule.objects.filter(tenant=tenant, is_round=True).count()
         template2 = loader.get_template('mahj/admin_welcome.html')
         page_content = template2.render(
             {
@@ -903,6 +1063,8 @@ def options(request, error=None):
                 "nb_screens": nb_screens,
                 "complete_round": complete_round,
                 "last_published": last_published,
+                "schedule_rounds": schedule_rounds,
+                "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != variables.nb_rounds,
                 # Server-authoritative round timer: >0 and in the future means a
                 # round is counting down / running (the dashboard shows it live).
                 "counter": get_counter(tenant),
@@ -1016,8 +1178,18 @@ def options(request, error=None):
             variables = get_variables(request)
             if request.GET.get('action') == "set_variable":
                 return _apply_set_variable(request, variables)
+            if request.GET.get('action') == "save_schedule":
+                return _save_schedule(request, tenant)
             template2 = loader.get_template('mahj/admin_settings.html')
-            page_content = template2.render({"variables": variables}, request)
+            schedule_rows = [
+                {"day": s.day or "", "time": s.time or "",
+                 "name": s.name or "", "is_round": s.is_round}
+                for s in Schedule.objects.filter(tenant=tenant).order_by('id')
+            ]
+            page_content = template2.render({
+                "variables": variables,
+                "schedule_rows": schedule_rows,
+            }, request)
     elif page == "player_editor":
         # Staff-only: a scorer/display op reaching ?page=player_editor gets nothing.
         if not request.user.is_staff:

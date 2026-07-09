@@ -5,6 +5,21 @@
     Download the template <a class="text-amber-600 hover:underline" href="static/MahjongTemplate.xlsx">here</a>.
   </p>
 
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
+    <p class="text-sm text-gray-600">
+      Or download the current tournament as an Excel file, in the same template
+      format, to back it up or edit offline and re-import later.
+      <span class="text-gray-500">The roster, schedule and seating are saved, but
+      <b>not the scores</b> — re-importing starts from empty score sheets.</span>
+    </p>
+    <a href="admin_export_to_template"
+       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
+              border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      Export current tournament
+    </a>
+  </div>
+
   <form method="post" enctype="multipart/form-data" action="admin_upload_from_template"
         onsubmit="document.getElementById('import-loading').classList.remove('hidden');"
         class="space-y-4">

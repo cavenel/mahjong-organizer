@@ -12,7 +12,7 @@ from django.contrib.auth.models import User
 from django.test import Client
 from openpyxl import load_workbook
 
-from mahj.models import Player, Seat, TournamentSettings, Tenant
+from mahj.models import Player, Schedule, Seat, TournamentSettings, Tenant
 
 TEMPLATE = 'mahj/static/MahjongTemplate.xlsx'
 
@@ -74,6 +74,54 @@ def test_import_creates_players_and_seats(staff_client, imp_tenant):
     assert seat is not None
     assert Player.objects.filter(tenant=imp_tenant, draw_number=seat.draw_number).exists()
     assert not hasattr(seat, 'player_id')  # Seat has no player FK column
+
+
+def _snapshot(tenant):
+    players = {
+        (p.full_name, p.EMA_ID, p.country, p.team, p.email, p.draw_number)
+        for p in Player.objects.filter(tenant=tenant)
+    }
+    seats = {
+        (s.round_nb, s.table_nb, s.wind, s.draw_number)
+        for s in Seat.objects.filter(tenant=tenant)
+    }
+    schedule = {
+        (i.day, i.time, i.name, i.is_round)
+        for i in Schedule.objects.filter(tenant=tenant)
+    }
+    return players, seats, schedule
+
+
+def test_export_round_trips_through_import(staff_client, imp_tenant):
+    """Import a tournament, add per-player extras (team + email) and a schedule,
+    export via admin_export_to_template, then re-import: the roster (incl. team and
+    email), the full seating chart and the schedule (incl. is_round) must match."""
+    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+
+    # Populate fields beyond name/EMA/draw so the round-trip is actually exercised.
+    for i, p in enumerate(Player.objects.filter(tenant=imp_tenant).order_by('id')):
+        p.team = f'Team{i % 4}'
+        p.email = f'player{i}@example.com'
+        p.save()
+
+    before = _snapshot(imp_tenant)
+
+    resp = staff_client.get('/admin_export_to_template')
+    assert resp.status_code == 200
+    assert resp['Content-Type'] == \
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    # A single seating sheet for this field size, not the template's full set.
+    wb = load_workbook(io.BytesIO(resp.content))
+    assert wb.sheetnames == ['Options', 'Players', 'Schedule', '16 players']
+
+    exported = io.BytesIO(resp.content)
+    exported.seek(0)
+    exported.name = 'template.xlsx'
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': exported})
+    assert resp.status_code in (200, 302)
+
+    assert _snapshot(imp_tenant) == before
 
 
 def test_import_without_rand_leaves_players_undrawn(staff_client, imp_tenant):
