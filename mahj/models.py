@@ -347,9 +347,21 @@ class CeremonyState(TenantAwareModel):
 
 
 class Schedule(TenantAwareModel):
+    """One line of the tournament agenda (registration, a playing round, lunch…).
+
+    ``day``/``time`` are free-text strings shown verbatim; the list is ordered by
+    ``id`` (import / creation order) everywhere it is read. ``is_round`` marks the
+    rows that are actual playing rounds: those rows are mapped positionally to
+    round numbers (the Nth ``is_round`` row is round N — see
+    ``scoring.player_rounds``), so their count must match ``nb_rounds``.
+    """
     day          = models.CharField(default="",max_length=70)
     time         = models.CharField(default="",null=True,max_length=70)
     name         = models.CharField(default="",null=True,max_length=70)
+    # Explicit "this row is a playing round" flag. Replaces the old heuristic of
+    # sniffing for "Round"/"Session" in the name, which was applied inconsistently
+    # across the display, print and scoring code.
+    is_round     = models.BooleanField(default=False)
 
     def __str__(self):
         return str(self.day) + " - " + self.time + " : " + self.time

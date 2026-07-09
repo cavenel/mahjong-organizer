@@ -43,8 +43,7 @@ def _attach_players(tenant, seats):
 def player_schedule(tenant):
     """The round/session rows used by player_rounds, fetched once."""
     return [
-        s for s in Schedule.objects.filter(tenant=tenant).order_by('id')
-        if 'Round' in s.name or 'Session' in s.name
+        s for s in Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id')
     ]
 
 

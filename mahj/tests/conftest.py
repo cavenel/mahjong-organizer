@@ -24,7 +24,7 @@ def tournament(tenant):
         home_country='Sweden',
     )
     for i in range(3):
-        Schedule.objects.create(tenant=tenant, day='Sat', time=f'{10 + i:02d}:00', name=f'Round {i + 1}')
+        Schedule.objects.create(tenant=tenant, day='Sat', time=f'{10 + i:02d}:00', name=f'Round {i + 1}', is_round=True)
 
     countries = ['Sweden', 'Sweden', 'Sweden', 'France', 'Japan', 'Germany', 'Sweden', 'France',
                  'Japan', 'Germany', 'Sweden', 'France', 'Japan', 'Germany', 'Sweden', 'France']

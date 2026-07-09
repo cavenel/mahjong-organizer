@@ -426,17 +426,24 @@ def player_rounds(tenant, player, schedule=None, completed=None):
 
 
 def _rounds_for(my_positions, positions_by_rt, schedule, completed):
-    return [
-        {
+    def _sched(round_nb):
+        # The Nth round-row of the schedule describes round N. Staff edit the
+        # schedule freely, so it may hold fewer round-rows than there are seated
+        # rounds; fall back to a blank agenda entry rather than an IndexError.
+        idx = round_nb - 1
+        return schedule[idx] if 0 <= idx < len(schedule) else None
+    rows = []
+    for p in my_positions:
+        entry = _sched(p.round_nb)
+        rows.append({
             'other_pos': positions_by_rt[(p.round_nb, p.table_nb)],
             'player_pos': WINDS[p.wind - 1],
-            'time': schedule[p.round_nb - 1].time,
-            'day': schedule[p.round_nb - 1].day,
-            'name': schedule[p.round_nb - 1].name,
+            'time': entry.time if entry else '',
+            'day': entry.day if entry else '',
+            'name': entry.name if entry else '',
             'detailed_hands': (p.round_nb, p.table_nb) in completed,
-        }
-        for p in my_positions
-    ]
+        })
+    return rows
 
 
 def all_player_rounds(tenant, players):

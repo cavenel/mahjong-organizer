@@ -169,8 +169,7 @@ def table_posters(request):
     for position_val in position_vals:
         positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.wind - 1] = position_val
 
-    schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    schedule = [s for s in schedule if "Round" in s.name or "Session" in s.name]
+    schedule = list(Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id'))
     template = loader.get_template('mahj/print_table_posters.html')
     context = {"rounds": zip(positions, schedule), "variables": variables}
     return HttpResponse(template.render(context, request))

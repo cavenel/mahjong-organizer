@@ -37,6 +37,19 @@
     </div>
   </div>
 
+  {% if schedule_round_mismatch %}
+  <!-- Schedule ≠ tournament round count: per-round times won't line up. --------->
+  <div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex items-start gap-3">
+    <span class="text-amber-500 text-lg leading-none shrink-0 mt-0.5">⚠</span>
+    <div class="text-sm text-amber-800">
+      The schedule marks <strong>{{ schedule_rounds }}</strong> playing round{{ schedule_rounds|pluralize }},
+      but the tournament is set to <strong>{{ variables.nb_rounds }}</strong>.
+      Per-round times won't line up until they match —
+      <a href="admin?page=settings" class="font-medium underline hover:no-underline">fix the schedule</a>.
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Setup checklist --------------------------------------------------------->
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
     <h3 class="text-sm font-bold text-gray-800 mb-4">Setup</h3>

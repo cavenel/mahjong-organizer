@@ -125,9 +125,9 @@
           <div class="rounded-xl overflow-hidden border border-gray-200 bg-white divide-y divide-gray-100 shadow-sm">
             {% for item in day.list %}
               <div class="flex items-center px-4 py-3
-                          {% if 'Round ' in item.name or 'Session ' in item.name %}bg-amber-50{% endif %}">
+                          {% if item.is_round %}bg-amber-50{% endif %}">
                 <span class="text-gray-500 text-sm w-20 shrink-0">{{ item.time }}</span>
-                <span class="ml-4 text-sm {% if 'Round ' in item.name or 'Session ' in item.name %}text-amber-700 font-semibold{% else %}text-gray-700{% endif %}">
+                <span class="ml-4 text-sm {% if item.is_round %}text-amber-700 font-semibold{% else %}text-gray-700{% endif %}">
                   {{ item.name }}
                 </span>
               </div>

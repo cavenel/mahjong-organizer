@@ -23,9 +23,9 @@
                 <div class="divide-y divide-white/5">
                     {% for item in day.list %}
                         <div class="flex items-baseline gap-4 px-6 py-3 text-xl
-                                    {% if 'Round ' in item.name %}bg-amber-500/10 border-l-4 border-amber-500 pl-5{% endif %}">
+                                    {% if item.is_round %}bg-amber-500/10 border-l-4 border-amber-500 pl-5{% endif %}">
                             <span class="tabular-nums font-semibold text-amber-300 min-w-[88px] shrink-0">{{ item.time }}</span>
-                            <span class="{% if 'Round ' in item.name %}text-white font-bold{% else %}text-slate-300{% endif %}">{{ item.name }}</span>
+                            <span class="{% if item.is_round %}text-white font-bold{% else %}text-slate-300{% endif %}">{{ item.name }}</span>
                         </div>
                     {% endfor %}
                 </div>

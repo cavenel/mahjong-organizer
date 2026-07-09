@@ -220,7 +220,7 @@ body {
                 <table  class="table_table">
                     <tbody>
                         {% for item in day.list %}
-                            <tr {% if 'Round ' in item.name %}class="info"{% endif %}>
+                            <tr {% if item.is_round %}class="info"{% endif %}>
                                 <td width="120px">{{ item.time }}</td>
                                 <td>{{ item.name }}</td>
                             </tr>

@@ -13,7 +13,7 @@ import json
 from django.contrib.auth.models import Group, User
 from django.test import Client
 
-from mahj.models import Screen, ScreenMode, TournamentSettings
+from mahj.models import Schedule, Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
 
 HOST = 'test.example.com'
@@ -266,7 +266,7 @@ def test_set_variable_rejects_over_long_message(client_, display_op, tournament)
 
     assert resp.status_code == 400
     body = resp.content.decode()
-    assert 'Counter message is too long' in body
+    assert 'On-screen message is too long' in body
     assert '255' in body
     # The rejected value was not persisted.
     assert TournamentSettings.objects.get(tenant=tenant).welcome == 'ok'
@@ -322,6 +322,67 @@ def test_settings_page_saves_identity_via_set_variable(client_, staff, tournamen
     v = TournamentSettings.objects.get(tenant=tenant)
     assert v.city == 'Uppsala'
     assert v.nb_rounds == 9
+
+
+def test_settings_page_renders_schedule_editor(client_, staff, tournament):
+    """The schedule editor is seeded with the tenant's rows (day/time/name/is_round)."""
+    client_.force_login(staff)
+    html = client_.get('/admin?page=settings').content.decode()
+    assert 'schedule-data' in html
+    assert 'scheduleEditor()' in html
+    # The fixture seeds three "Round N" rows, all flagged as playing rounds.
+    data = json.loads(html.split('id="schedule-data"', 1)[1].split('>', 1)[1].split('</script>', 1)[0])
+    assert [r['name'] for r in data] == ['Round 1', 'Round 2', 'Round 3']
+    assert all(r['is_round'] for r in data)
+
+
+def test_save_schedule_replaces_rows_and_reports_round_count(client_, staff, tournament):
+    tenant = tournament['tenant']
+    client_.force_login(staff)
+    payload = json.dumps([
+        {'day': 'Sat', 'time': '09:00', 'name': 'Registration', 'is_round': False},
+        {'day': 'Sat', 'time': '10:00', 'name': 'Round 1', 'is_round': True},
+        {'day': '', 'time': '', 'name': '', 'is_round': False},  # wholly blank → dropped
+    ])
+    resp = client_.post('/admin?page=settings&action=save_schedule',
+                        {'csrfmiddlewaretoken': 'x', 'schedule': payload})
+    assert resp.status_code == 200
+    assert resp.json() == {'rounds': 1}
+    rows = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
+    assert [(r.name, r.is_round) for r in rows] == [('Registration', False), ('Round 1', True)]
+
+
+def test_save_schedule_forbidden_for_non_staff(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    before = Schedule.objects.filter(tenant=tenant).count()
+    client_.force_login(display_op)
+    resp = client_.post('/admin?page=settings&action=save_schedule',
+                        {'csrfmiddlewaretoken': 'x', 'schedule': '[]'})
+    # Non-staff get the empty "None" page, not the save handler — rows untouched.
+    assert Schedule.objects.filter(tenant=tenant).count() == before
+
+
+def test_dashboard_warns_on_schedule_round_mismatch(client_, staff, tournament):
+    """Fixture: nb_rounds=3 with three round-rows → no warning; bump nb_rounds → warn."""
+    tenant = tournament['tenant']
+    client_.force_login(staff)
+    html = client_.get('/admin').content.decode()
+    assert "Per-round times won't line up" not in html
+
+    v = TournamentSettings.objects.get(tenant=tenant)
+    v.nb_rounds = 5
+    v.save()
+    html = client_.get('/admin').content.decode()
+    assert "Per-round times won't line up" in html
+
+
+def test_dashboard_no_warning_without_schedule(client_, staff, tournament):
+    """An empty schedule isn't 'wrong' — don't nag before one is set up."""
+    tenant = tournament['tenant']
+    Schedule.objects.filter(tenant=tenant).delete()
+    client_.force_login(staff)
+    html = client_.get('/admin').content.decode()
+    assert "Per-round times won't line up" not in html
 
 
 # ── Player editor (admin?page=player_editor) ─────────────────────────────────
