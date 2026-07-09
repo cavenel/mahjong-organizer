@@ -23,7 +23,6 @@ urlpatterns = [
 
     # Admin actions
     path('admin_upload_from_template', views.admin_upload_from_template, name='admin_upload_from_template'),
-    path('randomize', views.randomize, name='randomize'),
     path('admin_team_draw', views.admin_team_draw, name='admin_team_draw'),
     path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
     path('admin_player_draw', views.admin_player_draw, name='admin_player_draw'),

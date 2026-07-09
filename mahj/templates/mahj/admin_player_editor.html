@@ -1,20 +1,14 @@
 {{ player_rows|json_script:"player-rows-data" }}
+{{ valid_draw_numbers|json_script:"valid-draw-data" }}
 <div class="max-w-5xl" x-data="playerEditor()">
   <div class="flex items-start justify-between gap-4 flex-wrap mb-4">
     <div>
       <h2 class="text-2xl font-bold text-gray-800">Edit players</h2>
       <p class="text-sm text-gray-500 mt-1">
-        Fix names, countries, EMA ids, e-mails and teams. The draw number is set by
-        Randomize / Team draw and shown here for reference.
+        Fix names, countries, EMA ids, e-mails, teams and draw numbers. Every change
+        saves on its own — click a column heading to sort. Changing a draw number
+        reassigns that seat, so it asks first.
       </p>
-    </div>
-    <div class="flex items-center gap-3 shrink-0">
-      <span x-show="dirty" x-cloak class="text-xs text-amber-600">Unsaved changes</span>
-      <button type="button" @click="save()" :disabled="!dirty || saving"
-              class="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 disabled:opacity-50">
-        <span x-show="!saving">Save changes</span>
-        <span x-show="saving" x-cloak>Saving…</span>
-      </button>
     </div>
   </div>
 
@@ -28,25 +22,35 @@
     <table class="min-w-full text-sm">
       <thead class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
         <tr>
-          <th class="px-3 py-2 text-right font-medium w-14">#</th>
-          <th class="px-3 py-2 text-left font-medium">Full name</th>
-          <th class="px-3 py-2 text-left font-medium">First name</th>
-          <th class="px-3 py-2 text-left font-medium">Country</th>
-          <th class="px-3 py-2 text-left font-medium">EMA id</th>
-          <th class="px-3 py-2 text-left font-medium">E-mail</th>
-          <th class="px-3 py-2 text-left font-medium">Team</th>
+          <th @click="sort('draw_number')" class="px-3 py-2 text-right font-medium cursor-pointer select-none whitespace-nowrap hover:text-gray-700">Draw number <span class="text-amber-500" x-text="arrow('draw_number')"></span></th>
+          <th @click="sort('full_name')"  class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Full name <span class="text-amber-500" x-text="arrow('full_name')"></span></th>
+          <th @click="sort('first_name')" class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">First name <span class="text-amber-500" x-text="arrow('first_name')"></span></th>
+          <th @click="sort('country')"    class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Country <span class="text-amber-500" x-text="arrow('country')"></span></th>
+          <th @click="sort('EMA_ID')"     class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">EMA id <span class="text-amber-500" x-text="arrow('EMA_ID')"></span></th>
+          <th @click="sort('email')"      class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">E-mail <span class="text-amber-500" x-text="arrow('email')"></span></th>
+          <th @click="sort('team')"       class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Team <span class="text-amber-500" x-text="arrow('team')"></span></th>
+          <th class="px-2 py-2 w-8"><span class="sr-only">Status</span></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         <template x-for="row in rows" :key="row.id">
-          <tr class="hover:bg-amber-50/40">
-            <td class="px-3 py-1.5 text-right text-gray-400 tabular-nums" x-text="row.draw_number ?? '—'"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.full_name" @input="dirty=true" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @input="dirty=true" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @input="dirty=true" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @input="dirty=true" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.email" @input="dirty=true" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @input="dirty=true" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+          <tr class="hover:bg-amber-50/40" :class="{ 'bg-rose-50/60': row._status === 'error' }">
+            <td class="px-2 py-1">
+              <input type="text" inputmode="numeric" :value="row.draw_number ?? ''"
+                     @focus="$el._v = $el.value" @change="changeDraw(row, $el)"
+                     class="w-16 text-right tabular-nums border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300">
+            </td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.full_name" @change="saveMeta(row)" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.email" @change="saveMeta(row)" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1 w-8 text-center align-middle">
+              <span x-show="row._status === 'saving'" class="text-gray-400 text-xs">…</span>
+              <span x-show="row._status === 'saved'" x-cloak class="text-green-600 text-sm">✓</span>
+              <span x-show="row._status === 'error'" x-cloak class="text-rose-600 text-sm cursor-help font-bold" :title="row._error">!</span>
+            </td>
           </tr>
         </template>
       </tbody>
@@ -57,30 +61,149 @@
 <script>
   function playerEditor() {
     return {
-      rows: JSON.parse(document.getElementById('player-rows-data').textContent),
-      dirty: false,
-      saving: false,
-      save() {
-        if (!this.dirty || this.saving) return;
-        this.saving = true;
+      rows: [],
+      validDraw: [],
+      sortKey: 'draw_number',
+      sortDir: 'asc',
+
+      init() {
+        this.rows = JSON.parse(document.getElementById('player-rows-data').textContent);
+        this.validDraw = JSON.parse(document.getElementById('valid-draw-data').textContent);
+        this.rows.forEach(function (r) { r._status = 'idle'; r._error = ''; });
+      },
+
+      // --- sorting ---------------------------------------------------------
+      sort(key) {
+        if (this.sortKey === key) {
+          this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.sortKey = key;
+          this.sortDir = 'asc';
+        }
+        var dir = this.sortDir === 'asc' ? 1 : -1;
+        var key2 = this.sortKey;
+        this.rows.sort(function (a, b) {
+          if (key2 === 'draw_number') {
+            var av = a.draw_number, bv = b.draw_number;
+            // Empty draw numbers always sort last, whichever direction.
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            return (av - bv) * dir;
+          }
+          var as = (a[key2] || '').toString();
+          var bs = (b[key2] || '').toString();
+          return as.localeCompare(bs, undefined, { numeric: true, sensitivity: 'base' }) * dir;
+        });
+      },
+      arrow(key) {
+        if (this.sortKey !== key) return '';
+        return this.sortDir === 'asc' ? '▲' : '▼';
+      },
+
+      // --- status helpers --------------------------------------------------
+      flashSaved(row) {
+        row._status = 'saved';
+        row._error = '';
+        setTimeout(function () { if (row._status === 'saved') row._status = 'idle'; }, 1500);
+      },
+      showError(row, msg) {
+        row._status = 'error';
+        row._error = msg;
+        window.alertAction({ title: 'Couldn’t save change', body: msg });
+      },
+
+      // --- metadata autosave (name / country / EMA / e-mail / team) --------
+      saveMeta(row) {
+        row._status = 'saving';
+        row._error = '';
         var self = this;
+        var payload = {
+          id: row.id, full_name: row.full_name, first_name: row.first_name,
+          EMA_ID: row.EMA_ID, country: row.country, email: row.email, team: row.team,
+        };
         $.ajax({
-          type: "POST",
-          url: "/player_editor_save",
-          contentType: "application/json",
+          type: 'POST',
+          url: '/player_editor_save',
+          contentType: 'application/json',
           headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-          data: JSON.stringify({ players: this.rows }),
-          success: function() { self.dirty = false; },
-          error: function(xhr) {
+          data: JSON.stringify({ players: [payload] }),
+          success: function () { self.flashSaved(row); },
+          error: function (xhr) {
             var msg = (xhr && xhr.responseText) || '';
             if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
-              msg = 'The server rejected the changes (status ' + ((xhr && xhr.status) || '?') + ').';
+              msg = 'The server rejected the change (status ' + ((xhr && xhr.status) || '?') + ').';
             }
-            window.alertAction({ title: 'Couldn’t save players', body: msg });
+            self.showError(row, msg);
           },
-          complete: function() { self.saving = false; }
         });
-      }
+      },
+
+      // --- draw-number autosave -------------------------------------------
+      changeDraw(row, el) {
+        var origStr = (el._v == null ? '' : String(el._v)).trim();
+        var newStr = (el.value || '').trim();
+        if (newStr === origStr) return;
+        var orig = origStr === '' ? null : parseInt(origStr, 10);
+        var self = this;
+
+        var fail = function (msg) { el.value = origStr; self.showError(row, msg); };
+
+        var val;
+        if (newStr === '') {
+          val = null;
+        } else {
+          if (!/^\d+$/.test(newStr)) { fail('“' + newStr + '” is not a whole number.'); return; }
+          val = parseInt(newStr, 10);
+          if (this.validDraw.indexOf(val) === -1) { fail('#' + val + ' is not a valid draw slot.'); return; }
+          var holder = this.rows.find(function (r) { return r !== row && r.draw_number === val; });
+          if (holder) { fail('#' + val + ' is already taken by ' + (holder.full_name || 'another player') + '.'); return; }
+        }
+
+        var doAssign = function () { self.assignDraw(row, el, val, origStr); };
+
+        // Only warn when an existing draw number is being changed or cleared —
+        // filling an empty cell with a free slot just saves.
+        if (orig !== null) {
+          window.confirmAction({
+            title: 'Change draw number?',
+            body: (val === null)
+              ? 'This removes ' + (row.full_name || 'this player') + ' from draw slot #' + orig +
+                '. Seats and their scores are keyed by draw number, so the seat is reassigned.'
+              : 'This moves ' + (row.full_name || 'this player') + ' from draw slot #' + orig + ' to #' + val +
+                '. Seats and their scores are keyed by draw number, so the seat is reassigned.',
+            confirmLabel: 'Change draw number',
+            onConfirm: doAssign,
+            onCancel: function () { el.value = origStr; },
+          });
+        } else {
+          doAssign();
+        }
+      },
+      assignDraw(row, el, val, origStr) {
+        row._status = 'saving';
+        row._error = '';
+        var self = this;
+        $.ajax({
+          type: 'POST',
+          url: '/admin_player_draw_assign',
+          contentType: 'application/json',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          data: JSON.stringify({ player_id: row.id, draw_number: val }),
+          success: function (resp) {
+            row.draw_number = (resp && 'draw_number' in resp) ? resp.draw_number : val;
+            el._v = el.value;
+            self.flashSaved(row);
+          },
+          error: function (xhr) {
+            var msg = '';
+            try { msg = (JSON.parse(xhr.responseText) || {}).error || ''; } catch (e) {}
+            if (!msg) msg = 'The server rejected the draw change (status ' + ((xhr && xhr.status) || '?') + ').';
+            el.value = origStr;
+            self.showError(row, msg);
+          },
+        });
+      },
     };
   }
 </script>

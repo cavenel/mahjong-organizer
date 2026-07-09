@@ -366,60 +366,6 @@ def admin_upload_from_template(request):
 
 
 @user_passes_test(lambda u: u.is_staff)
-def randomize(request):
-    """Assign competitors to draw slots. A draw slot is a draw_number; the draw is
-    made by setting the competitor's Player.draw_number. A competitor holds at most
-    one slot, so assigning them a slot frees whoever held it and frees their own
-    previous slot. Seats are fixed structure and are never touched here."""
-    tenant = get_tenant(request)
-    seats = list(Seat.objects.filter(tenant=tenant))
-    draw_numbers = sorted({s.draw_number for s in seats})
-
-    if request.method == 'POST':
-        roster_by_id = {p.id: p for p in Player.objects.filter(tenant=tenant)}
-        for dn in draw_numbers:
-            val = request.POST.get('slot_' + str(dn))
-            if not val or val == 'no':
-                continue
-            if val == 'clear':
-                Player.objects.filter(tenant=tenant, draw_number=dn).update(draw_number=None)
-                continue
-            try:
-                player = roster_by_id.get(int(val))
-            except (TypeError, ValueError):
-                continue
-            if player is None:
-                continue
-            # Free the target slot from its current holder and the player's old slot,
-            # then give the player the slot.
-            Player.objects.filter(tenant=tenant, draw_number=dn).exclude(id=player.id).update(draw_number=None)
-            if player.draw_number != dn:
-                player.draw_number = dn
-                player.save(update_fields=['draw_number'])
-
-    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
-    player_by_draw = {p.draw_number: p for p in roster if p.draw_number is not None}
-
-    round_max = max((s.round_nb for s in seats), default=0)
-    table_max = max((s.table_nb for s in seats), default=0)
-    grid = [[[None] * 4 for _ in range(round_max)] for _ in range(table_max)]
-    for s in seats:
-        s.player = player_by_draw.get(s.draw_number)  # for the template
-        grid[s.table_nb - 1][s.round_nb - 1][s.wind - 1] = s
-
-    slots = [{'draw_number': dn, 'player': player_by_draw.get(dn)} for dn in draw_numbers]
-    remaining = [p for p in roster if p.draw_number is None]
-
-    template = loader.get_template('mahj/admin_randomize.html')
-    context = {
-        "grid": grid,
-        "slots": slots,
-        "remaining": remaining,
-    }
-    return template.render(context, request)
-
-
-@user_passes_test(lambda u: u.is_staff)
 def admin_team_draw(request):
     tenant = get_tenant(request)
     roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
@@ -982,13 +928,17 @@ def options(request, error=None):
                  'email': p.email, 'team': p.team}
                 for p in players
             ]
+            # The seating-chart slots a draw number may be assigned to (the editor
+            # rejects anything else before it reaches admin_player_draw_assign).
+            valid_draw_numbers = sorted(set(
+                Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True)))
             template2 = loader.get_template('mahj/admin_player_editor.html')
-            page_content = template2.render({"player_rows": player_rows}, request)
+            page_content = template2.render(
+                {"player_rows": player_rows,
+                 "valid_draw_numbers": valid_draw_numbers}, request)
     elif page == "import_template":
         template2 = loader.get_template('mahj/admin_import_template.html')
         page_content = template2.render({}, request)
-    elif page == "randomize":
-        page_content = randomize(request)
     elif page == "scoring":
         variables = get_variables(request)
         scores_json = scores_per_table_json(request)

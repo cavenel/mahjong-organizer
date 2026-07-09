@@ -325,8 +325,8 @@ def test_settings_page_saves_identity_via_set_variable(client_, staff, tournamen
 
 
 # ── Player editor (admin?page=player_editor) ─────────────────────────────────
-# Staff-only inline table for correcting roster metadata. draw_number is shown
-# but never editable here — reassigning it belongs to Randomize / Team draw.
+# Staff-only inline table for correcting roster metadata. Every field autosaves;
+# draw_number is editable here too and goes through admin_player_draw_assign.
 
 def test_player_editor_renders_roster_for_staff(client_, staff, tournament):
     client_.force_login(staff)
@@ -334,6 +334,10 @@ def test_player_editor_renders_roster_for_staff(client_, staff, tournament):
     assert 'Edit players' in html
     assert 'playerEditor()' in html
     assert 'Player1 Lastname' in html
+    # Draw number is now an editable column backed by the valid-slot list.
+    assert 'Draw number' in html
+    assert 'valid-draw-data' in html
+    assert 'changeDraw(' in html
 
 
 def test_player_editor_forbidden_for_non_staff(client_, display_op, tournament):

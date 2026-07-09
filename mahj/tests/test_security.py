@@ -1,7 +1,7 @@
 """Authentication and CSRF protections on scorer/staff endpoints.
 
 Covers:
-- Staff-only views (options, admin_print_EMA, randomize, update_screen_view)
+- Staff-only views (options, admin_print_EMA, update_screen_view)
   redirect anonymous users to login.
 - Scorer-gated view (admin_scores_per_hand) rejects anonymous/non-staff and
   allows users in the 'Scorer' group.
@@ -82,7 +82,6 @@ class TestStaffOnlyEndpointsRedirectAnonymous:
     @pytest.mark.parametrize('url', [
         '/options',
         '/EMA_report.xlsx',
-        '/randomize',
         '/update_screen_view',
         '/update_screen_name',
     ])
