@@ -48,6 +48,8 @@ from .admin_views import (
     options,
     publish_web,
     publish_status,
+    publish_target_save,
+    publish_target_test,
     admin_team_draw,
     admin_team_draw_save,
     admin_player_draw,

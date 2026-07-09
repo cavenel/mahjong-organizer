@@ -32,6 +32,8 @@ urlpatterns = [
     path('update_logo', views.update_logo, name='update_logo'),
     path('publish_web', views.publish_web, name='publish_web'),
     path('publish_status', views.publish_status, name='publish_status'),
+    path('publish_target_save', views.publish_target_save, name='publish_target_save'),
+    path('publish_target_test', views.publish_target_test, name='publish_target_test'),
     path('counter_start', views.counter_start, name='counter_start'),
 
     # User management (staff only)

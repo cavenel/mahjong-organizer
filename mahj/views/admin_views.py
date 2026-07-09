@@ -630,14 +630,11 @@ def publish_web(request):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     from ..publish.sftp_upload import is_configured
-    if not is_configured():
+    if not is_configured(subdomain):
         return JsonResponse(
-            {'status': 'error', 'error': 'Static publish is not configured (set PUBLISH_SFTP_HOST).'},
-            status=400)
-    gate = os.environ.get('PUBLISH_TENANT', '')
-    if gate and subdomain != gate:
-        return JsonResponse(
-            {'status': 'error', 'error': f"This instance publishes only '{gate}', not '{subdomain}'."},
+            {'status': 'error',
+             'error': 'Static publish is not configured for this tenant '
+                      '(add a publish target, or set PUBLISH_SFTP_HOST).'},
             status=400)
     from ..publish.trigger import fire_static_export
     fire_static_export(subdomain)
@@ -654,6 +651,75 @@ def publish_status(request):
     subdomain = tenant.subdomain if tenant else ''
     from ..publish.trigger import get_progress
     return JsonResponse(get_progress(subdomain) or {'phase': 'idle'})
+
+
+@user_passes_test(lambda u: u.is_staff)
+def publish_target_save(request):
+    """Save this tenant's SFTP publish target (staff only).
+
+    Secrets are write-only: a blank password/key leaves the stored value
+    untouched (so the form never has to echo it back), and clear_password /
+    clear_key wipe it. Stored encrypted via publish.secrets."""
+    if request.method != 'POST':
+        return HttpResponseForbidden('POST required')
+    tenant = get_tenant(request)
+    if tenant is None:
+        return JsonResponse({'status': 'error', 'error': 'No tenant.'}, status=400)
+    from ..models import PublishTarget
+    from ..publish import secrets as publish_secrets
+    target, _ = PublishTarget.objects.get_or_create(tenant=tenant)
+
+    def _flag(name):
+        return request.POST.get(name, '').strip().lower() in ('true', '1', 'on', 'yes')
+
+    target.enabled = _flag('enabled')
+    target.host = request.POST.get('host', '').strip()
+    target.username = request.POST.get('username', '').strip()
+    target.path = request.POST.get('path', '').strip()
+    target.host_key = request.POST.get('host_key', '').strip()
+    port_raw = request.POST.get('port', '').strip() or '22'
+    try:
+        target.port = int(port_raw)
+    except ValueError:
+        return JsonResponse(
+            {'status': 'error', 'error': f'Port must be a number (got {port_raw!r}).'},
+            status=400)
+
+    password = request.POST.get('password', '')
+    if request.POST.get('clear_password') == '1':
+        target.password_enc = None
+    elif password:
+        target.password_enc = publish_secrets.encrypt(password)
+
+    key = request.POST.get('private_key', '')
+    if request.POST.get('clear_key') == '1':
+        target.private_key_enc = None
+    elif key.strip():
+        target.private_key_enc = publish_secrets.encrypt(key)
+
+    target.save()
+    return JsonResponse({'status': 'ok'})
+
+
+@user_passes_test(lambda u: u.is_staff)
+def publish_target_test(request):
+    """Open + close an SFTP connection to this tenant's saved target and report
+    ok/error, so staff can verify credentials before relying on a publish."""
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    from ..publish.sftp_upload import resolve_config, _connect
+    cfg = resolve_config(subdomain)
+    if cfg is None:
+        return JsonResponse(
+            {'status': 'error', 'error': 'No publish target configured for this tenant.'},
+            status=400)
+    try:
+        client = _connect(cfg)
+        client.open_sftp().close()
+        client.close()
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=400)
+    return JsonResponse({'status': 'ok', 'message': f'Connected to {cfg.host}.'})
 
 
 # The round timer is server-authoritative. `counter` holds an absolute epoch-ms
@@ -790,7 +856,7 @@ def options(request, error=None):
         page_content = template2.render(
             {
                 "error": error,
-                "static_publish_enabled": _static_publish_configured(),
+                "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
                 "variables": variables,
                 "nb_players": nb_players,
                 # A player is "drawn in" once assigned a draw number; the roster is
@@ -936,6 +1002,24 @@ def options(request, error=None):
             page_content = template2.render(
                 {"player_rows": player_rows,
                  "valid_draw_numbers": valid_draw_numbers}, request)
+    elif page == "publish_target":
+        # Staff-only: holds SFTP credentials, so a scorer/display op gets nothing.
+        if not request.user.is_staff:
+            page_content = "None"
+        else:
+            from ..models import PublishTarget
+            target = PublishTarget.objects.filter(tenant=tenant).order_by('id').first()
+            template2 = loader.get_template('mahj/admin_publish_target.html')
+            page_content = template2.render({
+                "target": target,
+                # Secrets are write-only — never render the value, just whether one
+                # is set, so the form can show a "configured" hint.
+                "has_password": bool(target and target.password_enc),
+                "has_key": bool(target and target.private_key_enc),
+                # A per-tenant target supersedes this, but surface it so staff know
+                # publishing would still fall back to env if no target is enabled.
+                "env_fallback": bool(os.environ.get('PUBLISH_SFTP_HOST', '')),
+            }, request)
     elif page == "import_template":
         template2 = loader.get_template('mahj/admin_import_template.html')
         page_content = template2.render({}, request)
@@ -1072,6 +1156,6 @@ def options(request, error=None):
         "uses_teams": get_variables(request).has_teams,
         # Drives the shell-wide publish progress toast (polls publish_status) — only
         # when web publishing is configured, so idle installs don't poll.
-        "static_publish_enabled": _static_publish_configured(),
+        "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
     }
     return HttpResponse(template.render(context, request))

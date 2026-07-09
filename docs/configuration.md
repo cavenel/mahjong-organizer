@@ -43,11 +43,26 @@ requires `DJANGO_SETTINGS_MODULE=apps.settings.prod`** plus the variables below.
 
 On each round publish, the public page can be rendered to static files and
 SFTP-uploaded to a plain web host (also re-runnable from the admin console via
-**Publish to web**). Leave `PUBLISH_SFTP_HOST` unset to disable.
+**Publish to web**).
 
-`PUBLISH_SFTP_HOST` `PUBLISH_SFTP_PORT` (22) `PUBLISH_SFTP_USER`
-`PUBLISH_SFTP_KEY` *(or* `PUBLISH_SFTP_PASSWORD`*)* `PUBLISH_SFTP_PATH`
-`PUBLISH_SFTP_KNOWN_HOSTS` `PUBLISH_TENANT` *(restrict uploads to one tenant)*.
+There are two ways to configure it, and **a per-tenant target wins over the env
+fallback**:
+
+1. **Per tenant (in the admin).** Staff set a target under **Administration →
+   Publish target**: host, port, user, remote path, and a password *or* private
+   key. Credentials are Fernet-encrypted at rest (keyed off `DJANGO_SECRET_KEY`,
+   so rotating that key means re-entering them). A **Test connection** button
+   verifies it. This lets a multi-tenant instance publish each tenant to its own
+   host. No extra env var is needed.
+
+2. **Env fallback (one target for the instance).** Used for any tenant with no
+   enabled per-tenant target. Leave `PUBLISH_SFTP_HOST` unset (and configure no
+   per-tenant target) to disable publishing.
+
+   `PUBLISH_SFTP_HOST` `PUBLISH_SFTP_PORT` (22) `PUBLISH_SFTP_USER`
+   `PUBLISH_SFTP_KEY` *(or* `PUBLISH_SFTP_PASSWORD`*)* `PUBLISH_SFTP_PATH`
+   `PUBLISH_SFTP_KNOWN_HOSTS` `PUBLISH_TENANT` *(restrict the **env fallback** to
+   one tenant subdomain; per-tenant DB targets ignore it)*.
 
 ## In-app database restore (optional)
 

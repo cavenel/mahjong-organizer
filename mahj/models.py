@@ -270,6 +270,33 @@ class TournamentSettings(TenantAwareModel):
                self.fullname + " ; " + str(self.city) + " ; " + str(self.period) + " ; " + str(self.zoom) + " ; " + str(self.score_lines) + " ; " + str(self.total_time)
 
 
+class PublishTarget(TenantAwareModel):
+    """Per-tenant static-publish SFTP target, configured by staff in the admin.
+
+    When a row exists and is enabled it supersedes the ``PUBLISH_SFTP_*`` env
+    fallback for this tenant, so a multi-tenant instance can publish each
+    tenant's spectator site to its own web host (rather than the single global
+    ``PUBLISH_TENANT`` target). Resolution lives in ``publish.sftp_upload``.
+
+    ``password_enc`` / ``private_key_enc`` hold Fernet ciphertext (see
+    ``publish.secrets``), never plaintext, and are never rendered back to the
+    client — the editor is write-only. ``host_key`` is an optional known_hosts
+    line pinning the target's host key (public data, not a secret); empty falls
+    back to auto-adding the key on first connect.
+    """
+    enabled         = models.BooleanField(default=False)
+    host            = models.CharField(default="", max_length=255, blank=True)
+    port            = models.IntegerField(default=22)
+    username        = models.CharField(default="", max_length=255, blank=True)
+    path            = models.CharField(default="", max_length=1024, blank=True)
+    host_key        = models.TextField(default="", blank=True)
+    password_enc    = models.BinaryField(null=True, blank=True, default=None, editable=False)
+    private_key_enc = models.BinaryField(null=True, blank=True, default=None, editable=False)
+
+    def __str__(self):
+        return f'{self.username}@{self.host}:{self.path}'
+
+
 class PublishedRound(TenantAwareModel):
     round_nb     = models.IntegerField()
     # A published round is normally visible to everyone. ``withheld`` marks the

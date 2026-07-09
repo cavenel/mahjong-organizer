@@ -2,11 +2,10 @@
 
 Publish/unpublish regenerates the static spectator site and SFTP-uploads it. It
 runs in a daemon thread so a publish request never blocks on rendering or the
-network, and is a no-op unless SFTP is configured (PUBLISH_SFTP_HOST) and — if
-PUBLISH_TENANT is set — the publishing tenant matches it.
+network, and is a no-op unless the publishing tenant has a resolved publish
+target (a per-tenant DB PublishTarget, or the PUBLISH_SFTP_* env fallback).
 """
 import logging
-import os
 import threading
 from pathlib import Path
 
@@ -45,12 +44,7 @@ def get_progress(subdomain):
 
 def _should_publish(subdomain):
     from .sftp_upload import is_configured
-    if not is_configured():
-        return False
-    gate = os.environ.get('PUBLISH_TENANT', '')
-    if gate and subdomain != gate:
-        return False
-    return True
+    return is_configured(subdomain)
 
 
 def _run(subdomain):

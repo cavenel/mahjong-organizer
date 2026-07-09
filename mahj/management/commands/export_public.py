@@ -60,10 +60,10 @@ class Command(BaseCommand):
 
         # Lazy import so a render-only run never needs paramiko installed.
         from ...publish.sftp_upload import upload_dir, is_configured
-        if not is_configured():
+        if not is_configured(subdomain):
             self.stdout.write(self.style.WARNING(
-                "PUBLISH_SFTP_HOST not set — nothing uploaded. "
-                "Configure PUBLISH_SFTP_* or pass --no-upload."))
+                f"No publish target for {subdomain!r} — nothing uploaded. "
+                "Add a publish target, set PUBLISH_SFTP_*, or pass --no-upload."))
             return
         try:
             upload_dir(out_dir, subdomain=subdomain)

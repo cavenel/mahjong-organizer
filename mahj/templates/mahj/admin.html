@@ -153,6 +153,11 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
         <span class="nav-label rail-hide">Database restore</span>
       </a>
+      <a href="admin?page=publish_target" :title="railCollapsed ? 'Publish target' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publish_target' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a5 5 0 0 1 4.9-6h.7A6 6 0 1 1 16 20H8a4 4 0 0 1-4-4z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
+        <span class="nav-label rail-hide">Publish target</span>
+      </a>
       <a target="_blank" href="admin_db" :title="railCollapsed ? 'Database administration' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></svg>

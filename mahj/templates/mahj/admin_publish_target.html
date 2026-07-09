@@ -1,0 +1,146 @@
+<div class="max-w-3xl space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">Publish target</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      Where this tenant's public spectator site is uploaded on each round publish.
+      A target set here overrides the server's <code class="text-xs">PUBLISH_SFTP_*</code> defaults for this tenant.
+    </p>
+  </div>
+
+  {% if env_fallback and not target.enabled %}
+  <div class="rounded-lg border border-amber-200 bg-amber-50 text-amber-800 text-sm px-4 py-3">
+    No target is enabled here, so this tenant currently falls back to the server's
+    <code class="text-xs">PUBLISH_SFTP_*</code> environment defaults (subject to <code class="text-xs">PUBLISH_TENANT</code>).
+  </div>
+  {% endif %}
+
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
+    <label class="inline-flex items-center gap-2 cursor-pointer">
+      <input id="pt-enabled" type="checkbox" {% if target.enabled %}checked{% endif %}
+             class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
+      <span class="text-sm font-medium text-gray-700">Publish this tenant to the web</span>
+    </label>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="md:col-span-2">
+        <label for="pt-host" class="block text-xs font-medium text-gray-600 mb-1">Host</label>
+        <input id="pt-host" type="text" placeholder="web.example.com" value="{{ target.host }}" maxlength="255"
+               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      </div>
+      <div>
+        <label for="pt-port" class="block text-xs font-medium text-gray-600 mb-1">Port</label>
+        <input id="pt-port" type="number" placeholder="22" value="{{ target.port|default:22 }}" min="1" step="1"
+               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      </div>
+      <div>
+        <label for="pt-username" class="block text-xs font-medium text-gray-600 mb-1">Username</label>
+        <input id="pt-username" type="text" placeholder="www-data" value="{{ target.username }}" maxlength="255"
+               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      </div>
+      <div class="md:col-span-2">
+        <label for="pt-path" class="block text-xs font-medium text-gray-600 mb-1">Remote directory</label>
+        <input id="pt-path" type="text" placeholder="/var/www/mahj" value="{{ target.path }}" maxlength="1024"
+               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      </div>
+    </div>
+  </div>
+
+  <!-- Authentication ---------------------------------------------------------->
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
+    <h3 class="text-sm font-bold text-gray-800">Authentication</h3>
+    <p class="text-xs text-gray-400">
+      Stored encrypted. Leave a field blank to keep the current secret; tick “clear” to remove it.
+    </p>
+
+    <div>
+      <label for="pt-password" class="block text-xs font-medium text-gray-600 mb-1">
+        Password
+        {% if has_password %}<span class="text-emerald-600 font-normal">— configured</span>{% endif %}
+      </label>
+      <input id="pt-password" type="password" placeholder="{% if has_password %}•••••••• (unchanged){% else %}password{% endif %}" autocomplete="new-password"
+             class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      {% if has_password %}
+      <label class="inline-flex items-center gap-2 mt-1.5 cursor-pointer text-xs text-gray-500">
+        <input id="pt-clear-password" type="checkbox" class="w-3.5 h-3.5 rounded border-gray-300 text-red-500 focus:ring-red-300">
+        Clear the stored password
+      </label>
+      {% endif %}
+    </div>
+
+    <div>
+      <label for="pt-key" class="block text-xs font-medium text-gray-600 mb-1">
+        Private key (PEM)
+        {% if has_key %}<span class="text-emerald-600 font-normal">— configured</span>{% endif %}
+      </label>
+      <textarea id="pt-key" rows="4" placeholder="{% if has_key %}(unchanged — paste a new key to replace){% else %}-----BEGIN OPENSSH PRIVATE KEY-----{% endif %}"
+                class="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300"></textarea>
+      {% if has_key %}
+      <label class="inline-flex items-center gap-2 mt-1.5 cursor-pointer text-xs text-gray-500">
+        <input id="pt-clear-key" type="checkbox" class="w-3.5 h-3.5 rounded border-gray-300 text-red-500 focus:ring-red-300">
+        Clear the stored key
+      </label>
+      {% endif %}
+      <p class="text-xs text-gray-400 mt-1">A key is preferred over a password. Provide one or the other.</p>
+    </div>
+
+    <div>
+      <label for="pt-host-key" class="block text-xs font-medium text-gray-600 mb-1">
+        Host key <span class="text-gray-400 font-normal">(optional — a known_hosts line to pin the host)</span>
+      </label>
+      <textarea id="pt-host-key" rows="2" placeholder="web.example.com ssh-ed25519 AAAA…"
+                class="w-full text-sm font-mono border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">{{ target.host_key }}</textarea>
+      <p class="text-xs text-gray-400 mt-1">Empty = accept the host key on first connect (from <code class="text-xs">ssh-keyscan &lt;host&gt;</code>).</p>
+    </div>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button id="pt-save" type="button"
+            class="px-4 py-2 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600">Save</button>
+    <button id="pt-test" type="button"
+            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Test connection</button>
+    <span id="pt-status" class="text-sm"></span>
+  </div>
+</div>
+
+<script>
+  function ptStatus(msg, ok) {
+    $("#pt-status").text(msg).attr('class', 'text-sm ' + (ok ? 'text-emerald-600' : 'text-red-600'));
+  }
+
+  $("#pt-save").on('click', function() {
+    var data = {
+      'csrfmiddlewaretoken': '{{ csrf_token }}',
+      enabled: $("#pt-enabled").is(':checked') ? 'true' : 'false',
+      host: $("#pt-host").val(),
+      port: $("#pt-port").val(),
+      username: $("#pt-username").val(),
+      path: $("#pt-path").val(),
+      host_key: $("#pt-host-key").val(),
+      password: $("#pt-password").val(),
+      private_key: $("#pt-key").val(),
+      clear_password: $("#pt-clear-password").is(':checked') ? '1' : '0',
+      clear_key: $("#pt-clear-key").is(':checked') ? '1' : '0'
+    };
+    $.ajax({
+      type: "POST", url: "/publish_target_save", data: data,
+      success: function() { location.reload(); },
+      error: function(xhr) {
+        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The server rejected the change.';
+        ptStatus(msg, false);
+      }
+    });
+  });
+
+  $("#pt-test").on('click', function() {
+    ptStatus('Connecting…', true);
+    $.ajax({
+      type: "POST", url: "/publish_target_test",
+      data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+      success: function(r) { ptStatus(r.message || 'Connected.', true); },
+      error: function(xhr) {
+        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'Connection failed.';
+        ptStatus(msg, false);
+      }
+    });
+  });
+</script>

@@ -172,9 +172,11 @@ class TestRevealMasking:
         assert 'id="by_1"' not in html
 
 
+@pytest.mark.django_db
 class TestTriggerGating:
-    """fire_static_export must stay a no-op unless SFTP is configured and the
-    publishing tenant passes the PUBLISH_TENANT gate."""
+    """fire_static_export must stay a no-op unless the tenant has a resolved
+    publish target. With no per-tenant target, resolution falls back to the
+    PUBLISH_SFTP_* env, honouring the PUBLISH_TENANT gate."""
 
     def test_unconfigured_is_noop(self, monkeypatch):
         from mahj.publish import trigger
@@ -193,6 +195,71 @@ class TestTriggerGating:
         monkeypatch.setenv('PUBLISH_SFTP_HOST', 'host.example')
         monkeypatch.delenv('PUBLISH_TENANT', raising=False)
         assert trigger._should_publish('anything') is True
+
+
+class TestSecrets:
+    def test_round_trip(self):
+        from mahj.publish import secrets
+        token = secrets.encrypt('hunter2')
+        assert token is not None and bytes(token) != b'hunter2'
+        assert secrets.decrypt(token) == 'hunter2'
+
+    def test_empty_is_none_or_blank(self):
+        from mahj.publish import secrets
+        assert secrets.encrypt('') is None
+        assert secrets.decrypt(None) == ''
+
+
+@pytest.mark.django_db
+class TestPublishTargetResolution:
+    """resolve_config: an enabled per-tenant DB target wins over the env fallback."""
+
+    def _target(self, **kw):
+        from mahj.models import Tenant, PublishTarget
+        t, _ = Tenant.objects.get_or_create(subdomain='acme', defaults={'name': 'Acme'})
+        return PublishTarget.objects.create(tenant=t, **kw)
+
+    def test_db_target_wins_over_env(self, monkeypatch):
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
+        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
+        self._target(enabled=True, host='db.example', path='/srv', username='u')
+        cfg = resolve_config('acme')
+        assert cfg.host == 'db.example' and cfg.path == '/srv'
+
+    def test_disabled_target_falls_back_to_env(self, monkeypatch):
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
+        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
+        self._target(enabled=False, host='db.example')
+        assert resolve_config('acme').host == 'env.example'
+
+    def test_enabled_but_no_host_falls_back_to_env(self, monkeypatch):
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
+        monkeypatch.delenv('PUBLISH_TENANT', raising=False)
+        self._target(enabled=True, host='')
+        assert resolve_config('acme').host == 'env.example'
+
+    def test_none_when_nothing_configured(self, monkeypatch):
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
+        assert resolve_config('acme') is None
+
+    def test_secret_decrypted_into_config(self, monkeypatch):
+        from mahj.publish import secrets
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.delenv('PUBLISH_SFTP_HOST', raising=False)
+        self._target(enabled=True, host='db.example',
+                     password_enc=secrets.encrypt('s3cret'))
+        assert resolve_config('acme').password == 's3cret'
+
+    def test_env_gate_ignored_for_db_target(self, monkeypatch):
+        from mahj.publish.sftp_upload import resolve_config
+        monkeypatch.setenv('PUBLISH_SFTP_HOST', 'env.example')
+        monkeypatch.setenv('PUBLISH_TENANT', 'someone-else')
+        self._target(enabled=True, host='db.example')
+        assert resolve_config('acme').host == 'db.example'
 
 
 class TestPublishWebEndpoint:
@@ -215,3 +282,67 @@ class TestPublishWebEndpoint:
         resp = c.post('/publish_web')
         assert resp.status_code == 400
         assert 'not configured' in resp.json()['error'].lower()
+
+
+class TestPublishTargetEndpoint:
+    def _staff_client(self):
+        from django.contrib.auth.models import User
+        from django.test import Client
+        User.objects.create_user('boss', password='pw', is_staff=True)
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'test.example.com'
+        c.force_login(User.objects.get(username='boss'))
+        return c
+
+    def test_save_requires_staff(self, tournament):
+        from django.test import Client
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'test.example.com'
+        resp = c.post('/publish_target_save', {'host': 'x'})
+        assert resp.status_code in (301, 302)  # anonymous → login
+
+    def test_save_encrypts_password(self, tournament):
+        from mahj.models import PublishTarget
+        from mahj.publish import secrets
+        c = self._staff_client()
+        resp = c.post('/publish_target_save', {
+            'enabled': 'true', 'host': 'web.example', 'port': '22',
+            'username': 'u', 'path': '/srv', 'password': 'topsecret',
+        })
+        assert resp.json()['status'] == 'ok'
+        t = PublishTarget.objects.get(tenant=tournament['tenant'])
+        assert t.enabled and t.host == 'web.example' and t.path == '/srv'
+        # Stored ciphertext, not the plaintext, and decrypts back.
+        assert bytes(t.password_enc) != b'topsecret'
+        assert secrets.decrypt(t.password_enc) == 'topsecret'
+
+    def test_blank_password_keeps_existing(self, tournament):
+        from mahj.models import PublishTarget
+        from mahj.publish import secrets
+        c = self._staff_client()
+        c.post('/publish_target_save', {'host': 'web.example', 'password': 'keepme'})
+        c.post('/publish_target_save', {'host': 'web2.example'})  # no password sent
+        t = PublishTarget.objects.get(tenant=tournament['tenant'])
+        assert t.host == 'web2.example'
+        assert secrets.decrypt(t.password_enc) == 'keepme'
+
+    def test_clear_password_wipes_it(self, tournament):
+        from mahj.models import PublishTarget
+        c = self._staff_client()
+        c.post('/publish_target_save', {'host': 'web.example', 'password': 'keepme'})
+        c.post('/publish_target_save', {'host': 'web.example', 'clear_password': '1'})
+        t = PublishTarget.objects.get(tenant=tournament['tenant'])
+        assert t.password_enc is None
+
+    def test_bad_port_is_rejected(self, tournament):
+        c = self._staff_client()
+        resp = c.post('/publish_target_save', {'host': 'web.example', 'port': 'nope'})
+        assert resp.status_code == 400
+
+    def test_page_never_renders_secret(self, tournament):
+        c = self._staff_client()
+        c.post('/publish_target_save', {'host': 'web.example', 'password': 'topsecret'})
+        resp = c.get('/admin?page=publish_target')
+        assert resp.status_code == 200
+        assert b'topsecret' not in resp.content
+        assert b'configured' in resp.content
