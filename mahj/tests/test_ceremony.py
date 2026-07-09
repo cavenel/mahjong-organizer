@@ -219,6 +219,26 @@ class TestControlEndpoint:
             assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).withheld is False
 
 
+class TestCeremonyData:
+    def test_final_withheld_flag_tracks_the_withheld_final_round(self, op_client, teamed):
+        """The console reads `final_withheld` to decide whether ending the
+        ceremony would strand the screens on the holding slide (F-M7)."""
+        tenant = teamed['tenant']
+        nb_rounds = teamed['variable'].nb_rounds
+
+        # Nothing published → ending is harmless, no warning.
+        assert json.loads(op_client.get('/ceremony_data').content)['final_withheld'] is False
+
+        # Final round published but withheld for the ceremony → warn before "End".
+        PublishedRound.objects.update_or_create(
+            tenant=tenant, round_nb=nb_rounds, defaults={'withheld': True})
+        assert json.loads(op_client.get('/ceremony_data').content)['final_withheld'] is True
+
+        # Revealed to everyone → no longer withheld.
+        PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).update(withheld=False)
+        assert json.loads(op_client.get('/ceremony_data').content)['final_withheld'] is False
+
+
 class TestScreenTakeover:
     def test_idle_shows_normal_view(self, teamed):
         Screen.objects.create(tenant=teamed['tenant'], name='S1', view='scores all')

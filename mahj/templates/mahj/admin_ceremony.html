@@ -1,3 +1,5 @@
+{% load static %}
+<script src="{% static 'js/display_socket.js' %}"></script>
 <div x-data="ceremonyConsole()" x-init="load()" class="space-y-6">
 
   <div class="flex items-start justify-between gap-4 flex-wrap">
@@ -243,14 +245,36 @@
     function ceremonyConsole() {
       return {
         data: { teams: [], players: [], stats: [], uses_teams: false, rules: '' },
-        phase: 'idle', step: 0, statKey: '', loading: true,
+        phase: 'idle', step: 0, statKey: '', loading: true, finalWithheld: false,
 
         load() {
-          fetch('ceremony_data').then(r => r.json()).then(d => {
+          this.fetchData();
+          // Subscribe to the same broadcast the screens follow, so a second open
+          // console (or this one after a reconnect) always drives from the true
+          // current step instead of a stale local one — otherwise its next click
+          // sends a low absolute step and jumps every projector backward.
+          connectDisplaySocket({
+            subdomain: '{{ subdomain|escapejs }}',
+            onUpdate: (msg) => { if (msg && msg.event === 'ceremony') this.adopt(msg); },
+            // We may have missed reveals while the socket was down — re-pull the
+            // full state (this is a console, not a screen, so never reload).
+            onReconnect: () => this.fetchData(),
+          });
+        },
+        fetchData() {
+          return fetch('ceremony_data').then(r => r.json()).then(d => {
             this.data = d;
+            this.finalWithheld = !!d.final_withheld;
             if (d.state) { this.phase = d.state.phase; this.step = d.state.step || 0; this.statKey = d.state.stat_key || ''; }
             this.loading = false;
           });
+        },
+        adopt(msg) {
+          // Every ceremony.update carries the authoritative state; adopt it so all
+          // consoles stay in lockstep with the screens.
+          this.phase = msg.phase || 'idle';
+          this.step = msg.step || 0;
+          if (msg.phase === 'stat') this.statKey = msg.stat_key || '';
         },
         list(phase) { return phase === 'teams' ? this.data.teams : this.data.players; },
         curStep(phase) { return this.phase === phase ? this.step : 0; },
@@ -280,7 +304,24 @@
           this.send({ phase: 'stat', stat_key: key, step: step });
         },
         blank() { this.send({ phase: 'blank' }); },
-        stop() { this.send({ phase: 'idle' }); },
+        stop() {
+          // At end-of-tournament the final round is published-but-withheld, so
+          // ending here (without publishing) drops every screen back onto the
+          // "waiting for the ceremony" holding slide and the public site stays in
+          // suspense — nothing is ever revealed. Warn; the operator almost always
+          // wants "Publish to everyone & end" instead.
+          if (this.finalWithheld) {
+            var self = this;
+            confirmAction({
+              title: 'End without revealing?',
+              body: 'The final results are still hidden. Ending now sends every screen back to the “waiting for the ceremony” slide and the public site stays in suspense — nothing is revealed. To show the results, use “Publish to everyone & end” instead.',
+              confirmLabel: 'End anyway', danger: true,
+              onConfirm: function() { self.send({ phase: 'idle' }); },
+            });
+            return;
+          }
+          this.send({ phase: 'idle' });
+        },
         publish() {
           var self = this;
           confirmAction({

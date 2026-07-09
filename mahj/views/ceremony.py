@@ -18,7 +18,7 @@ from django.http import HttpResponse, JsonResponse
 from django.template.defaultfilters import floatformat
 
 from ..models import CeremonyState, PublishedRound
-from ..scoring import _country_flag, team_standings
+from ..scoring import _country_flag, _final_round_withheld, team_standings
 from ..signals import broadcast_display, invalidate_leaderboard
 from .helpers import get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, stat_all_rounds
@@ -189,6 +189,11 @@ def ceremony_data(request):
         'step': state.step if state else 0,
         'stat_key': state.stat_key if state else '',
     }
+    # True while the final round is published but withheld for the ceremony. The
+    # console warns before "End — back to screens" in this state: ending without
+    # publishing strands every screen on the "waiting for the ceremony" slide.
+    master['final_withheld'] = _final_round_withheld(
+        tenant, get_variables(request).nb_rounds) is True
     return JsonResponse(master)
 
 
