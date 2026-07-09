@@ -131,30 +131,54 @@
   // lives on the Displays page — but it tracks live: a `counter-update` window
   // event (dispatched from the display socket below) re-points the clock the
   // instant an operator starts or stops a round elsewhere.
+  //
+  // Elapsed time is measured against the server's clock, not the browser's:
+  // `clockOffset` (serverNow - localNow) is taken from each reply's `server_now`
+  // so the card agrees with the Displays timer even when the browser clock is off
+  // by a few seconds. Without it the two panels drift apart by that skew.
   function dashCounter(counter, totalTime) {
     return {
-      counter: counter, totalTime: totalTime, state: 'stopped', label: 'Stopped',
+      counter: counter, totalTime: totalTime, clockOffset: 0, state: 'stopped', label: 'Stopped',
+      serverNow() { return Date.now() + this.clockOffset; },
       render() {
         if (!this.counter || this.counter <= 0) { this.state = 'stopped'; this.label = 'Stopped'; return; }
-        var elapsedMs = Date.now() - this.counter;
+        var elapsedMs = this.serverNow() - this.counter;
         if (elapsedMs < 0) {
           this.state = 'running';
           this.label = 'Starting in ' + Math.ceil(-elapsedMs / 1000) + 's';
         } else if (elapsedMs < this.totalTime * 1000) {
           this.state = 'running';
           var left = Math.max(0, this.totalTime - Math.floor(elapsedMs / 1000));
-          var m = Math.floor(left / 60), s = left % 60;
-          this.label = m + ':' + (s < 10 ? '0' : '') + s + ' left';
+          var pad = (n) => String(n).padStart(2, '0');
+          this.label = pad(Math.floor(left / 3600)) + ':' +
+                       pad(Math.floor((left % 3600) / 60)) + ':' + pad(left % 60);
         } else {
           this.state = 'stopped';
           this.label = 'Round ended';
         }
       },
+      // Latency-corrected clock sync from a server reply (same as the Displays
+      // timer): offset by server_now, plus ≈ rtt/2 for the one-way trip when a
+      // round-trip time is known. WS pushes carry no rtt → downstream-only.
+      syncClock(serverNow, rttMs) {
+        if (serverNow == null) return;
+        var half = rttMs ? rttMs / 2 : 0;
+        this.clockOffset = parseInt(serverNow, 10) + half - Date.now();
+      },
       tick() {
+        // Pull the live state once to sync the clock (the server-rendered counter
+        // is correct, but the offset needs a fresh server_now to compute).
+        var t0 = Date.now();
+        $.post('counter_start', { csrfmiddlewaretoken: '{{ csrf_token }}' }, (data) => {
+          this.counter = parseInt(data.counter, 10) || -1;
+          this.syncClock(data.server_now, Date.now() - t0);
+          this.render();
+        }, 'json');
         this.render();
         setInterval(() => this.render(), 1000);
         window.addEventListener('counter-update', (e) => {
-          this.counter = e.detail;
+          this.counter = e.detail.counter;
+          this.syncClock(e.detail.server_now);
           this.render();
         });
       }
@@ -172,7 +196,7 @@
       onUpdate: function(msg) {
         if (msg.event === 'counter_update') {
           window.dispatchEvent(new CustomEvent('counter-update',
-            { detail: parseInt(msg.counter, 10) || -1 }));
+            { detail: { counter: parseInt(msg.counter, 10) || -1, server_now: msg.server_now } }));
         } else if (msg.event === 'leaderboard_update' || msg.event === 'ceremony') {
           location.reload();
         }
