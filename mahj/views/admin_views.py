@@ -312,6 +312,12 @@ def admin_upload_from_template(request):
                 raise ValueError("All players must have a team when teams are used, but some team cells are empty.")
             Player.objects.bulk_create(player_objs)
 
+            # The roster is all-or-nothing on teams (enforced just above), so the
+            # presence of any team name is the single signal for has_teams, which
+            # gates team standings/columns/printouts everywhere.
+            variables.has_teams = any_team
+            variables.save()
+
             # Disambiguate first names for display (two "Chris" -> "Chris."/"Christo").
             # bulk_create skips Player.save(), so set first_name here in one bulk_update.
             first_names = [unidecode(p.full_name) for p in player_objs]
