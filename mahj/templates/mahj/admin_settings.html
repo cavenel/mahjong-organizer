@@ -185,6 +185,32 @@
     </div>
   </div>
   {% endif %}
+
+  <!-- Danger zone ------------------------------------------------------------->
+  {% if user.is_staff %}
+  <div class="rounded-xl border-2 border-rose-200 bg-rose-50/40 shadow-sm p-5">
+    <h3 class="text-sm font-bold text-rose-700 mb-1">Danger zone</h3>
+    <p class="text-xs text-gray-600 mb-4">
+      <strong>Reset tournament</strong> permanently deletes <em>everything</em> for this
+      tournament — the roster, seating draw, all hands and scores, published rounds and the
+      schedule — and restores the settings, logo, display screens and publish target to their
+      defaults. There is no undo. Only do this to start a brand-new tournament from scratch.
+    </p>
+    <div class="flex flex-col sm:flex-row sm:items-end gap-3">
+      <div class="flex-1 min-w-[14rem]">
+        <label for="reset-confirm" class="block text-xs font-medium text-gray-600 mb-1">
+          Type <span class="font-mono font-semibold text-rose-700">RESET</span> to enable the button
+        </label>
+        <input id="reset-confirm" type="text" autocomplete="off" placeholder="RESET"
+               class="w-full text-sm border border-rose-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <button id="reset-tournament" type="button" disabled
+              class="px-4 py-2 text-sm font-semibold text-white bg-rose-500 rounded-lg hover:bg-rose-600 disabled:opacity-40 disabled:cursor-not-allowed shrink-0">
+        Reset tournament
+      </button>
+    </div>
+  </div>
+  {% endif %}
 </div>
 
 <script>
@@ -299,5 +325,40 @@
       },
     });
   });
+
+  // Danger zone: type-to-confirm gate, then a final confirm dialog, before the
+  // irreversible factory reset. The button stays disabled until "RESET" is typed.
+  (function() {
+    var input = document.getElementById('reset-confirm');
+    var btn = document.getElementById('reset-tournament');
+    if (!input || !btn) return;
+    input.addEventListener('input', function() {
+      btn.disabled = input.value.trim().toUpperCase() !== 'RESET';
+    });
+    btn.addEventListener('click', function() {
+      if (btn.disabled) return;
+      confirmAction({
+        title: 'Reset the whole tournament?',
+        body: 'This permanently deletes all players, seating, hands, scores, published rounds and the schedule, and restores every setting, the logo, screens and publish target to defaults. This cannot be undone.',
+        confirmLabel: 'Delete everything',
+        danger: true,
+        onConfirm: function() {
+          btn.disabled = true;
+          $.ajax({
+            type: "POST", url: "/admin_reset",
+            data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+            success: function() { window.location.href = '/admin'; },
+            error: function(xhr) {
+              var msg = (xhr && xhr.responseText) || '';
+              if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
+                msg = 'The server rejected the reset (status ' + ((xhr && xhr.status) || '?') + ').';
+              }
+              window.alertAction({ title: 'Couldn’t reset the tournament', body: msg });
+            }
+          });
+        },
+      });
+    });
+  })();
   {% endif %}
 </script>

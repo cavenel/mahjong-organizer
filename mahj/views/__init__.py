@@ -42,6 +42,7 @@ from .public_modals import (
 )
 from .admin_views import (
     admin_print_EMA,
+    admin_reset,
     admin_upload_from_template,
     admin_export_to_template,
     counter_start,

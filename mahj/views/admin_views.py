@@ -741,6 +741,46 @@ def update_logo(request):
 
 
 @user_passes_test(lambda u: u.is_staff)
+def admin_reset(request):
+    """Factory-reset the tournament: wipe every tenant row and its settings.
+
+    Staff-only, POST-only, and gated behind a type-to-confirm + confirm dialog in
+    the UI — this is irreversible. It clears all tournament data (roster, seating,
+    hands, score sheets, published rounds, schedule) *and* the tenant's
+    configuration (title/branding/format, logo, screens, screen modes, publish
+    target, ceremony state), leaving a blank instance ready for a fresh import.
+    Deleting the TournamentSettings row lets get_variables recreate it at defaults;
+    its post_delete signal busts the settings cache and refreshes public displays.
+    """
+    if request.method != 'POST':
+        return HttpResponseBadRequest("POST required")
+    tenant = get_tenant(request)
+    if tenant is None:
+        return HttpResponseBadRequest("No tenant")
+    from ..models import PublishTarget, TournamentSettings
+    with transaction.atomic():
+        Hand.objects.filter(tenant=tenant).delete()
+        ScoreSheet.objects.filter(tenant=tenant).delete()
+        Seat.objects.filter(tenant=tenant).delete()
+        PublishedRound.objects.filter(tenant=tenant).delete()
+        Player.objects.filter(tenant=tenant).delete()
+        Schedule.objects.filter(tenant=tenant).delete()
+        Screen.objects.filter(tenant=tenant).delete()
+        ScreenMode.objects.filter(tenant=tenant).delete()
+        CeremonyState.objects.filter(tenant=tenant).delete()
+        PublishTarget.objects.filter(tenant=tenant).delete()
+        # Deleting the settings row resets identity/branding/format, logo and the
+        # round timer to defaults; get_variables recreates a fresh one on next read.
+        TournamentSettings.objects.filter(tenant=tenant).delete()
+    # Wake public displays and scorer pages: nothing is published anymore, the
+    # screen set is gone, and the leaderboard/settings caches are stale.
+    invalidate_leaderboard(tenant.subdomain)
+    broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
+    broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+    return JsonResponse({'status': 'ok'})
+
+
+@user_passes_test(lambda u: u.is_staff)
 def publish_web(request):
     """Manually regenerate + upload the public static site (the "Publish to web"
     button). Publish also happens automatically on each round publish; this is the
