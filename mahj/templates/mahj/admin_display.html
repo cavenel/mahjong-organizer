@@ -561,6 +561,29 @@
     </div>
   </details>
 
+  <!-- On-screen message — the text shown on the Announcement, Counter and Welcome
+       screens. Surfaced as its own section (not buried in Display settings) since
+       operators change it often to announce things to the room. -->
+  <section>
+    <h2 class="text-xl font-bold text-gray-800 mb-1">On-screen message</h2>
+    <p class="text-sm text-gray-600 mb-3">
+      Shown on the <span class="font-medium">Announcement</span>,
+      <span class="font-medium">Counter</span> and
+      <span class="font-medium">Welcome</span> screens. Edit it to announce something
+      to the room — it updates live on every screen showing it.
+    </p>
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 max-w-2xl">
+      <label for="variables-welcome" class="sr-only">On-screen message</label>
+      <!-- Edited as plain text with real line breaks; stored and rendered as HTML.
+           The <br> tags in the stored value are shown as newlines here (see the
+           init script) and newlines are turned back into <br> on save. -->
+      <textarea id="variables-welcome" rows="3" placeholder="Welcome"
+                class="variable-input w-full text-base border border-gray-200 rounded-lg px-3 py-2 bg-white resize-y
+                       focus:outline-none focus:ring-2 focus:ring-amber-300">{{ variables.welcome }}</textarea>
+      <p class="mt-1 text-xs text-gray-400">Press Enter for a line break.</p>
+    </div>
+  </section>
+
   <!-- Display settings — tuning values, collapsed by default. -->
   <details id="display-settings" class="group rounded-xl border border-gray-200 bg-white shadow-sm">
     <summary class="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer select-none list-none">
@@ -568,7 +591,7 @@
         <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
         <span class="text-base font-bold text-gray-800">Display settings</span>
       </span>
-      <span class="text-xs text-gray-500">Zoom, score lines, columns, messages</span>
+      <span class="text-xs text-gray-500">Zoom, score lines, columns</span>
     </summary>
 
     <div class="px-5 pb-5 pt-1 border-t border-gray-100">
@@ -598,21 +621,25 @@
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
-        <div>
-          <label for="variables-welcome" class="block text-xs font-medium text-gray-600 mb-1">Counter message</label>
-          <input id="variables-welcome" type="text" placeholder="Welcome" value="{{ variables.welcome }}" maxlength="255"
-                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
-                        focus:outline-none focus:ring-2 focus:ring-amber-300">
-        </div>
 
       </div>
     </div>
   </details>
 
   <script>
+    // The message is edited as a textarea (real line breaks) but stored/rendered
+    // as HTML, so show the stored <br> as newlines when the page loads.
+    $("textarea.variable-input").each(function() {
+      this.value = this.value.replace(/<br\s*\/?>/gi, "\n");
+    });
+
     $(".variable-input").on('change', function() {
       var getVariables = $(".variable-input").map(function() {
-        return $(this)[0].id + "=" + $(this)[0].value + "&";
+        var value = this.value;
+        // Round-trip the message: newlines become <br> so they render as line
+        // breaks on the screens (mirrors the load-time conversion above).
+        if (this.tagName === 'TEXTAREA') value = value.replace(/\r\n|\r|\n/g, "<br>");
+        return encodeURIComponent(this.id) + "=" + encodeURIComponent(value) + "&";
       }).get().join("");
       var url = "/admin?page=display&action=set_variable&" + getVariables;
       $.ajax({

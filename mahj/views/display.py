@@ -176,7 +176,7 @@ def counter(request):
 
 
 def announcement(request):
-    """Announcement screen: the "Counter message" variable (`variables.welcome`),
+    """Announcement screen: the "On-screen message" variable (`variables.welcome`),
     auto-sized by the template to fill the space between the logo (upper left) and
     the tournament info bar (bottom, mirroring the Welcome screen) as large as it
     can. Reloads live on a screen switch and patches the text in place when the

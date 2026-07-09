@@ -36,9 +36,9 @@ from .scoring import (
 
 # Friendly labels for the editable tournament variables, matching the field
 # labels on the display admin page, so a rejected save names the field the way
-# the operator sees it ("Counter message", not "welcome").
+# the operator sees it ("On-screen message", not "welcome").
 _VARIABLE_LABELS = {
-    "welcome": "Counter message",
+    "welcome": "On-screen message",
     "title": "Title",
     "fullname": "Full tournament name",
     "city": "City",
