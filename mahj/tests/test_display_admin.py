@@ -2,9 +2,10 @@
 each saved mode show what it puts on every screen, plus the page rendering its
 active-mode highlight.
 
-A ScreenMode stores `views` as a JSON list of view strings in screen order; the
-admin shows that breakdown and marks the mode whose views match the screens'
-current views as active.
+A ScreenMode stores `views` as a JSON list of view strings in screen order — a
+full-room snapshot: applying it sets every screen, padding with 'black' for
+screens added after the mode was saved. The admin shows that breakdown and
+marks the mode whose (padded) views match every screen's current view as active.
 """
 import types
 
@@ -73,9 +74,9 @@ def test_mode_breakdown_normalizes_blank_views():
 
 
 def test_mode_breakdown_fewer_views_than_screens():
-    """A mode saved before a 4th screen was added: applying it leaves the surplus
-    screen untouched, so the row reads 'unchanged' and the mode still counts as
-    active when its covered screens match (matching how zip() applies it)."""
+    """A mode saved before a 4th screen was added: applying it blanks the surplus
+    screen (set_mode pads with 'black'), so the row reads 'Blank' and the mode is
+    active only when that screen is currently blank."""
     screens = [_screen('scores:detailed:all'), _screen('counter'),
                _screen('schedule'), _screen('black')]
     modes = [_mode(1, 'ThreeOfFour',
@@ -84,7 +85,15 @@ def test_mode_breakdown_fewer_views_than_screens():
 
     assert out['is_active'] is True
     assert len(out['rows']) == 4
-    assert out['rows'][3] == {'label': '/4', 'pretty': 'unchanged', 'unchanged': True}
+    assert out['rows'][3] == {'label': '/4', 'pretty': 'Blank'}
+
+
+def test_mode_breakdown_surplus_screen_showing_content_is_not_active():
+    """Same short mode, but the surplus screen shows live content: applying the
+    mode would blank it, so the mode must NOT read as active."""
+    screens = [_screen('scores:detailed:all'), _screen('counter')]
+    modes = [_mode(1, 'OneOfTwo', ['scores:detailed:all'])]
+    assert _mode_breakdowns(modes, screens)[0]['is_active'] is False
 
 
 def test_mode_breakdown_covered_screen_differs_is_not_active():
@@ -106,13 +115,13 @@ def test_mode_breakdown_more_views_than_screens():
 
 
 def test_mode_breakdown_handles_malformed_views():
-    """A non-list views value degrades to an empty mode: it covers no screens
-    (every row reads 'unchanged') and is never active."""
+    """A non-list views value degrades to an empty mode: applying it blanks every
+    screen, so every row reads 'Blank' and it isn't active while content shows."""
     screens = [_screen('counter')]
     modes = [_mode(1, 'Broken', None)]
     out = _mode_breakdowns(modes, screens)
 
-    assert [r['unchanged'] for r in out[0]['rows']] == [True]
+    assert [r['pretty'] for r in out[0]['rows']] == ['Blank']
     assert out[0]['is_active'] is False
     assert out[0]['views_json'] == '[]'
 
@@ -213,6 +222,66 @@ def test_add_mode_snapshots_all_screen_views(client_, display_op, tournament):
     mode = ScreenMode.objects.get(tenant=tenant, name='Full house')
     assert mode.views == views
     assert len(json.dumps(mode.views)) > 100
+
+
+# ── Apply mode ────────────────────────────────────────────────────────────────
+
+def test_set_mode_blanks_screens_added_after_the_mode_was_saved(client_, display_op, tournament):
+    """A mode is a full-room snapshot: applying one sets every screen, so a
+    screen added after the mode was saved goes blank rather than keeping stale
+    content (e.g. live standings through a 'Break' mode)."""
+    tenant = tournament['tenant']
+    Screen.objects.create(tenant=tenant, view='counter')
+    later = Screen.objects.create(tenant=tenant, view='scores:detailed:all')
+    mode = ScreenMode.objects.create(tenant=tenant, name='Break', views=['black'])
+    client_.force_login(display_op)
+
+    resp = client_.post(f'/admin?page=display&set_mode={mode.id}',
+                        HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+    assert resp.status_code == 200
+    later.refresh_from_db()
+    assert later.view == 'black'
+    assert [s['view'] for s in resp.json()['screens']] == ['black', 'black']
+
+
+# ── Screen view endpoint ──────────────────────────────────────────────────────
+
+def test_update_screen_view_bad_id_is_404(client_, display_op, tournament):
+    """A missing, unknown or non-numeric ?id= must 404, not 500."""
+    client_.force_login(display_op)
+    for bad in ('999999', 'abc', ''):
+        assert client_.post(f'/update_screen_view?id={bad}&view=black').status_code == 404
+
+
+def test_update_screen_view_cannot_delete_screens(client_, display_op, tournament):
+    """Screens are only deleted via the admin's remove-last action (positional
+    /1, /2… addressing must stay stable): 'remove' is just a view string here,
+    which index() renders as a blank screen."""
+    tenant = tournament['tenant']
+    screen = Screen.objects.create(tenant=tenant, view='counter')
+    client_.force_login(display_op)
+
+    resp = client_.post(f'/update_screen_view?id={screen.id}&view=remove')
+
+    assert resp.status_code == 200
+    screen.refresh_from_db()
+    assert screen.view == 'remove'
+
+
+# ── On-screen message ─────────────────────────────────────────────────────────
+
+def test_welcome_is_stored_as_plain_text_with_newlines(client_, display_op, tournament):
+    """The message is plain text end to end: newlines are stored as-is (the
+    screens render them with white-space: pre-line), never as <br> HTML."""
+    tenant = tournament['tenant']
+    client_.force_login(display_op)
+
+    resp = client_.post(
+        '/admin?page=display&action=set_variable&variables-welcome=Lunch%20now%0ABack%20at%2014%3A00')
+
+    assert resp.status_code == 200
+    assert TournamentSettings.objects.get(tenant=tenant).welcome == 'Lunch now\nBack at 14:00'
 
 
 # ── Screen rename ─────────────────────────────────────────────────────────────

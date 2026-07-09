@@ -89,13 +89,12 @@ def _mode_breakdowns(modes, screens):
     """Decorate each saved mode with the per-screen views it would apply, so the
     admin can show what clicking a mode does.
 
-    `views` is a JSON list of view strings in screen order. Applying a mode pairs
-    them with the screens via zip(), so a mode saved with fewer views than there
-    are screens leaves the surplus screens untouched (shown here as "unchanged"),
-    and surplus views (more views than screens) are dropped. is_active mirrors
-    that: it matches over the covered screens only — the shorter of the two —
-    so a mode reads as active exactly when re-clicking it would be a no-op.
-    (Initial paint only; JS keeps the highlight current after live edits.)"""
+    `views` is a JSON list of view strings in screen order. A mode is a full-room
+    snapshot: applying it sets every screen, with screens beyond the saved list
+    (added after the mode was saved) going blank. is_active mirrors that — the
+    mode's padded views must equal every screen's current view, so a mode reads
+    as active exactly when re-clicking it would be a no-op. (Initial paint only;
+    JS keeps the highlight current after live edits.)"""
     current = [str(s.view) or "black" for s in screens]
     # Positional label (/1, /2…) plus the operator's name when the screen was renamed.
     labels = [f"/{i + 1}" + (f" — {s.friendly_name}" if s.friendly_name else "")
@@ -104,21 +103,15 @@ def _mode_breakdowns(modes, screens):
     for mode in modes:
         views = mode.views if isinstance(mode.views, list) else []
         normalised = [v or "black" for v in views]
-        rows = []
-        for i in range(len(current)):
-            if i < len(normalised):
-                rows.append({"label": labels[i],
-                             "pretty": _pretty_view(normalised[i]), "unchanged": False})
-            else:
-                rows.append({"label": labels[i],
-                             "pretty": "unchanged", "unchanged": True})
-        covered = min(len(current), len(normalised))
+        padded = [normalised[i] if i < len(normalised) else "black"
+                  for i in range(len(current))]
         out.append({
             "id": mode.id,
             "name": mode.name,
-            "rows": rows,
+            "rows": [{"label": labels[i], "pretty": _pretty_view(padded[i])}
+                     for i in range(len(current))],
             "views_json": json.dumps(normalised, separators=(',', ':')),
-            "is_active": covered > 0 and current[:covered] == normalised[:covered],
+            "is_active": bool(current) and padded == current,
         })
     return out
 
@@ -1226,7 +1219,8 @@ def options(request, error=None):
         elif request.GET.get('action') == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()
             # 'screens_changed' (not plain 'screen_update') so the overview grid
-            # redraws for the new screen count; per-screen displays reload either way.
+            # redraws for the new screen count. Existing per-screen displays are
+            # unaffected: only the last position is ever added or removed.
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
             return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('action') == "remove_screen":
@@ -1270,8 +1264,12 @@ def options(request, error=None):
             views_list = mode.views if isinstance(mode.views, list) else []
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             applied = []
-            for view, screen in zip(views_list, screens):
-                screen.view = view
+            # A mode is a full-room snapshot (add_mode saves every screen's
+            # view), so applying one sets every screen: a screen added after
+            # the mode was saved goes blank rather than keeping stale content
+            # (e.g. live standings during a "Break" mode).
+            for i, screen in enumerate(screens):
+                screen.view = views_list[i] if i < len(views_list) else "black"
                 screen.save()
                 applied.append({'id': screen.id, 'view': screen.view})
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})

@@ -36,6 +36,7 @@ body {
     line-height: 1.1;
     overflow: hidden;
     font-size: 10vw;
+    white-space: pre-line;   /* the message is plain text; newlines are line breaks */
 }
 </style>
 {% endblock %}
@@ -44,7 +45,7 @@ body {
     <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
 
     <div id="message-area">
-        <div id="message">{{ variables.welcome|safe }}</div>
+        <div id="message">{{ variables.welcome }}</div>
     </div>
 
     <!-- Tournament info bar, mirroring the Welcome screen's footer. -->
@@ -105,13 +106,13 @@ function fitMessage() {
 fitMessage();
 window.addEventListener('resize', fitMessage);
 
-// Patch the message in place (raw HTML, mirroring the template's |safe) when it's
-// edited, so no reload is needed; reload only on a screen switch.
+// Patch the message in place (plain text; newlines render via the pre-line CSS)
+// when it's edited, so no reload is needed; reload only on a screen switch.
 function refreshMessage() {
     fetch('check_variables')
         .then(function (r) { return r.json(); })
         .then(function (data) {
-            el.innerHTML = data.welcome || '';
+            el.textContent = data.welcome || '';
             fitMessage();
         })
         .catch(function () {});

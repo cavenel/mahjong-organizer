@@ -58,11 +58,7 @@
                   {% for row in mode.rows %}
                     <li class="flex items-baseline justify-between gap-3 text-xs">
                       <span class="text-gray-500 shrink-0">{{ row.label }}</span>
-                      {% if row.unchanged %}
-                        <span class="italic text-gray-400 text-right">unchanged</span>
-                      {% else %}
-                        <span class="font-medium text-gray-700 text-right">{{ row.pretty }}</span>
-                      {% endif %}
+                      <span class="font-medium text-gray-700 text-right">{{ row.pretty }}</span>
                     </li>
                   {% endfor %}
                 </ul>
@@ -574,9 +570,8 @@
     </p>
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 max-w-2xl">
       <label for="variables-welcome" class="sr-only">On-screen message</label>
-      <!-- Edited as plain text with real line breaks; stored and rendered as HTML.
-           The <br> tags in the stored value are shown as newlines here (see the
-           init script) and newlines are turned back into <br> on save. -->
+      <!-- Stored as plain text, newlines included; the display screens render it
+           escaped with white-space: pre-line. -->
       <textarea id="variables-welcome" rows="3" placeholder="Welcome"
                 class="variable-input w-full text-base border border-gray-200 rounded-lg px-3 py-2 bg-white resize-y
                        focus:outline-none focus:ring-2 focus:ring-amber-300">{{ variables.welcome }}</textarea>
@@ -627,19 +622,9 @@
   </details>
 
   <script>
-    // The message is edited as a textarea (real line breaks) but stored/rendered
-    // as HTML, so show the stored <br> as newlines when the page loads.
-    $("textarea.variable-input").each(function() {
-      this.value = this.value.replace(/<br\s*\/?>/gi, "\n");
-    });
-
     $(".variable-input").on('change', function() {
       var getVariables = $(".variable-input").map(function() {
-        var value = this.value;
-        // Round-trip the message: newlines become <br> so they render as line
-        // breaks on the screens (mirrors the load-time conversion above).
-        if (this.tagName === 'TEXTAREA') value = value.replace(/\r\n|\r|\n/g, "<br>");
-        return encodeURIComponent(this.id) + "=" + encodeURIComponent(value) + "&";
+        return encodeURIComponent(this.id) + "=" + encodeURIComponent(this.value) + "&";
       }).get().join("");
       var url = "/admin?page=display&action=set_variable&" + getVariables;
       $.ajax({
@@ -762,20 +747,21 @@
     }
 
     // ── Active-mode highlight ────────────────────────────────────────────────
-    // A mode is active when re-applying it would change nothing — i.e. its saved
-    // views match the screens it covers. Applying a mode zip()s views to screens,
-    // so a mode with fewer views than screens leaves the surplus untouched; the
-    // match is over the shorter of the two, mirroring that. Recomputed after any
-    // change (no server round-trip) so the chip always reflects the live room.
+    // A mode is active when re-applying it would change nothing. Applying a mode
+    // sets EVERY screen (screens beyond the saved list go blank), so the match
+    // is over all screens, padding the mode with 'black' — mirroring set_mode.
+    // Recomputed after any change (no server round-trip) so the chip always
+    // reflects the live room.
     function currentViews() {
       return Array.prototype.map.call(document.querySelectorAll('.select-output'), function(out) {
         return composeView(out.getAttribute('data-id')) || 'black';
       });
     }
     function viewsMatch(current, modeViews) {
-      var n = Math.min(current.length, modeViews.length);
-      if (n === 0) return false;
-      for (var i = 0; i < n; i++) if (current[i] !== modeViews[i]) return false;
+      if (current.length === 0) return false;
+      for (var i = 0; i < current.length; i++) {
+        if (current[i] !== (modeViews[i] || 'black')) return false;
+      }
       return true;
     }
     function recomputeActiveMode() {

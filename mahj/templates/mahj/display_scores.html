@@ -178,6 +178,35 @@
     <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
     {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
   </div>
+
+  {% if not awaiting_ceremony %}
+    <div id="fit-warning" style="display:none;"
+         class="fixed bottom-4 right-6 px-3 py-1.5 rounded-lg bg-rose-600 text-white text-base font-semibold shadow-lg">
+      ⚠ Standings don’t fit this screen — lower “score lines” or zoom
+    </div>
+    <script>
+      // Config sanity check: too many score lines (or too much zoom) for this
+      // screen would silently clip the bottom players behind overflow:hidden.
+      // Flag it — visible here and in the admin preview iframes — instead of
+      // losing rows invisibly. Re-checked on an interval because the visible
+      // page changes on rotation and fonts/flags load after the first paint.
+      (function() {
+        var badge = document.getElementById('fit-warning');
+        function checkFit() {
+          var clipped = false;
+          document.querySelectorAll('.scores_page').forEach(function(page) {
+            if (page.style.display === 'none') return;
+            var r = page.getBoundingClientRect();
+            if (r.bottom > window.innerHeight + 1 || r.right > window.innerWidth + 1) clipped = true;
+          });
+          badge.style.display = clipped ? '' : 'none';
+        }
+        checkFit();
+        window.addEventListener('resize', checkFit);
+        setInterval(checkFit, 3000);
+      })();
+    </script>
+  {% endif %}
 {% endblock %}
 
 {% block scripts %}
