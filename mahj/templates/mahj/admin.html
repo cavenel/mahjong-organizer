@@ -14,12 +14,26 @@
        out; Alpine drops x-cloak on boot and the :class binding takes over. */
     #admin-sidebar[x-cloak] { display: flex !important; transform: translateX(-100%); }
     @media (min-width: 1024px) { #admin-sidebar[x-cloak] { transform: translateX(0); } }
+
+    /* Desktop icon rail: body.rail collapses the sidebar to icons only. The
+       id/element selectors outrank the Tailwind width/padding utilities, and a
+       pre-boot inline script adds body.rail before paint so there's no flash. */
+    @media (min-width: 1024px) {
+      body.rail #admin-sidebar { width: 4rem; }
+      body.rail #admin-maincol { padding-left: 4rem; }
+      body.rail .rail-hide     { display: none !important; }
+      body.rail .nav-item, body.rail .brand { justify-content: center; }
+    }
   </style>
 {% endblock %}
 {% block body_attrs %}class="h-full bg-gray-50 text-gray-900"
       x-data="adminShell()"
+      :class="{ 'rail': railCollapsed }"
       @keydown.escape.window="closeModals()"{% endblock %}
 {% block content %}
+  <!-- Apply the saved rail state before paint so the collapsed sidebar doesn't
+       flash open on load. Alpine's :class binding on <body> takes over on boot. -->
+  <script>try { if (localStorage.getItem('adminRail') === '1') document.body.classList.add('rail'); } catch (e) {}</script>
 
   <!-- Sidebar overlay (mobile) -->
   <div x-show="sidebarOpen" x-transition.opacity
@@ -29,244 +43,211 @@
   <!-- Sidebar -->
   <aside id="admin-sidebar" x-cloak
          class="fixed inset-y-0 left-0 z-40 w-60 bg-white border-r border-gray-200 flex flex-col
-                transform transition-transform duration-200 lg:translate-x-0"
+                transform transition-all duration-200 lg:translate-x-0"
          :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'">
 
-    <a href="/admin" class="flex items-center gap-2 px-4 h-14 border-b border-gray-100">
-      <img src="{{ site_logo_url }}" class="h-6 w-auto" alt="logo">
-      <span class="font-bold text-gray-800">{{ base_domain }}</span>
+    <a href="/admin" class="brand flex items-center gap-2.5 px-4 h-14 border-b border-gray-100 shrink-0 overflow-hidden">
+      <img src="{{ site_logo_url }}" class="h-7 w-7 object-contain shrink-0" alt="logo">
+      <span class="font-bold text-gray-800 truncate rail-hide">{{ base_domain }}</span>
     </a>
 
     <nav class="flex-1 overflow-y-auto py-3 text-sm">
 
       <!-- Dashboard — top-level link, all roles -->
-      <a href="admin?page=welcome"
-         class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
-        Dashboard
+      <a href="admin?page=welcome" :title="railCollapsed ? 'Dashboard' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v5h-8zM13 12h8v9h-8zM3 15h8v6H3z"/></svg>
+        <span class="nav-label rail-hide">Dashboard</span>
       </a>
 
       <!-- CONFIGURATION -->
       {% if user.is_staff %}
-      <button type="button" @click="toggleSection('config')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Configuration</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='config' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='config'" x-transition x-cloak>
-        <a href="admin?page=settings"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'settings' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Tournament settings
-        </a>
-        <a href="admin?page=import_template"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'import_template' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-          Import from template
-        </a>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Configuration</p>
+      <a href="admin?page=settings" :title="railCollapsed ? 'Tournament settings' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'settings' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="nav-label rail-hide">Tournament settings</span>
+      </a>
+      <a href="admin?page=import_template" :title="railCollapsed ? 'Import from template' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'import_template' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span class="nav-label rail-hide">Import from template</span>
+      </a>
       {% endif %}
 
       <!-- PLAYERS -->
       {% if user.is_staff %}
-      <button type="button" @click="toggleSection('players')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Players</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='players' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='players'" x-transition x-cloak>
-        <a href="admin?page=player_editor"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'player_editor' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-          Edit players
-        </a>
-        <a href="admin_player_draw" target="_blank"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h12a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM9 9h.01M15 15h.01M9 15h.01M15 9h.01M12 12h.01"/></svg>
-          Randomize players (live)
-        </a>
-
-        <a href="admin?page=randomize"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'randomize' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-          Edit draw (manual)
-        </a>
-
-        <a href="admin_team_draw" target="_blank"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
-          Team draw (live)
-        </a>
-
-        <button type="button" @click="prepPrintOpen=!prepPrintOpen"
-                class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <span class="flex items-center gap-3">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            To print
-          </span>
-          <svg class="w-3 h-3 transition-transform" :class="prepPrintOpen ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <ul x-show="prepPrintOpen" x-transition class="text-gray-600" x-cloak>
-          <li><button type="button" @click="showPrintModal('player_names')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Player names</button></li>
-          {% if uses_teams %}<li><button type="button" @click="showPrintModal('team_names')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Team names</button></li>{% endif %}
-          <li><button type="button" @click="showPrintModal('player_cards')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Player cards</button></li>
-          <li><button type="button" @click="showPrintModal('table_posters')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Table positions</button></li>
-          <li><button type="button" @click="showPrintModal('cross_positions')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Cross positions</button></li>
-          <li><button type="button" @click="showPrintModal('cross_positions?per_team=1')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Cross positions (by team)</button></li>
-          <li><button type="button" @click="showPrintModal('print_schedule')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Schedule</button></li>
-        </ul>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Players</p>
+      <a href="admin?page=player_editor" :title="railCollapsed ? 'Edit players' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'player_editor' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span class="nav-label rail-hide">Edit players</span>
+      </a>
+      <a href="admin_player_draw" target="_blank" :title="railCollapsed ? 'Randomize players (live)' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="16" r="1.2"/><circle cx="16" cy="8" r="1.2"/><circle cx="8" cy="16" r="1.2"/></svg>
+        <span class="nav-label rail-hide">Randomize players (live)</span>
+        <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+      </a>
+      <a href="admin?page=randomize" :title="railCollapsed ? 'Edit draw (manual)' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'randomize' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
+        <span class="nav-label rail-hide">Edit draw (manual)</span>
+      </a>
+      <a href="admin_team_draw" target="_blank" :title="railCollapsed ? 'Team draw (live)' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 11l2 2 4-4"/></svg>
+        <span class="nav-label rail-hide">Team draw (live)</span>
+        <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+      </a>
       {% endif %}
 
       <!-- SCORING -->
       {% if user.is_staff or user_is_scorer or user_is_publisher %}
-      <button type="button" @click="toggleSection('scoring')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Scoring</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='scoring' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='scoring'" x-transition x-cloak>
-        <a href="admin?page=scoring"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-          Scoring
-        </a>
-
-        {% if user.is_staff or user_is_publisher %}
-        <a href="admin?page=publisher_overview"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          Publisher overview
-        </a>
-        {% endif %}
-
-        <button type="button" @click="livePrintOpen=!livePrintOpen"
-                class="w-full flex items-center justify-between gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <span class="flex items-center gap-3">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            To print
-          </span>
-          <svg class="w-3 h-3 transition-transform" :class="livePrintOpen ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-        </button>
-        <ul x-show="livePrintOpen" x-transition class="text-gray-600" x-cloak>
-          <li><button type="button" @click="showPrintModal('print_scores')" class="block w-full text-left pl-12 pr-4 py-1.5 hover:bg-amber-50 hover:text-amber-700">Scores</button></li>
-        </ul>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Scoring</p>
+      <a href="admin?page=scoring" :title="railCollapsed ? 'Scoring' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1zM9 12h6M9 16h4"/></svg>
+        <span class="nav-label rail-hide">Scoring</span>
+      </a>
+      {% if user.is_staff or user_is_publisher %}
+      <a href="admin?page=publisher_overview" :title="railCollapsed ? 'Publisher overview' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        <span class="nav-label rail-hide">Publisher overview</span>
+      </a>
+      {% endif %}
       {% endif %}
 
       <!-- DISPLAYS -->
       {% if user.is_staff or user_is_display_op %}
-      <button type="button" @click="toggleSection('displays')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Displays</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='displays' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='displays'" x-transition x-cloak>
-        <a href="admin?page=display"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-          Display on screens
-        </a>
-
-        <a href="admin?page=ceremony"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
-          Ceremony console
-        </a>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Displays</p>
+      <a href="admin?page=display" :title="railCollapsed ? 'Display on screens' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        <span class="nav-label rail-hide">Display on screens</span>
+      </a>
+      <a href="admin?page=ceremony" :title="railCollapsed ? 'Ceremony console' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
+        <span class="nav-label rail-hide">Ceremony console</span>
+      </a>
       {% endif %}
 
       <!-- RESULTS -->
       {% if user.is_staff %}
-      <button type="button" @click="toggleSection('results')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Results</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='results' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='results'" x-transition x-cloak>
-        <a target="_blank" href="EMA_report.xlsx"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1M12 12V4m0 8l-4-4m4 4l4-4"/></svg>
-          Generate EMA report
-        </a>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Results</p>
+      <a target="_blank" href="EMA_report.xlsx" :title="railCollapsed ? 'Generate EMA report' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13v5M12 11v7M15 15v3"/></svg>
+        <span class="nav-label rail-hide">Generate EMA report</span>
+        <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+      </a>
       {% endif %}
 
       <!-- ADMINISTRATION -->
       {% if user.is_staff %}
-      <button type="button" @click="toggleSection('admin')"
-              class="w-full flex items-center justify-between px-4 mt-4 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 hover:text-gray-600">
-        <span>Administration</span>
-        <svg class="w-3 h-3 transition-transform" :class="openSection==='admin' ? 'rotate-90' : ''" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-      </button>
-      <div x-show="openSection==='admin'" x-transition x-cloak>
-        <a href="admin?page=users"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
-          User management
-        </a>
-
-        <a href="admin?page=database_restore"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium border-r-2 border-amber-500{% else %}text-gray-700{% endif %}">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 1.105 3.582 2 8 2s8-.895 8-2V7M4 7c0 1.105 3.582 2 8 2s8-.895 8-2M4 7c0-1.105 3.582-2 8-2s8 .895 8 2m0 5c0 1.105-3.582 2-8 2s-8-.895-8-2"/></svg>
-          Database restore
-        </a>
-
-        <a target="_blank" href="admin_db"
-           class="flex items-center gap-3 px-4 py-2 hover:bg-amber-50 transition-colors text-gray-700">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4"/></svg>
-          Database administration
-        </a>
-      </div>
+      <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Administration</p>
+      <a href="admin?page=users" :title="railCollapsed ? 'User management' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M19 14v-1M19 20v-1M22 17h-1M16 17h-1"/><circle cx="19" cy="17" r="2"/></svg>
+        <span class="nav-label rail-hide">User management</span>
+      </a>
+      <a href="admin?page=database_restore" :title="railCollapsed ? 'Database restore' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
+        <span class="nav-label rail-hide">Database restore</span>
+      </a>
+      <a target="_blank" href="admin_db" :title="railCollapsed ? 'Database administration' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></svg>
+        <span class="nav-label rail-hide">Database administration</span>
+        <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
+      </a>
       {% endif %}
     </nav>
+
+    <!-- User / account — anchored to the sidebar foot; menu opens upward -->
+    <div class="border-t border-gray-100 p-2 shrink-0 relative" @click.outside="userMenuOpen=false">
+      <div x-show="userMenuOpen" x-transition x-cloak
+           class="absolute bottom-full left-2 right-2 mb-2 min-w-[14rem] bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm max-h-[70vh] overflow-auto">
+        {% if user.is_staff %}
+        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guides (PDF)</p>
+        <a target="_blank" href="/static/docs/full_admin.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+          <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          Full guide — all roles
+        </a>
+        <a target="_blank" href="/static/docs/MCR_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — head scorer</a>
+        <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — head scorer (cheat sheet)</a>
+        <a target="_blank" href="/static/docs/MCR_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — scorer</a>
+        <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — scorer (cheat sheet)</a>
+        <a target="_blank" href="/static/docs/Riichi_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — head scorer</a>
+        <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
+        <div class="border-t border-gray-100 my-1"></div>
+        {% endif %}
+        <a href="admin?logout=1" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+          <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+          Log out
+        </a>
+      </div>
+      <button type="button" @click="userMenuOpen=!userMenuOpen" :title="railCollapsed ? '{{ username }}' : ''"
+              class="nav-item w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-100">
+        <div class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-semibold text-sm shrink-0">{{ username|first|upper }}</div>
+        <div class="rail-hide min-w-0 flex-1 text-left leading-tight">
+          <p class="text-sm font-semibold text-gray-800 truncate">{{ username }}</p>
+          <p class="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            {% if user.is_staff %}Staff{% elif user_is_publisher %}Publisher{% elif user_is_scorer %}Scorer{% elif user_is_display_op %}Display operator{% endif %}
+          </p>
+        </div>
+        <svg class="w-4 h-4 text-gray-400 shrink-0 rail-hide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
+      </button>
+    </div>
   </aside>
 
   <!-- Main column -->
-  <div class="lg:pl-60 flex flex-col min-h-screen">
+  <div id="admin-maincol" class="lg:pl-60 flex flex-col min-h-screen transition-[padding] duration-200">
 
     <!-- Topbar -->
-    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-3">
-      <button type="button" class="lg:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900"
-              @click="sidebarOpen=true">
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-2 sm:gap-3">
+      <!-- Mobile: open the off-canvas drawer -->
+      <button type="button" class="lg:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 shrink-0"
+              @click="sidebarOpen=true" title="Menu">
         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
-      <h1 class="font-semibold text-sm text-gray-700 tracking-wide truncate">Mahjong Tournament Organizer</h1>
+      <!-- Desktop: collapse to icon rail -->
+      <button type="button" class="hidden lg:flex p-2 -ml-2 text-gray-500 hover:text-gray-900 rounded-lg hover:bg-gray-100 shrink-0"
+              @click="toggleRail()" title="Collapse menu">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+      </button>
+      <h1 id="page-title" class="flex-1 min-w-0 font-semibold text-sm sm:text-base text-gray-800 tracking-tight truncate">Mahjong Tournament Organizer</h1>
 
-      <div class="ml-auto relative" @click.outside="userMenuOpen=false">
-        <button type="button" @click="userMenuOpen=!userMenuOpen"
-                class="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-gray-100">
-          <div class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-semibold text-sm">
-            {{ username|first|upper }}
-          </div>
+      {% if user.is_staff or user_is_scorer or user_is_publisher %}
+      <div class="relative shrink-0" @click.outside="printMenuOpen=false">
+        <button type="button" @click="printMenuOpen=!printMenuOpen"
+                class="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400">
+          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
+          <span class="hidden sm:inline">Print / Export</span>
+          <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </button>
-        <div x-show="userMenuOpen" x-transition x-cloak
-             class="absolute right-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
-          <div class="px-3 py-2 border-b border-gray-100">
-            <p class="font-semibold text-gray-800">{{ username }}</p>
-            <p class="text-xs text-gray-500">Admin</p>
-          </div>
+        <div x-show="printMenuOpen" x-transition x-cloak
+             class="absolute right-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
           {% if user.is_staff %}
-          <div class="border-b border-gray-100 py-1">
-            <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guides (PDF)</p>
-            <a target="_blank" href="/static/docs/full_admin.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
-              <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Full guide — all roles
-            </a>
-            <a target="_blank" href="/static/docs/MCR_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — head scorer</a>
-            <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — head scorer (cheat sheet)</a>
-            <a target="_blank" href="/static/docs/MCR_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — scorer</a>
-            <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — scorer (cheat sheet)</a>
-            <a target="_blank" href="/static/docs/Riichi_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — head scorer</a>
-            <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
-          </div>
+          <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Prepare</p>
+          <button type="button" @click="showPrintModal('player_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Player names</button>
+          {% if uses_teams %}<button type="button" @click="showPrintModal('team_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Team names</button>{% endif %}
+          <button type="button" @click="showPrintModal('player_cards'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Player cards</button>
+          <button type="button" @click="showPrintModal('table_posters'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Table positions</button>
+          <button type="button" @click="showPrintModal('cross_positions'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Cross positions</button>
+          <button type="button" @click="showPrintModal('cross_positions?per_team=1'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Cross positions (by team)</button>
+          <button type="button" @click="showPrintModal('print_schedule'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Schedule</button>
+          <div class="border-t border-gray-100 my-1"></div>
+          <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Live</p>
           {% endif %}
-          <a href="admin?logout=1" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
-            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            Log out
-          </a>
+          <button type="button" @click="showPrintModal('print_scores'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Scores</button>
         </div>
       </div>
+      {% endif %}
     </header>
 
     <!-- Page content -->
@@ -342,34 +323,18 @@
 
 {% block scripts %}
   <script>
-    // Map an active page slug to the sidebar DOMAIN section that should be
-    // expanded on load. welcome (Dashboard) is a top-level link, so no section.
-    function sectionForPage(p) {
-      var map = {
-        settings: 'config',
-        import_template: 'config',
-        player_editor: 'players',
-        randomize: 'players',
-        scoring: 'scoring',
-        publisher_overview: 'scoring',
-        display: 'displays',
-        ceremony: 'displays',
-        users: 'admin',
-        database_restore: 'admin',
-      };
-      return map[p] || '';
-    }
-
     function adminShell() {
       return {
-        sidebarOpen: false,
-        userMenuOpen: false,
-        // Single-open accordion: which DOMAIN section is expanded. Auto-opens the
-        // section containing the active page on load; '' = all collapsed.
-        openSection: sectionForPage('{{ page|default:"" }}'),
-        prepPrintOpen: false,
-        livePrintOpen: false,
-        toggleSection(id) { this.openSection = this.openSection === id ? '' : id; },
+        sidebarOpen: false,      // mobile off-canvas drawer
+        userMenuOpen: false,     // account menu in the sidebar foot
+        printMenuOpen: false,    // the print/export dropdown in the topbar
+        // Desktop icon-rail collapse. Persisted so it survives the full-page
+        // navigations; a pre-boot script applies body.rail before paint.
+        railCollapsed: (function () { try { return localStorage.getItem('adminRail') === '1'; } catch (e) { return false; } })(),
+        toggleRail() {
+          this.railCollapsed = !this.railCollapsed;
+          try { localStorage.setItem('adminRail', this.railCollapsed ? '1' : '0'); } catch (e) {}
+        },
         printModal: { open: false, src: '' },
         detailsModal: { open: false, src: '' },
         confirmModal: { open: false, title: '', body: '', confirmLabel: 'Confirm',
@@ -438,9 +403,18 @@
           } catch(e) {}
           this.detailsModal.open = false; this.detailsModal.src = '';
         },
-        closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; },
+        closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; this.printMenuOpen = false; },
       };
     }
+
+    // Reflect the active sidebar item in the topbar title. The active item is
+    // already server-rendered (amber wash from the `page` var), so reading it
+    // here avoids keeping a second slug→label map in sync.
+    (function () {
+      var active = document.querySelector('#admin-sidebar .nav-item.bg-amber-50 .nav-label');
+      var title = document.getElementById('page-title');
+      if (active && title) title.textContent = active.textContent.trim();
+    })();
 
     // Globals so embedded fragment scripts (admin_*.html) can drive the modals.
     window.showPrintModal   = (url) => window._adminShell.showPrintModal(url);
