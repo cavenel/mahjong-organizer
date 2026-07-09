@@ -111,7 +111,9 @@
               <div class="text-5xl font-black w-16 text-center tabular-nums">${esc(e.pos)}</div>
               ${flagImg(e.flag)}
               <div class="flex-1 min-w-0 text-3xl font-black truncate">${esc(e.name)}</div>
-              <div class="text-3xl font-black tabular-nums whitespace-nowrap">${esc(e.tp)} <span class="text-2xl">TP</span> <span class="opacity-70 text-2xl">/ ${esc(e.mp)} MP</span></div>
+              <div class="text-3xl font-black tabular-nums whitespace-nowrap">${s.rules === 'MCR'
+                ? `${esc(e.tp)} <span class="text-2xl">TP</span> <span class="opacity-70 text-2xl">/ ${esc(e.mp)} MP</span>`
+                : `${esc(e.mp)} <span class="text-2xl">MP</span>`}</div>
             </div>
             <div class="grid grid-cols-2 gap-x-4 gap-y-2 mt-4 px-24">${members}</div>
           </div>`;

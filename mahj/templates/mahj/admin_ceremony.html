@@ -161,9 +161,8 @@
                   <div class="flex items-center gap-3">
                     <span class="w-6 font-bold tabular-nums" x-text="t.pos"></span>
                     <span class="flex-1 font-medium whitespace-nowrap" x-text="t.name"></span>
-                    <span class="tabular-nums font-semibold whitespace-nowrap">
-                      <span x-text="t.tp"></span> / <span x-text="t.mp"></span>
-                    </span>
+                    <span class="tabular-nums font-semibold whitespace-nowrap"
+                          x-text="data.rules === 'MCR' ? (t.tp + ' / ' + t.mp + ' MP') : (t.mp + ' MP')"></span>
                     <span title="prize">🏅</span>
                   </div>
                   <div class="text-xs text-gray-400 pl-9" x-text="(t.players || []).join(', ')"></div>
