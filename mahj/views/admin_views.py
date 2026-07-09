@@ -15,6 +15,7 @@ from django.contrib.auth import logout
 from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
+from django.db import transaction
 from django.db.models import F
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
 from django.template import loader
@@ -506,6 +507,89 @@ def admin_team_draw_save(request):
     Player.objects.bulk_update(to_update, ['draw_number'])
 
     return HttpResponse('OK')
+
+
+@user_passes_test(lambda u: u.is_staff)
+def admin_player_draw(request):
+    """Live individual draw: competitors arrive one at a time, physically draw a
+    number, and the operator types it in. Each assignment is saved immediately
+    (via admin_player_draw_assign) so the seating chart is live as the desk runs.
+    The draw is recorded as Player.draw_number, same as Randomize / Team draw."""
+    tenant = get_tenant(request)
+    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
+
+    # id order is the original row order of the Excel "Players" sheet, so a CSV
+    # export lines up with the template rows (matches the team-draw export).
+    order = {p.id: i for i, p in enumerate(sorted(roster, key=lambda p: p.id), start=1)}
+
+    players = [{
+        "id": p.id,
+        "original_index": order[p.id],
+        "full_name": p.full_name,
+        "first_name": p.first_name,
+        "country": p.country,
+        "flag": _country_flag(p.country),
+        "draw_number": p.draw_number,
+    } for p in roster]
+
+    draw_numbers = sorted({s.draw_number for s in Seat.objects.filter(tenant=tenant)})
+
+    template = loader.get_template('mahj/admin_player_draw.html')
+    context = {
+        "players_json": json.dumps(players),
+        "draw_numbers_json": json.dumps(draw_numbers),
+    }
+    return HttpResponse(template.render(context, request))
+
+
+@user_passes_test(lambda u: u.is_staff)
+def admin_player_draw_assign(request):
+    """Assign (or clear) one competitor's draw number for the live individual draw.
+
+    POST {player_id, draw_number} where draw_number is the number the competitor
+    physically drew, or null to clear it (undo). The availability check is done
+    here under a row lock so two registration desks can't hand out the same
+    number: the request fails if the number isn't a real draw slot or is already
+    held by someone else."""
+    if request.method != 'POST':
+        return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
+
+    tenant = get_tenant(request)
+    data = json.loads(request.body)
+    player_id = data.get('player_id')
+    draw_number = data.get('draw_number')  # int to assign, None to clear
+
+    with transaction.atomic():
+        try:
+            player = Player.objects.select_for_update().get(tenant=tenant, id=player_id)
+        except Player.DoesNotExist:
+            return JsonResponse({'ok': False, 'error': 'Unknown competitor'}, status=404)
+
+        if draw_number is None:
+            player.draw_number = None
+            player.save(update_fields=['draw_number'])
+            return JsonResponse({'ok': True, 'player_id': player.id, 'draw_number': None})
+
+        valid = set(Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True))
+        if draw_number not in valid:
+            return JsonResponse(
+                {'ok': False, 'error': f'#{draw_number} is not a valid draw number'}, status=400)
+
+        holder = (Player.objects
+                  .select_for_update()
+                  .filter(tenant=tenant, draw_number=draw_number)
+                  .exclude(id=player.id)
+                  .first())
+        if holder is not None:
+            return JsonResponse(
+                {'ok': False,
+                 'error': f'#{draw_number} is already taken by {holder.full_name}',
+                 'holder': holder.full_name},
+                status=409)
+
+        player.draw_number = draw_number
+        player.save(update_fields=['draw_number'])
+        return JsonResponse({'ok': True, 'player_id': player.id, 'draw_number': draw_number})
 
 
 # The metadata fields the Player editor may change. draw_number is deliberately

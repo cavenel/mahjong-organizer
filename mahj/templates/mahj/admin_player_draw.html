@@ -1,0 +1,593 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Player Draw</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+  <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <style>
+    [x-cloak] { display: none !important; }
+    @keyframes flash-green {
+      0%, 100% { background-color: transparent; }
+      50% { background-color: #d1fae5; }
+    }
+    .animate-flash-green { animation: flash-green 0.6s ease-in-out; }
+    @keyframes flash-red {
+      0%, 100% { background-color: transparent; }
+      50% { background-color: #fee2e2; }
+    }
+    .animate-flash-red { animation: flash-red 0.4s ease-in-out; }
+    @keyframes fade-in-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up { animation: fade-in-up 0.5s ease-out; }
+    @keyframes pop-in {
+      0% { opacity: 0; transform: scale(0.6); }
+      60% { transform: scale(1.08); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+    .animate-pop-in { animation: pop-in 0.5s ease-out; }
+  </style>
+</head>
+<body class="h-screen bg-white text-gray-900 overflow-hidden flex flex-col">
+
+  <script type="application/json" id="players-data">
+    {{ players_json|safe }}
+  </script>
+  <script type="application/json" id="draw-numbers-data">
+    {{ draw_numbers_json|safe }}
+  </script>
+
+  <!-- LOGO -->
+  <img src="{{ site_logo_url }}" alt="Tournament logo" class="fixed top-3 left-6 h-20 w-auto z-20">
+
+  <!-- CLOCK -->
+  <div id="clock" class="fixed top-3 right-6 text-2xl font-mono text-gray-400 z-20"></div>
+
+  <!-- ZONE 1: TOP BANNER -->
+  <div id="zone-banner" class="flex-[8] flex items-center justify-center px-8">
+    <h1 id="banner-text" class="text-6xl font-bold text-gray-800 text-center"></h1>
+  </div>
+
+  <!-- ZONE 2: ACTION ZONE -->
+  <div id="zone-action" class="flex-[10] flex items-center justify-center px-12 relative z-10 overflow-visible"></div>
+
+  <!-- ZONE 3: REVEAL CARD -->
+  <div id="zone-cards" class="flex-[22] flex items-center justify-center px-12">
+    <div id="reveal-card" class="w-full h-full flex items-center justify-center py-1" style="zoom:1.4;"></div>
+  </div>
+
+  <!-- ZONE 4: PROGRESS GRID -->
+  <div id="zone-grid" class="flex-[48] px-8 py-2 flex flex-col items-center overflow-y-auto" style="zoom: 1.15;">
+    <div id="progress-summary" class="text-sm text-gray-500 mb-2"></div>
+    <div id="progress-grid" class="w-full"></div>
+  </div>
+
+  <!-- ZONE 5: FOOTER TOOLBAR -->
+  <div id="zone-footer" class="flex-[5] flex items-center justify-end gap-3 px-6 border-t border-gray-200 text-sm">
+    <button id="btn-undo" onclick="undoLast()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Undo last</button>
+    <button id="btn-pause" onclick="togglePause()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Pause</button>
+    <button id="btn-export" onclick="exportCSV()" class="px-3 py-1 hover:bg-gray-100 rounded text-gray-600">Export CSV</button>
+  </div>
+
+  <!-- PAUSE OVERLAY -->
+  <div id="pause-overlay" class="fixed inset-0 z-50 bg-white flex items-center justify-center hidden cursor-pointer" onclick="togglePause()">
+    <div class="text-center">
+      <h2 class="text-5xl font-bold text-gray-400">Brief pause</h2>
+      <p class="text-2xl text-gray-300 mt-4">Please stand by...</p>
+      <p class="text-sm text-gray-300 mt-8">Click anywhere to resume</p>
+    </div>
+  </div>
+
+  <script>
+  // The full roster and the valid draw slots (seat draw numbers). The current
+  // draw is the source of truth server-side; PLAYERS carries each competitor's
+  // current draw_number at page load and we mutate the maps below as we go.
+  const PLAYERS = JSON.parse(document.getElementById('players-data').textContent);
+  const DRAW_NUMBERS = JSON.parse(document.getElementById('draw-numbers-data').textContent);
+
+  const PLAYER_BY_ID = new Map(PLAYERS.map(p => [p.id, p]));
+  // player_id -> draw_number (only for drawn competitors)
+  const assignments = new Map();
+  // draw_number -> player_id
+  const numberToPlayer = new Map();
+  for (const p of PLAYERS) {
+    if (p.draw_number !== null && p.draw_number !== undefined) {
+      assignments.set(p.id, p.draw_number);
+      numberToPlayer.set(p.draw_number, p.id);
+    }
+  }
+
+  const state = {
+    paused: false,
+    started_at: null,
+    // Undo stack of assignments made in this session: [{player_id, draw_number}].
+    // Only forward assignments of previously-undrawn competitors go here, so an
+    // undo is always "clear this competitor's number".
+    undo: [],
+  };
+
+  // The competitor picked in PLAYER_SEARCH, waiting for their drawn number.
+  let selectedPlayerId = null;
+  // Transient reveal after a successful assignment: {player_id, draw_number}.
+  let reveal = null;
+  let revealTimeout = null;
+  // Transient error message shown under the number input.
+  let entryError = '';
+
+  // ─── DERIVED HELPERS ───────────────────────────────────
+
+  function remainingPlayers() {
+    return PLAYERS.filter(p => !assignments.has(p.id));
+  }
+
+  function drawnCount() {
+    return assignments.size;
+  }
+
+  function currentMode() {
+    if (reveal) return 'REVEAL';
+    if (selectedPlayerId !== null) return 'NUMBER_ENTRY';
+    return 'PLAYER_SEARCH';
+  }
+
+  function playerLabel(p) {
+    const flag = p.flag
+      ? `<span class="flag flag-${p.flag}" style="width:22px;height:22px;vertical-align:middle;margin-right:6px"></span>`
+      : '';
+    return `${flag}${p.full_name}`;
+  }
+
+  // ─── STATE PERSISTENCE ─────────────────────────────────
+  // The server is the source of truth for the draw itself; localStorage only
+  // keeps the session's undo stack and start time so a refresh doesn't lose them.
+
+  function saveState() {
+    localStorage.setItem('player_draw_state', JSON.stringify({
+      paused: state.paused,
+      started_at: state.started_at,
+      undo: state.undo,
+    }));
+  }
+
+  function loadState() {
+    const saved = localStorage.getItem('player_draw_state');
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved);
+      state.paused = parsed.paused || false;
+      state.started_at = parsed.started_at || null;
+      // Keep only undo entries that still match the current server state, so a
+      // stale stack (e.g. numbers changed elsewhere) can't misfire.
+      state.undo = (parsed.undo || []).filter(
+        u => assignments.get(u.player_id) === u.draw_number);
+    } catch (e) { /* ignore corrupt state */ }
+  }
+
+  function togglePause() {
+    state.paused = !state.paused;
+    document.getElementById('pause-overlay').classList.toggle('hidden', !state.paused);
+    saveState();
+  }
+
+  // ─── SERVER ───────────────────────────────────────────
+
+  function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+    return '';
+  }
+
+  // Assign (draw_number set) or clear (draw_number null) one competitor's number.
+  // Returns the parsed JSON {ok, error, ...}; the server does the availability
+  // check under a lock, so this is authoritative.
+  async function serverAssign(playerId, drawNumber) {
+    try {
+      const resp = await fetch('admin_player_draw_assign', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken'),
+        },
+        body: JSON.stringify({ player_id: playerId, draw_number: drawNumber }),
+      });
+      return await resp.json();
+    } catch (e) {
+      return { ok: false, error: 'Network error: ' + e.message };
+    }
+  }
+
+  // ─── PLAYER SEARCH ─────────────────────────────────────
+
+  let searchValue = '';
+  let searchHighlight = 0;
+
+  function getSearchMatches() {
+    if (!searchValue) return [];
+    return remainingPlayers()
+      .filter(p => p.full_name.toLowerCase().includes(searchValue))
+      .slice(0, 6);
+  }
+
+  function filterPlayers(value) {
+    searchValue = value.toLowerCase();
+    searchHighlight = 0;
+    renderSearchResults();
+  }
+
+  function renderSearchResults() {
+    const container = document.getElementById('search-results');
+    if (!container) return;
+    const matches = getSearchMatches();
+    if (matches.length > 0) {
+      container.innerHTML = matches.map((p, i) =>
+        `<div class="text-3xl px-6 py-3 cursor-pointer rounded-lg transition-colors flex items-center
+                    ${i === searchHighlight ? 'bg-teal-100 text-teal-900' : 'hover:bg-gray-100'}"
+              onclick="selectPlayer(${p.id})">${playerLabel(p)}</div>`
+      ).join('');
+    } else {
+      container.innerHTML = '';
+    }
+  }
+
+  function searchArrow(dir) {
+    const matches = getSearchMatches();
+    if (matches.length === 0) return;
+    searchHighlight = Math.max(0, Math.min(matches.length - 1, searchHighlight + dir));
+    renderSearchResults();
+  }
+
+  function selectPlayer(playerId) {
+    selectedPlayerId = playerId;
+    searchValue = '';
+    searchHighlight = 0;
+    entryError = '';
+    render();
+  }
+
+  function confirmHighlighted() {
+    const matches = getSearchMatches();
+    if (matches.length > 0) {
+      selectPlayer(matches[searchHighlight].id);
+    }
+  }
+
+  function handleSearchKey(e) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); searchArrow(1); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); searchArrow(-1); }
+    else if (e.key === 'Enter') { e.preventDefault(); confirmHighlighted(); }
+  }
+
+  // ─── NUMBER ENTRY ──────────────────────────────────────
+
+  function cancelSelection() {
+    selectedPlayerId = null;
+    entryError = '';
+    render();
+  }
+
+  function flashRed() {
+    const zone = document.getElementById('zone-action');
+    zone.classList.add('animate-flash-red');
+    setTimeout(() => zone.classList.remove('animate-flash-red'), 400);
+  }
+
+  async function submitNumber() {
+    if (selectedPlayerId === null) return;
+    const input = document.getElementById('number-input');
+    if (!input) return;
+    const raw = input.value.trim();
+    const num = parseInt(raw, 10);
+
+    if (raw === '' || isNaN(num)) {
+      entryError = 'Type the number the competitor drew.';
+      flashRed();
+      renderActionZone(currentMode());
+      return;
+    }
+    // Instant local checks for snappy feedback; the server re-checks anyway.
+    if (!DRAW_NUMBERS.includes(num)) {
+      entryError = `#${num} is not a valid draw number.`;
+      flashRed();
+      renderActionZone(currentMode());
+      return;
+    }
+    if (numberToPlayer.has(num)) {
+      const holder = PLAYER_BY_ID.get(numberToPlayer.get(num));
+      entryError = `#${num} is already taken by ${holder ? holder.full_name : 'someone'}.`;
+      flashRed();
+      renderActionZone(currentMode());
+      return;
+    }
+
+    const playerId = selectedPlayerId;
+    const res = await serverAssign(playerId, num);
+    if (!res.ok) {
+      // Server refused (e.g. taken on another desk since we loaded). Keep whatever
+      // it tells us, and if it reports a holder, reflect that locally.
+      entryError = res.error || 'Could not assign that number.';
+      if (res.holder) numberToPlayer.set(num, -1); // mark taken, name unknown here
+      flashRed();
+      renderActionZone(currentMode());
+      return;
+    }
+
+    // Commit locally.
+    assignments.set(playerId, num);
+    numberToPlayer.set(num, playerId);
+    if (!state.started_at) state.started_at = Date.now();
+    state.undo.push({ player_id: playerId, draw_number: num });
+    saveState();
+
+    selectedPlayerId = null;
+    entryError = '';
+    reveal = { player_id: playerId, draw_number: num };
+    render();
+
+    clearTimeout(revealTimeout);
+    revealTimeout = setTimeout(dismissReveal, 3000);
+  }
+
+  function dismissReveal() {
+    clearTimeout(revealTimeout);
+    reveal = null;
+    render();
+  }
+
+  // ─── UNDO ──────────────────────────────────────────────
+
+  async function undoLast() {
+    if (state.undo.length === 0) return;
+    const last = state.undo[state.undo.length - 1];
+    // Only undo if the server state still matches what we assigned.
+    if (assignments.get(last.player_id) !== last.draw_number) {
+      state.undo.pop();
+      saveState();
+      render();
+      return;
+    }
+    const res = await serverAssign(last.player_id, null);
+    if (!res.ok) {
+      entryError = res.error || 'Undo failed.';
+      renderActionZone(currentMode());
+      return;
+    }
+    assignments.delete(last.player_id);
+    numberToPlayer.delete(last.draw_number);
+    state.undo.pop();
+    // Undo also cancels an in-flight reveal / selection so the view is consistent.
+    clearTimeout(revealTimeout);
+    reveal = null;
+    selectedPlayerId = null;
+    saveState();
+    render();
+  }
+
+  // ─── RENDER ───────────────────────────────────────────
+
+  function render() {
+    const mode = currentMode();
+    renderBanner(mode);
+    renderActionZone(mode);
+    renderRevealCard(mode);
+    renderProgressGrid();
+  }
+
+  function renderBanner(mode) {
+    const el = document.getElementById('banner-text');
+    if (!el) return;
+    const remaining = remainingPlayers().length;
+
+    switch (mode) {
+      case 'PLAYER_SEARCH':
+        if (remaining === 0) {
+          el.innerHTML = `<span class="text-emerald-600">All competitors drawn</span>`;
+        } else {
+          el.textContent = 'Who is drawing?';
+        }
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      case 'NUMBER_ENTRY': {
+        const p = PLAYER_BY_ID.get(selectedPlayerId);
+        el.innerHTML = `<span class="text-teal-700">${p ? playerLabel(p) : ''}</span>`;
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      }
+      case 'REVEAL': {
+        const p = PLAYER_BY_ID.get(reveal.player_id);
+        el.innerHTML = `<span class="text-emerald-600">${p ? p.full_name : ''}</span>`;
+        el.className = 'text-6xl font-bold text-gray-800 text-center';
+        break;
+      }
+    }
+  }
+
+  function renderActionZone(mode) {
+    const el = document.getElementById('zone-action');
+    const remaining = remainingPlayers().length;
+
+    switch (mode) {
+      case 'PLAYER_SEARCH':
+        if (remaining === 0) {
+          el.innerHTML = `
+            <div class="text-2xl text-gray-400">Every competitor has a number. You can Export CSV or close this page.</div>`;
+          return;
+        }
+        el.innerHTML = `
+          <div class="flex flex-col items-center justify-center w-full max-w-3xl relative">
+            <input type="text" id="player-search-input" autofocus autocomplete="off"
+                   placeholder="Type the competitor's name..."
+                   class="w-full text-4xl px-6 py-4 border-2 border-gray-300 rounded-lg
+                          focus:border-teal-700 focus:outline-none"
+                   oninput="filterPlayers(this.value)"
+                   onkeydown="handleSearchKey(event)">
+            <div id="search-results" class="absolute top-full mt-2 w-full space-y-1 bg-white rounded-lg shadow-lg z-20"></div>
+          </div>`;
+        setTimeout(() => {
+          renderSearchResults();
+          const input = document.getElementById('player-search-input');
+          if (input) input.focus();
+        }, 50);
+        break;
+
+      case 'NUMBER_ENTRY':
+        el.innerHTML = `
+          <div class="flex flex-col items-center justify-center w-full max-w-3xl gap-3">
+            <div class="text-xl text-gray-500">Enter the number drawn, then press Enter</div>
+            <div class="flex items-center gap-3 w-full">
+              <input type="number" id="number-input" autofocus autocomplete="off"
+                     placeholder="#"
+                     class="flex-1 text-5xl text-center px-6 py-3 border-2 border-gray-300 rounded-lg
+                            focus:border-teal-700 focus:outline-none"
+                     onkeydown="if(event.key==='Enter'){event.preventDefault();submitNumber();}">
+              <button onclick="submitNumber()"
+                      class="px-8 py-4 text-2xl bg-teal-700 hover:bg-teal-800 text-white rounded-lg shadow-lg">Assign</button>
+              <button onclick="cancelSelection()"
+                      class="px-6 py-4 text-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg">Cancel</button>
+            </div>
+            <div class="h-8 text-2xl font-semibold text-red-600">${entryError}</div>
+          </div>`;
+        setTimeout(() => {
+          const input = document.getElementById('number-input');
+          if (input) input.focus();
+        }, 50);
+        break;
+
+      case 'REVEAL':
+        el.innerHTML = '';
+        break;
+    }
+  }
+
+  function renderRevealCard(mode) {
+    const container = document.getElementById('reveal-card');
+    if (mode !== 'REVEAL') {
+      container.innerHTML = '';
+      return;
+    }
+    const p = PLAYER_BY_ID.get(reveal.player_id);
+    const flag = p && p.flag
+      ? `<span class="flag flag-${p.flag}" style="width:40px;height:40px;vertical-align:middle;margin-right:10px"></span>`
+      : '';
+    container.innerHTML = `
+      <div class="animate-pop-in bg-emerald-50 border-4 border-emerald-400 ring-4 ring-emerald-200
+                  rounded-2xl px-16 py-8 flex flex-col items-center gap-2">
+        <div class="text-3xl font-semibold text-gray-800 text-center">${flag}${p ? p.full_name : ''}</div>
+        <div class="text-9xl font-bold text-emerald-700">#${reveal.draw_number}</div>
+      </div>`;
+  }
+
+  function renderProgressGrid() {
+    const summary = document.getElementById('progress-summary');
+    const total = DRAW_NUMBERS.length;
+    const drawn = drawnCount();
+    if (summary) {
+      summary.innerHTML =
+        `<span class="font-semibold text-emerald-700">${drawn}</span> drawn &middot; ` +
+        `<span class="font-semibold text-gray-700">${total - drawn}</span> free ` +
+        `<span class="text-gray-400">of ${total}</span>`;
+    }
+
+    const container = document.getElementById('progress-grid');
+    const cols = 10;
+    let html = `<div class="grid gap-1" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
+    for (const dn of DRAW_NUMBERS) {
+      const holderId = numberToPlayer.get(dn);
+      const holder = holderId !== undefined ? PLAYER_BY_ID.get(holderId) : null;
+      const taken = holderId !== undefined;
+      const isReveal = reveal && reveal.draw_number === dn;
+
+      let cls;
+      if (isReveal) cls = 'bg-amber-100 text-amber-900 ring-2 ring-amber-400';
+      else if (taken) cls = 'bg-emerald-100 text-emerald-900';
+      else cls = 'bg-gray-50 text-gray-400';
+
+      const name = holder ? holder.full_name : (taken ? '(taken)' : '');
+      html += `
+        <div class="border rounded px-1.5 py-1 ${cls}">
+          <div class="text-[11px] font-bold">#${dn}</div>
+          <div class="text-[10px] leading-tight truncate">${name || '&nbsp;'}</div>
+        </div>`;
+    }
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // ─── CSV EXPORT ───────────────────────────────────────
+
+  function exportCSV() {
+    const rows = [];
+    for (const p of PLAYERS) {
+      const dn = assignments.get(p.id);
+      if (dn !== undefined) {
+        rows.push({ original_index: p.original_index, full_name: p.full_name, draw_number: dn });
+      }
+    }
+    // Sort by original Excel-sheet row order so the drawn numbers can be pasted
+    // straight back into the import template.
+    rows.sort((a, b) => a.original_index - b.original_index);
+    let csv = 'original_index,player_name,draw_number\n';
+    for (const r of rows) {
+      csv += `${r.original_index},"${r.full_name}",${r.draw_number}\n`;
+    }
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'player_draw_result.csv';
+    a.click();
+  }
+
+  // ─── KEYBOARD HANDLER ─────────────────────────────────
+
+  document.addEventListener('keydown', function(e) {
+    if (state.paused) {
+      if (e.key === 'Escape') togglePause();
+      return;
+    }
+
+    if (e.ctrlKey && e.key === 'z') {
+      e.preventDefault();
+      undoLast();
+      return;
+    }
+
+    if (e.key === 'Escape') {
+      togglePause();
+      return;
+    }
+
+    // During the reveal, Enter/Space skips the wait and jumps to the next drawer.
+    if (currentMode() === 'REVEAL' && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      dismissReveal();
+    }
+  });
+
+  // ─── CLOCK ─────────────────────────────────────────────
+
+  function updateClock() {
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, '0');
+    const m = String(now.getMinutes()).padStart(2, '0');
+    const s = String(now.getSeconds()).padStart(2, '0');
+    const dateStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    const el = document.getElementById('clock');
+    if (el) el.textContent = `${dateStr} — ${h}:${m}:${s}`;
+  }
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  // ─── INIT ─────────────────────────────────────────────
+
+  loadState();
+  if (state.paused) document.getElementById('pause-overlay').classList.remove('hidden');
+  render();
+  </script>
+
+</body>
+</html>
