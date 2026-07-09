@@ -172,11 +172,3 @@ def player_statistics(request, player, variables):
         "biggest_total": biggest_total,
         "num_wins": num_wins,
     }
-
-
-def get_podium(scores_json):
-    podium = [[], [], []]
-    for score in scores_json:
-        if score["pos"] < 4:
-            podium[score["pos"] - 1].append(score)
-    return podium

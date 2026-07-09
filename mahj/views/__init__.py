@@ -3,7 +3,6 @@
 from .helpers import (
     PositionForm,
     get_domain,
-    get_podium,
     can_access_admin,
     get_tenant,
     get_variables,
