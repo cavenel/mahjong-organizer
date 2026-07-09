@@ -201,6 +201,9 @@
       </table>
     </div>
 
+    {# Winning/losing rates and average hand value come from per-hand rows, which
+       only MCR records — Riichi stores a per-seat score total, so these are empty. #}
+    {% if variables.rules == "MCR" %}
     <!-- Winning & Losing Stats -->
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
@@ -277,6 +280,7 @@
         </tfoot>
       </table>
     </div>
+    {% endif %}
 
     <!-- Strength of Schedule -->
     {% if extra_stats.opp_strength.count %}
