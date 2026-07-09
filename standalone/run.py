@@ -51,13 +51,9 @@ LOCAL_TENANT=
 # Venue wall-clock timezone (IANA name), for the projector clock.
 VENUE_TZ=Europe/Stockholm
 
-# Public site URL shown to spectators (projector QR + caption, printed cards).
-# Set it to where you publish the static site below; leave blank to show nothing
-# meaningful. Example: PUBLIC_SITE_URL=https://scores.example.org
-PUBLIC_SITE_URL=
-
 # To publish the public spectator site to a web host, configure a target in the
-# admin console (Administration → Publish target) — no env vars needed.
+# admin console (Administration → Publish target) — no env vars needed. The
+# spectator URL advertised on screens/cards is set there too (Public URL).
 
 # Auto-generated on first run — do not edit.
 DJANGO_SECRET_KEY=

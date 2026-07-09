@@ -67,19 +67,20 @@ def lan_ip():
         return None
 
 
-def public_site_url(subdomain):
+def public_site_url(subdomain, public_url=''):
     """Public spectator-site URL to advertise (projector QR + caption, printed
-    cards). settings.PUBLIC_SITE_URL overrides for the standalone build, which
-    publishes to an external host; otherwise the tenant's cloud subdomain."""
-    url = (getattr(settings, 'PUBLIC_SITE_URL', '') or '').strip().rstrip('/')
+    cards). The tenant's configured ``public_url`` (TournamentSettings) wins —
+    set when the static site is published to an external host — otherwise the
+    tenant's ``<subdomain>.<BASE_DOMAIN>``."""
+    url = (public_url or '').strip().rstrip('/')
     if url:
         return url if '://' in url else f'https://{url}'
     return f'https://{subdomain}.{settings.BASE_DOMAIN}'
 
 
-def public_site_host(subdomain):
+def public_site_host(subdomain, public_url=''):
     """`public_site_url` without the scheme, for a compact on-screen caption."""
-    return public_site_url(subdomain).split('://', 1)[-1]
+    return public_site_url(subdomain, public_url).split('://', 1)[-1]
 
 
 def get_domain(request):
@@ -124,18 +125,23 @@ def get_tenant(request):
 
 
 def get_variables(request):
+    # Memoize on the request (like get_tenant): several context processors and
+    # the view itself read the settings each request, so share one fetch — and
+    # so a no-op cache backend (tests) can't turn that into repeated queries.
+    if hasattr(request, '_variables'):
+        return request._variables
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     cache_key = f'variables:{subdomain}'
     cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    variables = TournamentSettings.objects.filter(tenant=tenant).first()
-    if variables is None:
-        variables = TournamentSettings(tenant=tenant, welcome="Welcome")
-        variables.save()
-    cache.set(cache_key, variables, VARIABLES_TTL)
-    return variables
+    if cached is None:
+        cached = TournamentSettings.objects.filter(tenant=tenant).first()
+        if cached is None:
+            cached = TournamentSettings(tenant=tenant, welcome="Welcome")
+            cached.save()
+        cache.set(cache_key, cached, VARIABLES_TTL)
+    request._variables = cached
+    return cached
 
 
 def player_statistics(request, player, variables):

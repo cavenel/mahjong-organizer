@@ -23,8 +23,11 @@ requires `DJANGO_SETTINGS_MODULE=apps.settings.prod`** plus the variables below.
 | `ALLOWED_HOSTS` | `BASE_DOMAIN` + subdomains | Extra allowed `Host` values (comma-separated). |
 | `ANTHROPIC_API_KEY` | *(unset → scanning off)* | Enables score-sheet photo OCR. Manual entry is unaffected. |
 | `VENUE_TZ` | `UTC` | IANA timezone for the projector clock only; storage stays UTC. |
-| `PUBLIC_SITE_URL` | `<tenant>.<BASE_DOMAIN>` | Spectator URL shown on screens (QR) and player cards. Set for the standalone build. |
 | `LOCAL_TENANT` | *(unset)* | **Dev/standalone only** — pin every request to one tenant (venue-laptop failover). Ignored in prod. |
+
+The spectator URL shown on screens (QR) and player cards is configured
+**per tenant** in the admin (Administration → Publish target → *Spectator URL*),
+defaulting to `<tenant>.<BASE_DOMAIN>` — see below.
 
 ## PgBouncer tuning (optional)
 
@@ -52,6 +55,10 @@ Credentials are Fernet-encrypted at rest, keyed off `DJANGO_SECRET_KEY` — so
 rotating that key means re-entering them. A **Test connection** button verifies
 it. Leave a tenant's target disabled to not publish it; a multi-tenant instance
 publishes each enabled tenant to its own host.
+
+The same page has a **Spectator URL** field — the address advertised on screens
+(QR) and printed cards. Leave it blank to use `<tenant>.<BASE_DOMAIN>`, or set it
+to where the static site is published so spectators land on the published site.
 
 ## In-app database restore (optional)
 

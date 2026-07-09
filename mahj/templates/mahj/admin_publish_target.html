@@ -7,6 +7,17 @@
     </p>
   </div>
 
+  <!-- Spectator URL ----------------------------------------------------------->
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+    <label for="pt-public-url" class="block text-xs font-medium text-gray-600 mb-1">Spectator URL</label>
+    <input id="pt-public-url" type="text" placeholder="https://{{ subdomain }}.{{ base_domain }}" value="{{ public_url }}" maxlength="255"
+           class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+    <p class="text-xs text-gray-400 mt-1">
+      Advertised to spectators (projector QR + printed cards). Leave blank to use
+      <code class="text-xs">{{ subdomain }}.{{ base_domain }}</code>; set it to where you publish the static site.
+    </p>
+  </div>
+
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
     <label class="inline-flex items-center gap-2 cursor-pointer">
       <input id="pt-enabled" type="checkbox" {% if target.enabled %}checked{% endif %}
@@ -100,10 +111,13 @@
     $("#pt-status").text(msg).attr('class', 'text-sm ' + (ok ? 'text-emerald-600' : 'text-red-600'));
   }
 
-  $("#pt-save").on('click', function() {
-    var data = {
+  // The current form values — sent to both save and test, so Test connection
+  // verifies what's on screen right now, not the last-saved target.
+  function ptFormData() {
+    return {
       'csrfmiddlewaretoken': '{{ csrf_token }}',
       enabled: $("#pt-enabled").is(':checked') ? 'true' : 'false',
+      public_url: $("#pt-public-url").val(),
       host: $("#pt-host").val(),
       port: $("#pt-port").val(),
       username: $("#pt-username").val(),
@@ -114,8 +128,11 @@
       clear_password: $("#pt-clear-password").is(':checked') ? '1' : '0',
       clear_key: $("#pt-clear-key").is(':checked') ? '1' : '0'
     };
+  }
+
+  $("#pt-save").on('click', function() {
     $.ajax({
-      type: "POST", url: "/publish_target_save", data: data,
+      type: "POST", url: "/publish_target_save", data: ptFormData(),
       success: function() { location.reload(); },
       error: function(xhr) {
         var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The server rejected the change.';
@@ -127,8 +144,7 @@
   $("#pt-test").on('click', function() {
     ptStatus('Connecting…', true);
     $.ajax({
-      type: "POST", url: "/publish_target_test",
-      data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+      type: "POST", url: "/publish_target_test", data: ptFormData(),
       success: function(r) { ptStatus(r.message || 'Connected.', true); },
       error: function(xhr) {
         var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'Connection failed.';

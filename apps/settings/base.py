@@ -158,13 +158,6 @@ SCAN_ENABLED = True
 # restore-on-relaunch applied by the launcher.
 STANDALONE = False
 
-# Public spectator-site URL advertised to spectators (projector QR + caption,
-# printed player cards). Unset in the cloud → falls back to the tenant's
-# <subdomain>.<BASE_DOMAIN>. The standalone build sets it to wherever it publishes
-# the static site (the tenant's publish target), since 'local.<BASE_DOMAIN>' isn't
-# reachable.
-PUBLIC_SITE_URL = env('PUBLIC_SITE_URL', '')
-
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 STATIC_URL = '/static/'

@@ -20,7 +20,7 @@ from .helpers import get_tenant, get_variables, is_display_op
 from .scoring import scores_per_player_json, scores_per_table_json
 
 
-def _spectator_qr_svg(subdomain):
+def _spectator_qr_svg(subdomain, public_url=''):
     """Inline SVG QR linking to the public spectator site. Generated locally
     (segno, a pinned dependency) so the projector never depends on an external
     QR service at render time. Empty string if there's no subdomain or segno
@@ -32,7 +32,7 @@ def _spectator_qr_svg(subdomain):
     except ImportError:
         return ''
     from .helpers import public_site_url
-    url = public_site_url(subdomain)
+    url = public_site_url(subdomain, public_url)
     return segno.make(url, error='m').svg_inline(scale=3, border=2)
 
 
@@ -158,7 +158,7 @@ def welcome(request):
     context = {
         'variables': variables,
         'subdomain': subdomain,
-        'qr_svg': _spectator_qr_svg(subdomain),
+        'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
     }
     return HttpResponse(template.render(context, request))
 
@@ -188,7 +188,7 @@ def announcement(request):
     context = {
         'variables': variables,
         'subdomain': subdomain,
-        'qr_svg': _spectator_qr_svg(subdomain),
+        'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
     }
     return HttpResponse(template.render(context, request))
 

@@ -246,6 +246,11 @@ class TournamentSettings(TenantAwareModel):
     # default so a generic install bakes in no nationality.
     home_country = models.CharField(default="",max_length=70,blank=True)
     countrycourt = models.CharField(default="",max_length=8,blank=True)
+    # Public spectator-site URL advertised on projector screens (QR + caption)
+    # and printed player cards. Blank → the tenant's <subdomain>.<BASE_DOMAIN>.
+    # Set it to where the static site is published (see PublishTarget) so the QR
+    # points spectators at the published site rather than the live app.
+    public_url   = models.CharField(default="",max_length=255,blank=True)
     total_time   = models.IntegerField(default=1*60*60 + 55 * 60,null=False)
     nb_rounds    = models.IntegerField(default=7,null=False)
     # Discipline: only "MCR" vs "Riichi" are meaningful — MCR ranks on table

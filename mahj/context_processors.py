@@ -23,15 +23,18 @@ def site_logo(request):
 def public_site(request):
     """Expose the spectator-site URL advertised on projector screens and printed
     cards: `public_site_url` (with scheme, for QR/links) and `public_site_host`
-    (bare host, for a compact caption). PUBLIC_SITE_URL overrides for the
-    standalone build; otherwise it's the tenant's <subdomain>.<BASE_DOMAIN>."""
+    (bare host, for a compact caption). The tenant's configured public_url wins;
+    otherwise it's the tenant's <subdomain>.<BASE_DOMAIN>."""
     try:
         tenant = get_tenant(request)
         subdomain = tenant.subdomain if tenant else ''
+        variables = get_variables(request)
+        public_url = variables.public_url if variables else ''
     except Exception:
         subdomain = ''
+        public_url = ''
     return {
-        "public_site_url": public_site_url(subdomain),
-        "public_site_host": public_site_host(subdomain),
+        "public_site_url": public_site_url(subdomain, public_url),
+        "public_site_host": public_site_host(subdomain, public_url),
         "base_domain": settings.BASE_DOMAIN,
     }

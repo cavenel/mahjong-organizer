@@ -698,21 +698,58 @@ def publish_target_save(request):
         target.private_key_enc = publish_secrets.encrypt(key)
 
     target.save()
+
+    # The advertised spectator URL is a TournamentSettings field (cached and read
+    # on every public request), but edited on this page next to the SFTP target.
+    variables = get_variables(request)
+    public_url = request.POST.get('public_url', '').strip()
+    if public_url != variables.public_url:
+        variables.public_url = public_url
+        variables.save(update_fields=['public_url'])  # signals bust the cache
     return JsonResponse({'status': 'ok'})
 
 
 @user_passes_test(lambda u: u.is_staff)
 def publish_target_test(request):
-    """Open + close an SFTP connection to this tenant's saved target and report
-    ok/error, so staff can verify credentials before relying on a publish."""
+    """Open + close an SFTP connection using the values currently in the form —
+    not the saved target — so staff can verify before saving. A blank password/
+    key field falls back to the stored secret, so you can test an unchanged
+    credential without re-typing it."""
+    if request.method != 'POST':
+        return HttpResponseForbidden('POST required')
     tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    from ..publish.sftp_upload import resolve_config, _connect
-    cfg = resolve_config(subdomain)
-    if cfg is None:
+    from ..models import PublishTarget
+    from ..publish import secrets as publish_secrets
+    from ..publish.sftp_upload import PublishConfig, _connect
+
+    host = request.POST.get('host', '').strip()
+    if not host:
+        return JsonResponse({'status': 'error', 'error': 'Enter a host first.'}, status=400)
+    port_raw = request.POST.get('port', '').strip() or '22'
+    try:
+        port = int(port_raw)
+    except ValueError:
         return JsonResponse(
-            {'status': 'error', 'error': 'No publish target configured for this tenant.'},
+            {'status': 'error', 'error': f'Port must be a number (got {port_raw!r}).'},
             status=400)
+
+    stored = (PublishTarget.objects.filter(tenant=tenant).order_by('id').first()
+              if tenant else None)
+    password = request.POST.get('password', '')
+    if not password and stored and request.POST.get('clear_password') != '1':
+        password = publish_secrets.decrypt(stored.password_enc)
+    key = request.POST.get('private_key', '')
+    if not key.strip() and stored and request.POST.get('clear_key') != '1':
+        key = publish_secrets.decrypt(stored.private_key_enc)
+
+    cfg = PublishConfig(
+        host=host, port=port,
+        username=request.POST.get('username', '').strip(),
+        path=request.POST.get('path', '').strip() or '.',
+        password=password,
+        key_data=key,
+        host_key=request.POST.get('host_key', '').strip(),
+    )
     try:
         client = _connect(cfg)
         client.open_sftp().close()
@@ -1016,6 +1053,10 @@ def options(request, error=None):
                 # is set, so the form can show a "configured" hint.
                 "has_password": bool(target and target.password_enc),
                 "has_key": bool(target and target.private_key_enc),
+                # The advertised spectator URL lives on TournamentSettings (cached,
+                # non-secret) but is edited here, next to the SFTP target.
+                "public_url": get_variables(request).public_url,
+                "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "import_template":
         template2 = loader.get_template('mahj/admin_import_template.html')

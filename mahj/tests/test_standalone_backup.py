@@ -113,22 +113,19 @@ class TestRestore:
 
 
 class TestPublicSiteUrl:
-    """The spectator-site URL advertised on screens/cards: PUBLIC_SITE_URL wins,
-    else the tenant's <subdomain>.example.com (cloud default)."""
+    """The spectator-site URL advertised on screens/cards: the tenant's
+    configured public_url wins, else its <subdomain>.example.com (default)."""
 
-    def test_fallback_to_subdomain(self, settings):
+    def test_fallback_to_subdomain(self):
         from mahj.views.helpers import public_site_url, public_site_host
-        settings.PUBLIC_SITE_URL = ''
         assert public_site_url('oemc2026') == 'https://oemc2026.example.com'
         assert public_site_host('oemc2026') == 'oemc2026.example.com'
 
-    def test_override_used_when_set(self, settings):
+    def test_override_used_when_set(self):
         from mahj.views.helpers import public_site_url, public_site_host
-        settings.PUBLIC_SITE_URL = 'https://scores.example.org'
-        assert public_site_url('local') == 'https://scores.example.org'
-        assert public_site_host('local') == 'scores.example.org'
+        assert public_site_url('local', 'https://scores.example.org') == 'https://scores.example.org'
+        assert public_site_host('local', 'https://scores.example.org') == 'scores.example.org'
 
-    def test_override_without_scheme_gets_https(self, settings):
+    def test_override_without_scheme_gets_https(self):
         from mahj.views.helpers import public_site_url
-        settings.PUBLIC_SITE_URL = 'scores.example.org'
-        assert public_site_url('local') == 'https://scores.example.org'
+        assert public_site_url('local', 'scores.example.org') == 'https://scores.example.org'

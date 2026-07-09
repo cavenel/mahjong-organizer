@@ -311,6 +311,21 @@ class TestPublishTargetEndpoint:
         assert t.host == 'web2.example'
         assert secrets.decrypt(t.password_enc) == 'keepme'
 
+    def test_save_persists_public_url_to_settings(self, tournament):
+        from mahj.models import TournamentSettings
+        c = self._staff_client()
+        c.post('/publish_target_save',
+               {'host': 'web.example', 'public_url': 'https://scores.example.org'})
+        v = TournamentSettings.objects.get(tenant=tournament['tenant'])
+        assert v.public_url == 'https://scores.example.org'
+
+    def test_test_connection_needs_host(self, tournament):
+        # Test connection uses the posted form values, so an empty host is a 400
+        # before any network attempt.
+        c = self._staff_client()
+        resp = c.post('/publish_target_test', {'host': ''})
+        assert resp.status_code == 400
+
     def test_clear_password_wipes_it(self, tournament):
         from mahj.models import PublishTarget
         c = self._staff_client()
