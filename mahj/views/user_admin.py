@@ -21,6 +21,7 @@ from sesame.utils import get_token
 ROLE_GROUPS = ['Scorer', 'Display_op', 'Publisher']
 
 staff_only = user_passes_test(lambda u: u.is_staff)
+superuser_only = user_passes_test(lambda u: u.is_superuser)
 
 # "Sudo mode": staff must re-enter their password to reach user management, so an
 # unattended/borrowed admin session can't be used to create or steal accounts.
@@ -53,6 +54,21 @@ def staff_and_reauthed(view):
             return JsonResponse({'status': 'reauth_required'}, status=403)
         return view(request, *args, **kwargs)
     return staff_only(inner)
+
+
+def superuser_and_reauthed(view):
+    """Like ``staff_and_reauthed``, but requires ``is_superuser``.
+
+    Restoring the database is a platform-operator action: the dump/restore is
+    whole-cluster (it replaces every tenant's rows at once), so it must never be
+    reachable by a per-tenant staff admin. Django users are not tenant-scoped, so
+    the staff flag is no cross-tenant guard — the superuser flag is."""
+    @wraps(view)
+    def inner(request, *args, **kwargs):
+        if not reauth_ok(request):
+            return JsonResponse({'status': 'reauth_required'}, status=403)
+        return view(request, *args, **kwargs)
+    return superuser_only(inner)
 
 
 @staff_only

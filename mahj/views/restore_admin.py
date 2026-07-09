@@ -1,13 +1,15 @@
-"""Staff-only database restore console.
+"""Superuser-only database restore console.
 
 Lists the local Postgres dumps (written by ``backup_db.sh`` / pulled by
 ``pull_backups.sh``), pulls fresh dumps from the off-host remote, and enqueues a
 restore of a chosen dump. The destructive work runs in ``restore_worker`` (a
 request can't tear down its own container); these endpoints only enqueue + poll.
 
-Gated exactly like User management — ``@staff_and_reauthed`` (staff + a recent
-password re-confirmation) — plus a typed-confirmation of the DB name on restore,
-mirroring the typed-name prompt in ``scripts/restore_db.sh``.
+Gated ``@superuser_and_reauthed`` (superuser + a recent password
+re-confirmation) — the dump/restore is whole-cluster (every tenant's rows), so it
+is a platform-operator action, not a per-tenant staff one — plus a
+typed-confirmation of the DB name on restore, mirroring the typed-name prompt in
+``scripts/restore_db.sh``.
 """
 import datetime
 import os
@@ -16,7 +18,7 @@ from django.conf import settings
 from django.http import JsonResponse
 
 from .. import restore_queue
-from .user_admin import staff_and_reauthed
+from .user_admin import superuser_and_reauthed
 
 # Newest N dumps shown per source before the "show older" expander — a box holds
 # hundreds (one dump every few minutes over multi-day retention), so we never
@@ -101,6 +103,7 @@ def list_backups():
             'count': len(dumps),
             'newest': dumps[0]['name'],
             'newest_ago': dumps[0]['ago'],
+            'newest_when': dumps[0]['when'],
             'recent': dumps[:RECENT_PER_SOURCE],
             'has_more': len(dumps) > RECENT_PER_SOURCE,
         })
@@ -126,7 +129,7 @@ def _validate_dump(name):
     return path
 
 
-@staff_and_reauthed
+@superuser_and_reauthed
 def restore_pull(request):
     """Enqueue a pull of the off-host dumps down into the local backups dir."""
     if settings.STANDALONE:
@@ -140,7 +143,7 @@ def restore_pull(request):
     return JsonResponse({'status': 'ok', 'job_id': job_id})
 
 
-@staff_and_reauthed
+@superuser_and_reauthed
 def restore_run(request):
     """Restore a chosen backup — gated by a typed confirmation.
 
@@ -187,7 +190,7 @@ def restore_run(request):
     return JsonResponse({'status': 'ok', 'job_id': job_id})
 
 
-@staff_and_reauthed
+@superuser_and_reauthed
 def restore_status(request):
     """Poll a queued restore/pull job (Postgres path only)."""
     if settings.STANDALONE:

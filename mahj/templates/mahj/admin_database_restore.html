@@ -53,7 +53,7 @@
         </h3>
         <span class="text-xs text-gray-500">{{ g.count }} dump{{ g.count|pluralize }}{% if g.newest_ago %} · newest {{ g.newest_ago }}{% endif %}</span>
         <button type="button" class="restore-dump ml-auto rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-600"
-                data-name="{{ g.newest }}">Restore newest</button>
+                data-name="{{ g.newest }}" data-when="{{ g.newest_when }}">Restore newest</button>
       </div>
       <table class="w-full text-sm text-gray-700">
         <tbody class="divide-y divide-gray-100">
@@ -64,7 +64,7 @@
             <td class="px-3 py-2 text-gray-400 text-xs whitespace-nowrap">{{ d.size_h }}</td>
             <td class="px-4 py-2 text-right">
               <button type="button" class="restore-dump rounded border border-rose-300 px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
-                      data-name="{{ d.name }}">Restore</button>
+                      data-name="{{ d.name }}" data-when="{{ d.when }}">Restore</button>
             </td>
           </tr>
           {% endfor %}
@@ -97,8 +97,11 @@
         </div>
         <div class="min-w-0">
           <h3 class="text-lg font-bold text-gray-900">Restore the live database?</h3>
-          <p class="mt-2 text-sm text-gray-600">This will overwrite <strong>{{ db_name }}</strong> with:</p>
+          <p class="mt-2 text-sm text-gray-600">This will overwrite <strong>{{ db_name }}</strong> — currently
+            <strong>{{ db_counts.players }}</strong> players, <strong>{{ db_counts.positions }}</strong> positions,
+            <strong>{{ db_counts.hands }}</strong> hands — with:</p>
           <p class="mt-1 font-mono text-xs text-gray-500 break-all" id="restore-dump-name"></p>
+          <p class="mt-1 text-xs text-rose-700" id="restore-dump-when"></p>
           <label class="mt-4 block text-xs text-gray-500">Type the database name (<strong>{{ db_name }}</strong>) to confirm
             <input id="restore-confirm-input" type="text" autocomplete="off"
                    class="mt-1 w-full rounded border border-gray-300 px-2 py-1 text-sm text-gray-800">
@@ -217,9 +220,10 @@
   var $progressStep = $("#restore-progress-step");
   var pendingDump = null;
 
-  function openModal(name) {
+  function openModal(name, when) {
     pendingDump = name;
     $("#restore-dump-name").text(name);
+    $("#restore-dump-when").text(when ? ("Backup from " + when + " — anything entered since is lost.") : "");
     $("#restore-confirm-input").val("");
     $("#restore-go").prop("disabled", true);
     $confirmStep.removeClass("hidden");
@@ -230,7 +234,7 @@
   }
   function closeModal() { $modal.addClass("hidden").removeClass("flex"); pendingDump = null; }
 
-  $(document).on("click", ".restore-dump", function() { openModal($(this).data("name")); });
+  $(document).on("click", ".restore-dump", function() { openModal($(this).data("name"), $(this).data("when")); });
   $modal.on("click", "[data-close]", closeModal);
   $("#restore-confirm-input").on("input", function() {
     $("#restore-go").prop("disabled", $(this).val() !== DB_NAME);

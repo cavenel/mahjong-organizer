@@ -102,6 +102,14 @@ class TestRestore:
         # A safety snapshot of the 'changed' state was taken during apply.
         assert len(after) > len(before)
 
+    def test_apply_leaves_no_temp_file(self, db):
+        # The swap is atomic (copy to a temp then os.replace); the temp must not
+        # linger next to the live DB.
+        snap = sb.take_snapshot()
+        sb.request_restore(snap.name)
+        sb.apply_pending_restore()
+        assert not (db.parent / (db.name + '.restore-tmp')).exists()
+
     def test_no_marker_is_noop(self, db):
         assert sb.apply_pending_restore() is None
 

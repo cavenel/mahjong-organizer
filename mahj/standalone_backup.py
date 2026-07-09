@@ -126,12 +126,24 @@ def apply_pending_restore():
 
     dbp = db_path()
     if dbp.exists():
-        take_snapshot(prune=False)  # preserve current; never prune the restore source
+        # Best-effort safety copy of the current DB so a mistaken restore is itself
+        # recoverable. Never let it block the restore: the operator may be
+        # restoring *because* the live DB is corrupt, and snapshotting a corrupt
+        # DB can fail — the restore source is already integrity-checked above.
+        try:
+            take_snapshot(prune=False)  # never prune the restore source
+        except Exception:
+            pass
     for suffix in ('-wal', '-shm'):
         side = Path(str(dbp) + suffix)
         if side.exists():
             side.unlink()
-    shutil.copyfile(snap, dbp)
+    # Atomic swap: copy to a temp file in the same dir, then os.replace (an atomic
+    # rename on the same filesystem), so a crash mid-write can't leave a truncated
+    # live DB.
+    tmp = Path(str(dbp) + '.restore-tmp')
+    shutil.copyfile(snap, tmp)
+    os.replace(tmp, dbp)
     return name
 
 
@@ -183,6 +195,7 @@ def list_snapshot_groups():
         'count': len(items),
         'newest': items[0]['name'],
         'newest_ago': items[0]['ago'],
+        'newest_when': items[0]['when'],
         'recent': items[:RECENT_SHOWN],
         'has_more': len(items) > RECENT_SHOWN,
     }]

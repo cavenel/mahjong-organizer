@@ -1495,9 +1495,11 @@ def options(request, error=None):
                 "link_validity_days": settings.SESAME_MAX_AGE // 86400,
             }, request)
     elif page == "database_restore":
-        # Staff-only, and — like user management — re-confirm the password first:
-        # this page can WIPE the live DB, so a borrowed session must re-auth.
-        if not request.user.is_staff:
+        # Superuser-only (the restore is whole-cluster, a platform-operator
+        # action — see restore_admin), and — like user management — re-confirm the
+        # password first: this page can WIPE the live DB, so a borrowed session
+        # must re-auth.
+        if not request.user.is_superuser:
             page_content = "None"
         elif not reauth_ok(request):
             template2 = loader.get_template('mahj/admin_users_reauth.html')
@@ -1505,6 +1507,14 @@ def options(request, error=None):
                 {"link_only": not request.user.has_usable_password(),
                  "reauth_next": "database_restore"}, request)
         else:
+            # Counts the confirm dialog shows as "what you're about to overwrite".
+            # Unscoped (whole-DB): a restore replaces every tenant's rows at once,
+            # matching the worker's post-restore report.
+            db_counts = {
+                "players": Player.objects.count(),
+                "positions": Seat.objects.count(),
+                "hands": Hand.objects.count(),
+            }
             if settings.STANDALONE:
                 from .. import standalone_backup
                 restore_ctx = {
@@ -1512,12 +1522,14 @@ def options(request, error=None):
                     "db_name": standalone_backup.CONFIRM_TOKEN,
                     "pull_configured": False,   # off-host pull is Postgres-only
                     "standalone": True,         # restore applies on relaunch
+                    "db_counts": db_counts,
                 }
             else:
                 restore_ctx = {
                     "groups": list_backups(),
                     "db_name": settings.DATABASES['default']['NAME'],
                     "pull_configured": bool(os.environ.get('REMOTE')),
+                    "db_counts": db_counts,
                 }
             template2 = loader.get_template('mahj/admin_database_restore.html')
             page_content = template2.render(restore_ctx, request)

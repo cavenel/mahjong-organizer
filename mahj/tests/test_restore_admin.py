@@ -28,7 +28,14 @@ def client_():
 
 
 @pytest.fixture
+def super_user(db):
+    # Restore is a platform-operator action, gated on is_superuser.
+    return User.objects.create_user('operator', password='pw', is_staff=True, is_superuser=True)
+
+
+@pytest.fixture
 def staff_user(db):
+    # Staff but NOT superuser — a per-tenant admin, who must NOT reach restore.
     return User.objects.create_user('staffer', password='pw', is_staff=True)
 
 
@@ -79,29 +86,40 @@ class TestGating:
     @pytest.mark.parametrize('path,method', [
         ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
     ])
-    def test_staff_without_reauth_blocked(self, client_, staff_user, path, method):
-        client_.force_login(staff_user)
+    def test_superuser_without_reauth_blocked(self, client_, super_user, path, method):
+        client_.force_login(super_user)
         resp = getattr(client_, method)(path)
         assert resp.status_code == 403
         assert resp.json()['status'] == 'reauth_required'
+
+    @pytest.mark.parametrize('path,method', [
+        ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
+    ])
+    def test_staff_non_superuser_blocked_even_with_reauth(self, client_, staff_user, path, method):
+        # F-H1: a per-tenant staff admin must not reach the whole-cluster restore.
+        # superuser_only wraps the reauth check, so they're redirected, never 403.
+        client_.force_login(staff_user)
+        _reauth(client_)
+        resp = getattr(client_, method)(path)
+        assert resp.status_code == 302
 
     def test_non_staff_blocked_even_with_reauth(self, client_, plain_user):
         client_.force_login(plain_user)
         _reauth(client_)
         resp = client_.get('/restore_status?job_id=x')
-        # staff_only wraps the reauth check, so a non-staff user is redirected.
+        # superuser_only wraps the reauth check, so a non-superuser is redirected.
         assert resp.status_code == 302
 
 
 # -- restore_run: typed confirmation + dump validation -----------------------
 
 class TestRestoreRun:
-    def _login(self, client_, staff_user):
-        client_.force_login(staff_user)
+    def _login(self, client_, super_user):
+        client_.force_login(super_user)
         _reauth(client_)
 
-    def test_wrong_confirm_rejected(self, client_, staff_user, backups_dir, no_redis):
-        self._login(client_, staff_user)
+    def test_wrong_confirm_rejected(self, client_, super_user, backups_dir, no_redis):
+        self._login(client_, super_user)
         _make_dump(backups_dir, 'mahj_cloud_20260630T184242Z.dump')
         resp = client_.post('/restore_run', data={
             'dump': 'mahj_cloud_20260630T184242Z.dump', 'confirm': 'nope',
@@ -109,24 +127,24 @@ class TestRestoreRun:
         assert resp.status_code == 400
         assert no_redis == []          # nothing enqueued
 
-    def test_unknown_dump_rejected(self, client_, staff_user, backups_dir, no_redis):
-        self._login(client_, staff_user)
+    def test_unknown_dump_rejected(self, client_, super_user, backups_dir, no_redis):
+        self._login(client_, super_user)
         resp = client_.post('/restore_run', data={
             'dump': 'mahj_cloud_does_not_exist.dump', 'confirm': settings.DATABASES['default']['NAME'],
         }, content_type='application/json')
         assert resp.status_code == 400
         assert no_redis == []
 
-    def test_path_traversal_rejected(self, client_, staff_user, backups_dir, no_redis):
-        self._login(client_, staff_user)
+    def test_path_traversal_rejected(self, client_, super_user, backups_dir, no_redis):
+        self._login(client_, super_user)
         resp = client_.post('/restore_run', data={
             'dump': '../../etc/passwd', 'confirm': settings.DATABASES['default']['NAME'],
         }, content_type='application/json')
         assert resp.status_code == 400
         assert no_redis == []
 
-    def test_missing_header_rejected(self, client_, staff_user, backups_dir, no_redis):
-        self._login(client_, staff_user)
+    def test_missing_header_rejected(self, client_, super_user, backups_dir, no_redis):
+        self._login(client_, super_user)
         _make_dump(backups_dir, 'mahj_cloud_bad.dump', header=b'NOTPG')
         resp = client_.post('/restore_run', data={
             'dump': 'mahj_cloud_bad.dump', 'confirm': settings.DATABASES['default']['NAME'],
@@ -134,8 +152,8 @@ class TestRestoreRun:
         assert resp.status_code == 400
         assert no_redis == []
 
-    def test_valid_restore_enqueued(self, client_, staff_user, backups_dir, no_redis):
-        self._login(client_, staff_user)
+    def test_valid_restore_enqueued(self, client_, super_user, backups_dir, no_redis):
+        self._login(client_, super_user)
         _make_dump(backups_dir, 'mahj_cloud_20260630T184242Z.dump')
         resp = client_.post('/restore_run', data={
             'dump': 'mahj_cloud_20260630T184242Z.dump', 'confirm': settings.DATABASES['default']['NAME'],
@@ -151,8 +169,8 @@ class TestRestoreRun:
         # the DB swap (the restore wipes django_session and would log them out).
         assert job['session_key']
 
-    def test_pull_enqueued(self, client_, staff_user, no_redis):
-        client_.force_login(staff_user)
+    def test_pull_enqueued(self, client_, super_user, no_redis):
+        client_.force_login(super_user)
         _reauth(client_)
         resp = client_.post('/restore_pull')
         assert resp.status_code == 200

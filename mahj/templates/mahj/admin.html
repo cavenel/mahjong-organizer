@@ -148,11 +148,13 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M19 14v-1M19 20v-1M22 17h-1M16 17h-1"/><circle cx="19" cy="17" r="2"/></svg>
         <span class="nav-label rail-hide">User management</span>
       </a>
+      {% if user.is_superuser %}
       <a href="admin?page=database_restore" :title="railCollapsed ? 'Database restore' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
         <span class="nav-label rail-hide">Database restore</span>
       </a>
+      {% endif %}
       <a href="admin?page=publish_target" :title="railCollapsed ? 'Publish target' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publish_target' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a5 5 0 0 1 4.9-6h.7A6 6 0 1 1 16 20H8a4 4 0 0 1-4-4z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
