@@ -639,3 +639,75 @@ class TestUnclaimedDrawSlot:
         self._unclaim(tournament, 5)
         html = views.player_cards(request_).content.decode()
         assert 'Player 5' in html
+
+
+class TestRiichiHidesHandStats:
+    """Riichi records only a per-seat score total (no Hand rows), so the
+    hand-by-hand stats and the links to the MCR hand grid are hidden. The two
+    score-based cards stay, since they read the seat score that Riichi does keep.
+    """
+
+    HAND_SECTIONS = [
+        'Highest winning hand', 'Most winning in one game', 'Deal-ins',
+        'Luck — self-draws', 'Self-draw rate',
+        'Average hands per table', 'Average hand value',
+    ]
+    KEPT_SECTIONS = ['Highest points in one game', 'Tables finished']
+
+    def test_mcr_shows_all_hand_stats(self, request_):
+        html = views.desktop(request_).content.decode()
+        for section in self.HAND_SECTIONS + self.KEPT_SECTIONS:
+            assert section in html
+        assert 'href="detailed_scores_' in html
+
+    def test_riichi_hides_hand_stats_but_keeps_score_stats(self, request_riichi):
+        html = views.desktop(request_riichi).content.decode()
+        for section in self.HAND_SECTIONS:
+            assert section not in html
+        for section in self.KEPT_SECTIONS:
+            assert section in html
+
+    def test_riichi_has_no_hand_grid_links(self, request_riichi):
+        html = views.desktop(request_riichi).content.decode()
+        # The clickable links are gone (only the JS click-interceptor string,
+        # which never matches without a link, may still mention the prefix).
+        assert 'href="detailed_scores_' not in html
+        assert ':href="\'detailed_scores_' not in html
+
+
+class TestPublisherOverviewRiichiColumns:
+    """The publisher overview's 'Sheets in progress' / 'Sheets validated' columns
+    are hand-sheet concepts (MCR only). Riichi enters a per-seat total and never
+    creates or validates a sheet, so both are always 0 — the columns are hidden.
+    """
+
+    def _render(self, tenant, variables):
+        from django.template import loader
+        from django.test import RequestFactory
+        from django.contrib.auth.models import AnonymousUser
+        from mahj.views.admin_views import publisher_overview_rows
+        rf = RequestFactory()
+        req = rf.get('/', HTTP_HOST='test.example.com')
+        req.user = AnonymousUser()
+        return loader.get_template('mahj/admin_publisher_overview.html').render({
+            'rows': publisher_overview_rows(tenant, variables),
+            'variables': variables,
+            'subdomain': tenant.subdomain,
+        }, req)
+
+    def test_mcr_shows_the_sheet_columns(self, tournament):
+        html = self._render(tournament['tenant'], tournament['variable'])
+        assert '<th>Sheets in progress</th>' in html
+        assert '<th>Sheets validated</th>' in html
+        assert 'class="cell-inprogress' in html
+        assert 'class="cell-validated' in html
+
+    def test_riichi_hides_the_sheet_columns(self, riichi_tournament):
+        html = self._render(riichi_tournament['tenant'], riichi_tournament['variable'])
+        assert '<th>Sheets in progress</th>' not in html
+        assert '<th>Sheets validated</th>' not in html
+        assert 'class="cell-inprogress' not in html
+        assert 'class="cell-validated' not in html
+        # The columns that drive the Riichi workflow are still present.
+        assert '<th>Tables scored</th>' in html
+        assert '<th>Published</th>' in html

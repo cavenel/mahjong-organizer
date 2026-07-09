@@ -198,7 +198,7 @@
                     <div class="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
                       <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                         <span class="font-semibold text-sm text-amber-600">Table {{ t.table_nb }}</span>
-                        {% if t.has_scores %}
+                        {% if t.has_scores and variables.rules == "MCR" %}
                           <a href="detailed_scores_{{ r.round_nb }}_{{ t.table_nb }}"
                              class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
                         {% endif %}
@@ -251,10 +251,12 @@
                       <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                         <span class="font-semibold text-sm text-amber-600"
                               x-text="'Round ' + entry.round_nb + ' — Table ' + entry.table_nb"></span>
+                        {% if variables.rules == "MCR" %}
                         <template x-if="entry.has_scores">
                           <a :href="'detailed_scores_' + entry.round_nb + '_' + entry.table_nb"
                              class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
                         </template>
+                        {% endif %}
                       </div>
                       <div class="divide-y divide-gray-100 text-sm">
                         <template x-for="seat in entry.seats" :key="seat.wind">
@@ -396,15 +398,18 @@
                         {% for r in s.scores %}
                           <td class="px-0 py-0 text-right score-link">
                             {% if r.table_nb %}
+                              {% if variables.rules == "MCR" %}
                               <a href="detailed_scores_{{ r.round_nb }}_{{ r.table_nb }}"
                                  class="block px-3 py-2 text-gray-700 hover:text-amber-600 transition-colors">
-                                {% if variables.rules == "MCR" %}
                                   <span>{{ r.tp|floatformat:-2 }}</span>
                                   <span class="block text-xs text-gray-400">{{ r.mp }}</span>
-                                {% else %}
-                                  <span class="font-medium">{{ r.mp }}</span>
-                                {% endif %}
                               </a>
+                              {% else %}
+                              {# Riichi has no hand grid to open, so the score is plain text. #}
+                              <span class="block px-3 py-2 text-gray-700">
+                                <span class="font-medium">{{ r.mp }}</span>
+                              </span>
+                              {% endif %}
                             {% else %}
                               <span class="block px-3 py-2 text-gray-400">
                                 {% if variables.rules == "MCR" %}

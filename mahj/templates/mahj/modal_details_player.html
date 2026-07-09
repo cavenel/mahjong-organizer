@@ -138,7 +138,7 @@
                 {% endfor %}
               </div>
               {% for seat in round.other_pos %}
-                {% if seat.player == player and round.detailed_hands and seat.round_nb <= scores_json.scores|length %}
+                {% if variables.rules == "MCR" and seat.player == player and round.detailed_hands and seat.round_nb <= scores_json.scores|length %}
                   <a href="detailed_scores_{{ seat.round_nb }}_{{ seat.table_nb }}"
                      class="block mx-4 mt-3 text-center py-2 rounded-lg border border-amber-200 bg-white
                             text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors">

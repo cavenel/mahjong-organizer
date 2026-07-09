@@ -7,6 +7,11 @@ Arguments:
   rn    — (optional) round number; shown in the section headings and used for links
 {% endcomment %}
 
+{% comment %}
+1 & 2 are hand-by-hand stats, which only exist for MCR — Riichi records a
+per-seat score total and no Hand rows, so these would be empty.
+{% endcomment %}
+{% if variables.rules == "MCR" %}
 {# 1 — Highest winning hand (points) #}
 <h3 class="font-semibold text-gray-600 text-sm mb-3">Highest winning hand{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
@@ -22,8 +27,12 @@ Arguments:
   {% include "mahj/stats_card.html" with title="Self-drawn"  items=stats.sd_win_max    kind="wins" rn=rn %}
   {% include "mahj/stats_card.html" with title="From others" items=stats.ron_win_max   kind="wins" rn=rn %}
 </div>
+{% endif %}
 
-{# 3 — Highest points in one game (single card) #}
+{% comment %}
+3 — Highest points in one game (single card). Ranks on the seat score, so it
+is meaningful under both rule sets and is kept for Riichi.
+{% endcomment %}
 <h3 class="font-semibold text-gray-600 text-sm mb-3">Highest points in one game{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
   {% include "mahj/stats_card.html" with title="Points" items=stats.mp_max kind="mp" rn=rn %}

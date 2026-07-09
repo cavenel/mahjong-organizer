@@ -24,6 +24,8 @@ plain span (a ratio spans many tables, so there's no single table to link to).
       <span class="text-gray-400">/ {{ stats.tables_total }}</span>
     </div>
   </div>
+  {# Average hands / hand value come from Hand rows, which only MCR records. #}
+  {% if variables.rules == "MCR" %}
   <div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
     <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
       <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Average hands per table</h3>
@@ -42,8 +44,14 @@ plain span (a ratio spans many tables, so there's no single table to link to).
       <span class="text-gray-400 text-sm">pts / hand</span>
     </div>
   </div>
+  {% endif %}
 </div>
 
+{% comment %}
+5–7 are all hand-by-hand stats (deal-ins and self-draws), so they only apply
+to MCR — Riichi has no Hand rows to compute them from.
+{% endcomment %}
+{% if variables.rules == "MCR" %}
 {# 5 — Deal-ins (gave the winning tile) #}
 <h3 class="font-semibold text-gray-600 text-sm mb-3">Deal-ins — gave the winning tile{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
@@ -65,3 +73,4 @@ plain span (a ratio spans many tables, so there's no single table to link to).
   {% include "mahj/stats_ratio_card.html" with title="Highest self-draw rate" items=stats.sd_win_rate %}
   {% include "mahj/stats_ratio_card.html" with title="Lowest self-draw rate" items=stats.sd_win_rate_low %}
 </div>
+{% endif %}
