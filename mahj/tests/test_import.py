@@ -201,15 +201,29 @@ def test_blank_row_midroster_does_not_truncate(staff_client, imp_tenant):
 def test_team_whitespace_collapsed_and_numeric_cell(staff_client, imp_tenant):
     """F-M11 + F-M12a: internal whitespace is collapsed so "Team  A" and "Team A"
     are one team; a numeric team cell is coerced to a string instead of crashing;
-    case is NOT folded (no accidental merges)."""
-    teams = ['Team  A'] * 4 + ['Team A'] * 4 + ['sweden'] * 4 + [123] * 4
+    case is NOT folded ("sweden" and "Sweden" stay two distinct teams). Every team
+    here is a valid group of four (see test_uneven_team_rejected)."""
+    teams = ['Team  A'] * 2 + ['Team A'] * 2 + [123] * 4 + ['sweden'] * 4 + ['Sweden'] * 4
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', teams[i], i + 1)
             for i in range(16)]
     resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
     stored = set(Player.objects.filter(tenant=imp_tenant).values_list('team', flat=True))
-    assert stored == {'Team A', 'sweden', '123'}
-    assert Player.objects.filter(tenant=imp_tenant, team='Team A').count() == 8
+    assert stored == {'Team A', '123', 'sweden', 'Sweden'}
+    # The two whitespace variants collapsed into one four-person "Team A".
+    assert Player.objects.filter(tenant=imp_tenant, team='Team A').count() == 4
+
+
+def test_uneven_team_rejected(staff_client, imp_tenant):
+    """F-M11: teams are always groups of four, so a team of a different size is
+    rejected (and per F-C1 the import leaves the tournament empty). This is what
+    surfaces a typo/case split like "Sweden"(3) vs "sweden"(1)."""
+    teams = ['Sweden'] * 3 + ['sweden'] * 1 + ['Norway'] * 4 + ['Denmark'] * 4 + ['Finland'] * 4
+    rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', teams[i], i + 1)
+            for i in range(16)]
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    assert resp.status_code == 200
+    assert Player.objects.filter(tenant=imp_tenant).count() == 0
 
 
 def test_absent_ema_left_blank(staff_client, imp_tenant):

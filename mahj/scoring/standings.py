@@ -106,8 +106,15 @@ def team_standings(rows, tournament, nb_rounds):
         slot['_flags'].add(s.get('flag') or '')
         slot['total']['tp'] += s['total'].get('tp') or 0
         slot['total']['mp'] += s['total'].get('mp') or 0
-        for r_idx, sc in enumerate(s['scores']):
-            if r_idx < len(slot['scores']) and sc.get('tp') is not None:
+        for sc in s['scores']:
+            if sc.get('tp') is None:
+                continue
+            # Fold into the team's slot for this score's actual round, not its
+            # position in the player's compact score list: a player who missed a
+            # round (bye / sit-out / substitute) has a shorter list, and keying on
+            # position would shift every later score into the wrong team column.
+            r_idx = sc['round_nb'] - 1
+            if 0 <= r_idx < len(slot['scores']):
                 rslot = slot['scores'][r_idx]
                 rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
@@ -222,7 +229,8 @@ def _cumulative_row(player, all_positions, up_to_round, flag):
         'first_name': player.first_name, 'last_name': player.last_name(),
         'name': player.full_name, 'country': player.country, 'flag': flag,
         'team': player.team,
-        'scores': [{'mp': p.minipoints, 'tp': p.tablepoints} for p in played],
+        'scores': [{'mp': p.minipoints, 'tp': p.tablepoints, 'round_nb': p.round_nb}
+                   for p in played],
         'total': {
             'mp': sum(p.minipoints for p in played),
             'tp': sum(p.tablepoints for p in played),

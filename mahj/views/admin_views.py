@@ -3,7 +3,7 @@ import io
 import os
 import time
 import traceback
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import datetime
 
 import json
@@ -359,6 +359,19 @@ def admin_upload_from_template(request):
                     "Some competitors have a team and some don't. When teams are "
                     "used every competitor must have one — fill in the blank team cells."
                 )
+            # Teams are always groups of four. A team that comes out a different
+            # size is a roster mistake — most often a typo or case mismatch that
+            # split one team in two ("Sweden" vs "sweden"), which the size check
+            # catches without silently merging genuinely distinct names.
+            if any_team:
+                sizes = Counter(p.team for p in player_objs)
+                wrong = sorted(name for name, n in sizes.items() if n != 4)
+                if wrong:
+                    raise TemplateImportError(
+                        f"Team '{wrong[0]}' has {sizes[wrong[0]]} competitor(s); every "
+                        f"team must have exactly 4. Check for a typo or case mismatch "
+                        f"in the team name."
+                    )
             Player.objects.bulk_create(player_objs)
 
             # The roster is all-or-nothing on teams (enforced just above), so the

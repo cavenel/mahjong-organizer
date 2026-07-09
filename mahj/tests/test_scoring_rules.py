@@ -61,6 +61,27 @@ class TestTeamStandings:
         by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
         assert by_team['A']['pos'] == by_team['B']['pos'] == 1
 
+    def test_per_round_folds_by_round_not_list_position(self):
+        # F-M5: a player's per-round scores are folded into the team's column for
+        # the score's actual round_nb, not its position in the (compact) list. Here
+        # player 2 missed round 1, so their only score is round 2 — at list index 0.
+        # Keying on position would drop that round-2 score into the team's round-1
+        # column; keying on round_nb puts it in round 2.
+        rows = [
+            {'team': 'X', 'flag': '', 'player_id': 1,
+             'total': {'tp': 7.0, 'mp': 300},
+             'scores': [{'tp': 4.0, 'mp': 100, 'round_nb': 1},
+                        {'tp': 3.0, 'mp': 200, 'round_nb': 2}]},
+            {'team': 'X', 'flag': '', 'player_id': 2,
+             'total': {'tp': 1.0, 'mp': 50},
+             'scores': [{'tp': 1.0, 'mp': 50, 'round_nb': 2}]},
+        ]
+        variables = SimpleNamespace(rules='MCR', nb_rounds=2)
+        team = team_standings(rows, variables, 2)[0]
+        r1, r2 = team['scores']
+        assert (r1['round_nb'], r1['mp'], r1['tp']) == (1, 100, 4.0)
+        assert (r2['round_nb'], r2['mp'], r2['tp']) == (2, 250, 4.0)
+
     def test_non_mcr_ties_on_mp_alone_ignoring_tp(self):
         # Non-MCR (e.g. Riichi) ranks on MP only. Teams level on MP share a
         # position even if their (display-only) TP differs; TP must not split
