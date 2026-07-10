@@ -20,14 +20,20 @@ def player_standings(tenant, tournament, check_final=True, force_all=False, posi
     positions_by_player = defaultdict(list)
     round_max = tournament.nb_rounds
     for pos in positions:
+        # "Last fully scored round": the same rule as _last_complete_round and the
+        # publish gate (every seat scored), so these surfaces can't drift apart.
+        # A running tournament always has every seat filled — a withdrawal is
+        # handled by swapping the name and keeping the draw number — so a seat that
+        # no player holds only exists in the pre-draw setup window, where nothing is
+        # scored yet.
+        if pos.minipoints is None or pos.tablepoints is None:
+            round_max = min(round_max, pos.round_nb - 1)
         pid = getattr(pos, 'player_id', None)
         if pid is None:
             pid = id_by_draw.get(pos.draw_number)
         if pid is None:
-            continue  # an undrawn seat has no scores; ignore it here
+            continue  # skip so a stray draw number can't fold scores into a player
         positions_by_player[pid].append(pos)
-        if pos.minipoints is None or pos.tablepoints is None:
-            round_max = min(round_max, pos.round_nb - 1)
 
     last_published, final_withheld = publish_state(tenant, tournament)
 
