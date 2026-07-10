@@ -35,7 +35,7 @@ def completed_tournament(tournament):
             else:
                 Hand.objects.create(
                     tenant=tournament['tenant'], round_nb=3, table_nb=tn, hand_nb=hn,
-                    points=0, win_by=None, win_from=None,
+                    points=0, win_by=0, win_from=None,
                 )
         ScoreSheet.objects.create(
             tenant=tournament['tenant'], round_nb=3, table_nb=tn, validated=True)
@@ -253,10 +253,10 @@ class TestWinLossStatsValidationGate:
     def test_draw_hand_counts_as_played(self, tenant):
         variables, players = self._table_with_hands(tenant)  # hands 1,2 discard-win seat 1
         # A validated sheet stores exactly the hands played: hand 3 is a genuine
-        # draw (no winner), hand 4 a decided hand. There is no trailing unplayed
-        # row (the entry/prune flow never persists one).
+        # draw (win_by 0, nobody won), hand 4 a decided hand. There is no trailing
+        # unplayed (win_by NULL) row — the entry/prune flow never persists one.
         Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=3,
-                            points=0, win_by=None, win_from=None)
+                            points=0, win_by=0, win_from=None)
         Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=4,
                             points=25, win_by=1, win_from=2)
         ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)

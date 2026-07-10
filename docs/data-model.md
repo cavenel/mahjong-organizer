@@ -43,18 +43,22 @@ holding that seat's `draw_number`. So:
 
 ## Hands: draws and self-draws
 
-Winner and discarder are stored as **seat winds** (1–4), each nullable with one
-meaning:
+Winner and discarder are stored as **seat winds** (1–4). `win_by` carries the
+outcome, `win_from` the discarder:
 
 | Situation      | `win_by`      | `win_from`    |
 |----------------|---------------|---------------|
 | discard win    | winner's wind | dealer's wind |
 | self-draw      | winner's wind | **NULL**      |
-| draw (no win)  | **NULL**      | NULL          |
+| draw (no win)  | **0**         | NULL          |
+| unplayed slot  | **NULL**      | NULL          |
 
-`points` is the hand value. Only hands actually played are stored, so **hands
-played at a table = its `Hand` row count** — there is no separate "unplayed slot"
-to distinguish from a draw.
+`points` is the hand value. A **draw** (`win_by` 0) is a played hand nobody won;
+a **NULL** `win_by` is an unplayed placeholder row that only exists on a sheet
+that hasn't been validated. On entry the scorer types `0` in the "Win" column for
+a draw; a mid-sheet blank (a NULL row before a later result) is coerced to a draw
+on validation, and trailing NULL rows are pruned. So on a **validated** sheet
+there are no NULL rows and **hands played at a table = its `Hand` row count**.
 
 ## Score-entry and publish state
 

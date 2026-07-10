@@ -56,6 +56,11 @@
        the 8-point MCR minimum. !important so it overrides the inline OCR tint. */
     table.review-table input.invalid-cell { background: #fecaca !important; }
 
+    /* A draw (Win = 0): played hand nobody won. Tint the Win cell amber and show
+       its 0 struck through, echoing the crossed-out line on the paper sheet, so a
+       saved draw reads as a draw and never as an empty (unplayed) row. */
+    table.review-table .input-cell input.draw-cell { background: #fef3c7; border-color: #f59e0b; color: #b45309; font-weight: 700; text-decoration: line-through; }
+
     /* Sheet layout: table beside the QR / Validate column on wide screens,
        stacked (QR + Validate after the table) on narrow / mobile screens so the
        table keeps full width and nothing gets squeezed. */
@@ -72,7 +77,13 @@
 {% block content %}
 
 <div class="max-w-4xl mx-auto">
-  <h2 class="text-lg font-semibold text-gray-700 mb-3">Round {{ round_nb }} – Table {{ table_nb }}</h2>
+  <h2 class="text-lg font-semibold text-gray-700 mb-1">Round {{ round_nb }} – Table {{ table_nb }}</h2>
+  <p class="text-xs text-gray-500 mb-3 leading-snug">
+    <span class="font-semibold text-gray-600">Win</span> column:
+    <span class="font-medium">1–4</span> = winner's seat ·
+    <span class="font-medium">0</span> = draw ·
+    <span class="font-medium">blank</span> = draw (or not played, if left blank at the end).
+  </p>
 
   <div class="sheet-layout">
     <div class="table-scroll">
@@ -222,8 +233,9 @@
 
   for (i = 0; i < 16; i++) {
     if ($("#pts_"  + (i+1)).val() == "0") $("#pts_"  + (i+1)).val("");
-    if ($("#by_"   + (i+1)).val() == "0") $("#by_"   + (i+1)).val("");
     if ($("#from_" + (i+1)).val() == "0") $("#from_" + (i+1)).val("");
+    // Win = 0 is a draw, not an empty cell — keep it so a saved draw reloads as a
+    // draw (styled below) instead of looking identical to an unplayed row.
   }
 
   var ajax_timeouts = {};
@@ -341,10 +353,12 @@
     update_scores();
   }
 
-  // Win / From must be a seat (1–4) or blank; flag anything else solid red.
-  function markSeatValidity(id) {
+  // From must be a seat (1–4) or blank; Win also accepts 0 (a draw). Flag
+  // anything else solid red.
+  function markSeatValidity(id, allowZero) {
     var v = ($("#" + id).val() || "").trim();
-    $("#" + id).toggleClass("invalid-cell", v !== "" && !/^[1-4]$/.test(v));
+    var re = allowZero ? /^[0-4]$/ : /^[1-4]$/;
+    $("#" + id).toggleClass("invalid-cell", v !== "" && !re.test(v));
   }
 
   // Value (points) must be a real MCR hand (≥ 8) or blank; flag anything below.
@@ -358,8 +372,10 @@
     var total = [0, 0, 0, 0];
     for (var i = 0; i < 16; i++) {
       markValueValidity("pts_"  + (i+1));
-      markSeatValidity("by_"   + (i+1));
+      markSeatValidity("by_"   + (i+1), true);   // 0 = draw is allowed here
       markSeatValidity("from_" + (i+1));
+      // A draw (Win = 0) gets the struck-through amber cell; anything else clears it.
+      $("#by_" + (i+1)).toggleClass("draw-cell", ($("#by_" + (i+1)).val() || "").trim() === "0");
       var pts  = parseInt($("#pts_"  + (i+1)).val());
       var by   = parseInt($("#by_"   + (i+1)).val());
       var from = parseInt($("#from_" + (i+1)).val());
@@ -447,11 +463,51 @@
     }, 0);
   });
 
+  // Highest hand number carrying any entry (points, or a Win value including a
+  // draw's 0). Hands are played in order, so every blank row after it is unplayed.
+  function lastPlayedHand() {
+    var last = 0;
+    for (var i = 1; i <= 16; i++) {
+      if (($("#pts_" + i).val() || "").trim() !== "" ||
+          ($("#by_"  + i).val() || "").trim() !== "") last = i;
+    }
+    return last;
+  }
+
+  // On validate, if blank rows follow the last played hand they'll be recorded as
+  // not played — confirm that first, so a draw on the final hand isn't lost by
+  // being left blank. Returns true when it takes over the validate (dialog shown);
+  // false to let the normal debounced save proceed.
+  function maybeWarnTrailingUnplayed() {
+    var last = lastPlayedHand();
+    var trailing = last >= 1 ? 16 - last : 0;
+    if (trailing <= 0) return false;
+    if (ajax_timeouts["17"]) { clearTimeout(ajax_timeouts["17"]); delete ajax_timeouts["17"]; }
+    var first = last + 1;
+    var rows = trailing === 1 ? ("Hand " + first + " is") : ("Hands " + first + "–16 are");
+    var body = rows + " blank and will be recorded as not played. " +
+               "If any of these were draws, type 0 in the Win column first.";
+    var proceed = function() { send_ajax("17"); };
+    var cancel  = function() { $("#valid_17").prop("checked", false); updateDisabledState(); };
+    try {
+      window.parent.confirmAction({
+        title: 'Validate score sheet', body: body,
+        confirmLabel: 'Record as not played', onConfirm: proceed, onCancel: cancel,
+      });
+    } catch (e) {
+      if (window.confirm(body)) proceed(); else cancel();
+    }
+    return true;
+  }
+
   $("input").on("input change", function() {
     if ($(this).hasClass("penalty-input")) return;  // handled separately below
     var row = $(this).attr("data-hand_nb");
     if (row == "17") {
       updateDisabledState();
+      if ($("#valid_17").prop("checked") && maybeWarnTrailingUnplayed()) {
+        return;  // the confirm dialog owns the validate; skip the debounced save
+      }
     } else if (row) {
       // Editing a hand confirms it: clear the OCR-confidence tint on its inputs.
       $("#pts_" + row + ", #by_" + row + ", #from_" + row).css("background", "");

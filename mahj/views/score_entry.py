@@ -51,18 +51,28 @@ def _seat(raw):
 def _parse_hand(points_raw, by_raw, from_raw):
     """Map the raw score-sheet inputs to the stored hand encoding.
 
-    A hand is a win only if it has a value and a winning seat; otherwise it is a
-    draw (no winner). Self-draw = a win with no discarder. This keeps the
-    invariant "win_by is set  <=>  points > 0", so hands played can be counted by
-    row without a pts>0 heuristic.
+    ``win_by`` carries the outcome:
+      - a wind 1-4  -> a win (needs both a winning seat and points > 0).
+      - 0           -> an explicit draw (scorer typed 0 in the "By" column).
+      - NULL        -> an unplayed placeholder / incomplete row.
+    Self-draw = a win with no discarder. A NULL row sitting before a later result
+    is coerced to a draw at validation (see ``_prune_to_played_hands``), so mid-
+    game draws can be left blank; only a draw on the final played hand needs the
+    explicit 0 to tell it apart from an unplayed slot.
     """
     try:
         points = int(points_raw)
     except (TypeError, ValueError):
         points = 0
+    try:
+        by_int = int(by_raw)
+    except (TypeError, ValueError):
+        by_int = None
+    if by_int == 0:
+        return {'points': 0, 'win_by': 0, 'win_from': None}  # explicit draw
     win_by = _seat(by_raw)
     if points <= 0 or win_by is None:
-        return {'points': 0, 'win_by': None, 'win_from': None}  # draw / not a win
+        return {'points': 0, 'win_by': None, 'win_from': None}  # unplayed / incomplete
     win_from = _seat(from_raw)
     if win_from == win_by:
         win_from = None  # self-draw
@@ -90,7 +100,8 @@ def _row_payload(tenant, round_nb, table_nb):
 
 
 def _sheet_has_content(tenant, round_nb, table_nb):
-    """True once any hand on the sheet has a winner (the in-progress badge)."""
+    """True once any hand on the sheet has a result — a win or a draw (the
+    in-progress badge). ``win_by`` is non-NULL for both; NULL rows are unplayed."""
     return Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
     ).exists()
@@ -258,15 +269,23 @@ def update_hand_points(request):
 
 
 def _prune_to_played_hands(tenant, round_nb, table_nb):
-    """Trim a sheet to exactly the hands played: drop trailing rows past the last
-    winning hand (unplayed slots). Winner-less rows before it stay as draws. Run
-    on validation so the validated sheet's row count is its hands played."""
-    hand_nbs = Hand.objects.filter(
+    """Trim a sheet to exactly the hands played, run on validation so the
+    validated sheet's row count is its hands played.
+
+    Played hands form a contiguous prefix, so the last row carrying a result (a
+    win or an explicit draw, i.e. ``win_by`` not NULL) marks where play ended.
+    Any NULL (blank) row *before* it was a played hand that nobody won -> coerce
+    to a draw (``win_by`` 0). NULL rows *after* it are unplayed slots -> delete."""
+    played_hand_nbs = Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
     ).values_list('hand_nb', flat=True)
-    last_win = max(hand_nbs, default=0)
+    last_played = max(played_hand_nbs, default=0)
     Hand.objects.filter(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb__gt=last_win,
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+        hand_nb__lte=last_played, win_by__isnull=True,
+    ).update(win_by=0, win_from=None, points=0)
+    Hand.objects.filter(
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb__gt=last_played,
     ).delete()
 
 

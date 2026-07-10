@@ -1,3 +1,4 @@
+from django.contrib.auth.models import User
 from django.db import models
 
 class Tenant(models.Model):
@@ -14,6 +15,41 @@ class Tenant(models.Model):
 
     def __str__(self):
         return self.subdomain
+
+
+class Membership(models.Model):
+    """One user's access to one tenant — the whole of per-tenant authorization.
+
+    Deliberately NOT a ``TenantAwareModel``: that base scopes rows to a tenant via
+    a default FK, whereas Membership *is* the scope definition and joins
+    ``auth.User`` to a ``Tenant`` explicitly. A user with no Membership for the
+    request's tenant has no access there — cross-tenant isolation falls straight
+    out of the row's absence.
+
+    Tiers (see docs/dev/plan-per-tenant-users.md):
+      - platform superuser — Django ``is_superuser``; cross-tenant, needs no row.
+      - tenant admin — ``is_tenant_admin`` for a tenant; implies every app role
+        there (mirrors the old "staff implies scorer/display/publisher").
+      - tenant role — ``is_scorer`` / ``is_display_op`` / ``is_publisher``, scoped
+        to this one tenant. The boolean flags mirror the retired Django Groups
+        exactly, so a role check is one indexed row read, no extra join table.
+    """
+    user   = models.ForeignKey(User, on_delete=models.CASCADE, related_name='memberships')
+    tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')
+    is_tenant_admin = models.BooleanField(default=False)
+    is_scorer       = models.BooleanField(default=False)
+    is_display_op   = models.BooleanField(default=False)
+    is_publisher    = models.BooleanField(default=False)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['user', 'tenant'], name='unique_membership_per_tenant'),
+        ]
+
+    def __str__(self):
+        roles = [n for n in ('tenant_admin', 'scorer', 'display_op', 'publisher')
+                 if getattr(self, f'is_{n}')]
+        return f"{self.user} @ {self.tenant}: {', '.join(roles) or 'no roles'}"
 
 class TenantAwareModel(models.Model):
     id = models.AutoField(primary_key=True)
@@ -118,13 +154,15 @@ class Seat(TenantAwareModel):
 class Hand(TenantAwareModel):
     """One hand played at a table in a round.
 
-    Winner/discarder are seat winds (1=East .. 4=North), each with a single
-    meaning:
-      - draw       -> ``win_by`` is NULL (no winner).
-      - self-draw  -> ``win_from`` is NULL (winner drew their own tile).
-      - discard win -> both set; ``win_from`` is the seat that dealt in.
-    Only hands actually played are stored, so the number of hands played at a
-    table is just its Hand row count.
+    Winner/discarder are seat winds (1=East .. 4=North). ``win_by`` encodes the
+    three outcomes a played hand can have:
+      - win        -> ``win_by`` is a wind (1..4).
+          - self-draw  -> ``win_from`` is NULL (winner drew their own tile).
+          - discard win -> ``win_from`` is the seat that dealt in.
+      - draw       -> ``win_by`` is 0 (played, nobody won).
+    ``win_by`` NULL is an unplayed placeholder row: it only exists on a sheet
+    that has not been validated yet. Validation prunes trailing unplayed rows,
+    so on a validated sheet the Hand row count is exactly the hands played.
     """
     round_nb    = models.IntegerField()
     table_nb    = models.IntegerField()
@@ -148,12 +186,13 @@ class Hand(TenantAwareModel):
 
     @property
     def is_draw(self):
-        return self.win_by is None
+        """Played hand that nobody won (``win_by`` 0). NULL is unplayed, not a draw."""
+        return self.win_by == 0
 
     @property
     def is_self_draw(self):
         """A win with no discarder — the winner drew their own tile."""
-        return self.win_by is not None and self.win_from is None
+        return self.win_by is not None and self.win_by != 0 and self.win_from is None
 
     def _seat_player(self, wind):
         if wind is None:

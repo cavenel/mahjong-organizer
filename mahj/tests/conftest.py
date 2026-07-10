@@ -59,7 +59,8 @@ def tournament(tenant):
 
     # 16 played hands per table on the two complete rounds. A hand worth >0 is a
     # win (a discard win here: win_from != win_by); a hand worth 0 is a draw
-    # (win_by/win_from NULL) — matching the value distribution the suite expects.
+    # (win_by 0, win_from NULL) — matching the value distribution the suite
+    # expects. A validated sheet has no unplayed (win_by NULL) rows.
     for rn in range(2):
         for tn in range(4):
             for hn in range(1, 17):
@@ -74,7 +75,7 @@ def tournament(tenant):
                 else:
                     Hand.objects.create(
                         tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, hand_nb=hn,
-                        points=0, win_by=None, win_from=None,
+                        points=0, win_by=0, win_from=None,
                     )
             ScoreSheet.objects.create(
                 tenant=tenant, round_nb=rn + 1, table_nb=tn + 1, validated=True)
