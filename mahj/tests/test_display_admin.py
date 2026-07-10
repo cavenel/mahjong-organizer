@@ -489,7 +489,7 @@ def test_player_editor_save_persists_metadata(client_, staff, tournament):
         '/player_editor_save',
         data=json.dumps({'players': [{
             'id': p.id, 'full_name': 'Corrected Name', 'first_name': '',
-            'country': 'Norway', 'EMA_ID': 'E99999', 'email': 'x@y.z', 'team': 'Reds',
+            'country': 'Norway', 'EMA_ID': 'E99999', 'team': 'Reds',
         }]}),
         content_type='application/json')
     assert resp.status_code == 200

@@ -51,7 +51,7 @@ def tournament(tenant):
             tenant=tenant, draw_number=i + 1,
             full_name=f'Player{i + 1} Lastname',
             first_name=f'Player{i + 1}',
-            country=countries[i], EMA_ID=f'E{i + 1:05d}', email='',
+            country=countries[i], EMA_ID=f'E{i + 1:05d}',
         )
         for i in range(16)
     ]

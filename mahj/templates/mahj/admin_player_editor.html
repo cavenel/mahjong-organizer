@@ -27,7 +27,6 @@
           <th @click="sort('first_name')" class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">First name <span class="text-amber-500" x-text="arrow('first_name')"></span></th>
           <th @click="sort('country')"    class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Country <span class="text-amber-500" x-text="arrow('country')"></span></th>
           <th @click="sort('EMA_ID')"     class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">EMA id <span class="text-amber-500" x-text="arrow('EMA_ID')"></span></th>
-          <th @click="sort('email')"      class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">E-mail <span class="text-amber-500" x-text="arrow('email')"></span></th>
           <th @click="sort('team')"       class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Team <span class="text-amber-500" x-text="arrow('team')"></span></th>
           <th class="px-2 py-2 w-8"><span class="sr-only">Status</span></th>
         </tr>
@@ -44,7 +43,6 @@
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.email" @change="saveMeta(row)" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1 w-8 text-center align-middle">
               <span x-show="row._status === 'saving'" class="text-gray-400 text-xs">…</span>
@@ -120,7 +118,7 @@
         var self = this;
         var payload = {
           id: row.id, full_name: row.full_name, first_name: row.first_name,
-          EMA_ID: row.EMA_ID, country: row.country, email: row.email, team: row.team,
+          EMA_ID: row.EMA_ID, country: row.country, team: row.team,
         };
         $.ajax({
           type: 'POST',

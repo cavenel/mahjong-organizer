@@ -1,6 +1,7 @@
 import hashlib
 import io
 import os
+import re
 import time
 import traceback
 from collections import Counter, defaultdict
@@ -59,11 +60,42 @@ _VARIABLE_LABELS = {
 def _name_is_round(name):
     """Guess whether an imported schedule row is a playing round from its name.
 
-    Used only at import time to seed ``Schedule.is_round`` (the Excel template
-    carries no such column); staff can correct it afterwards in the settings UI.
+    Used only at import time to seed ``Schedule.is_round`` when the template
+    omits the optional "Is round" column; staff can correct it afterwards in
+    the settings UI.
     """
     name = name or ""
     return "round" in name.lower() or "session" in name.lower()
+
+
+# Seating cells in the shipped template mirror the low half into the high half
+# with formulas like "=14+8" (draw 22). openpyxl returns None for a formula cell
+# unless the workbook carries Excel's cached result, and re-saving through
+# openpyxl (as export does) drops that cache — so the seating sheet must be read
+# formula-aware, evaluating the simple integer arithmetic here rather than
+# treating an un-cached formula as an empty seat.
+_SEAT_ARITH = re.compile(r'^\d+(\s*[+-]\s*\d+)*$')
+
+
+def _seat_draw_number(raw):
+    """The draw number seated in one seating cell. Accepts a literal number or a
+    simple additive formula ("=14+8"); anything else (blank, or a formula we
+    don't evaluate) is 0, the empty-seat sentinel, which the chart validation
+    below then rejects for a full field."""
+    if raw is None:
+        return 0
+    if isinstance(raw, (int, float)):
+        return int(raw)
+    s = str(raw).strip().lstrip('=')
+    if not s:
+        return 0
+    if _SEAT_ARITH.match(s):
+        # Only digits and +/- reached here, so summing the signed terms is safe.
+        return sum(int(tok) for tok in re.findall(r'[+-]?\d+', s))
+    try:
+        return int(float(s))
+    except (TypeError, ValueError):
+        return 0
 
 
 def _pretty_view(view):
@@ -251,15 +283,20 @@ def admin_upload_from_template(request):
 
             Player.objects.filter(tenant=tenant).delete()
 
-            wb = load_workbook(filename=str(tmp_file), data_only=True, read_only=True)
+            # data_only=False so the seating sheet's mirror formulas ("=14+8")
+            # are read as formulas and evaluated below; a file with no cached
+            # results would otherwise read those seats as empty. Options/Players/
+            # Schedule hold plain values, so this doesn't change how they read.
+            wb = load_workbook(filename=str(tmp_file), data_only=False, read_only=True)
 
             Schedule.objects.filter(tenant=tenant).delete()
             sched_sheet = wb['Schedule']
             schedule_rows = list(sched_sheet.iter_rows(min_row=2, max_col=4, values_only=True))
-            # Column 4 ("Is round") is written by our own export; the shipped template
-            # has no such column (cell is None), so fall back to guessing from the name
-            # (a row named "Round N" / "Session N" is a playing round). Either way staff
-            # can correct any misclassification afterwards in Tournament settings.
+            # Column 4 ("Is round") is optional; when it is missing (an older or
+            # hand-edited template leaves the cell None) fall back to guessing from
+            # the name (a row named "Round N" / "Session N" is a playing round).
+            # Either way staff can correct any misclassification afterwards in
+            # Tournament settings.
             Schedule.objects.bulk_create([
                 Schedule(tenant=tenant, day=row[0], time=row[1], name=row[2],
                          is_round=bool(row[3]) if row[3] is not None else _name_is_round(row[2]))
@@ -293,14 +330,12 @@ def admin_upload_from_template(request):
             # pre-assigned draw number; when present the person is linked to their
             # seats below, otherwise the draw is made later (randomize / team draw).
             players_sheet = wb['Players']
-            # Column 7 ("Email") is written by our own export; the shipped template
-            # stops at column 6, so the extra cell simply comes back as None there.
-            player_rows = list(players_sheet.iter_rows(min_row=2, max_col=7, values_only=True))
+            player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
             player_objs = []
             any_team = False
             all_have_team = True
             for row in player_rows:
-                last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw, email_raw = row
+                last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
                 # Skip fully-blank spacer / trailing rows. Ending the roster at the
                 # first empty last-name cell used to drop a competitor who has a
                 # first name but no surname (and everyone listed below them); a row
@@ -355,10 +390,9 @@ def admin_upload_from_template(request):
                             f"Competitor '{full_name}' has draw number {draw_number}; "
                             f"draw numbers start at 1."
                         )
-                email = (email_raw or "").strip() if isinstance(email_raw, str) else ""
                 player_objs.append(Player(
                     tenant=tenant, full_name=full_name, EMA_ID=ema,
-                    country=country or "", email=email, team=team, draw_number=draw_number,
+                    country=country or "", team=team, draw_number=draw_number,
                 ))
             if any_team and not all_have_team:
                 raise TemplateImportError(
@@ -429,11 +463,13 @@ def admin_upload_from_template(request):
                 values_only=True,
             ))
             seats_to_create = []
+            expected = set(range(1, nb_players + 1))
             for round_idx, row in enumerate(pos_rows):
+                round_draws = []
                 for table_nb in range(nb_tables):
                     for wind in range(4):
-                        cell = row[wind + 5 * table_nb]
-                        draw_number = int(cell) if cell is not None else 0
+                        draw_number = _seat_draw_number(row[wind + 5 * table_nb])
+                        round_draws.append(draw_number)
                         seats_to_create.append(Seat(
                             tenant=tenant,
                             draw_number=draw_number,
@@ -443,6 +479,17 @@ def admin_upload_from_template(request):
                             minipoints=None,
                             tablepoints=None,
                         ))
+                # A valid chart seats every competitor 1..N exactly once each
+                # round. A mismatch means the sheet is the wrong size, has blank
+                # cells, or (the classic case) carries formulas with no cached
+                # result — better to reject it than load a half-empty chart.
+                if sorted(round_draws) != sorted(expected):
+                    raise TemplateImportError(
+                        f"The '{sheet_name}' seating sheet is not a valid chart: "
+                        f"round {round_idx + 1} does not seat each competitor "
+                        f"1–{nb_players} exactly once. Check the sheet for blank "
+                        f"cells, duplicate numbers, or the wrong field size."
+                    )
             Seat.objects.bulk_create(seats_to_create, batch_size=500)
             wb.close()
             from ..signals import invalidate_leaderboard
@@ -518,12 +565,12 @@ def admin_export_to_template(request):
         opt_sheet.cell(row=row, column=2, value=value)
 
     # Players: id order is the original roster row order (matches the draw exports).
-    # Columns 1-6 mirror the shipped template; "Email" is appended so it round-trips.
+    # Columns 1-6 mirror the shipped template.
     roster = list(Player.objects.filter(tenant=tenant).order_by('id'))
     players_sheet = wb.create_sheet('Players')
     players_sheet.append([
         'Last name', 'First name', 'EMA number', 'Country',
-        'Team name (optional)', 'Random position (1 - # of players)', 'Email (optional)',
+        'Team name (optional)', 'Random position (1 - # of players)',
     ])
     for player in roster:
         first_name = player.full_name.split(" ")[0]
@@ -537,7 +584,6 @@ def admin_export_to_template(request):
             player.country,
             player.team or None,
             player.draw_number,
-            player.email or None,
         ])
 
     # Schedule: Date / Time / Name; the "Is round" flag is appended so it round-trips
@@ -774,7 +820,7 @@ def admin_player_draw_assign(request):
 # NOT here: it's the draw itself (set by Randomize / Team draw / import) and the
 # seating chart is keyed by it, so reassigning it belongs to those tools, not to
 # a free-text metadata edit.
-_PLAYER_EDITABLE_FIELDS = ['full_name', 'first_name', 'EMA_ID', 'country', 'email', 'team']
+_PLAYER_EDITABLE_FIELDS = ['full_name', 'first_name', 'EMA_ID', 'country', 'team']
 
 
 @tenant_admin_required
@@ -1374,7 +1420,7 @@ def options(request, error=None):
             player_rows = [
                 {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
                  'first_name': p.first_name, 'EMA_ID': p.EMA_ID, 'country': p.country,
-                 'email': p.email, 'team': p.team}
+                 'team': p.team}
                 for p in players
             ]
             # The seating-chart slots a draw number may be assigned to (the editor

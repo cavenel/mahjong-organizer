@@ -130,7 +130,7 @@ def _seat_one_table(tenant, seats, rules='MCR'):
     for i, (mp, tp) in enumerate(seats):
         p = Player.objects.create(
             tenant=tenant, draw_number=i + 1, full_name=f'P{i + 1} L',
-            first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}', email='',
+            first_name=f'P{i + 1}', country='Sweden', EMA_ID=f'E{i}',
         )
         Seat.objects.create(
             tenant=tenant, round_nb=1, table_nb=1, wind=i + 1,

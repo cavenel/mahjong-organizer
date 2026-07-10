@@ -73,7 +73,6 @@ class Player(TenantAwareModel):
     first_name = models.CharField(max_length=70, default="")
     EMA_ID     = models.CharField(max_length=70, default="")
     country    = models.CharField(max_length=70, default="")
-    email      = models.CharField(max_length=70, default="")
     team       = models.CharField(max_length=70, default="", blank=True)
     draw_number = models.IntegerField(null=True, blank=True, default=None)
 

@@ -78,7 +78,7 @@ def test_import_creates_players_and_seats(staff_client, imp_tenant):
 
 def _snapshot(tenant):
     players = {
-        (p.full_name, p.EMA_ID, p.country, p.team, p.email, p.draw_number)
+        (p.full_name, p.EMA_ID, p.country, p.team, p.draw_number)
         for p in Player.objects.filter(tenant=tenant)
     }
     seats = {
@@ -93,15 +93,14 @@ def _snapshot(tenant):
 
 
 def test_export_round_trips_through_import(staff_client, imp_tenant):
-    """Import a tournament, add per-player extras (team + email) and a schedule,
-    export via admin_export_to_template, then re-import: the roster (incl. team and
-    email), the full seating chart and the schedule (incl. is_round) must match."""
+    """Import a tournament, add a per-player team and a schedule, export via
+    admin_export_to_template, then re-import: the roster (incl. team), the full
+    seating chart and the schedule (incl. is_round) must match."""
     staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
 
     # Populate fields beyond name/EMA/draw so the round-trip is actually exercised.
     for i, p in enumerate(Player.objects.filter(tenant=imp_tenant).order_by('id')):
         p.team = f'Team{i % 4}'
-        p.email = f'player{i}@example.com'
         p.save()
 
     before = _snapshot(imp_tenant)
@@ -281,3 +280,45 @@ def test_failed_import_leaves_tournament_empty(staff_client, imp_tenant):
     ts = TournamentSettings.objects.get(tenant=imp_tenant)
     assert ts.nb_rounds == 0
     assert ts.fullname == ''
+
+
+def test_import_evaluates_seating_formulas(staff_client, imp_tenant):
+    """The shipped 28-player sheet mirrors its high half with formulas ("=14+8"
+    -> draw 22). openpyxl drops Excel's cached formula results whenever the
+    workbook is re-saved (as _filled_workbook does), so the importer must
+    evaluate the formulas — otherwise half of every table would import as empty
+    seats (draw number 0). Every seat must carry a real draw number 1..28."""
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(28)})
+    assert resp.status_code in (200, 302)
+
+    seats = Seat.objects.filter(tenant=imp_tenant)
+    assert seats.count() == 7 * 7 * 4  # rounds * tables * winds
+    assert not seats.filter(draw_number=0).exists()  # no un-evaluated formula gaps
+    for r in range(1, 8):
+        drawn = sorted(s.draw_number for s in seats.filter(round_nb=r))
+        assert drawn == list(range(1, 29))  # each competitor seated once per round
+
+
+def test_broken_seating_chart_rejected(staff_client, imp_tenant):
+    """A seating sheet that doesn't seat every competitor exactly once per round
+    (here a blanked cell) is rejected, leaving the tournament empty — rather than
+    silently loading a chart with a ghost empty seat."""
+    wb = load_workbook(TEMPLATE)
+    ps = wb['Players']
+    for i in range(16):
+        r = i + 2
+        ps.cell(r, 1, f'Last{i + 1}')
+        ps.cell(r, 2, f'First{i + 1}')
+        ps.cell(r, 3, 90000 + i)
+        ps.cell(r, 4, 'Sweden')
+        ps.cell(r, 6, i + 1)
+    wb['16 players'].cell(row=3, column=2).value = None  # blank one seat in round 1
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    buf.name = 'template.xlsx'
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    assert resp.status_code == 200
+    assert Player.objects.filter(tenant=imp_tenant).count() == 0
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 0
