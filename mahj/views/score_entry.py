@@ -9,6 +9,7 @@ from django.template import loader
 from django.urls import reverse
 
 from ..models import Hand, ScoreSheet, Seat, PublishedRound
+from ..scoring import _attach_players
 from ..signals import (
     broadcast_publish_state,
     broadcast_scorer_filled,
@@ -114,7 +115,8 @@ def _scan_qr_svg(request, round_nb, table_nb):
 @user_passes_test(is_scorer)
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
-    position_vals = Seat.objects.filter(tenant=tenant).order_by('id').filter(round_nb=round_nb, table_nb=table_nb)
+    position_vals = _attach_players(tenant, list(
+        Seat.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')))
     hand_vals = {h.hand_nb: h for h in Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb)}
 
