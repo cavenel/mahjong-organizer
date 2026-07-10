@@ -86,6 +86,7 @@ TEMPLATES = [
                 'django.contrib.messages.context_processors.messages',
                 'mahj.context_processors.site_logo',
                 'mahj.context_processors.public_site',
+                'mahj.context_processors.role_flags',
             ],
         },
     },

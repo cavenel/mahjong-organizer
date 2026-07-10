@@ -13,14 +13,13 @@ Nothing here changes the existing players-only withheld-podium logic; the final
 """
 import json
 
-from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse, JsonResponse
 from django.template.defaultfilters import floatformat
 
 from ..models import CeremonyState, PublishedRound
 from ..scoring import _country_flag, _final_round_withheld, team_standings
 from ..signals import broadcast_display, invalidate_leaderboard
-from .helpers import get_tenant, get_variables, is_display_op
+from .helpers import get_tenant, get_variables, tenant_role_required
 from .scoring import scores_per_player_json, stat_all_rounds
 
 
@@ -177,7 +176,7 @@ def ceremony_active_payload(request):
     return state, _slide_payload(_ceremony_master(request), state)
 
 
-@user_passes_test(is_display_op)
+@tenant_role_required('display_op')
 def ceremony_data(request):
     """Full dataset + current state for the operator console (drives previews
     and button state; lets a reloaded console resume mid-ceremony)."""
@@ -197,7 +196,7 @@ def ceremony_data(request):
     return JsonResponse(master)
 
 
-@user_passes_test(is_display_op)
+@tenant_role_required('display_op')
 def ceremony_control(request):
     """Mutate ceremony state and broadcast the new slide to all screens.
 

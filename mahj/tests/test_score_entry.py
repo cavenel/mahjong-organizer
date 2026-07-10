@@ -10,11 +10,14 @@ from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Hand, Seat, PublishedRound
+from mahj.tests.conftest import grant
 
 
 @pytest.fixture
-def scorer(db):
-    return User.objects.create_user('scorer', password='pw', is_staff=True)
+def scorer(tournament):
+    u = User.objects.create_user('scorer', password='pw')
+    grant(u, tournament['tenant'], admin=True)
+    return u
 
 
 @pytest.fixture

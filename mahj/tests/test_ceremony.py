@@ -8,6 +8,7 @@ from django.test import Client, RequestFactory
 
 from mahj.models import CeremonyState, PublishedRound, Screen, Seat
 from mahj.views import ceremony
+from mahj.tests.conftest import grant
 
 
 @pytest.fixture
@@ -58,7 +59,9 @@ def _request(host='test.example.com'):
 @pytest.fixture
 def op_client(teamed):
     c = Client()
-    c.force_login(User.objects.create_user('op', password='pw', is_staff=True))
+    u = User.objects.create_user('op', password='pw')
+    grant(u, teamed['tenant'], admin=True)
+    c.force_login(u)
     c.defaults['HTTP_HOST'] = 'test.example.com'
     return c
 

@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Hand, Player, Seat
-from .helpers import get_tenant, get_variables
+from .helpers import get_tenant, get_variables, is_tenant_admin
 from ..scoring import (
     _assign_ranks, _attach_players, _standings_rank_key, _standings_sort_key,
     player_extra_stats, public_round_max, team_extra_stats, team_standings,
@@ -25,7 +25,7 @@ MODAL_CACHE_TTL = 30
 def details_player(request, id):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    is_admin = request.user.is_staff
+    is_admin = is_tenant_admin(request)
     cache_key = f'modal_player:{subdomain}:{id}:{is_admin}:{leaderboard_gen(subdomain)}'
     cached = cache.get(cache_key)
     if cached is not None:
@@ -61,7 +61,7 @@ def details_player(request, id):
 def details_team(request, team_name):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    is_admin = request.user.is_staff
+    is_admin = is_tenant_admin(request)
     # Hash team_name into the key: it's free-form (spaces/unicode) and Django's
     # cache key validation rejects those.
     team_hash = hashlib.md5(team_name.encode('utf-8')).hexdigest()
@@ -136,7 +136,7 @@ def details_team(request, team_name):
 def detailed_scores(request, round_nb, table_nb):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    is_admin = request.user.is_staff
+    is_admin = is_tenant_admin(request)
 
     # Public modal hit by the whole crowd (every table cell on the desktop links
     # here, including unplayed rounds). Cache the rendered HTML briefly, keyed by

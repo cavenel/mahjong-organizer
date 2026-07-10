@@ -11,11 +11,12 @@ import types
 
 import pytest
 import json
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Schedule, Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
+from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
@@ -153,10 +154,9 @@ def client_():
 
 
 @pytest.fixture
-def display_op(db):
+def display_op(tournament):
     u = User.objects.create_user('op', password='pw')
-    group, _ = Group.objects.get_or_create(name='Display_op')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], display_op=True)
     return u
 
 
@@ -359,8 +359,12 @@ def test_set_variable_saves_valid_message(client_, display_op, tournament):
 # persists edits regardless of which page posts them.
 
 @pytest.fixture
-def staff(db):
-    return User.objects.create_user('boss', password='pw', is_staff=True)
+def staff(tenant):
+    # Depend on the bare `tenant` (not `tournament`) so the empty-tenant dashboard
+    # test isn't handed a seeded roster; tournament-based tests share this tenant.
+    u = User.objects.create_user('boss', password='pw')
+    grant(u, tenant, admin=True)
+    return u
 
 
 def test_settings_page_renders_identity_fields_for_staff(client_, staff, tournament):

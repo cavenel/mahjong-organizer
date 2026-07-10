@@ -1,11 +1,14 @@
 import os
 import pathlib
+from functools import wraps
 
 from django.conf import settings
+from django.contrib.auth.views import redirect_to_login
 from django.core.cache import cache
 from django.forms import ModelForm
+from django.http import HttpResponseForbidden
 
-from ..models import Seat, Tenant, TournamentSettings, Hand
+from ..models import Membership, Seat, Tenant, TournamentSettings, Hand
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -26,22 +29,113 @@ def set_counter(tenant, value):
         cache.delete(f'variables:{tenant.subdomain}')
 
 
-def is_scorer(user):
-    return user.is_authenticated and (user.is_staff or user.groups.filter(name='Scorer').exists())
+# ---------------------------------------------------------------------------
+# Per-tenant authorization.
+#
+# Roles are scoped to a tenant via Membership (see docs/dev/plan-per-tenant-users.md).
+# Every check is evaluated against the CURRENT subdomain's tenant, so a user's
+# access on one tenant says nothing about another — cross-tenant isolation is
+# just the membership row's absence. Platform superusers bypass membership.
+# ---------------------------------------------------------------------------
 
-def is_display_op(user):
-    return user.is_authenticated and (user.is_staff or user.groups.filter(name='Display_op').exists())
+# The four role flags on Membership, and the tenant-role subset the *_required
+# decorators / has_role accept (tenant_admin is checked on its own).
+_TENANT_ROLES = ('scorer', 'display_op', 'publisher')
 
-def is_publisher(user):
-    return user.is_authenticated and (user.is_staff or user.groups.filter(name='Publisher').exists())
 
-def is_scorer_or_display_op(user):
-    return is_scorer(user) or is_display_op(user)
+class _SuperuserMembership:
+    """Synthetic all-true membership for platform superusers, who are cross-tenant
+    and need no row. Lets every check read the same ``.is_*`` attributes whether
+    the caller is a superuser or a real member."""
+    is_tenant_admin = is_scorer = is_display_op = is_publisher = True
 
-def can_access_admin(user):
-    """Any role with a reason to open the admin dashboard: scorers, display
-    operators and publishers (staff are included via each role check)."""
-    return is_scorer_or_display_op(user) or is_publisher(user)
+
+def current_membership(request):
+    """The request user's Membership for the current subdomain's tenant, or None.
+
+    Memoized on ``request._membership`` (like get_tenant/get_variables) so the
+    decorators, view bodies and context processor share one lookup. Anonymous
+    users and users with no row for this tenant get None with no query for the
+    anonymous case; superusers get a synthetic all-true membership (they bypass)."""
+    if hasattr(request, '_membership'):
+        return request._membership
+    user = getattr(request, 'user', None)
+    membership = None
+    if user is not None and user.is_authenticated:
+        if user.is_superuser:
+            membership = _SuperuserMembership()
+        else:
+            tenant = get_tenant(request)
+            if tenant is not None:
+                membership = Membership.objects.filter(user=user, tenant=tenant).first()
+    request._membership = membership
+    return membership
+
+
+def is_tenant_admin(request):
+    """Full admin over the current tenant (or a platform superuser)."""
+    m = current_membership(request)
+    return bool(m and m.is_tenant_admin)
+
+
+def has_role(request, *roles):
+    """True if the user holds any of ``roles`` on the current tenant. Tenant
+    admins (and superusers) implicitly hold every app role, mirroring the old
+    "staff implies scorer/display/publisher"."""
+    m = current_membership(request)
+    if not m:
+        return False
+    if m.is_tenant_admin:
+        return True
+    return any(getattr(m, f'is_{r}', False) for r in roles)
+
+
+def can_access_admin(request):
+    """Any role with a reason to open the admin dashboard: tenant admins, scorers,
+    display operators and publishers (superusers included via the membership)."""
+    return has_role(request, *_TENANT_ROLES)
+
+
+def _deny(request):
+    """Rejection shared by the *_required decorators. Anonymous users get the usual
+    login redirect (preserving the ``/accounts/login/`` flow); an authenticated
+    user who simply lacks the role — including a member of a *different* tenant on
+    this subdomain — gets a 403, which is exactly the isolation we want."""
+    if not request.user.is_authenticated:
+        return redirect_to_login(request.get_full_path())
+    return HttpResponseForbidden()
+
+
+def superuser_required(view):
+    """Platform-operator gate (tenant CRUD, whole-cluster restore)."""
+    @wraps(view)
+    def inner(request, *args, **kwargs):
+        if request.user.is_authenticated and request.user.is_superuser:
+            return view(request, *args, **kwargs)
+        return _deny(request)
+    return inner
+
+
+def tenant_admin_required(view):
+    """Full admin over the request's tenant (superuser or ``is_tenant_admin``)."""
+    @wraps(view)
+    def inner(request, *args, **kwargs):
+        if is_tenant_admin(request):
+            return view(request, *args, **kwargs)
+        return _deny(request)
+    return inner
+
+
+def tenant_role_required(*roles):
+    """Any listed role on the request's tenant (superuser or admin also pass)."""
+    def decorator(view):
+        @wraps(view)
+        def inner(request, *args, **kwargs):
+            if has_role(request, *roles):
+                return view(request, *args, **kwargs)
+            return _deny(request)
+        return inner
+    return decorator
 
 
 class PositionForm(ModelForm):

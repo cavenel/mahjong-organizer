@@ -54,16 +54,35 @@ Renewal: `... --profile certbot run --rm certbot renew --quiet` (cron it).
 Migrations apply automatically on container start. Then:
 
 ```bash
-# 1. Create the first admin user
+# 1. Create the platform superuser (cross-tenant operator)
 docker compose exec web python manage.py createsuperuser
-
-# 2. Create a tenant: visit https://<BASE_DOMAIN>/admin_db/ → Tenants → Add
-#    (subdomain + name). Add Scorer / Display_op / Publisher groups + users here too.
 ```
 
-Open `https://<tenant>.<BASE_DOMAIN>/admin`, then **Configuration → Tournament
+Access is **per-tenant** (see `docs/data-model.md` → *Access control*). The
+superuser bypasses membership, so they can:
+
+2. **Create a tenant** — log in at `https://<BASE_DOMAIN>/admin` → **Administration
+   → Tenants → Create** (name + subdomain). (The Django admin at `/admin_db/` also
+   works.)
+3. **Add that tenant's users** — from the Tenants list, click **Manage users →**
+   (or open `https://<tenant>.<BASE_DOMAIN>/admin` → **Administration → User
+   management**) and *Add a user*, ticking **Admin** for the tenant's first admin.
+   Roles (Admin / Scorer / Display operator / Publisher) are stored as per-tenant
+   `Membership` rows — there are no global Scorer/Display_op/Publisher groups.
+
+From then on each tenant admin manages their own tenant's users. Open
+`https://<tenant>.<BASE_DOMAIN>/admin`, then **Configuration → Tournament
 settings** and **Import from template**. The **Dashboard** tracks setup and live
 progress.
+
+For a non-fresh install, the `0010_seed_memberships` migration best-effort maps
+the old global roles onto memberships when exactly one tenant exists; with
+several tenants it can't guess, so grant access manually with
+`manage.py assign_membership <user> <subdomain> --roles=tenant_admin,scorer,…`.
+
+**Standalone build** (`docs/STANDALONE.md`): single-tenant and single-operator —
+it auto-creates a superuser on first launch, so it works out of the box with no
+membership setup.
 
 ## Updating
 

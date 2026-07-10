@@ -4,7 +4,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import json
 
 from django.conf import settings
-from django.contrib.auth.decorators import user_passes_test
 from django.forms.models import model_to_dict
 from django.http import Http404, HttpResponse, HttpResponseNotFound, JsonResponse
 from django.shortcuts import get_object_or_404, render
@@ -16,7 +15,7 @@ from ..signals import broadcast_display
 from ..scoring import _final_round_withheld, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
-from .helpers import get_tenant, get_variables, is_display_op
+from .helpers import get_tenant, get_variables, has_role, tenant_role_required
 from .scoring import scores_per_player_json, scores_per_table_json
 
 
@@ -124,7 +123,7 @@ def overview(request):
     # A logged-in display operator gets a one-click mode switcher occupying the
     # first grid cell (active mode highlighted); an anonymous projector view
     # stays a clean, control-free grid.
-    can_control = is_display_op(request.user)
+    can_control = has_role(request, 'display_op')
     modes = []
     if can_control:
         modes = _mode_breakdowns(
@@ -328,7 +327,7 @@ def _screen_or_404(tenant, raw_id):
     return get_object_or_404(Screen, tenant=tenant, id=screen_id)
 
 
-@user_passes_test(is_display_op)
+@tenant_role_required('display_op')
 def update_screen_view(request):
     """Point a screen at a view string (see index() for the grammar). An unknown
     string is stored as-is and renders as a blank screen."""
@@ -340,7 +339,7 @@ def update_screen_view(request):
     return HttpResponse("")
 
 
-@user_passes_test(is_display_op)
+@tenant_role_required('display_op')
 def update_screen_name(request):
     """Rename a screen. The name is a friendly label only — screens are still
     addressed positionally (/1, /2, …), so renaming never changes a URL. An empty

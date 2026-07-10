@@ -50,7 +50,10 @@
   </div>
   {% endif %}
 
-  <!-- Setup checklist --------------------------------------------------------->
+  <!-- Setup checklist — tournament setup is the organizer's job (import, draw,
+       screens), so only show it to tenant admins. A scorer/publisher/display op
+       has no access to the pages it links to. ------------------------------->
+  {% if is_tenant_admin %}
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
     <h3 class="text-sm font-bold text-gray-800 mb-4">Setup</h3>
     <ul class="space-y-3 text-sm">
@@ -83,6 +86,7 @@
       </li>
     </ul>
   </div>
+  {% endif %}
 
   <!-- Progress + counter ------------------------------------------------------>
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -95,13 +99,15 @@
          x-data="dashCounter({{ counter }}, {{ variables.total_time }})" x-init="tick()">
       <h3 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Round timer</h3>
       <p class="text-2xl font-bold" :class="state==='running' ? 'text-green-600' : 'text-gray-400'" x-text="label"></p>
+      {% if is_tenant_admin or user_is_display_op %}
       <p class="text-xs text-gray-500 mt-1">
         <a href="admin?page=display" class="text-amber-600 hover:underline">Manage on the Displays page</a>
       </p>
+      {% endif %}
     </div>
   </div>
 
-  {% if static_publish_enabled and request.user.is_staff %}
+  {% if static_publish_enabled and is_tenant_admin %}
   <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
     <h3 class="text-sm font-semibold text-gray-700 mb-3">Public website</h3>
     <p class="text-sm text-gray-600 mb-3">

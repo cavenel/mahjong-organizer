@@ -17,6 +17,34 @@ to competitors, and how a hand encodes draws and self-draws.
 - **ScoreSheet** — score-entry state for one (round, table).
 - **PublishedRound** — marks a round's results as published.
 - **Schedule / Screen / ScreenMode / CeremonyState** — display/scheduling support.
+- **Membership** — one user's access to one tenant (see *Access control* below).
+
+## Access control: User ↔ Tenant (Membership)
+
+Authorization is per-tenant. `Membership` joins Django's `auth.User` to a
+`Tenant` and carries the role flags for that tenant:
+
+- `is_tenant_admin` — full admin over this tenant; implies every app role here.
+- `is_scorer` / `is_display_op` / `is_publisher` — the three tier-3 roles.
+
+Unlike every other model, `Membership` is **not** tenant-scoped by a default FK —
+it *defines* the scope (it names both the user and the tenant). Three tiers:
+
+- **Platform superuser** — Django `is_superuser`. Cross-tenant; bypasses
+  Membership entirely (needs no row) and is the only cross-tenant actor. Creates
+  tenants and runs the whole-cluster DB restore.
+- **Tenant admin** — an `is_tenant_admin` Membership. Manages that tenant's users
+  and roles (including co-admins). Can't reach other tenants or platform ops.
+- **Tenant role** — `Scorer` / `Display operator` / `Publisher`, scoped to one
+  tenant.
+
+Every runtime check is evaluated against the **current subdomain's** tenant
+(`current_membership(request)` in `mahj/views/helpers.py`), so a user's access on
+one tenant says nothing about another — cross-tenant isolation is just the
+membership row's absence. Django `is_staff` is reserved for the Django admin site
+and grants no app access. The unique constraint is one Membership per
+`(user, tenant)`; a user may hold several (e.g. a federation organiser running
+multiple events without being a superuser).
 
 ## Seating draw: Player ↔ Seat
 

@@ -11,6 +11,7 @@ import json
 import pytest
 
 from mahj.publish.static_export import export_public, _team_slug
+from mahj.tests.conftest import grant
 
 
 @pytest.fixture
@@ -142,10 +143,11 @@ class TestPublishProgress:
     def test_status_idle_by_default(self, tournament):
         from django.contrib.auth.models import User
         from django.test import Client
-        User.objects.create_user('boss', password='pw', is_staff=True)
+        u = User.objects.create_user('boss', password='pw')
+        grant(u, tournament['tenant'], admin=True)
         c = Client()
         c.defaults['HTTP_HOST'] = 'test.example.com'
-        c.force_login(User.objects.get(username='boss'))
+        c.force_login(u)
         assert c.get('/publish_status').json()['phase'] == 'idle'
 
     def test_progress_round_trip(self, settings):
@@ -260,10 +262,11 @@ class TestPublishWebEndpoint:
         # Tenant 'test' has no publish target → 400.
         from django.contrib.auth.models import User
         from django.test import Client
-        User.objects.create_user('boss', password='pw', is_staff=True)
+        u = User.objects.create_user('boss', password='pw')
+        grant(u, tournament['tenant'], admin=True)
         c = Client()
         c.defaults['HTTP_HOST'] = 'test.example.com'
-        c.force_login(User.objects.get(username='boss'))
+        c.force_login(u)
         resp = c.post('/publish_web')
         assert resp.status_code == 400
         assert 'not configured' in resp.json()['error'].lower()
@@ -273,10 +276,12 @@ class TestPublishTargetEndpoint:
     def _staff_client(self):
         from django.contrib.auth.models import User
         from django.test import Client
-        User.objects.create_user('boss', password='pw', is_staff=True)
+        from mahj.models import Tenant
+        u = User.objects.create_user('boss', password='pw')
+        grant(u, Tenant.objects.get(subdomain='test'), admin=True)
         c = Client()
         c.defaults['HTTP_HOST'] = 'test.example.com'
-        c.force_login(User.objects.get(username='boss'))
+        c.force_login(u)
         return c
 
     def test_save_requires_staff(self, tournament):

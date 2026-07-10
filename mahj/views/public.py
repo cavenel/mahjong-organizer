@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from ..models import Hand, ScoreSheet, Schedule, Seat
 from ..scoring import _attach_players, team_standings
-from .helpers import can_access_admin, get_tenant, get_variables
+from .helpers import can_access_admin, get_tenant, get_variables, is_tenant_admin
 from .scoring import (
     LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
     stats_export, table_stats, table_stats_rounds, tournament_seating,
@@ -30,7 +30,10 @@ def desktop(request):
         logout(request)
 
     subdomain = tenant.subdomain if tenant else ''
-    is_admin = request.user.is_staff
+    # "admin" here = full view of this tenant (reveals withheld/unpublished scores):
+    # a tenant admin or a platform superuser. Tenant-scoped, so a member of another
+    # tenant on this subdomain is treated as a plain viewer.
+    is_admin = is_tenant_admin(request)
     check_final = not is_admin
 
     # The overflow menu (Admin / Log out / Login) varies by role, but the page is
@@ -40,7 +43,7 @@ def desktop(request):
     # share 'anon' (so nginx still microcaches a single `/` entry), while the few
     # privileged sessions each get their own variant.
     authenticated = request.user.is_authenticated
-    user_can_access_admin = can_access_admin(request.user)
+    user_can_access_admin = can_access_admin(request)
     view = ('staff' if is_admin else 'admin' if user_can_access_admin
             else 'user' if authenticated else 'anon')
 
@@ -195,7 +198,7 @@ def stats_xlsx(request):
     if tenant is None:
         return HttpResponseRedirect('admin')
     subdomain = tenant.subdomain if tenant else ''
-    is_admin = request.user.is_staff
+    is_admin = is_tenant_admin(request)
     check_final = not is_admin
 
     positions = _attach_players(tenant, list(

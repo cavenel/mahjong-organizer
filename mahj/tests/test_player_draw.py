@@ -5,6 +5,7 @@ from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Player
+from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
@@ -17,8 +18,10 @@ def client_():
 
 
 @pytest.fixture
-def staff(db):
-    return User.objects.create_user('boss', password='pw', is_staff=True)
+def staff(tournament):
+    u = User.objects.create_user('boss', password='pw')
+    grant(u, tournament['tenant'], admin=True)
+    return u
 
 
 @pytest.fixture

@@ -1,7 +1,6 @@
 import json
 
 from django.conf import settings
-from django.contrib.auth.decorators import user_passes_test
 from django.db import transaction
 from django.db.models import F
 from django.http import HttpResponse, JsonResponse
@@ -17,7 +16,7 @@ from ..signals import (
     broadcast_scorer_validation,
     invalidate_leaderboard,
 )
-from .helpers import get_tenant, get_variables, is_publisher, is_scorer
+from .helpers import get_tenant, get_variables, tenant_role_required
 
 
 WINDS = ['E', 'S', 'W', 'N']
@@ -123,7 +122,7 @@ def _scan_qr_svg(request, round_nb, table_nb):
     return segno.make(url, error='m').svg_inline(scale=3, border=2)
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
     position_vals = _attach_players(tenant, list(
@@ -180,7 +179,7 @@ def admin_scores_per_hand(request, round_nb, table_nb):
     return HttpResponse(template.render(context, request))
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def create_hand_points(request):
     """Bulk-write all 16 hands of a table (admin random-fill tool).
 
@@ -221,7 +220,7 @@ def create_hand_points(request):
     return HttpResponse("")
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def update_hand_points(request):
     tenant = get_tenant(request)
     hand_id = request.POST.get('id')
@@ -289,7 +288,7 @@ def _prune_to_played_hands(tenant, round_nb, table_nb):
     ).delete()
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def validate_score_sheet(request):
     """Mark a table's score sheet validated (or not). Validating prunes the sheet
     to the hands actually played."""
@@ -314,7 +313,7 @@ def validate_score_sheet(request):
     return JsonResponse({'status': 'ok'})
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def clear_score_sheet(request):
     """Wipe a table's score sheet: delete all its hands and the ScoreSheet record,
     and reset the four seats' penalties to 0, so the sheet reads as neither filled
@@ -340,7 +339,7 @@ def clear_score_sheet(request):
     return JsonResponse({'status': 'ok'})
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def update_position_penalty(request):
     """Set a single seat's penalty (an integer minipoint adjustment, +/-).
 
@@ -365,7 +364,7 @@ def update_position_penalty(request):
     return JsonResponse({'status': 'ok'})
 
 
-@user_passes_test(is_scorer)
+@tenant_role_required('scorer')
 def update_positions_bulk(request):
     """Update all 4 seats of a table row in a single request and transaction."""
     tenant = get_tenant(request)
@@ -420,7 +419,7 @@ def update_positions_bulk(request):
     return HttpResponse("")
 
 
-@user_passes_test(is_publisher)
+@tenant_role_required('publisher')
 def set_round_published(request):
     """Publish or unpublish a round. Restricted to staff and the Publisher role:
     publishing locks a round's scores, so plain scorers must not be able to

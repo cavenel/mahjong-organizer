@@ -6,11 +6,12 @@ The fixture (see conftest.tournament) seeds 3 rounds: rounds 1 & 2 are complete
 seats but no scores and is unpublished.
 """
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Seat, ScoreSheet
 from mahj.views.admin_views import publisher_overview_rows
+from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
@@ -23,24 +24,24 @@ def client_():
 
 
 @pytest.fixture
-def publisher_user(db):
+def publisher_user(tournament):
     u = User.objects.create_user('pub', password='pw')
-    group, _ = Group.objects.get_or_create(name='Publisher')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], publisher=True)
     return u
 
 
 @pytest.fixture
-def scorer_user(db):
+def scorer_user(tournament):
     u = User.objects.create_user('sco', password='pw')
-    group, _ = Group.objects.get_or_create(name='Scorer')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], scorer=True)
     return u
 
 
 @pytest.fixture
-def staff_user(db):
-    return User.objects.create_user('boss', password='pw', is_staff=True)
+def staff_user(tournament):
+    u = User.objects.create_user('boss', password='pw')
+    grant(u, tournament['tenant'], admin=True)
+    return u
 
 
 class TestOverviewRows:

@@ -15,7 +15,7 @@ from django.shortcuts import render
 
 from ..models import Hand, ScoreSheet, Seat
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
-from .helpers import BASE_DIR, get_tenant, is_scorer
+from .helpers import BASE_DIR, get_tenant, has_role
 from .score_entry import _parse_hand, _prune_to_played_hands
 from ..scoring import _attach_players
 
@@ -157,7 +157,7 @@ def scan_page(request, round_nb=None, table_nb=None):
     return render(request, "mahj/scan.html", {
         "round_nb": round_nb,
         "table_nb": table_nb,
-        "can_open_sheet": is_scorer(request.user),
+        "can_open_sheet": has_role(request, 'scorer'),
     })
 
 

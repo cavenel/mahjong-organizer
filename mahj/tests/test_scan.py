@@ -7,11 +7,12 @@
 """
 import json
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import Client
 
 from mahj.models import Hand, ScoreSheet
+from mahj.tests.conftest import grant
 
 
 HOST = 'test.example.com'
@@ -25,10 +26,9 @@ def client_():
 
 
 @pytest.fixture
-def scorer(db):
+def scorer(tournament):
     u = User.objects.create_user('scorer', password='pw')
-    group, _ = Group.objects.get_or_create(name='Scorer')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], scorer=True)
     return u
 
 

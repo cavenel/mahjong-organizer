@@ -5,12 +5,28 @@ from django.db.models import ForeignKey, Model
 from django.db.models.query import QuerySet
 from django.test import RequestFactory
 
-from mahj.models import Tenant, Player, TournamentSettings, Schedule, Seat, ScoreSheet, Hand, PublishedRound
+from mahj.models import Tenant, Player, TournamentSettings, Schedule, Seat, ScoreSheet, Hand, PublishedRound, Membership
 
 
 @pytest.fixture
 def tenant(db):
     return Tenant.objects.create(name='Test', subdomain='test')
+
+
+def grant(user, tenant, admin=False, scorer=False, display_op=False, publisher=False):
+    """Give ``user`` a per-tenant Membership (the new access model). Roles are
+    scoped to ``tenant``; a tenant admin implicitly holds every app role there.
+    Superusers need no Membership — they bypass. Helper shared by the suite's
+    privileged-user fixtures."""
+    return Membership.objects.create(
+        user=user, tenant=tenant, is_tenant_admin=admin,
+        is_scorer=scorer, is_display_op=display_op, is_publisher=publisher)
+
+
+@pytest.fixture
+def grant_membership():
+    """Fixture form of ``grant`` for tests that build users inline."""
+    return grant
 
 
 @pytest.fixture

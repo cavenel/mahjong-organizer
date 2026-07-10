@@ -4,7 +4,8 @@
   <div>
     <h2 class="text-xl font-bold text-gray-800">User management</h2>
     <p class="text-sm text-gray-500 mt-1">
-      Create scorer / display accounts, set their roles, and hand out passwordless login links.
+      Manage <strong>this tournament's</strong> users: create scorer / display accounts, set their
+      roles, and hand out passwordless login links. Users of other tournaments aren't shown here.
     </p>
   </div>
 
@@ -29,9 +30,9 @@
     </div>
     <div class="flex flex-wrap gap-4 items-center">
       <span class="text-xs text-gray-500">Roles:</span>
-      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="is_staff" class="accent-amber-500"> Staff (full admin)</label>
-      {% for role in role_groups %}
-      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="role" value="{{ role }}" class="accent-amber-500"> {{ role }}</label>
+      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="is_tenant_admin" class="accent-amber-500"> Admin (full control of this tournament)</label>
+      {% for role in role_defs %}
+      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="role" value="{{ role.name }}" class="accent-amber-500"> {{ role.label }}</label>
       {% endfor %}
       <button type="submit"
               class="ml-auto rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600">
@@ -46,23 +47,24 @@
       <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
         <tr>
           <th class="px-3 py-2 text-left">User</th>
-          <th class="px-3 py-2 text-center">Staff</th>
-          {% for role in role_groups %}<th class="px-3 py-2 text-center">{{ role }}</th>{% endfor %}
+          <th class="px-3 py-2 text-center">Admin</th>
+          {% for role in role_defs %}<th class="px-3 py-2 text-center">{{ role.label }}</th>{% endfor %}
           <th class="px-3 py-2 text-left">Last login</th>
           <th class="px-3 py-2 text-right">Actions</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
         {% for u in user_rows %}
-        <tr data-user-id="{{ u.id }}" {% if u.is_self %}data-is-self="1"{% endif %}>
+        <tr data-user-id="{{ u.id }}" {% if u.is_self %}data-is-self="1"{% endif %} {% if u.shared %}data-shared="1"{% endif %}>
           <td class="px-3 py-2">
             <span class="font-medium text-gray-800">{{ u.username }}</span>
             {% if u.is_self %}<span class="ml-1 text-xs text-gray-400">(you)</span>{% endif %}
             {% if not u.has_password %}<span class="ml-1 text-xs italic text-gray-400">link-only</span>{% endif %}
+            {% if u.shared %}<span class="ml-1 text-xs italic text-amber-600" title="Also belongs to another tournament — credentials are managed by a superuser">shared</span>{% endif %}
           </td>
           <td class="px-3 py-2 text-center">
-            <input type="checkbox" class="role-cb accent-amber-500" data-role="__staff__"
-                   {% if u.is_staff %}checked{% endif %} {% if u.is_self %}disabled title="You can't remove your own staff access"{% endif %}>
+            <input type="checkbox" class="role-cb accent-amber-500" data-role="__admin__"
+                   {% if u.is_tenant_admin %}checked{% endif %} {% if u.is_self %}disabled title="You can't remove your own admin access"{% endif %}>
           </td>
           {% for r in u.roles %}
           <td class="px-3 py-2 text-center">
@@ -73,9 +75,14 @@
           <td class="px-3 py-2">
             <div class="flex justify-end gap-1.5">
               <button type="button" class="copy-link rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">Copy link</button>
+              {% if u.shared %}
+              <button type="button" class="remove-from-tenant rounded border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      {% if u.is_self %}disabled{% endif %}>Remove</button>
+              {% else %}
               <button type="button" class="revoke-links rounded border border-gray-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50">Revoke</button>
               <button type="button" class="delete-user rounded border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       {% if u.is_self %}disabled{% endif %}>Delete</button>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -109,12 +116,12 @@
     var roles = [];
     $row.find(".role-cb").each(function() {
       var role = $(this).data("role");
-      if (role !== "__staff__" && this.checked) roles.push(role);
+      if (role !== "__admin__" && this.checked) roles.push(role);
     });
     return roles;
   }
-  function rowStaff($row) {
-    return $row.find('.role-cb[data-role="__staff__"]').prop("checked");
+  function rowAdmin($row) {
+    return $row.find('.role-cb[data-role="__admin__"]').prop("checked");
   }
 
   // Add user
@@ -126,7 +133,7 @@
     post("user_create", {
       username: $f.find('[name="username"]').val(),
       password: $f.find('[name="password"]').val(),
-      is_staff: $f.find('[name="is_staff"]').prop("checked"),
+      is_tenant_admin: $f.find('[name="is_tenant_admin"]').prop("checked"),
       roles: roles,
     }).then(function(res) {
       if (res.handled) return;
@@ -135,13 +142,13 @@
     });
   });
 
-  // Toggle roles / staff — save the whole row's state on any change.
+  // Toggle roles / admin — save the whole row's state on any change.
   $(document).on("change", ".role-cb", function() {
     var $row = $(this).closest("tr");
     var $cb = $(this);
     post("user_update_roles", {
       user_id: $row.data("user-id"),
-      is_staff: rowStaff($row),
+      is_tenant_admin: rowAdmin($row),
       roles: rowRoles($row),
     }).then(function(res) {
       if (res.handled) return;
@@ -186,7 +193,7 @@
     });
   });
 
-  // Delete user
+  // Delete user (only shown for accounts that belong to this tournament alone)
   $(document).on("click", ".delete-user", function() {
     var $row = $(this).closest("tr");
     confirmAction({
@@ -198,6 +205,23 @@
           if (res.handled) return;
           if (res.ok) { $row.remove(); }
           else { alert((res.data && res.data.error) || "Could not delete user"); }
+        });
+      },
+    });
+  });
+
+  // Remove from this tournament (shared accounts — keeps the account, drops the membership)
+  $(document).on("click", ".remove-from-tenant", function() {
+    var $row = $(this).closest("tr");
+    confirmAction({
+      title: "Remove from this tournament",
+      body: "Remove this user's access to this tournament? Their account and access to other tournaments are kept.",
+      confirmLabel: "Remove",
+      onConfirm: function() {
+        post("user_remove_from_tenant", { user_id: $row.data("user-id") }).then(function(res) {
+          if (res.handled) return;
+          if (res.ok) { $row.remove(); }
+          else { alert((res.data && res.data.error) || "Could not remove user"); }
         });
       },
     });

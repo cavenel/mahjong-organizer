@@ -61,7 +61,7 @@
       </a>
 
       <!-- CONFIGURATION -->
-      {% if user.is_staff %}
+      {% if is_tenant_admin %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Configuration</p>
       <a href="admin?page=settings" :title="railCollapsed ? 'Tournament settings' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'settings' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
@@ -76,7 +76,7 @@
       {% endif %}
 
       <!-- PLAYERS -->
-      {% if user.is_staff %}
+      {% if is_tenant_admin %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Players</p>
       <a href="admin?page=player_editor" :title="railCollapsed ? 'Edit players' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'player_editor' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
@@ -98,14 +98,14 @@
       {% endif %}
 
       <!-- SCORING -->
-      {% if user.is_staff or user_is_scorer or user_is_publisher %}
+      {% if is_tenant_admin or user_is_scorer or user_is_publisher %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Scoring</p>
       <a href="admin?page=scoring" :title="railCollapsed ? 'Scoring' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1zM9 12h6M9 16h4"/></svg>
         <span class="nav-label rail-hide">Scoring</span>
       </a>
-      {% if user.is_staff or user_is_publisher %}
+      {% if is_tenant_admin or user_is_publisher %}
       <a href="admin?page=publisher_overview" :title="railCollapsed ? 'Publisher overview' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -115,7 +115,7 @@
       {% endif %}
 
       <!-- DISPLAYS -->
-      {% if user.is_staff or user_is_display_op %}
+      {% if is_tenant_admin or user_is_display_op %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Displays</p>
       <a href="admin?page=display" :title="railCollapsed ? 'Display on screens' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
@@ -130,7 +130,7 @@
       {% endif %}
 
       <!-- RESULTS -->
-      {% if user.is_staff %}
+      {% if is_tenant_admin %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Results</p>
       <a target="_blank" href="EMA_report.xlsx" :title="railCollapsed ? 'Generate EMA report' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
@@ -141,7 +141,7 @@
       {% endif %}
 
       <!-- ADMINISTRATION -->
-      {% if user.is_staff %}
+      {% if is_tenant_admin %}
       <p class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Administration</p>
       <a href="admin?page=users" :title="railCollapsed ? 'User management' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
@@ -149,6 +149,11 @@
         <span class="nav-label rail-hide">User management</span>
       </a>
       {% if user.is_superuser %}
+      <a href="admin?page=tenants" :title="railCollapsed ? 'Tenants' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'tenants' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>
+        <span class="nav-label rail-hide">Tenants</span>
+      </a>
       <a href="admin?page=database_restore" :title="railCollapsed ? 'Database restore' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>
@@ -173,7 +178,7 @@
     <div class="border-t border-gray-100 p-2 shrink-0 relative" @click.outside="userMenuOpen=false">
       <div x-show="userMenuOpen" x-transition x-cloak
            class="absolute bottom-full left-2 right-2 mb-2 min-w-[14rem] bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm max-h-[70vh] overflow-auto">
-        {% if user.is_staff %}
+        {% if is_tenant_admin %}
         <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guides (PDF)</p>
         <a target="_blank" href="/static/docs/full_admin.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
           <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -199,7 +204,7 @@
           <p class="text-sm font-semibold text-gray-800 truncate">{{ username }}</p>
           <p class="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            {% if user.is_staff %}Staff{% elif user_is_publisher %}Publisher{% elif user_is_scorer %}Scorer{% elif user_is_display_op %}Display operator{% endif %}
+            {% if user.is_superuser %}Superuser{% elif is_tenant_admin %}Admin{% elif user_is_publisher %}Publisher{% elif user_is_scorer %}Scorer{% elif user_is_display_op %}Display operator{% endif %}
           </p>
         </div>
         <svg class="w-4 h-4 text-gray-400 shrink-0 rail-hide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
@@ -224,7 +229,7 @@
       </button>
       <h1 id="page-title" class="flex-1 min-w-0 font-semibold text-sm sm:text-base text-gray-800 tracking-tight truncate">Mahjong Tournament Organizer</h1>
 
-      {% if user.is_staff or user_is_scorer or user_is_publisher %}
+      {% if is_tenant_admin or user_is_scorer or user_is_publisher %}
       <div class="relative shrink-0" @click.outside="printMenuOpen=false">
         <button type="button" @click="printMenuOpen=!printMenuOpen"
                 class="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400">
@@ -234,7 +239,7 @@
         </button>
         <div x-show="printMenuOpen" x-transition x-cloak
              class="absolute right-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
-          {% if user.is_staff %}
+          {% if is_tenant_admin %}
           <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Prepare</p>
           <button type="button" @click="showPrintModal('player_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Player names</button>
           {% if uses_teams %}<button type="button" @click="showPrintModal('team_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Team names</button>{% endif %}

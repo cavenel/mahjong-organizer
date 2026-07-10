@@ -36,8 +36,9 @@ A **pull** job just rsyncs the remote down into `/backups` (non-destructive).
 
 - Page + every mutating endpoint require **superuser + fresh reauth** (the
   existing 600s sudo window). Restore is whole-cluster (it replaces every tenant's
-  rows), so it is a platform-operator action, not a per-tenant staff one — Django
-  users aren't tenant-scoped, so the staff flag would be no cross-tenant guard.
+  rows), so it is a platform-operator action, not a per-tenant admin one — a tenant
+  admin's access is scoped to their own tenant (a `Membership`), so the superuser
+  flag is the only cross-tenant guard.
 - **Typed-confirm**: a restore is rejected unless the operator types the DB name
   into the confirm box (mirrors `restore_db.sh`'s typed-name prompt).
 - **No free-text paths**: only a basename chosen from the server-listed `/backups`

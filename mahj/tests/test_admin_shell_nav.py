@@ -10,8 +10,10 @@ Guards against the sidebar's `{% if %}` visibility guards drifting out of sync
 with the server-side page gates in admin_views.py.
 """
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.test import Client
+
+from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
@@ -23,32 +25,30 @@ def client_():
     return c
 
 
-def _role_user(username, *groups, staff=False):
-    u = User.objects.create_user(username, password='pw', is_staff=staff)
-    for g in groups:
-        grp, _ = Group.objects.get_or_create(name=g)
-        u.groups.add(grp)
+def _role_user(username, tenant, **roles):
+    u = User.objects.create_user(username, password='pw')
+    grant(u, tenant, **roles)
     return u
 
 
 @pytest.fixture
-def staff(db):
-    return _role_user('boss', staff=True)
+def staff(tournament):
+    return _role_user('boss', tournament['tenant'], admin=True)
 
 
 @pytest.fixture
-def scorer(db):
-    return _role_user('sc', 'Scorer')
+def scorer(tournament):
+    return _role_user('sc', tournament['tenant'], scorer=True)
 
 
 @pytest.fixture
-def display_op(db):
-    return _role_user('op', 'Display_op')
+def display_op(tournament):
+    return _role_user('op', tournament['tenant'], display_op=True)
 
 
 @pytest.fixture
-def publisher(db):
-    return _role_user('pub', 'Publisher')
+def publisher(tournament):
+    return _role_user('pub', tournament['tenant'], publisher=True)
 
 
 def _get_shell(client_, user):

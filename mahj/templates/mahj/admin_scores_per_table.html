@@ -334,7 +334,7 @@
   var timers = {};
   var recentlyEdited = {};
   var publishedRounds = new Set({{ published_rounds }});
-  // Publishing/unpublishing is staff-only (the backend rejects scorer accounts).
+  // Publishing/unpublishing needs the publisher role or tenant admin (the backend rejects plain scorers).
   var canPublish = {{ can_publish|yesno:"true,false" }};
 
   function flushPending() {

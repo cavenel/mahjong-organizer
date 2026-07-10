@@ -10,10 +10,11 @@ Covers:
 import json
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Hand, TournamentSettings
+from mahj.tests.conftest import grant
 
 
 HOST = 'test.example.com'
@@ -33,21 +34,26 @@ def csrf_client():
     return c
 
 
+# The privileged fixtures depend on `tournament` so the tenant ('test') exists to
+# scope their Membership to. `anonymous_user` is authenticated but has NO
+# membership in this tenant — the "logged in, but no access here" case that now
+# yields 403 rather than a login redirect.
 @pytest.fixture
-def anonymous_user(db):
+def anonymous_user(tournament):
     return User.objects.create_user('regular', password='pw')
 
 
 @pytest.fixture
-def staff_user(db):
-    return User.objects.create_user('staffer', password='pw', is_staff=True)
+def staff_user(tournament):
+    u = User.objects.create_user('staffer', password='pw')
+    grant(u, tournament['tenant'], admin=True)
+    return u
 
 
 @pytest.fixture
-def scorer_group_user(db):
+def scorer_group_user(tournament):
     u = User.objects.create_user('scoreronly', password='pw')
-    group, _ = Group.objects.get_or_create(name='Scorer')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], scorer=True)
     return u
 
 
@@ -57,18 +63,16 @@ def hand(tournament):
 
 
 @pytest.fixture
-def display_op_user(db):
+def display_op_user(tournament):
     u = User.objects.create_user('displayop', password='pw')
-    group, _ = Group.objects.get_or_create(name='Display_op')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], display_op=True)
     return u
 
 
 @pytest.fixture
-def publisher_group_user(db):
+def publisher_group_user(tournament):
     u = User.objects.create_user('publisheronly', password='pw')
-    group, _ = Group.objects.get_or_create(name='Publisher')
-    u.groups.add(group)
+    grant(u, tournament['tenant'], publisher=True)
     return u
 
 
@@ -90,11 +94,11 @@ class TestStaffOnlyEndpointsRedirectAnonymous:
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    def test_non_staff_redirected(self, client_, tournament, anonymous_user):
+    def test_non_member_forbidden(self, client_, tournament, anonymous_user):
+        # Authenticated but no membership in this tenant -> 403 (not a login bounce).
         client_.force_login(anonymous_user)
         resp = client_.get('/options')
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
+        assert resp.status_code == 403
 
     def test_staff_user_reaches_options(self, client_, tournament, staff_user):
         client_.force_login(staff_user)
@@ -110,10 +114,10 @@ class TestScorerGatedEndpoint:
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    def test_non_staff_non_scorer_redirected(self, client_, tournament, anonymous_user):
+    def test_non_staff_non_scorer_forbidden(self, client_, tournament, anonymous_user):
         client_.force_login(anonymous_user)
         resp = client_.get('/scores_per_hand_1_1')
-        assert resp.status_code == 302
+        assert resp.status_code == 403
 
     def test_staff_user_allowed(self, client_, tournament, staff_user):
         client_.force_login(staff_user)
@@ -141,12 +145,12 @@ class TestScorerWriteEndpointsGated:
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    def test_non_scorer_redirected(self, client_, tournament, anonymous_user, hand):
+    def test_non_scorer_forbidden(self, client_, tournament, anonymous_user, hand):
         client_.force_login(anonymous_user)
         resp = client_.post('/update_hand_points', {
             'id': hand.id, 'version': hand.version, 'points': 1, 'by': 1, 'from': 2,
         })
-        assert resp.status_code == 302
+        assert resp.status_code == 403
 
 
 class TestPublishRestrictedToStaffAndPublisher:
@@ -161,13 +165,13 @@ class TestPublishRestrictedToStaffAndPublisher:
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    def test_scorer_group_member_redirected(self, client_, tournament, scorer_group_user):
+    def test_scorer_forbidden(self, client_, tournament, scorer_group_user):
+        # A plain scorer is authenticated but lacks the publisher role -> 403.
         client_.force_login(scorer_group_user)
         resp = client_.post('/set_round_published',
                             data=json.dumps({'round_nb': 1, 'published': False}),
                             content_type='application/json')
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
+        assert resp.status_code == 403
 
     def test_staff_user_allowed(self, client_, tournament, staff_user):
         client_.force_login(staff_user)
@@ -346,6 +350,77 @@ USER_ADMIN_ENDPOINTS = [
 ]
 
 
+class TestAdminPageRoleIsolation:
+    """Every admin-shell page must enforce its own role, not merely the shared
+    "any app role" gate on the shell. Regression guard: the shell admits
+    scorer/display_op/publisher, and several pages (display, ceremony, scoring,
+    import) once relied on that gate alone — so a scorer could open (and, on the
+    display page, drive the mutating screen/mode actions of) pages meant for a
+    different role. The nav hides the links; the server must refuse them too.
+    """
+
+    def _body(self, client_, user, page):
+        client_.force_login(user)
+        resp = client_.get('/admin?page=' + page)
+        # Denied pages still return the shell (200) with an empty body, matching
+        # the existing hidden-page convention (see TestUserAdminGated).
+        assert resp.status_code == 200
+        return resp.content
+
+    # --- display: display-operator only ---------------------------------------
+    def test_display_hidden_from_scorer(self, client_, tournament, scorer_group_user):
+        assert b'id="configure-screens"' not in self._body(client_, scorer_group_user, 'display')
+
+    def test_display_hidden_from_publisher(self, client_, tournament, publisher_group_user):
+        assert b'id="configure-screens"' not in self._body(client_, publisher_group_user, 'display')
+
+    def test_display_visible_to_display_op(self, client_, tournament, display_op_user):
+        assert b'id="configure-screens"' in self._body(client_, display_op_user, 'display')
+
+    def test_scorer_cannot_add_screen_via_display_page(self, client_, tournament, scorer_group_user):
+        from mahj.models import Screen
+        before = Screen.objects.filter(tenant=tournament['tenant']).count()
+        client_.force_login(scorer_group_user)
+        # The display page's inline actions must not run for a non-operator.
+        client_.get('/admin?page=display&action=add_screen')
+        assert Screen.objects.filter(tenant=tournament['tenant']).count() == before
+
+    def test_scorer_cannot_change_variable_via_display_page(self, client_, tournament, scorer_group_user):
+        client_.force_login(scorer_group_user)
+        resp = client_.get('/admin?page=display&action=set_variable&variables-welcome=HACKED')
+        # The set_variable action returns the settings string when it runs; a
+        # denied request just renders the empty shell instead.
+        assert b'HACKED' not in resp.content
+        assert TournamentSettings.objects.get(tenant=tournament['tenant']).welcome != 'HACKED'
+
+    # --- ceremony: display-operator only --------------------------------------
+    def test_ceremony_hidden_from_scorer(self, client_, tournament, scorer_group_user):
+        assert b'ceremonyConsole' not in self._body(client_, scorer_group_user, 'ceremony')
+
+    def test_ceremony_visible_to_display_op(self, client_, tournament, display_op_user):
+        assert b'ceremonyConsole' in self._body(client_, display_op_user, 'ceremony')
+
+    # --- scoring: scorer / publisher only -------------------------------------
+    def test_scoring_hidden_from_display_op(self, client_, tournament, display_op_user):
+        assert b'Filter by table' not in self._body(client_, display_op_user, 'scoring')
+
+    def test_scoring_visible_to_scorer(self, client_, tournament, scorer_group_user):
+        assert b'Filter by table' in self._body(client_, scorer_group_user, 'scoring')
+
+    def test_scoring_visible_to_publisher(self, client_, tournament, publisher_group_user):
+        assert b'Filter by table' in self._body(client_, publisher_group_user, 'scoring')
+
+    # --- import_template: tenant admin only -----------------------------------
+    def test_import_hidden_from_scorer(self, client_, tournament, scorer_group_user):
+        assert b'will erase' not in self._body(client_, scorer_group_user, 'import_template')
+
+    def test_import_hidden_from_display_op(self, client_, tournament, display_op_user):
+        assert b'will erase' not in self._body(client_, display_op_user, 'import_template')
+
+    def test_import_visible_to_staff(self, client_, tournament, staff_user):
+        assert b'will erase' in self._body(client_, staff_user, 'import_template')
+
+
 class TestUserAdminGated:
     """The user-management endpoints are staff-only (not scorers)."""
 
@@ -356,11 +431,10 @@ class TestUserAdminGated:
         assert '/accounts/login/' in resp.url
 
     @pytest.mark.parametrize('url', USER_ADMIN_ENDPOINTS)
-    def test_scorer_group_member_redirected(self, client_, tournament, scorer_group_user, url):
+    def test_scorer_member_forbidden(self, client_, tournament, scorer_group_user, url):
         client_.force_login(scorer_group_user)
         resp = _json_post(client_, '/' + url, {})
-        assert resp.status_code == 302
-        assert '/accounts/login/' in resp.url
+        assert resp.status_code == 403
 
     def test_users_page_hidden_from_scorer(self, client_, tournament, scorer_group_user):
         client_.force_login(scorer_group_user)
@@ -371,17 +445,23 @@ class TestUserAdminGated:
 
 
 class TestUserAdminActions:
-    """Behaviour of the staff user-management endpoints."""
+    """Behaviour of the tenant-admin user-management endpoints (scoped to the
+    request's tenant, roles stored as per-tenant Memberships)."""
+
+    def _membership(self, user, tenant):
+        from mahj.models import Membership
+        return Membership.objects.get(user=user, tenant=tenant)
 
     def test_create_passwordless_user_with_roles(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_create',
-                          {'username': 'scorer1', 'roles': ['Scorer']})
+                          {'username': 'scorer1', 'roles': ['scorer']})
         assert resp.status_code == 200
         u = User.objects.get(username='scorer1')
         assert not u.has_usable_password()        # blank password -> link-only
-        assert u.groups.filter(name='Scorer').exists()
-        assert not u.is_staff
+        m = self._membership(u, tournament['tenant'])
+        assert m.is_scorer and not m.is_tenant_admin
+        assert not u.is_staff                     # app roles never touch the Django flag
 
     def test_create_with_password(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
@@ -396,26 +476,29 @@ class TestUserAdminActions:
     def test_update_roles_adds_and_removes(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
         target = User.objects.create_user('rolet', password='pw')
+        grant(target, tournament['tenant'])       # must belong to this tenant first
         _json_post(client_, '/user_update_roles',
-                   {'user_id': target.id, 'roles': ['Scorer', 'Publisher'], 'is_staff': False})
-        assert set(target.groups.values_list('name', flat=True)) == {'Scorer', 'Publisher'}
+                   {'user_id': target.id, 'roles': ['scorer', 'publisher'], 'is_tenant_admin': False})
+        m = self._membership(target, tournament['tenant'])
+        assert (m.is_scorer, m.is_publisher, m.is_display_op) == (True, True, False)
         _json_post(client_, '/user_update_roles',
-                   {'user_id': target.id, 'roles': ['Display_op'], 'is_staff': False})
-        assert set(target.groups.values_list('name', flat=True)) == {'Display_op'}
+                   {'user_id': target.id, 'roles': ['display_op'], 'is_tenant_admin': False})
+        m.refresh_from_db()
+        assert (m.is_scorer, m.is_publisher, m.is_display_op) == (False, False, True)
 
-    def test_cannot_remove_own_staff_flag(self, client_, tournament, staff_user):
+    def test_cannot_remove_own_admin_flag(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
         resp = _json_post(client_, '/user_update_roles',
-                          {'user_id': staff_user.id, 'roles': [], 'is_staff': False})
+                          {'user_id': staff_user.id, 'roles': [], 'is_tenant_admin': False})
         assert resp.status_code == 400
-        staff_user.refresh_from_db()
-        assert staff_user.is_staff is True
+        assert self._membership(staff_user, tournament['tenant']).is_tenant_admin is True
 
     def test_generate_link_authenticates(self, client_, tournament, staff_user):
         from sesame.utils import get_user
         _login_reauthed(client_, staff_user)
         target = User.objects.create_user('linkme')
         target.set_unusable_password(); target.save()
+        grant(target, tournament['tenant'], scorer=True)
         resp = _json_post(client_, '/user_generate_link', {'user_id': target.id})
         assert resp.status_code == 200
         url = resp.json()['url']
@@ -427,6 +510,7 @@ class TestUserAdminActions:
         _login_reauthed(client_, staff_user)
         target = User.objects.create_user('revokeme')
         target.set_unusable_password(); target.save()
+        grant(target, tournament['tenant'], scorer=True)
         token = get_token(target)
         assert get_user(token) == target            # valid before revoke
         resp = _json_post(client_, '/user_revoke_links', {'user_id': target.id})
@@ -437,6 +521,7 @@ class TestUserAdminActions:
     def test_delete_user(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
         target = User.objects.create_user('deleteme', password='pw')
+        grant(target, tournament['tenant'], scorer=True)
         resp = _json_post(client_, '/user_delete', {'user_id': target.id})
         assert resp.status_code == 200
         assert not User.objects.filter(username='deleteme').exists()
@@ -447,12 +532,13 @@ class TestUserAdminActions:
         assert resp.status_code == 400
         assert User.objects.filter(pk=staff_user.id).exists()
 
-    def test_staff_can_delete_another_staff_when_more_than_one(self, client_, tournament, staff_user):
+    def test_admin_can_delete_another_admin_when_more_than_one(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
-        other_staff = User.objects.create_user('staff2', password='pw', is_staff=True)
-        resp = _json_post(client_, '/user_delete', {'user_id': other_staff.id})
+        other_admin = User.objects.create_user('admin2', password='pw')
+        grant(other_admin, tournament['tenant'], admin=True)
+        resp = _json_post(client_, '/user_delete', {'user_id': other_admin.id})
         assert resp.status_code == 200
-        assert not User.objects.filter(username='staff2').exists()
+        assert not User.objects.filter(username='admin2').exists()
 
 
 class TestUserAdminReauth:
@@ -488,12 +574,13 @@ class TestUserAdminReauth:
         resp = _json_post(client_, '/user_create', {'username': 'newbie', 'roles': []})
         assert resp.status_code == 200
 
-    def test_linkonly_staff_blocked(self, client_, tournament):
-        # A staffer with no usable password has nothing to confirm, so user
+    def test_linkonly_admin_blocked(self, client_, tournament):
+        # An admin with no usable password has nothing to confirm, so user
         # management is closed to them entirely.
-        u = User.objects.create_user('linkstaff', is_staff=True)
+        u = User.objects.create_user('linkstaff')
         u.set_unusable_password()
         u.save()
+        grant(u, tournament['tenant'], admin=True)
         client_.force_login(u)
         page = client_.get('/admin?page=users')
         assert b'Add a user' not in page.content

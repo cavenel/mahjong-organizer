@@ -1,0 +1,114 @@
+{% load static %}
+<div class="max-w-4xl space-y-6">
+
+  <div>
+    <h2 class="text-xl font-bold text-gray-800">Tenants</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      Platform operator only. Create tournaments (tenants) and rename them. To add a tenant's first
+      admin (or manage its users), open that tenant's own <strong>User management</strong> page via
+      the link on each row — as a superuser you have full access there.
+    </p>
+  </div>
+
+  <!-- Create tenant -->
+  <form id="add-tenant-form" class="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+    <h3 class="font-semibold text-gray-700">Create a tenant</h3>
+    <div class="flex flex-wrap gap-3 items-end">
+      <label class="flex flex-col text-xs text-gray-500">Name
+        <input type="text" name="name" required
+               class="mt-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-800">
+      </label>
+      <label class="flex flex-col text-xs text-gray-500">Subdomain
+        <input type="text" name="subdomain" required autocomplete="off"
+               class="mt-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-800 lowercase">
+      </label>
+      <span class="text-xs text-gray-400 pb-1">.{{ base_domain }}</span>
+      <button type="submit"
+              class="ml-auto rounded-lg bg-amber-500 px-4 py-1.5 text-sm font-medium text-white hover:bg-amber-600">
+        Create
+      </button>
+    </div>
+  </form>
+
+  <!-- Tenant table -->
+  <div class="rounded-lg border border-gray-200 bg-white overflow-x-auto">
+    <table class="w-full text-sm text-gray-700">
+      <thead class="bg-gray-50 text-xs uppercase tracking-wide text-gray-500">
+        <tr>
+          <th class="px-3 py-2 text-left">Name</th>
+          <th class="px-3 py-2 text-left">Subdomain</th>
+          <th class="px-3 py-2 text-center">Admins</th>
+          <th class="px-3 py-2 text-center">Members</th>
+          <th class="px-3 py-2 text-right">Actions</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-100">
+        {% for t in tenant_rows %}
+        <tr data-tenant-id="{{ t.id }}" data-name="{{ t.name }}" data-subdomain="{{ t.subdomain }}">
+          <td class="px-3 py-2 font-medium text-gray-800">{{ t.name }}</td>
+          <td class="px-3 py-2 text-gray-600">{{ t.subdomain }}<span class="text-gray-400">.{{ base_domain }}</span></td>
+          <td class="px-3 py-2 text-center {% if t.admins == 0 %}text-red-600 font-semibold{% endif %}">{{ t.admins }}</td>
+          <td class="px-3 py-2 text-center">{{ t.members }}</td>
+          <td class="px-3 py-2">
+            <div class="flex justify-end gap-1.5 items-center">
+              <a href="//{{ t.subdomain }}.{{ base_domain }}/admin?page=users" target="_blank"
+                 class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">Manage users →</a>
+              <button type="button" class="rename-tenant rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">Rename</button>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+(function() {
+  var CSRF = "{{ csrf_token }}";
+
+  function post(url, body) {
+    return fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRFToken": CSRF },
+      body: JSON.stringify(body || {}),
+    }).then(function(r) { return r.json().catch(function() { return {}; }).then(function(j) {
+      if (r.status === 403 && j && j.status === "reauth_required") {
+        location.href = "admin?page=tenants";
+        return { ok: false, status: r.status, data: j, handled: true };
+      }
+      return { ok: r.ok, status: r.status, data: j };
+    }); });
+  }
+
+  // Create tenant
+  $("#add-tenant-form").on("submit", function(e) {
+    e.preventDefault();
+    var $f = $(this);
+    post("tenant_create", {
+      name: $f.find('[name="name"]').val(),
+      subdomain: $f.find('[name="subdomain"]').val(),
+    }).then(function(res) {
+      if (res.handled) return;
+      if (res.ok) { location.reload(); }
+      else { alert((res.data && res.data.error) || "Could not create tenant"); }
+    });
+  });
+
+  // Rename tenant
+  $(document).on("click", ".rename-tenant", function() {
+    var $row = $(this).closest("tr");
+    var name = window.prompt("Tenant name:", $row.data("name"));
+    if (name === null) return;
+    var subdomain = window.prompt("Subdomain:", $row.data("subdomain"));
+    if (subdomain === null) return;
+    post("tenant_rename", { tenant_id: $row.data("tenant-id"), name: name, subdomain: subdomain })
+      .then(function(res) {
+        if (res.handled) return;
+        if (res.ok) { location.reload(); }
+        else { alert((res.data && res.data.error) || "Could not rename tenant"); }
+      });
+  });
+
+})();
+</script>

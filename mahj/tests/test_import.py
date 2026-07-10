@@ -26,7 +26,7 @@ def imp_tenant(db):
 def staff_client(imp_tenant):
     c = Client()
     c.defaults['HTTP_HOST'] = 'imp.example.com'  # -> subdomain 'imp'
-    u = User.objects.create_user('imp_staff', password='pw', is_staff=True, is_superuser=True)
+    u = User.objects.create_superuser('imp_staff', password='pw')
     c.force_login(u)
     return c
 

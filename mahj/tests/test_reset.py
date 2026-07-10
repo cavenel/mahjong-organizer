@@ -12,24 +12,24 @@ from mahj.models import (
     CeremonyState, Hand, Player, PublishTarget, PublishedRound, ScoreSheet,
     Schedule, Screen, ScreenMode, Seat, TournamentSettings,
 )
+from mahj.tests.conftest import grant
 
 
 @pytest.fixture
 def staff_client(tenant):
     c = Client()
     c.defaults['HTTP_HOST'] = 'test.example.com'  # -> subdomain 'test'
-    u = User.objects.create_user('staff', password='pw', is_staff=True, is_superuser=True)
+    u = User.objects.create_superuser('staff', password='pw')
     c.force_login(u)
     return c
 
 
 @pytest.fixture
 def scorer_client(tenant, django_user_model):
-    from django.contrib.auth.models import Group
     c = Client()
     c.defaults['HTTP_HOST'] = 'test.example.com'
-    u = User.objects.create_user('scorer', password='pw', is_staff=False)
-    u.groups.add(Group.objects.create(name='Scorer'))
+    u = User.objects.create_user('scorer', password='pw')
+    grant(u, tenant, scorer=True)
     c.force_login(u)
     return c
 
@@ -59,6 +59,7 @@ def test_reset_requires_post(staff_client):
 def test_reset_is_staff_only(scorer_client, tournament):
     tenant = tournament['tenant']
     resp = scorer_client.post('/admin_reset')
-    # user_passes_test redirects non-staff to login rather than executing.
-    assert resp.status_code in (302, 403)
+    # Authenticated but not a tenant admin -> 403 (the gate no longer bounces
+    # logged-in users to login), and nothing is wiped.
+    assert resp.status_code == 403
     assert Player.objects.filter(tenant=tenant).exists()

@@ -1,12 +1,11 @@
 import itertools
 
-from django.contrib.auth.decorators import user_passes_test
 from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Player, Seat, Schedule
 from ..scoring import _attach_players, _country_flag
-from .helpers import get_tenant, get_variables
+from .helpers import get_tenant, get_variables, tenant_admin_required
 from .. import scoring as _scoring
 from .scoring import scores_per_player_json, scores_per_table_json
 
@@ -151,7 +150,7 @@ def team_names(request):
     return HttpResponse(template.render({"names": teams}, request))
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def table_posters(request):
     tenant = get_tenant(request)
     variables = get_variables(request)

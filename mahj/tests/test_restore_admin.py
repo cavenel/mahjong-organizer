@@ -16,6 +16,7 @@ from django.test import Client
 from mahj import restore_queue
 from mahj.views import restore_admin
 from mahj.views.user_admin import REAUTH_SESSION_KEY
+from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
@@ -30,13 +31,15 @@ def client_():
 @pytest.fixture
 def super_user(db):
     # Restore is a platform-operator action, gated on is_superuser.
-    return User.objects.create_user('operator', password='pw', is_staff=True, is_superuser=True)
+    return User.objects.create_superuser('operator', password='pw')
 
 
 @pytest.fixture
-def staff_user(db):
-    # Staff but NOT superuser — a per-tenant admin, who must NOT reach restore.
-    return User.objects.create_user('staffer', password='pw', is_staff=True)
+def staff_user(tenant):
+    # A per-tenant admin (NOT a platform superuser), who must NOT reach restore.
+    u = User.objects.create_user('staffer', password='pw')
+    grant(u, tenant, admin=True)
+    return u
 
 
 @pytest.fixture
@@ -96,19 +99,20 @@ class TestGating:
         ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
     ])
     def test_staff_non_superuser_blocked_even_with_reauth(self, client_, staff_user, path, method):
-        # F-H1: a per-tenant staff admin must not reach the whole-cluster restore.
-        # superuser_only wraps the reauth check, so they're redirected, never 403.
+        # F-H1: a per-tenant admin must not reach the whole-cluster restore.
+        # superuser_required denies an authenticated non-superuser with a 403
+        # (the login bounce is reserved for anonymous requests).
         client_.force_login(staff_user)
         _reauth(client_)
         resp = getattr(client_, method)(path)
-        assert resp.status_code == 302
+        assert resp.status_code == 403
 
     def test_non_staff_blocked_even_with_reauth(self, client_, plain_user):
         client_.force_login(plain_user)
         _reauth(client_)
         resp = client_.get('/restore_status?job_id=x')
-        # superuser_only wraps the reauth check, so a non-superuser is redirected.
-        assert resp.status_code == 302
+        # superuser_required denies an authenticated non-superuser with a 403.
+        assert resp.status_code == 403
 
 
 # -- restore_run: typed confirmation + dump validation -----------------------

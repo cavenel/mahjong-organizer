@@ -38,15 +38,20 @@ urlpatterns = [
     path('publish_target_test', views.publish_target_test, name='publish_target_test'),
     path('counter_start', views.counter_start, name='counter_start'),
 
-    # User management (staff only)
+    # User management (tenant admin — scoped to the request's tenant)
     path('user_reauth', views.user_reauth, name='user_reauth'),
     path('user_create', views.user_create, name='user_create'),
     path('user_update_roles', views.user_update_roles, name='user_update_roles'),
     path('user_generate_link', views.user_generate_link, name='user_generate_link'),
     path('user_revoke_links', views.user_revoke_links, name='user_revoke_links'),
     path('user_delete', views.user_delete, name='user_delete'),
+    path('user_remove_from_tenant', views.user_remove_from_tenant, name='user_remove_from_tenant'),
 
-    # Database restore (staff only)
+    # Tenant management (superuser only)
+    path('tenant_create', views.tenant_create, name='tenant_create'),
+    path('tenant_rename', views.tenant_rename, name='tenant_rename'),
+
+    # Database restore (superuser only)
     path('restore_pull', views.restore_pull, name='restore_pull'),
     path('restore_run', views.restore_run, name='restore_run'),
     path('restore_status', views.restore_status, name='restore_status'),

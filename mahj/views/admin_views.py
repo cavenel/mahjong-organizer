@@ -12,7 +12,6 @@ from unidecode import unidecode
 
 from django.conf import settings
 from django.contrib.auth import logout
-from django.contrib.auth.decorators import user_passes_test
 from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction
@@ -21,11 +20,18 @@ from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpRespo
 from django.template import loader
 from django.utils.html import escape
 
-from ..models import CeremonyState, Hand, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode
+from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
-from .helpers import BASE_DIR, can_access_admin, get_counter, get_tenant, get_variables, is_display_op, is_publisher, is_scorer, is_scorer_or_display_op, player_statistics, set_counter
+from .helpers import (
+    BASE_DIR, get_counter, get_tenant, get_variables, has_role,
+    is_tenant_admin, player_statistics, set_counter, tenant_admin_required,
+    tenant_role_required,
+)
 from .print_views import _country_flag
-from .user_admin import ROLE_GROUPS, reauth_ok
+from .user_admin import TENANT_ROLES, reauth_ok
+
+# Human labels for the tenant-role flags, shown in the user-management console.
+TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
 from .restore_admin import list_backups
 from .scoring import (
     scores_per_player_json,
@@ -177,7 +183,7 @@ def publisher_overview_rows(tenant, variables):
     return rows
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_print_EMA(request):
     variables = get_variables(request)
     if variables.rules == "MCR":
@@ -228,7 +234,7 @@ class TemplateImportError(Exception):
     and reported with a traceback instead."""
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_upload_from_template(request):
     tenant = get_tenant(request)
     if request.method == 'POST':
@@ -481,7 +487,7 @@ def admin_upload_from_template(request):
     return options(request)
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_export_to_template(request):
     """Export the current tournament as an Excel file in the import-template format.
 
@@ -575,7 +581,7 @@ def admin_export_to_template(request):
     return response
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_team_draw(request):
     tenant = get_tenant(request)
     roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
@@ -636,7 +642,7 @@ def admin_team_draw(request):
     return HttpResponse(template.render(context, request))
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_team_draw_save(request):
     """Save a completed team draw: give each competitor the number they drew.
 
@@ -681,7 +687,7 @@ def admin_team_draw_save(request):
     return HttpResponse('OK')
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_player_draw(request):
     """Live individual draw: competitors arrive one at a time, physically draw a
     number, and the operator types it in. Each assignment is saved immediately
@@ -714,7 +720,7 @@ def admin_player_draw(request):
     return HttpResponse(template.render(context, request))
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_player_draw_assign(request):
     """Assign (or clear) one competitor's draw number for the live individual draw.
 
@@ -771,7 +777,7 @@ def admin_player_draw_assign(request):
 _PLAYER_EDITABLE_FIELDS = ['full_name', 'first_name', 'EMA_ID', 'country', 'email', 'team']
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def player_editor_save(request):
     """Persist inline edits from the Player editor table. Accepts JSON
     ``{"players": [{"id", <field>...}]}`` and bulk-updates the editable
@@ -823,7 +829,7 @@ def logo(request):
     return resp
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def update_logo(request):
     variables = get_variables(request)
     if request.POST.get("reset") == "1":
@@ -848,7 +854,7 @@ def update_logo(request):
     return HttpResponse("OK")
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def admin_reset(request):
     """Factory-reset the tournament: wipe every tenant row and its settings.
 
@@ -888,7 +894,7 @@ def admin_reset(request):
     return JsonResponse({'status': 'ok'})
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def publish_web(request):
     """Manually regenerate + upload the public static site (the "Publish to web"
     button). Publish also happens automatically on each round publish; this is the
@@ -907,7 +913,7 @@ def publish_web(request):
     return JsonResponse({'status': 'ok', 'message': 'Publishing to the web…'})
 
 
-@user_passes_test(can_access_admin)
+@tenant_role_required('scorer', 'display_op', 'publisher')
 def publish_status(request):
     """Poll the running (or last) publish job — drives the shell progress toast.
     Any admin role can read it (auto-publish fires on a publisher's round publish,
@@ -919,9 +925,9 @@ def publish_status(request):
     return JsonResponse(get_progress(subdomain) or {'phase': 'idle'})
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def publish_target_save(request):
-    """Save this tenant's SFTP publish target (staff only).
+    """Save this tenant's SFTP publish target (tenant admin only).
 
     Secrets are write-only: a blank password/key leaves the stored value
     untouched (so the form never has to echo it back), and clear_password /
@@ -975,7 +981,7 @@ def publish_target_save(request):
     return JsonResponse({'status': 'ok'})
 
 
-@user_passes_test(lambda u: u.is_staff)
+@tenant_admin_required
 def publish_target_test(request):
     """Open + close an SFTP connection using the values currently in the form —
     not the saved target — so staff can verify before saving. A blank password/
@@ -1050,7 +1056,7 @@ def counter_start(request):
     tenant = get_tenant(request)
     action = request.GET.get('action')
     if action in ('start', 'stop'):
-        if request.method != 'POST' or not is_display_op(request.user):
+        if request.method != 'POST' or not has_role(request, 'display_op'):
             return HttpResponseForbidden('forbidden')
         if action == 'start':
             value = int(time.time() * 1000) + COUNTER_LEAD_MS + COUNTER_COUNTDOWN_MS
@@ -1073,9 +1079,9 @@ def _apply_set_variable(request, variables):
     """Persist ``?variables-<field>=<value>`` params onto the tenant settings and
     return the response to send back. Shared by the Display page (screen-layout
     tuning) and the Tournament settings page (identity + round length)."""
-    # Staff-only fields: display operators may tune the layout, but not the
+    # Admin-only fields: display operators may tune the layout, but not the
     # round length (changing it mid-round would desync every screen's timer).
-    staff_only_fields = {"total_time"}
+    admin_only_fields = {"total_time"}
     # The round timer is written only by counter_start (server-authoritative);
     # it must never be settable through this generic field loop, or a stray
     # `variables-counter=...` would stop/reset a running clock.
@@ -1086,7 +1092,7 @@ def _apply_set_variable(request, variables):
             field = var.replace("variables-", "")
             if field in protected_fields:
                 continue
-            if field in staff_only_fields and not request.user.is_staff:
+            if field in admin_only_fields and not is_tenant_admin(request):
                 continue
             if hasattr(variables, field):
                 value = request.GET.get(var)
@@ -1165,7 +1171,7 @@ def _save_schedule(request, tenant):
     return JsonResponse({'rounds': sum(1 for o in objs if o.is_round)})
 
 
-@user_passes_test(can_access_admin)
+@tenant_role_required('scorer', 'display_op', 'publisher')
 def options(request, error=None):
     tenant = get_tenant(request)
     if request.GET.get('logout') == "1":
@@ -1175,13 +1181,16 @@ def options(request, error=None):
     template = loader.get_template('mahj/admin.html')
     page = request.GET.get('page')
     
-    if is_scorer(request.user) and not request.user.is_staff and page is None:
-        page = "scoring"
-    if is_display_op(request.user) and not request.user.is_staff and page is None:
-        page = "display"
-    # Publishers manage publishing from the scoring page.
-    if is_publisher(request.user) and not request.user.is_staff and page is None:
-        page = "scoring"
+    # Land each single-role account on the page it works from; tenant admins get
+    # the full dashboard (welcome), so only redirect non-admins.
+    if page is None and not is_tenant_admin(request):
+        if has_role(request, 'scorer'):
+            page = "scoring"
+        elif has_role(request, 'display_op'):
+            page = "display"
+        elif has_role(request, 'publisher'):
+            # Publishers manage publishing from the scoring page.
+            page = "scoring"
 
     if page == "welcome" or page is None:
         page = "welcome"
@@ -1225,6 +1234,12 @@ def options(request, error=None):
             },
             request,
         )
+    elif page == "display" and not has_role(request, 'display_op'):
+        # Display-operator-only: the shared admin gate admits any app role, so a
+        # scorer/publisher must be turned away here — otherwise they could not
+        # only view this page but drive its inline mutating actions below
+        # (add/remove screen, set_variable, set_all_views, set_mode…).
+        page_content = "None"
     elif page == "display":
         variables = get_variables(request)
         if request.GET.get('action') == "set_variable":
@@ -1331,7 +1346,7 @@ def options(request, error=None):
         page_content = template2.render(context, request)
     elif page == "settings":
         # Staff-only: a scorer/display op reaching ?page=settings gets nothing.
-        if not request.user.is_staff:
+        if not is_tenant_admin(request):
             page_content = "None"
         else:
             variables = get_variables(request)
@@ -1351,7 +1366,7 @@ def options(request, error=None):
             }, request)
     elif page == "player_editor":
         # Staff-only: a scorer/display op reaching ?page=player_editor gets nothing.
-        if not request.user.is_staff:
+        if not is_tenant_admin(request):
             page_content = "None"
         else:
             players = Player.objects.filter(tenant=tenant).order_by(
@@ -1372,7 +1387,7 @@ def options(request, error=None):
                  "valid_draw_numbers": valid_draw_numbers}, request)
     elif page == "publish_target":
         # Staff-only: holds SFTP credentials, so a scorer/display op gets nothing.
-        if not request.user.is_staff:
+        if not is_tenant_admin(request):
             page_content = "None"
         else:
             from ..models import PublishTarget
@@ -1389,6 +1404,9 @@ def options(request, error=None):
                 "public_url": get_variables(request).public_url,
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
+    elif page == "import_template" and not is_tenant_admin(request):
+        # Tenant-admin-only: this page erases and re-imports the whole tournament.
+        page_content = "None"
     elif page == "import_template":
         # The upload confirm dialog names what it will erase, so tell the fragment
         # how big the current tournament is and whether any scores exist.
@@ -1402,6 +1420,10 @@ def options(request, error=None):
             'existing_players': existing_players,
             'existing_scores': existing_scores,
         }, request)
+    elif page == "scoring" and not has_role(request, 'scorer', 'publisher'):
+        # Scoring is for scorers and publishers (a display operator has no reason
+        # to see it); the shared admin gate admits display ops too, so exclude them.
+        page_content = "None"
     elif page == "scoring":
         variables = get_variables(request)
         scores_json = scores_per_table_json(request)
@@ -1435,12 +1457,16 @@ def options(request, error=None):
             "subdomain": tenant.subdomain if tenant else '',
             "validated_keys": validated_keys,
             "filled_keys": filled_keys,
-            # Only staff and publishers may publish/unpublish — the endpoint is
-            # gated the same way, so keep the toggle disabled for plain scorer
-            # accounts to avoid a dead control.
-            "can_publish": is_publisher(request.user),
+            # Only publishers (and tenant admins) may publish/unpublish — the
+            # endpoint is gated the same way, so keep the toggle disabled for plain
+            # scorer accounts to avoid a dead control.
+            "can_publish": has_role(request, 'publisher'),
         }
         page_content = template2.render(context, request)
+    elif page == "ceremony" and not has_role(request, 'display_op'):
+        # Display-operator-only, like the display page (ceremony takes over the
+        # screens); its data/control endpoints are already display_op-gated.
+        page_content = "None"
     elif page == "ceremony":
         template2 = loader.get_template('mahj/admin_ceremony.html')
         page_content = template2.render({
@@ -1453,8 +1479,8 @@ def options(request, error=None):
         }, request)
     elif page == "publisher_overview":
         # Publisher-only: a plain scorer reaching this page (?page=…) gets nothing.
-        # is_publisher includes staff.
-        if not is_publisher(request.user):
+        # has_role('publisher') also covers tenant admins and superusers.
+        if not has_role(request, 'publisher'):
             page_content = "None"
         else:
             variables = get_variables(request)
@@ -1465,34 +1491,67 @@ def options(request, error=None):
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "users":
-        # Staff-only: a scorer/display op reaching ?page=users gets nothing.
-        if not request.user.is_staff:
+        # Tenant-admin-only, scoped to THIS tenant: a scorer/display op reaching
+        # ?page=users gets nothing.
+        if not is_tenant_admin(request):
             page_content = "None"
         elif not reauth_ok(request):
-            # Borrowed/unattended session: make staff re-enter their password
+            # Borrowed/unattended session: make the admin re-enter their password
             # before exposing (or letting them touch) user management. Link-only
-            # staff have no password to confirm, so they're shut out entirely.
+            # admins have no password to confirm, so they're shut out entirely.
             template2 = loader.get_template('mahj/admin_users_reauth.html')
             page_content = template2.render(
                 {"link_only": not request.user.has_usable_password()}, request)
         else:
+            # Only this tenant's memberships — other tenants' users are invisible.
+            memberships = (Membership.objects.filter(tenant=tenant)
+                           .select_related('user').order_by('user__username'))
+            # A user is "shared" (credential-managed only by a superuser) if they
+            # also belong to another tenant. One query, not one per row.
+            shared_user_ids = set(
+                Membership.objects.exclude(tenant=tenant)
+                .filter(user__in=[m.user_id for m in memberships])
+                .values_list('user_id', flat=True))
             user_rows = []
-            for u in User.objects.all().order_by('username').prefetch_related('groups'):
-                gnames = {g.name for g in u.groups.all()}
+            for m in memberships:
+                u = m.user
                 user_rows.append({
                     "id": u.id,
                     "username": u.username,
-                    "is_staff": u.is_staff,
+                    "is_tenant_admin": m.is_tenant_admin,
                     "is_self": u.id == request.user.id,
                     "last_login": u.last_login,
                     "has_password": u.has_usable_password(),
-                    "roles": [{"name": n, "active": n in gnames} for n in ROLE_GROUPS],
+                    "shared": u.id in shared_user_ids,
+                    "roles": [{"name": n, "label": TENANT_ROLE_LABELS[n],
+                               "active": getattr(m, f'is_{n}')} for n in TENANT_ROLES],
                 })
             template2 = loader.get_template('mahj/admin_users.html')
             page_content = template2.render({
                 "user_rows": user_rows,
-                "role_groups": ROLE_GROUPS,
+                "role_defs": [{"name": n, "label": TENANT_ROLE_LABELS[n]} for n in TENANT_ROLES],
                 "link_validity_days": settings.SESAME_MAX_AGE // 86400,
+            }, request)
+    elif page == "tenants":
+        # Superuser-only: create/rename tenants and seed a tenant's first admin.
+        if not request.user.is_superuser:
+            page_content = "None"
+        elif not reauth_ok(request):
+            template2 = loader.get_template('mahj/admin_users_reauth.html')
+            page_content = template2.render(
+                {"link_only": not request.user.has_usable_password(),
+                 "reauth_next": "tenants"}, request)
+        else:
+            tenant_rows = [
+                {"id": t.id, "name": t.name, "subdomain": t.subdomain,
+                 "admins": Membership.objects.filter(tenant=t, is_tenant_admin=True).count(),
+                 "members": Membership.objects.filter(tenant=t).count()}
+                for t in Tenant.objects.all().order_by('subdomain')
+            ]
+            template2 = loader.get_template('mahj/admin_tenants.html')
+            page_content = template2.render({
+                "tenant_rows": tenant_rows,
+                "base_domain": settings.BASE_DOMAIN,
             }, request)
     elif page == "database_restore":
         # Superuser-only (the restore is whole-cluster, a platform-operator
@@ -1541,9 +1600,8 @@ def options(request, error=None):
         "username": request.user.username,
         "page": page,
         "page_content": page_content,
-        "user_is_scorer": is_scorer(request.user),
-        "user_is_display_op": is_display_op(request.user),
-        "user_is_publisher": is_publisher(request.user),
+        # user_is_scorer / user_is_display_op / user_is_publisher / is_tenant_admin
+        # come from the role_flags context processor (tenant-scoped).
         "uses_teams": get_variables(request).has_teams,
         # Drives the shell-wide publish progress toast (polls publish_status) — only
         # when web publishing is configured, so idle installs don't poll.
