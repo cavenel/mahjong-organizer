@@ -25,6 +25,7 @@ urlpatterns = [
     path('admin_upload_from_template', views.admin_upload_from_template, name='admin_upload_from_template'),
     path('admin_reset', views.admin_reset, name='admin_reset'),
     path('admin_export_to_template', views.admin_export_to_template, name='admin_export_to_template'),
+    path('admin_generate_seating', views.admin_generate_seating, name='admin_generate_seating'),
     path('admin_team_draw', views.admin_team_draw, name='admin_team_draw'),
     path('admin_team_draw_save', views.admin_team_draw_save, name='admin_team_draw_save'),
     path('admin_player_draw', views.admin_player_draw, name='admin_player_draw'),

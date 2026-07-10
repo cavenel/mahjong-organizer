@@ -444,53 +444,49 @@ def admin_upload_from_template(request):
             PublishedRound.objects.filter(tenant=tenant).delete()
             nb_players = len(player_objs)
             nb_tables = nb_players // 4
-            # The seating sheet is named for the field size; a mismatch usually
-            # means a blank/extra row slipped into the roster or the wrong seating
-            # sheet was uploaded. Say so, rather than leaking a raw KeyError.
+            # The seating sheet is optional: a workbook may carry only the roster,
+            # schedule and settings, leaving the tournament without a chart until
+            # one is built on the Seating page. When a "<N> players" sheet *is*
+            # present it is read (and validated) here.
             sheet_name = '{0} players'.format(nb_players)
-            if sheet_name not in wb.sheetnames:
-                raise TemplateImportError(
-                    f"The roster has {nb_players} competitor(s) but the workbook has "
-                    f"no '{sheet_name}' seating sheet. Check for blank or extra rows in "
-                    f"the Players sheet, or that the seating sheet matches the roster."
-                )
-            pos_sheet = wb[sheet_name]
-            # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
-            # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated there.
-            pos_rows = list(pos_sheet.iter_rows(
-                min_row=3, max_row=2 + variables.nb_rounds,
-                min_col=2, max_col=1 + 5 * nb_tables,
-                values_only=True,
-            ))
-            seats_to_create = []
-            expected = set(range(1, nb_players + 1))
-            for round_idx, row in enumerate(pos_rows):
-                round_draws = []
-                for table_nb in range(nb_tables):
-                    for wind in range(4):
-                        draw_number = _seat_draw_number(row[wind + 5 * table_nb])
-                        round_draws.append(draw_number)
-                        seats_to_create.append(Seat(
-                            tenant=tenant,
-                            draw_number=draw_number,
-                            round_nb=round_idx + 1,
-                            table_nb=table_nb + 1,
-                            wind=wind + 1,
-                            minipoints=None,
-                            tablepoints=None,
-                        ))
-                # A valid chart seats every competitor 1..N exactly once each
-                # round. A mismatch means the sheet is the wrong size, has blank
-                # cells, or (the classic case) carries formulas with no cached
-                # result — better to reject it than load a half-empty chart.
-                if sorted(round_draws) != sorted(expected):
-                    raise TemplateImportError(
-                        f"The '{sheet_name}' seating sheet is not a valid chart: "
-                        f"round {round_idx + 1} does not seat each competitor "
-                        f"1–{nb_players} exactly once. Check the sheet for blank "
-                        f"cells, duplicate numbers, or the wrong field size."
-                    )
-            Seat.objects.bulk_create(seats_to_create, batch_size=500)
+            if sheet_name in wb.sheetnames:
+                pos_sheet = wb[sheet_name]
+                # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
+                # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated.
+                pos_rows = list(pos_sheet.iter_rows(
+                    min_row=3, max_row=2 + variables.nb_rounds,
+                    min_col=2, max_col=1 + 5 * nb_tables,
+                    values_only=True,
+                ))
+                seats_to_create = []
+                expected = set(range(1, nb_players + 1))
+                for round_idx, row in enumerate(pos_rows):
+                    round_draws = []
+                    for table_nb in range(nb_tables):
+                        for wind in range(4):
+                            draw_number = _seat_draw_number(row[wind + 5 * table_nb])
+                            round_draws.append(draw_number)
+                            seats_to_create.append(Seat(
+                                tenant=tenant,
+                                draw_number=draw_number,
+                                round_nb=round_idx + 1,
+                                table_nb=table_nb + 1,
+                                wind=wind + 1,
+                                minipoints=None,
+                                tablepoints=None,
+                            ))
+                    # A valid chart seats every competitor 1..N exactly once each
+                    # round. A mismatch means the sheet is the wrong size, has blank
+                    # cells, or (the classic case) carries formulas with no cached
+                    # result — better to reject it than load a half-empty chart.
+                    if sorted(round_draws) != sorted(expected):
+                        raise TemplateImportError(
+                            f"The '{sheet_name}' seating sheet is not a valid chart: "
+                            f"round {round_idx + 1} does not seat each competitor "
+                            f"1–{nb_players} exactly once. Check the sheet for blank "
+                            f"cells, duplicate numbers, or the wrong field size."
+                        )
+                Seat.objects.bulk_create(seats_to_create, batch_size=500)
             wb.close()
             from ..signals import invalidate_leaderboard
             invalidate_leaderboard(tenant.subdomain)
@@ -628,8 +624,90 @@ def admin_export_to_template(request):
 
 
 @tenant_admin_required
+def admin_generate_seating(request):
+    """Build the seating chart in-app for the current roster, instead of reading
+    it from an Excel sheet — so a field size the template doesn't cover still gets
+    a chart. Replaces the seating chart (and clears scores, which are keyed by
+    seat) but keeps the roster, draw and schedule: the chart is independent of who
+    sits where. Returns the quality measures as JSON for the page to display."""
+    if request.method != 'POST':
+        return HttpResponse('POST required', status=405)
+
+    tenant = get_tenant(request)
+    variables = get_variables(request)
+    nb_players = Player.objects.filter(tenant=tenant).count()
+    nb_rounds = variables.nb_rounds or 0
+
+    # Body carries the chosen method, a variation seed, and whether to apply (vs
+    # just preview the measures). Absent body -> auto method, apply immediately.
+    try:
+        body = json.loads(request.body) if request.body else {}
+    except ValueError:
+        body = {}
+    method = body.get('method', 'auto')
+    try:
+        seed = int(body.get('seed', 0))
+    except (TypeError, ValueError):
+        seed = 0
+    try:
+        # Number of best-effort attempts to search and keep the best of. A preview
+        # searches many (default); applying a previewed chart passes tries=1 with
+        # the winning seed to reproduce it exactly. Bounded so one request can't run
+        # unboundedly (a wall-clock budget also caps it).
+        tries = min(5000, max(1, int(body.get('tries', 400))))
+    except (TypeError, ValueError):
+        tries = 400
+    do_apply = bool(body.get('apply', True))
+
+    from .. import seating
+    try:
+        rows, meta = seating.generate(
+            nb_players, nb_rounds, has_teams=variables.has_teams,
+            seed=seed, method=method, tries=tries)
+    except seating.SeatingInfeasible as exc:
+        return JsonResponse({'error': str(exc)}, status=400)
+
+    m = seating.measure(rows, nb_players, nb_rounds, has_teams=variables.has_teams)
+    m['engine'] = meta['engine']
+    payload = {'ok': True, 'applied': do_apply,
+               'headline': seating.headline(m), 'measures': m,
+               # The winning seed (best-effort) lets the page reproduce this exact
+               # chart on apply, and reveals it to the organizer.
+               'seed': meta.get('seed'), 'tries_run': meta.get('tries_run')}
+    if not do_apply:
+        # Preview only — the chart is deterministic for (method, seed), so applying
+        # the same choice later reproduces exactly what was previewed.
+        return JsonResponse(payload)
+
+    with transaction.atomic():
+        # Seating changed, so any entered scores/published rounds are stale.
+        Hand.objects.filter(tenant=tenant).delete()
+        ScoreSheet.objects.filter(tenant=tenant).delete()
+        Seat.objects.filter(tenant=tenant).delete()
+        PublishedRound.objects.filter(tenant=tenant).delete()
+        Seat.objects.bulk_create([
+            Seat(tenant=tenant, draw_number=draw_number, round_nb=round_nb,
+                 table_nb=table_nb, wind=wind, minipoints=None, tablepoints=None)
+            for (round_nb, table_nb, wind, draw_number) in rows
+        ], batch_size=500)
+
+    invalidate_leaderboard(tenant.subdomain)
+    broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
+    return JsonResponse(payload)
+
+
+@tenant_admin_required
 def admin_team_draw(request):
     tenant = get_tenant(request)
+
+    # The draw hands out seat numbers, so it needs a seating chart to draw for.
+    # Without one every drawn number would be rejected at save time (after the
+    # whole ceremony), so stop up front with a clear message instead.
+    if not Seat.objects.filter(tenant=tenant).exists():
+        template = loader.get_template('mahj/admin_seating_required.html')
+        return HttpResponse(template.render(
+            {'draw_title': 'Team Draw', 'draw_kind': 'team draw'}, request))
+
     roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
     # id order is the original row order of the Excel "Players" sheet. The CSV
@@ -740,6 +818,14 @@ def admin_player_draw(request):
     (via admin_player_draw_assign) so the seating chart is live as the desk runs.
     The draw is recorded as Player.draw_number, same as Randomize / Team draw."""
     tenant = get_tenant(request)
+
+    # No seating chart means no seat numbers to hand out, and every assignment
+    # would be rejected by admin_player_draw_assign. Stop up front instead.
+    if not Seat.objects.filter(tenant=tenant).exists():
+        template = loader.get_template('mahj/admin_seating_required.html')
+        return HttpResponse(template.render(
+            {'draw_title': 'Player Draw', 'draw_kind': 'individual draw'}, request))
+
     roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
     # id order is the original row order of the Excel "Players" sheet, so a CSV
@@ -1265,6 +1351,9 @@ def options(request, error=None):
                 "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
                 "variables": variables,
                 "nb_players": nb_players,
+                # Whether a seating chart exists at all (imported or generated) —
+                # the roster can be drawn in only once there are seats to fill.
+                "has_seats": has_seats,
                 # A player is "drawn in" once assigned a draw number; the roster is
                 # ready to play when every player holds one.
                 "draw_done": nb_players > 0 and nb_drawn == nb_players,
@@ -1465,6 +1554,46 @@ def options(request, error=None):
         page_content = template2.render({
             'existing_players': existing_players,
             'existing_scores': existing_scores,
+        }, request)
+    elif page == "seating" and not is_tenant_admin(request):
+        # Tenant-admin-only: generating replaces the chart and clears scores.
+        page_content = "None"
+    elif page == "seating":
+        from .. import seating as _seating
+        variables = get_variables(request)
+        nb_players = Player.objects.filter(tenant=tenant).count()
+        nb_rounds = variables.nb_rounds or 0
+        # Measure the seating chart currently in place (independent of the roster:
+        # its size is the draw slots it seats), so the page can show what exists.
+        seats = list(Seat.objects.filter(tenant=tenant)
+                     .values_list('round_nb', 'table_nb', 'wind', 'draw_number'))
+        current = current_headline = None
+        if seats:
+            n_chart = len({s[3] for s in seats})
+            r_chart = len({s[0] for s in seats})
+            try:
+                current = _seating.measure(seats, n_chart, r_chart,
+                                           has_teams=variables.has_teams)
+                current_headline = _seating.headline(current)
+                current['headline'] = current_headline
+            except Exception:
+                current = None
+        can_generate = (nb_players >= 8 and nb_players % 4 == 0 and nb_rounds >= 1)
+        seating_scores = (
+            Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+            or Hand.objects.filter(tenant=tenant).exists()
+        )
+        template2 = loader.get_template('mahj/admin_seating.html')
+        page_content = template2.render({
+            'nb_players': nb_players,
+            'nb_rounds': nb_rounds,
+            'has_teams': variables.has_teams,
+            'has_seats': bool(seats),
+            'existing_scores': seating_scores,
+            'current': current,
+            'current_headline': current_headline,
+            'can_generate': can_generate,
+            'algebraic_ok': can_generate and _seating.algebraic_feasible(nb_players, nb_rounds),
         }, request)
     elif page == "scoring" and not has_role(request, 'scorer', 'publisher'):
         # Scoring is for scorers and publishers (a display operator has no reason

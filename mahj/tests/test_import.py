@@ -6,6 +6,7 @@ number from the 'rand' column) and the full seating chart as Seat rows keyed by
 draw number — with no Seat.player FK (the draw lives on Player.draw_number).
 """
 import io
+import json
 
 import pytest
 from django.contrib.auth.models import User
@@ -322,3 +323,165 @@ def test_broken_seating_chart_rejected(staff_client, imp_tenant):
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0
+
+
+# --- in-app seating generation (admin_generate_seating) --------------------
+
+def test_generate_seating_builds_chart_and_keeps_roster(staff_client, imp_tenant):
+    """Generating replaces the seating chart (a full chart for every round) and
+    returns quality measures, while keeping the roster and draw."""
+    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    draws_before = sorted(Player.objects.filter(tenant=imp_tenant)
+                          .values_list('draw_number', flat=True))
+
+    resp = staff_client.post('/admin_generate_seating')
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['ok'] is True
+    assert data['measures']['all_seated'] is True
+
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4  # rounds*tables*winds
+    # Roster and draw are untouched — the chart is independent of the people.
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+    assert sorted(Player.objects.filter(tenant=imp_tenant)
+                  .values_list('draw_number', flat=True)) == draws_before
+    for r in range(1, 8):
+        drawn = sorted(s.draw_number for s in Seat.objects.filter(tenant=imp_tenant, round_nb=r))
+        assert drawn == list(range(1, 17))
+
+
+def test_generate_seating_algebraic_infeasible_refuses_without_touching_chart(staff_client, imp_tenant):
+    """Explicitly requesting the deterministic method where no rematch-free chart
+    exists is refused (400) and the existing chart is left intact. (The default
+    'auto'/best-effort still produces a chart — see the best-effort test.)"""
+    rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
+            for i in range(16)]  # 4 teams / 7 rounds -> algebraic infeasible
+    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    before = Seat.objects.filter(tenant=imp_tenant).count()
+    assert before == 7 * 4 * 4
+
+    resp = staff_client.post('/admin_generate_seating',
+                             data=json.dumps({'method': 'algebraic'}),
+                             content_type='application/json')
+    assert resp.status_code == 400
+    assert 'error' in resp.json()
+    assert Seat.objects.filter(tenant=imp_tenant).count() == before  # untouched
+
+
+def test_import_without_seating_sheet_keeps_roster_seatless(staff_client, imp_tenant):
+    """A workbook with no '<N> players' seating sheet imports the roster/schedule
+    and leaves the tournament without a chart (to be generated later on the Seating
+    page) instead of failing the whole import."""
+    wb = load_workbook(TEMPLATE)
+    ps = wb['Players']
+    for i in range(16):
+        r = i + 2
+        ps.cell(r, 1, f'Last{i + 1}')
+        ps.cell(r, 2, f'First{i + 1}')
+        ps.cell(r, 3, 90000 + i)
+        ps.cell(r, 4, 'Sweden')
+        ps.cell(r, 6, i + 1)
+    for name in list(wb.sheetnames):
+        if name.endswith(' players'):
+            del wb[name]
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    buf.name = 'template.xlsx'
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    assert resp.status_code in (200, 302)
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16      # roster imported
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 0         # no chart yet
+
+    # ...and a chart can then be generated for it.
+    resp = staff_client.post('/admin_generate_seating')
+    assert resp.status_code == 200
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4
+
+
+def test_generate_seating_preview_does_not_write(staff_client, imp_tenant):
+    """A preview (apply=false) returns measures without changing the stored chart."""
+    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    before = {(s.round_nb, s.table_nb, s.wind, s.draw_number)
+              for s in Seat.objects.filter(tenant=imp_tenant)}
+
+    resp = staff_client.post('/admin_generate_seating',
+                             data=json.dumps({'method': 'greedy', 'seed': 3, 'apply': False}),
+                             content_type='application/json')
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data['ok'] is True and data['applied'] is False
+    assert 'measures' in data
+    after = {(s.round_nb, s.table_nb, s.wind, s.draw_number)
+             for s in Seat.objects.filter(tenant=imp_tenant)}
+    assert after == before  # nothing written
+
+
+def test_seating_page_renders(staff_client, imp_tenant):
+    """The Seating admin page renders, showing the generate controls."""
+    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    resp = staff_client.get('/admin?page=seating')
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'Generate a new seating' in html
+    assert 'Current seating' in html
+    assert 'cross_positions' in html  # print link shown once a chart exists
+    assert 'Number of tries' in html  # best-effort search controls are visible
+    assert 'Variation (seed)' in html
+
+
+def test_cross_positions_before_draw_uses_placeholder(staff_client, imp_tenant):
+    """The cross-position sheet renders before any draw (no 500), labelling
+    unclaimed draw slots 'Player N' instead of dereferencing a missing player."""
+    rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', None, None)
+            for i in range(16)]  # no 'rand' -> players undrawn, but the chart exists
+    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    assert Seat.objects.filter(tenant=imp_tenant).exists()
+    assert Player.objects.filter(tenant=imp_tenant, draw_number__isnull=True).count() == 16
+
+    resp = staff_client.get('/cross_positions')
+    assert resp.status_code == 200
+    assert 'Player 1' in resp.content.decode()
+    # Team variant must also not crash when nobody is drawn in.
+    resp = staff_client.get('/cross_positions?per_team=1')
+    assert resp.status_code == 200
+
+
+def test_dashboard_reports_seating_status(staff_client, imp_tenant):
+    """The dashboard's setup checklist shows whether a seating chart exists."""
+    # No import yet -> no seating.
+    resp = staff_client.get('/admin?page=welcome')
+    assert 'No seating chart' in resp.content.decode()
+    # After importing a chart -> ready.
+    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    resp = staff_client.get('/admin?page=welcome')
+    assert 'Seating chart ready' in resp.content.decode()
+
+
+def test_seating_page_team_infeasible_offers_best_effort(staff_client, imp_tenant):
+    """For a team field where a perfect chart is impossible, the page still offers
+    the best-effort method (with a teammate-clash caveat) rather than refusing."""
+    rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
+            for i in range(16)]  # 4 teams / 7 rounds -> algebraic infeasible
+    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = staff_client.get('/admin?page=seating')
+    assert resp.status_code == 200
+    html = resp.content.decode()
+    assert 'Best-effort search' in html
+    assert 'minimises teammate clashes' in html
+    assert 'rematch-free' in html  # deterministic shown disabled with a reason
+
+
+def test_generate_seating_team_best_effort_when_infeasible(staff_client, imp_tenant):
+    """Generating a team chart where a perfect one is impossible succeeds with the
+    best-effort search and writes a full chart, rather than refusing."""
+    rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
+            for i in range(16)]
+    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = staff_client.post('/admin_generate_seating',
+                             data=json.dumps({'method': 'greedy', 'apply': True}),
+                             content_type='application/json')
+    assert resp.status_code == 200
+    assert resp.json()['ok'] is True
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4

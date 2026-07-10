@@ -67,6 +67,15 @@
         {% endif %}
       </li>
       <li class="flex items-center gap-3">
+        {% if has_seats %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700">Seating chart ready</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No seating chart — <a href="admin?page=seating" class="text-amber-600 hover:underline">generate seating</a> or import one</span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
         {% if draw_done %}
           <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
           <span class="text-gray-700">Draw complete — every player has a seat</span>

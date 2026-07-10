@@ -4,7 +4,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 
-from mahj.models import Player
+from mahj.models import Player, Seat
 from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
@@ -53,6 +53,14 @@ def test_page_forbidden_for_non_staff(client_, undrawn):
     # Anonymous is redirected to login, not served the page.
     resp = client_.get('/admin_player_draw')
     assert resp.status_code in (302, 403)
+
+
+def test_page_warns_when_no_seating(client_, staff, undrawn):
+    client_.force_login(staff)
+    Seat.objects.filter(tenant=undrawn['tenant']).delete()
+    resp = client_.get('/admin_player_draw')
+    assert resp.status_code == 200
+    assert b'No seating chart yet' in resp.content
 
 
 def test_assign_sets_draw_number(client_, staff, undrawn):

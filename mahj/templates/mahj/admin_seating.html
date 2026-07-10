@@ -1,0 +1,293 @@
+{% load static %}
+<div class="max-w-2xl space-y-6">
+  <div>
+    <h2 class="text-xl font-bold text-gray-800">Seating</h2>
+    <p class="text-sm text-gray-600 mt-1">
+      The seating chart decides who sits at which table, in which wind, each round.
+      It is independent of the draw — a competitor is placed into it by their draw
+      number. You can generate it in the app for any field size, or import it from
+      an Excel template.
+    </p>
+  </div>
+
+  <!-- Current seating status -->
+  <section class="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-2">
+    <h3 class="text-base font-bold text-gray-800">Current seating</h3>
+    {% if has_seats and current %}
+      <div id="current-panel"></div>
+      {{ current|json_script:"seat-current" }}
+      <div class="flex flex-wrap gap-4 pt-1 text-sm">
+        <a href="cross_positions" target="_blank"
+           class="text-amber-600 hover:underline inline-flex items-center gap-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 17v-6h6v6M3 3h18v18H3zM3 9h18M9 3v18"/></svg>
+          Cross positions (who meets whom)
+        </a>
+        {% if has_teams %}
+        <a href="cross_positions?per_team=1" target="_blank"
+           class="text-amber-600 hover:underline inline-flex items-center gap-1">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a4 4 0 00-3-3.87M9 20H4v-2a4 4 0 013-3.87m6-1.13a4 4 0 10-4-4 4 4 0 004 4z"/></svg>
+          Team cross positions
+        </a>
+        {% endif %}
+      </div>
+    {% elif has_seats %}
+      <p class="text-sm text-gray-600">
+        A seating chart exists but could not be measured (it may not seat every
+        competitor once per round). Re-generate below to replace it.
+      </p>
+    {% else %}
+      <div class="flex items-center gap-2 text-sm text-gray-500">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        No seating chart yet. Generate one below, or import a template.
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Generate -->
+  <section class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-3">
+    <h3 class="text-base font-bold text-gray-800">Generate a new seating</h3>
+
+    {% if not can_generate %}
+      <p class="text-sm text-gray-500 italic">
+        Load a roster of at least 8 players (a multiple of 4) and set the number of
+        rounds in Tournament settings first.
+        {% if nb_players %}<br>Currently {{ nb_players }} player{{ nb_players|pluralize }}, {{ nb_rounds }} round{{ nb_rounds|pluralize }}.{% endif %}
+      </p>
+    {% else %}
+      <p class="text-sm text-gray-600">
+        {{ nb_players }} player{{ nb_players|pluralize }} · {{ nb_rounds }} round{{ nb_rounds|pluralize }} ·
+        {% if has_teams %}team tournament{% else %}individual tournament{% endif %}.
+        <span class="text-gray-500">Generating replaces the current seating and clears any
+        entered scores; the roster, draw and schedule are kept.</span>
+      </p>
+
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-medium text-gray-700 mb-1">Method</legend>
+
+        {# Deterministic (algebraic) — available when a rematch-free chart exists. #}
+        <label class="flex items-start gap-2 text-sm {% if not algebraic_ok %}opacity-50{% endif %}">
+          <input type="radio" name="seat-method" value="algebraic" class="mt-1"
+                 {% if not algebraic_ok %}disabled{% else %}checked{% endif %}>
+          <span>
+            <b>Deterministic (recommended)</b> — a fixed, publicly verifiable chart:
+            no rematches{% if has_teams %}, teammates never share a table{% endif %},
+            balanced winds. Same result every time.
+            {% if not algebraic_ok %}
+            <span class="block text-xs text-gray-500 mt-0.5">Unavailable: no rematch-free
+            chart exists for {{ nb_players }} players over {{ nb_rounds }} rounds — reduce
+            the number of rounds.</span>
+            {% endif %}
+          </span>
+        </label>
+
+        {# Best-effort search (greedy) — always available, incl. teams as a fallback. #}
+        <label class="flex items-start gap-2 text-sm">
+          <input type="radio" name="seat-method" value="greedy" class="mt-1"
+                 {% if not algebraic_ok %}checked{% endif %}>
+          <span>
+            <b>Best-effort search</b> — runs many random layouts and keeps the one
+            with the fewest rematches. For field sizes where a perfect chart is
+            impossible. The winning <em>variation number</em> is shown so you can
+            reproduce or share the exact chart.
+            {% if has_teams %}
+            <span class="block text-xs text-gray-500 mt-0.5">For team tournaments it
+            minimises teammate clashes but can't guarantee separation — with fewer than
+            4 teams a clash at every table is unavoidable. Check the measures below.</span>
+            {% endif %}
+          </span>
+        </label>
+      </fieldset>
+
+      {# Best-effort controls (tries + variation); toggled by the method radio in JS. #}
+      <div id="greedy-controls" class="hidden flex-col gap-2 text-sm border-l-2 border-gray-200 pl-3">
+        <div class="flex items-center gap-2">
+          <label for="seat-tries" class="text-gray-700 w-36 shrink-0">Number of tries</label>
+          <input type="number" id="seat-tries" value="200" min="1" max="5000"
+                 class="w-24 px-2 py-1 rounded border border-gray-300 text-sm">
+          <span class="text-gray-500">searches this many, keeps the best</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="seat-seed" class="text-gray-700 w-36 shrink-0">Variation (seed)</label>
+          <input type="number" id="seat-seed" value="0" min="0" max="99999"
+                 class="w-24 px-2 py-1 rounded border border-gray-300 text-sm">
+          <span class="text-gray-500">start of the search — set exactly this + 1 try to reproduce a variation</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2 pt-1">
+        <button type="button" id="seat-preview-btn"
+                class="px-4 py-2 text-sm font-semibold rounded-lg border-2 border-amber-500 text-amber-600
+                       hover:bg-amber-500 hover:text-white transition-colors">
+          Preview seating
+        </button>
+        <div id="seat-loading" class="hidden flex items-center gap-2 text-sm text-gray-600">
+          <svg class="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+            <path fill="currentColor" class="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+          </svg>
+            Working…
+          </div>
+        </div>
+
+        <div id="seat-candidate" class="hidden space-y-2"></div>
+    {% endif %}
+  </section>
+</div>
+
+<script>
+(function () {
+  function csrf() {
+    var m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+
+  function row(label, value, ok) {
+    var color = ok === true ? 'text-emerald-700' : (ok === false ? 'text-red-700' : 'text-gray-700');
+    return '<div class="flex justify-between gap-4 py-0.5">' +
+           '<span class="text-gray-600">' + label + '</span>' +
+           '<span class="font-medium ' + color + '">' + value + '</span></div>';
+  }
+
+  // Renders a measures dict into `container`. `tone` picks the banner colour.
+  function renderMeasures(container, headline, m, tone) {
+    var border = tone === 'plain' ? 'border-gray-200 bg-white' : 'border-emerald-200 bg-emerald-50';
+    var head = tone === 'plain' ? 'text-gray-800' : 'text-emerald-800';
+    var html = '<div class="rounded-lg border ' + border + ' px-4 py-3 space-y-1 text-sm">';
+    if (headline) html += '<p class="font-semibold ' + head + '">' + headline + '</p>';
+    html += '<div class="mt-1 space-y-0.5">';
+    html += row('Everyone seated every round', m.all_seated ? 'Yes' : 'No', m.all_seated);
+    if (m.no_teammates !== null && m.no_teammates !== undefined) {
+      html += row('Teammates never share a table',
+                  m.no_teammates ? 'Yes' : ('No (' + m.teammate_clashes + ')'), m.no_teammates);
+    }
+    html += row('Times any two players meet (max)', m.max_meetings + ' (ideal 1)', m.max_meetings <= 1);
+    html += row('Pairs meeting more than once', m.repeated_pairs, m.repeated_pairs === 0);
+    html += row('Distinct opponents per player (min)', m.min_distinct_opponents + ' (ideal ' + m.ideal_distinct_opponents + ')');
+    html += row('East seats per player', m.east_min + '–' + m.east_max + ' (ideal ' + m.east_ideal_low + '–' + m.east_ideal_high + ')');
+    html += row('Different tables per player (min)', m.table_spread_min + ' / ' + m.table_spread_ideal);
+    if (m.team_meet_min !== undefined) {
+      html += row('Team-vs-team meetings', m.team_meet_min + '–' + m.team_meet_max);
+    }
+    if (m.engine) {
+      html += row('Method', m.engine === 'algebraic' ? 'Deterministic (verifiable)' : 'Best-effort search');
+    }
+    html += '</div></div>';
+    container.innerHTML = html;
+    container.classList.remove('hidden');
+  }
+
+  // Current seating (server-provided) uses the same renderer.
+  var cur = document.getElementById('seat-current');
+  if (cur) {
+    var data = JSON.parse(cur.textContent);
+    renderMeasures(document.getElementById('current-panel'), data.headline, data, 'plain');
+  }
+
+  var previewBtn = document.getElementById('seat-preview-btn');
+  if (!previewBtn) return;
+  var loading = document.getElementById('seat-loading');
+  var candidate = document.getElementById('seat-candidate');
+  var greedyControls = document.getElementById('greedy-controls');
+  var triesInput = document.getElementById('seat-tries');
+  var seedInput = document.getElementById('seat-seed');
+  var hasScores = {{ existing_scores|yesno:"true,false" }};
+  var hasSeats = {{ has_seats|yesno:"true,false" }};
+
+  function selectedMethod() {
+    var r = document.querySelector('input[name=seat-method]:checked');
+    return r ? r.value : 'auto';
+  }
+  // The tries/variation controls only apply to the best-effort search.
+  function syncControls() {
+    var greedy = selectedMethod() === 'greedy';
+    greedyControls.classList.toggle('hidden', !greedy);
+    greedyControls.classList.toggle('flex', greedy);
+  }
+  document.querySelectorAll('input[name=seat-method]').forEach(function (el) {
+    el.addEventListener('change', syncControls);
+  });
+  syncControls();
+
+  function intVal(el, dflt) { var v = parseInt(el && el.value, 10); return isNaN(v) ? dflt : v; }
+
+  // POST the generator. `extra` overrides the body (apply, tries, seed).
+  function post(extra, onOk) {
+    loading.classList.remove('hidden');
+    previewBtn.disabled = true;
+    var body = Object.assign({
+      method: selectedMethod(),
+      tries: intVal(triesInput, 200),
+      seed: intVal(seedInput, 0),
+    }, extra);
+    fetch('admin_generate_seating', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+      body: JSON.stringify(body),
+    }).then(function (r) {
+      return r.json().then(function (d) { return {status: r.status, data: d}; });
+    }).then(function (res) {
+      loading.classList.add('hidden');
+      previewBtn.disabled = false;
+      if (res.status === 200 && res.data.ok) {
+        onOk(res.data);
+      } else {
+        window.alertAction({title: 'Could not generate seating',
+                            body: (res.data && res.data.error) || 'Unexpected error.'});
+      }
+    }).catch(function () {
+      loading.classList.add('hidden');
+      previewBtn.disabled = false;
+      window.alertAction({title: 'Could not generate seating', body: 'Network error.'});
+    });
+  }
+
+  function showPreview(data) {
+    var m = data.measures;
+    var isGreedy = m.engine === 'greedy';
+    // Reveal the winning variation and park it in the seed box, so it's visible,
+    // reproducible, and used verbatim on apply.
+    if (isGreedy && data.seed != null && seedInput) seedInput.value = data.seed;
+
+    candidate.innerHTML = '';
+    if (isGreedy && data.seed != null) {
+      var badge = document.createElement('p');
+      badge.className = 'text-sm text-gray-700';
+      badge.innerHTML = 'Best of <b>' + (data.tries_run || 1) + '</b> tries — variation <b>#' +
+                        data.seed + '</b>. Re-enter this variation with 1 try to reproduce it exactly.';
+      candidate.appendChild(badge);
+    }
+    var panel = document.createElement('div');
+    candidate.appendChild(panel);
+    renderMeasures(panel, data.headline, m, 'ok');
+
+    var bar = document.createElement('div');
+    bar.className = 'flex items-center gap-2 pt-2';
+    var apply = document.createElement('button');
+    apply.type = 'button';
+    apply.className = 'px-4 py-2 text-sm font-semibold rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition-colors';
+    apply.textContent = 'Apply this seating';
+    apply.addEventListener('click', function () {
+      var body = hasSeats
+        ? 'This replaces the current seating' + (hasScores ? ' and clears all entered scores' : '') +
+          '. The roster and draw are kept. This cannot be undone.'
+        : 'This creates the seating chart. The roster and draw are kept.';
+      window.confirmAction({
+        title: hasSeats ? 'Replace seating?' : 'Create seating?',
+        body: body,
+        confirmLabel: hasSeats ? 'Replace seating' : 'Create seating',
+        // Reproduce exactly the previewed chart: the winning variation with a
+        // single try (deterministic), so what was shown is what gets saved.
+        onConfirm: function () {
+          post({apply: true, seed: (data.seed == null ? 0 : data.seed), tries: 1},
+               function () { window.location.reload(); });
+        },
+      });
+    });
+    bar.appendChild(apply);
+    candidate.appendChild(bar);
+    candidate.classList.remove('hidden');
+  }
+
+  previewBtn.addEventListener('click', function () { post({apply: false}, showPreview); });
+})();
+</script>

@@ -96,8 +96,7 @@
       </table>
     </div>
 
-    {# Winning/losing rates come from per-hand rows, which only MCR records —
-       Riichi stores a per-seat score total, so these are empty. #}
+    {# Win/lose rates come from per-hand rows (MCR only); Riichi stores per-seat totals, so these are empty. #}
     {% if variables.rules == "MCR" %}
     <!-- Winning & Losing Stats -->
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">

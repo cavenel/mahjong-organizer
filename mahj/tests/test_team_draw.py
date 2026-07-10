@@ -6,7 +6,7 @@ from django.contrib.auth.models import User
 from django.db import IntegrityError
 from django.test import Client
 
-from mahj.models import Player
+from mahj.models import Player, Seat
 from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
@@ -125,3 +125,18 @@ def test_get_not_allowed(client_, staff, tournament):
 def test_forbidden_for_non_staff(client_, tournament):
     resp = _save(client_, [])
     assert resp.status_code in (302, 403)
+
+
+def test_page_warns_when_no_seating(client_, staff, tournament):
+    client_.force_login(staff)
+    Seat.objects.filter(tenant=tournament['tenant']).delete()
+    resp = client_.get('/admin_team_draw')
+    assert resp.status_code == 200
+    assert b'No seating chart yet' in resp.content
+
+
+def test_page_shown_when_seating_exists(client_, staff, tournament):
+    client_.force_login(staff)
+    resp = client_.get('/admin_team_draw')
+    assert resp.status_code == 200
+    assert b'No seating chart yet' not in resp.content

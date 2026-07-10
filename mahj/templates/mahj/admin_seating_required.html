@@ -1,0 +1,32 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ draw_title }}</title>
+  <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
+  <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+</head>
+<body class="h-screen bg-white text-gray-900 flex flex-col items-center justify-center px-8 text-center">
+
+  <img src="{{ site_logo_url }}" alt="Tournament logo" class="fixed top-3 left-6 h-20 w-auto">
+
+  <div class="max-w-2xl">
+    <h1 class="text-5xl font-bold text-gray-800">No seating chart yet</h1>
+    <p class="mt-6 text-xl text-gray-600">
+      The {{ draw_kind }} hands each competitor the number of a seat in the
+      tournament's seating chart &mdash; but this tournament has no chart yet, so
+      there are no seats to draw for.
+    </p>
+    <p class="mt-4 text-xl text-gray-600">
+      Generate a seating chart first, then reopen this page.
+    </p>
+    <a href="admin?page=seating"
+       class="inline-block mt-10 px-10 py-4 text-2xl bg-teal-700 hover:bg-teal-800 text-white rounded-lg">
+      Go to Seating &rarr;
+    </a>
+  </div>
+
+</body>
+</html>

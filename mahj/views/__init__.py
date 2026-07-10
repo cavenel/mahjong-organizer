@@ -46,6 +46,7 @@ from .admin_views import (
     admin_reset,
     admin_upload_from_template,
     admin_export_to_template,
+    admin_generate_seating,
     counter_start,
     logo,
     options,

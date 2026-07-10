@@ -13,6 +13,13 @@ from .scoring import scores_per_player_json, scores_per_table_json
 def cross_positions(request):
     tenant = get_tenant(request)
     scores = scores_per_table_json(request)
+    # A seat carries its draw slot; the competitor holding it (via draw_number) may
+    # not exist yet (draw not made), so guard against a missing .player throughout —
+    # an unclaimed slot is shown as "Player N".
+    players_by_draw = {
+        p.draw_number: p
+        for p in Player.objects.filter(tenant=tenant, draw_number__isnull=False)
+    }
 
     if request.GET.get('per_team'):
         teams = sorted(
@@ -26,33 +33,42 @@ def cross_positions(request):
         for round_ in scores:
             for table in round_:
                 for i, pos_a in enumerate(table):
-                    team_a = pos_a["position"].player.team
-                    if team_a not in team_idx:
+                    player_a = pos_a["position"].player
+                    if player_a is None or player_a.team not in team_idx:
                         continue
+                    ta = team_idx[player_a.team]
                     if pos_a["position"].wind == 1:
-                        cross[team_idx[team_a]]["east"] += 1
+                        cross[ta]["east"] += 1
                     for j, pos_b in enumerate(table):
                         if i == j:
                             continue
-                        team_b = pos_b["position"].player.team
-                        if team_b in team_idx:
-                            cross[team_idx[team_a]]["cross"][team_idx[team_b]] += 1
+                        player_b = pos_b["position"].player
+                        if player_b is not None and player_b.team in team_idx:
+                            cross[ta]["cross"][team_idx[player_b.team]] += 1
     else:
-        cross = []
-        for player in Player.objects.filter(tenant=tenant).order_by('draw_number'):
-            cross.append({"player": player.first_name, "east": 0, "cross": []})
-            for _ in Player.objects.filter(tenant=tenant).order_by('draw_number'):
-                cross[-1]["cross"].append(0)
+        # Key on the draw slot (always present on a Seat), so the sheet works even
+        # before the draw is made. Rows/columns share this order.
+        draws = sorted({
+            pos["position"].draw_number
+            for round_ in scores for table in round_ for pos in table
+        })
+        idx = {d: i for i, d in enumerate(draws)}
 
+        def label(d):
+            p = players_by_draw.get(d)
+            return p.first_name if p else "Player {0}".format(d)
+
+        cross = [{"player": label(d), "east": 0, "cross": [0] * len(draws)} for d in draws]
         for round_ in scores:
             for table in round_:
-                players = [position["position"].player for position in table]
-                for position in table:
-                    for player in players:
-                        if player.draw_number != position["position"].player.draw_number:
-                            cross[position["position"].player.draw_number - 1]["cross"][player.draw_number - 1] += 1
-                    if position["position"].wind == 1:
-                        cross[position["position"].player.draw_number - 1]["east"] += 1
+                seats = [pos["position"] for pos in table]
+                for seat in seats:
+                    si = idx[seat.draw_number]
+                    if seat.wind == 1:
+                        cross[si]["east"] += 1
+                    for other in seats:
+                        if other.draw_number != seat.draw_number:
+                            cross[si]["cross"][idx[other.draw_number]] += 1
 
     template = loader.get_template('mahj/print_cross_positions.html')
     return HttpResponse(template.render({'cross': cross}, request))

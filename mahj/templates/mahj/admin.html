@@ -73,6 +73,11 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         <span class="nav-label rail-hide">Import from template</span>
       </a>
+      <a href="admin?page=seating" :title="railCollapsed ? 'Seating' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'seating' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+        <span class="nav-label rail-hide">Seating</span>
+      </a>
       {% endif %}
 
       <!-- PLAYERS -->
