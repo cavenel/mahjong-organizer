@@ -25,6 +25,7 @@ import json
 import time
 from functools import wraps
 
+from django.conf import settings
 from django.contrib.auth.models import User
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
@@ -322,7 +323,7 @@ def user_remove_from_tenant(request):
 
 
 # --------------------------------------------------------------------------
-# Superuser mode — tenant CRUD + seeding a tenant's first admin
+# Superuser mode — tenant CRUD (multi-tenant cloud build only)
 # --------------------------------------------------------------------------
 
 def _clean_subdomain(value):
@@ -331,8 +332,20 @@ def _clean_subdomain(value):
     return (value or '').strip().lower()
 
 
+def _standalone_blocked():
+    """Tenant CRUD is meaningless in the single-tenant standalone build (the tenant
+    is pinned via LOCAL_TENANT), so the endpoints 404 there — matching how the page
+    is hidden from the nav."""
+    if settings.STANDALONE:
+        return JsonResponse({'status': 'error', 'error': 'Not available in this build.'}, status=404)
+    return None
+
+
 @superuser_and_reauthed
 def tenant_create(request):
+    blocked = _standalone_blocked()
+    if blocked is not None:
+        return blocked
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     data = _body(request)
@@ -350,6 +363,9 @@ def tenant_create(request):
 
 @superuser_and_reauthed
 def tenant_rename(request):
+    blocked = _standalone_blocked()
+    if blocked is not None:
+        return blocked
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     data = _body(request)

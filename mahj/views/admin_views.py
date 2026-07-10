@@ -1533,8 +1533,10 @@ def options(request, error=None):
                 "link_validity_days": settings.SESAME_MAX_AGE // 86400,
             }, request)
     elif page == "tenants":
-        # Superuser-only: create/rename tenants and seed a tenant's first admin.
-        if not request.user.is_superuser:
+        # Superuser-only: create/rename tenants. Meaningless in the single-tenant
+        # standalone build (the tenant is pinned via LOCAL_TENANT), so it's hidden
+        # there.
+        if not request.user.is_superuser or settings.STANDALONE:
             page_content = "None"
         elif not reauth_ok(request):
             template2 = loader.get_template('mahj/admin_users_reauth.html')
@@ -1603,6 +1605,9 @@ def options(request, error=None):
         # user_is_scorer / user_is_display_op / user_is_publisher / is_tenant_admin
         # come from the role_flags context processor (tenant-scoped).
         "uses_teams": get_variables(request).has_teams,
+        # Standalone is single-tenant (pinned via LOCAL_TENANT), so the superuser
+        # tenant-management page is meaningless there — hide it.
+        "standalone": settings.STANDALONE,
         # Drives the shell-wide publish progress toast (polls publish_status) — only
         # when web publishing is configured, so idle installs don't poll.
         "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),

@@ -149,11 +149,13 @@
         <span class="nav-label rail-hide">User management</span>
       </a>
       {% if user.is_superuser %}
+      {% if not standalone %}
       <a href="admin?page=tenants" :title="railCollapsed ? 'Tenants' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'tenants' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>
         <span class="nav-label rail-hide">Tenants</span>
       </a>
+      {% endif %}
       <a href="admin?page=database_restore" :title="railCollapsed ? 'Database restore' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'database_restore' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.66 3.58 3 8 3s8-1.34 8-3V5M4 11v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></svg>

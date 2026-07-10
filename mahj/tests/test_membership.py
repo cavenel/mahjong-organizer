@@ -241,6 +241,17 @@ class TestTenantManagement:
         tenant_b.refresh_from_db()
         assert tenant_b.name == 'Renamed' and tenant_b.subdomain == 'other2'
 
+    def test_tenant_crud_404s_in_standalone(self, su_client):
+        # Standalone is single-tenant (pinned via LOCAL_TENANT): the tenant CRUD
+        # endpoints are unavailable and the nav page is hidden.
+        from django.test import override_settings
+        with override_settings(STANDALONE=True):
+            assert _json_post(su_client, '/tenant_create',
+                              {'name': 'X', 'subdomain': 'x'}).status_code == 404
+            page = su_client.get('/admin?page=tenants')
+            assert b'Create a tenant' not in page.content
+        assert not Tenant.objects.filter(subdomain='x').exists()
+
     def test_first_admin_seeded_via_own_user_page(self, su_client, tenant_b):
         # No bespoke seed endpoint: a superuser opens the new tenant's OWN user
         # management (they bypass membership there) and adds an admin normally.
