@@ -1,0 +1,109 @@
+name: Build standalone binaries
+
+# Builds the per-OS standalone admin binary (docs/STANDALONE.md) and, on a
+# version tag, drafts a GitHub Release with the archives attached.
+#
+# There is no cross-platform binary — each target is built on its native runner
+# (standalone/mahj.spec). The build mirrors the Dockerfile's CSS step: fetch the
+# standalone Tailwind CLI, compile tailwind.min.css, collectstatic, then freeze.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:   # manual test builds without tagging
+
+permissions:
+  contents: write       # release job attaches assets
+
+env:
+  TAILWIND_VERSION: v3.4.17
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: windows-x64
+            tw_suffix: windows-x64.exe
+            tw_bin: tailwindcss.exe
+          - os: macos-14        # Apple Silicon
+            target: macos-arm64
+            tw_suffix: macos-arm64
+            tw_bin: tailwindcss
+          - os: macos-13        # Intel
+            target: macos-x64
+            tw_suffix: macos-x64
+            tw_bin: tailwindcss
+          - os: ubuntu-latest
+            target: linux-x64
+            tw_suffix: linux-x64
+            tw_bin: tailwindcss
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download Tailwind CLI
+        run: |
+          curl -sSL -o "${{ matrix.tw_bin }}" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${{ matrix.tw_suffix }}"
+          chmod +x "${{ matrix.tw_bin }}"
+
+      - name: Compile Tailwind CSS
+        run: |
+          "./${{ matrix.tw_bin }}" -c tailwind.config.js \
+            -i mahj/static/css/tailwind.src.css \
+            -o mahj/static/css/tailwind.min.css --minify
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/standalone.txt
+
+      - name: Collect static files
+        env:
+          DJANGO_SECRET_KEY: build-time-only
+          ALLOWED_HOSTS: localhost
+        run: python manage.py collectstatic --noinput --settings apps.settings.standalone
+
+      - name: Build with PyInstaller
+        run: pyinstaller standalone/mahj.spec
+
+      - name: Package archive
+        run: |
+          cd dist
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            7z a "../mahj-admin-${{ matrix.target }}.zip" mahj-admin
+          else
+            tar czf "../mahj-admin-${{ matrix.target }}.tar.gz" mahj-admin
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mahj-admin-${{ matrix.target }}
+          path: mahj-admin-${{ matrix.target }}.*
+
+  release:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          draft: true                    # review, then publish manually
+          generate_release_notes: true
