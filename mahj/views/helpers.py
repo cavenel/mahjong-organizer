@@ -190,13 +190,15 @@ def get_domain(request):
         forced = os.environ.get('LOCAL_TENANT', '').strip()
     if forced:
         return forced
-    host = request.get_host()
-    parts = host.split('.')
-    if len(parts) >= 3:
-        subdomain = parts[0]
-    else:
-        subdomain = ""
-    return subdomain
+    host = request.get_host().split(':')[0]   # drop any :port
+    base = settings.BASE_DOMAIN
+    # The tenant is everything to the left of the base domain, so a single
+    # DNS/cert wildcard (*.mahj.ovh) and a grouped one (*.test.mahj.ovh) both
+    # resolve: a.mahj.ovh -> "a", a.test.mahj.ovh -> "a.test". The apex itself
+    # and any host outside the base domain (bare IP, LAN name) carry no tenant.
+    if host == base or not host.endswith('.' + base):
+        return ""
+    return host[: -(len(base) + 1)]
 
 
 def get_tenant(request):
@@ -232,7 +234,12 @@ def get_variables(request):
         cached = TournamentSettings.objects.filter(tenant=tenant).first()
         if cached is None:
             cached = TournamentSettings(tenant=tenant, welcome="Welcome")
-            cached.save()
+            # Persist (and lazily provision) only for a real tenant. An unknown
+            # subdomain resolves to tenant=None; saving that hits the NOT NULL
+            # constraint and 500s every page on the subdomain (now reachable via
+            # the *.BASE_DOMAIN wildcard). Serve a transient default instead.
+            if tenant is not None:
+                cached.save()
         cache.set(cache_key, cached, VARIABLES_TTL)
     request._variables = cached
     return cached

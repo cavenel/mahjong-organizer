@@ -99,6 +99,13 @@ services:
   #              -d "$BASE_DOMAIN" -d "*.$BASE_DOMAIN" \
   #              --email <your@email> --agree-tos --no-eff-email
   #
+  # A TLS wildcard covers exactly one label, so *.$BASE_DOMAIN serves a.$BASE_DOMAIN
+  # but NOT a.test.$BASE_DOMAIN. To serve a grouped level, add its own wildcard SAN
+  # to the SAME cert (kept at live/$BASE_DOMAIN/, so nginx is unchanged) and add a
+  # matching *.test.$BASE_DOMAIN DNS record — one -d per group label (no cert can
+  # hold a double wildcard like *.*.$BASE_DOMAIN):
+  #     ... -d "$BASE_DOMAIN" -d "*.$BASE_DOMAIN" -d "*.test.$BASE_DOMAIN" ...
+  #
   # Renewal (add to host cron, e.g. weekly):
   #   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
   #     --profile certbot run --rm certbot renew --quiet
