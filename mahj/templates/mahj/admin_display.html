@@ -390,6 +390,11 @@
       onUpdate: function(msg) {
         if (msg.event === 'counter_update') applyCounter(msg);
         else if (msg.event === 'ceremony') setCeremonyWarning(msg.phase !== 'idle');
+        // A screen added/removed elsewhere (another admin tab/operator) leaves this
+        // page's server-rendered card grid stale, so "All screens" can't sync a card
+        // it has no id for. Reload to pick up the new grid — matches the full-page
+        // reload a same-session add already triggers.
+        else if (msg.event === 'screens_changed') location.reload();
       },
       onReconnect: function() {
         fetchStatus();
