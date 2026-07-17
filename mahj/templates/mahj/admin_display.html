@@ -606,25 +606,25 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
 
         <div>
-          <label for="variables-zoom" class="block text-xs font-medium text-gray-600 mb-1">Screen zoom (1 = 100%)</label>
+          <label for="variables-zoom" class="block text-xs font-medium text-gray-600 mb-1">Screen zoom (1 = 100%){% include "mahj/_info_icon.html" with text="Magnifies everything on the projector screens — Scores, Welcome, Announcement and Schedule. Raise it if the audience is far away, lower it to fit more on screen. 1 = 100%." %}</label>
           <input id="variables-zoom" type="number" placeholder="1" value="{{ variables.zoom }}" step="0.05"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-score_lines" class="block text-xs font-medium text-gray-600 mb-1">Number of score lines per screen</label>
+          <label for="variables-score_lines" class="block text-xs font-medium text-gray-600 mb-1">Number of score lines per screen{% include "mahj/_info_icon.html" with text="How many players are listed per column on the Scores screen before it pages to the next set. Fewer lines means bigger, more readable rows." %}</label>
           <input id="variables-score_lines" type="number" placeholder="20" value="{{ variables.score_lines }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout</label>
+          <label for="variables-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout{% include "mahj/_info_icon.html" with text="Number of side-by-side columns on the Scores screen in the compact totals and teams views (the detailed view is always one column)." %}</label>
           <input id="variables-total_columns" type="number" placeholder="3" value="{{ variables.total_columns }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds)</label>
+          <label for="variables-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds){% include "mahj/_info_icon.html" with text="Seconds each page stays up before the Scores screen auto-advances to the next page of players." %}</label>
           <input id="variables-rotation_time" type="number" placeholder="10" value="{{ variables.rotation_time }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">

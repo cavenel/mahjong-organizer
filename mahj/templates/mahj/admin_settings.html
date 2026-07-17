@@ -15,7 +15,7 @@
         <p class="text-xs text-gray-400 mt-1">Short name shown in the browser tab and on screens.</p>
       </div>
       <div class="md:col-span-2">
-        <label for="variables-fullname" class="block text-xs font-medium text-gray-600 mb-1">Full tournament name</label>
+        <label for="variables-fullname" class="block text-xs font-medium text-gray-600 mb-1">Full tournament name{% include "mahj/_info_icon.html" with text="The complete name shown on report headers and printouts — the Title above is the short version used in browser tabs and on screens." %}</label>
         <input id="variables-fullname" type="text" placeholder="" value="{{ variables.fullname }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
@@ -74,13 +74,13 @@
     <h3 class="text-sm font-bold text-gray-800 mb-4">Rounds</h3>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="variables-nb_rounds" class="block text-xs font-medium text-gray-600 mb-1">Number of rounds</label>
+        <label for="variables-nb_rounds" class="block text-xs font-medium text-gray-600 mb-1">Number of rounds{% include "mahj/_info_icon.html" with text="How many playing rounds the tournament has. Mark exactly this many rows as “Round” in the Schedule below so per-round times line up." %}</label>
         <input id="variables-nb_rounds" type="number" placeholder="7" value="{{ variables.nb_rounds }}" step="1" min="1"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       {% if is_tenant_admin %}
       <div>
-        <label for="variables-total_time" class="block text-xs font-medium text-gray-600 mb-1">Total time of a round (seconds)</label>
+        <label for="variables-total_time" class="block text-xs font-medium text-gray-600 mb-1">Total time of a round (seconds){% include "mahj/_info_icon.html" with text="Length of one round’s countdown clock on the timer screen, in seconds (e.g. 6900 = 1 h 55 m)." %}</label>
         <input id="variables-total_time" type="number" placeholder="6900" value="{{ variables.total_time }}" step="1" min="1"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>

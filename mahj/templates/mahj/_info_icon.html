@@ -1,0 +1,26 @@
+{% comment %}
+  Small (i) info icon with a hover / tap / focus popover.
+
+  Usage (anywhere inside the Alpine-powered admin shell):
+    {% include "mahj/_info_icon.html" with text="Longer explanation shown on the icon." %}
+
+  Shows on mouse hover (desktop), on click/tap (mobile) and on keyboard
+  focus (accessibility). `text` is the only required parameter.
+{% endcomment %}
+<span x-data="{ open: false }"
+      class="relative inline-flex align-middle ml-1 leading-none"
+      @mouseenter="open = true" @mouseleave="open = false">
+  <button type="button" aria-label="More information" :aria-expanded="open"
+          @click.prevent="open = !open" @focus="open = true" @blur="open = false"
+          @keydown.escape="open = false"
+          class="text-amber-500 hover:text-amber-600 focus:outline-none focus:text-amber-600">
+    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="1.8"
+         stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/>
+    </svg>
+  </button>
+  <span x-show="open" x-cloak x-transition.opacity role="tooltip"
+        class="absolute z-50 left-0 top-full mt-1.5 w-56 max-w-[15rem] rounded-md
+               bg-gray-800 px-2.5 py-1.5 text-xs font-normal leading-snug text-white
+               shadow-lg pointer-events-none whitespace-normal">{{ text }}</span>
+</span>
