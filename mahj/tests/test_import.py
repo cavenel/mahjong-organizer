@@ -1,7 +1,7 @@
 """Excel-import flow (admin_upload_from_template).
 
 Guards the round-trip the admin console runs when an organizer uploads the
-tournament template: it must create one Player per roster row (carrying the draw
+tournament template: it must create one Player per player-list row (carrying the draw
 number from the 'rand' column) and the full seating chart as Seat rows keyed by
 draw number — with no Seat.player FK (the draw lives on Player.draw_number).
 """
@@ -33,7 +33,7 @@ def staff_client(imp_tenant):
 
 
 def _filled_workbook(n=16):
-    """A copy of the shipped blank template with `n` roster rows filled in and a
+    """A copy of the shipped blank template with `n` player-list rows filled in and a
     pre-assigned draw number (the 'rand' column) 1..n, so it exercises the fully
     pre-drawn import path."""
     wb = load_workbook(TEMPLATE)
@@ -95,7 +95,7 @@ def _snapshot(tenant):
 
 def test_export_round_trips_through_import(staff_client, imp_tenant):
     """Import a tournament, add a per-player team and a schedule, export via
-    admin_export_to_template, then re-import: the roster (incl. team), the full
+    admin_export_to_template, then re-import: the player list (incl. team), the full
     seating chart and the schedule (incl. is_round) must match."""
     staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
 
@@ -125,7 +125,7 @@ def test_export_round_trips_through_import(staff_client, imp_tenant):
 
 
 def test_import_without_rand_leaves_players_undrawn(staff_client, imp_tenant):
-    """No 'rand' column -> roster imported but not yet drawn (draw_number NULL);
+    """No 'rand' column -> player list imported but not yet drawn (draw_number NULL);
     the seating chart still exists, to be filled by randomize/team-draw."""
     wb = load_workbook(TEMPLATE)
     ps = wb['Players']
@@ -188,11 +188,11 @@ def _rows16(**overrides):
     return rows
 
 
-def test_blank_row_midroster_does_not_truncate(staff_client, imp_tenant):
-    """F-H9: a fully-blank spacer row in the middle of the roster is skipped, not
-    treated as the end of the roster (which used to drop everyone below it)."""
+def test_blank_row_midlist_does_not_truncate(staff_client, imp_tenant):
+    """F-H9: a fully-blank spacer row in the middle of the player list is skipped, not
+    treated as the end of the list (which used to drop everyone below it)."""
     rows = _rows16()
-    rows.insert(8, (None, None, None, None, None, None))  # blank spacer mid-roster
+    rows.insert(8, (None, None, None, None, None, None))  # blank spacer mid-list
     resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
@@ -327,9 +327,9 @@ def test_broken_seating_chart_rejected(staff_client, imp_tenant):
 
 # --- in-app seating generation (admin_generate_seating) --------------------
 
-def test_generate_seating_builds_chart_and_keeps_roster(staff_client, imp_tenant):
+def test_generate_seating_builds_chart_and_keeps_players(staff_client, imp_tenant):
     """Generating replaces the seating chart (a full chart for every round) and
-    returns quality measures, while keeping the roster and draw."""
+    returns quality measures, while keeping the player list and draw."""
     staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     draws_before = sorted(Player.objects.filter(tenant=imp_tenant)
                           .values_list('draw_number', flat=True))
@@ -341,7 +341,7 @@ def test_generate_seating_builds_chart_and_keeps_roster(staff_client, imp_tenant
     assert data['measures']['all_seated'] is True
 
     assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4  # rounds*tables*winds
-    # Roster and draw are untouched — the chart is independent of the people.
+    # Player list and draw are untouched — the chart is independent of the people.
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
     assert sorted(Player.objects.filter(tenant=imp_tenant)
                   .values_list('draw_number', flat=True)) == draws_before
@@ -368,8 +368,8 @@ def test_generate_seating_algebraic_infeasible_refuses_without_touching_chart(st
     assert Seat.objects.filter(tenant=imp_tenant).count() == before  # untouched
 
 
-def test_import_without_seating_sheet_keeps_roster_seatless(staff_client, imp_tenant):
-    """A workbook with no '<N> players' seating sheet imports the roster/schedule
+def test_import_without_seating_sheet_keeps_players_seatless(staff_client, imp_tenant):
+    """A workbook with no '<N> players' seating sheet imports the player list/schedule
     and leaves the tournament without a chart (to be generated later on the Seating
     page) instead of failing the whole import."""
     wb = load_workbook(TEMPLATE)
@@ -391,7 +391,7 @@ def test_import_without_seating_sheet_keeps_roster_seatless(staff_client, imp_te
 
     resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code in (200, 302)
-    assert Player.objects.filter(tenant=imp_tenant).count() == 16      # roster imported
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16      # player list imported
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0         # no chart yet
 
     # ...and a chart can then be generated for it.

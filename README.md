@@ -1,7 +1,7 @@
 # Mahj.OVH — Mahjong Organizer Virtual Hub
 
 An all-in-one, self-hostable toolbox for running **Mahjong tournaments** end to
-end: import the roster and seating draw, enter and validate scores live, drive
+end: import the player list and seating draw, enter and validate scores live, drive
 the projector screens (round timer, rotating standings, prize-giving ceremony),
 publish results to spectators, and export the official EMA report.
 
@@ -11,7 +11,7 @@ subdomain (`<tenant>.your-domain`).
 
 ## Features
 
-- **Roster & draw** — import players, teams and the round-by-round seating
+- **Player list & draw** — import players, teams and the round-by-round seating
   schedule from a spreadsheet; randomize seating or run a live on-screen team
   draw; correct player metadata inline.
 - **Live scoring** — per-table score entry with validation, or scan a
@@ -53,7 +53,7 @@ docker compose exec web python manage.py createsuperuser
 
 Then visit `https://<tenant>.<BASE_DOMAIN>/admin`, open **Configuration →
 Tournament settings** to name the event, and **Import from template** to load the
-roster. The **Dashboard** shows a setup checklist and live tournament progress.
+player list. The **Dashboard** shows a setup checklist and live tournament progress.
 
 For local development without Docker, `manage.py` defaults to
 `apps.settings.dev` (SQLite-free; needs a local Postgres + Redis). Run the test

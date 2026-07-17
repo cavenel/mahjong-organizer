@@ -59,7 +59,7 @@ class TenantAwareModel(models.Model):
 
 
 class Player(TenantAwareModel):
-    """A human competitor — the roster, one row per real person.
+    """A human competitor — the player list, one row per real person.
 
     Holds the person's own data (name, federation id, country, team) and their
     ``draw_number``: the single place the draw is recorded (unique per tenant,
@@ -67,7 +67,7 @@ class Player(TenantAwareModel):
     number, so the competitor at a seat is the Player holding that number — a
     name/country/team correction here shows everywhere at once with nothing
     duplicated, and re-drawing is just re-assigning draw numbers here. A Player
-    with ``draw_number`` null is on the roster but not yet in the draw.
+    with ``draw_number`` null is on the player list but not yet in the draw.
     """
     full_name  = models.CharField(max_length=70, default="")
     first_name = models.CharField(max_length=70, default="")

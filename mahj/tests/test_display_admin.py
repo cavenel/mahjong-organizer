@@ -361,7 +361,7 @@ def test_set_variable_saves_valid_message(client_, display_op, tournament):
 @pytest.fixture
 def staff(tenant):
     # Depend on the bare `tenant` (not `tournament`) so the empty-tenant dashboard
-    # test isn't handed a seeded roster; tournament-based tests share this tenant.
+    # test isn't handed a seeded player list; tournament-based tests share this tenant.
     u = User.objects.create_user('boss', password='pw')
     grant(u, tenant, admin=True)
     return u
@@ -459,10 +459,10 @@ def test_dashboard_no_warning_without_schedule(client_, staff, tournament):
 
 
 # ── Player editor (admin?page=player_editor) ─────────────────────────────────
-# Staff-only inline table for correcting roster metadata. Every field autosaves;
+# Staff-only inline table for correcting player metadata. Every field autosaves;
 # draw_number is editable here too and goes through admin_player_draw_assign.
 
-def test_player_editor_renders_roster_for_staff(client_, staff, tournament):
+def test_player_editor_renders_players_for_staff(client_, staff, tournament):
     client_.force_login(staff)
     html = client_.get('/admin?page=player_editor').content.decode()
     assert 'Edit players' in html
@@ -527,7 +527,7 @@ def test_dashboard_shows_setup_and_progress(client_, staff, tournament):
     client_.force_login(staff)
     html = client_.get('/admin?page=welcome').content.decode()
     assert 'Setup' in html
-    # 16 players seeded, all with draw numbers → roster + draw ticks (the count
+    # 16 players seeded, all with draw numbers → player list + draw ticks (the count
     # sits in its own <span>, so match the surrounding text, not the whole line).
     assert 'players imported' in html
     assert '>16<' in html

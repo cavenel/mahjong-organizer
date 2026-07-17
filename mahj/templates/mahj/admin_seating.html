@@ -49,7 +49,7 @@
 
     {% if not can_generate %}
       <p class="text-sm text-gray-500 italic">
-        Load a roster of at least 8 players (a multiple of 4) and set the number of
+        Load a player list of at least 8 players (a multiple of 4) and set the number of
         rounds in Tournament settings first.
         {% if nb_players %}<br>Currently {{ nb_players }} player{{ nb_players|pluralize }}, {{ nb_rounds }} round{{ nb_rounds|pluralize }}.{% endif %}
       </p>
@@ -58,7 +58,7 @@
         {{ nb_players }} player{{ nb_players|pluralize }} · {{ nb_rounds }} round{{ nb_rounds|pluralize }} ·
         {% if has_teams %}team tournament{% else %}individual tournament{% endif %}.
         <span class="text-gray-500">Generating replaces the current seating and clears any
-        entered scores; the roster, draw and schedule are kept.</span>
+        entered scores; the player list, draw and schedule are kept.</span>
       </p>
 
       <fieldset class="space-y-3">
@@ -269,8 +269,8 @@
     apply.addEventListener('click', function () {
       var body = hasSeats
         ? 'This replaces the current seating' + (hasScores ? ' and clears all entered scores' : '') +
-          '. The roster and draw are kept. This cannot be undone.'
-        : 'This creates the seating chart. The roster and draw are kept.';
+          '. The player list and draw are kept. This cannot be undone.'
+        : 'This creates the seating chart. The player list and draw are kept.';
       window.confirmAction({
         title: hasSeats ? 'Replace seating?' : 'Create seating?',
         body: body,

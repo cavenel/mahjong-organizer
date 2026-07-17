@@ -100,7 +100,7 @@ def player_cards(request):
     tenant = get_tenant(request)
     variables = get_variables(request)
 
-    # One card per draw slot, not per roster player: the seating (and so a slot's
+    # One card per draw slot, not per listed player: the seating (and so a slot's
     # rounds and opponents) exists before the draw is made, so an undrawn slot
     # still gets a usable card, labelled "Player <n>" until a player is assigned.
     players_by_draw = {

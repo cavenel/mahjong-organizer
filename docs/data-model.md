@@ -65,9 +65,9 @@ holding that seat's `draw_number`. So:
   from the entry list when pre-drawn; randomize / team-draw set it otherwise.
   Re-drawing only re-assigns `draw_number`s — the seating chart is never touched
   and the database (a unique constraint) guarantees one competitor per number.
-- A `Player` with `draw_number` null is on the roster but not yet in the draw.
+- A `Player` with `draw_number` null is on the player list but not yet in the draw.
 - A seat whose `draw_number` no competitor holds is shown as "Player #`draw_number`"
-  — there are no placeholder people in the roster.
+  — there are no placeholder people in the player list.
 
 ## Hands: draws and self-draws
 

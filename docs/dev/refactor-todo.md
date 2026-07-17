@@ -13,7 +13,7 @@ issues) before the public orphan commit in Phase 8.
 
 - **`Player.save()` first-name parsing.** The old "if 'Player' in full_name"
   placeholder handling is gone (undrawn seats now render "Player #<n>" without
-  fake roster rows), which also removes the known-issue bug where a real name
+  fake player-list rows), which also removes the known-issue bug where a real name
   containing "Player" got corrupted. Keep an eye on the disambiguation loop moved
   into the import.
 

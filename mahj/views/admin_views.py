@@ -261,7 +261,7 @@ def admin_print_EMA(request):
 
 class TemplateImportError(Exception):
     """A validation problem in an uploaded tournament template that the organizer
-    can fix (bad cell, wrong roster count, missing seating sheet). Its message is
+    can fix (bad cell, wrong player count, missing seating sheet). Its message is
     shown to them verbatim; any other exception is treated as an unexpected error
     and reported with a traceback instead."""
 
@@ -326,7 +326,7 @@ def admin_upload_from_template(request):
             variables.rules = opt_vals[5] or "MCR"
             variables.save()
 
-            # Roster: one Player per real person. The optional 'rand' column is a
+            # Player list: one Player per real person. The optional 'rand' column is a
             # pre-assigned draw number; when present the person is linked to their
             # seats below, otherwise the draw is made later (randomize / team draw).
             players_sheet = wb['Players']
@@ -336,7 +336,7 @@ def admin_upload_from_template(request):
             all_have_team = True
             for row in player_rows:
                 last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
-                # Skip fully-blank spacer / trailing rows. Ending the roster at the
+                # Skip fully-blank spacer / trailing rows. Ending the player list at the
                 # first empty last-name cell used to drop a competitor who has a
                 # first name but no surname (and everyone listed below them); a row
                 # is a real competitor as long as it carries any name.
@@ -400,7 +400,7 @@ def admin_upload_from_template(request):
                     "used every competitor must have one — fill in the blank team cells."
                 )
             # Teams are always groups of four. A team that comes out a different
-            # size is a roster mistake — most often a typo or case mismatch that
+            # size is a player-list mistake — most often a typo or case mismatch that
             # split one team in two ("Sweden" vs "sweden"), which the size check
             # catches without silently merging genuinely distinct names.
             if any_team:
@@ -414,7 +414,7 @@ def admin_upload_from_template(request):
                     )
             Player.objects.bulk_create(player_objs)
 
-            # The roster is all-or-nothing on teams (enforced just above), so the
+            # The player list is all-or-nothing on teams (enforced just above), so the
             # presence of any team name is the single signal for has_teams, which
             # gates team standings/columns/printouts everywhere.
             variables.has_teams = any_team
@@ -444,7 +444,7 @@ def admin_upload_from_template(request):
             PublishedRound.objects.filter(tenant=tenant).delete()
             nb_players = len(player_objs)
             nb_tables = nb_players // 4
-            # The seating sheet is optional: a workbook may carry only the roster,
+            # The seating sheet is optional: a workbook may carry only the player list,
             # schedule and settings, leaving the tournament without a chart until
             # one is built on the Seating page. When a "<N> players" sheet *is*
             # present it is read (and validated) here.
@@ -495,7 +495,7 @@ def admin_upload_from_template(request):
             # Import is a full replace by design (it clears scores even on success),
             # and a half-imported tournament is worse than none — so any failure
             # leaves the tournament fully empty rather than half-loaded or silently
-            # reverted to the old one. Wipe every roster/seating/score table and
+            # reverted to the old one. Wipe every player/seating/score table and
             # reset the settings the parse may have touched, so no half-branded
             # "ghost" tournament survives. The organizer fixes the file and retries.
             Player.objects.filter(tenant=tenant).delete()
@@ -560,15 +560,15 @@ def admin_export_to_template(request):
         opt_sheet.cell(row=row, column=1, value=label)
         opt_sheet.cell(row=row, column=2, value=value)
 
-    # Players: id order is the original roster row order (matches the draw exports).
+    # Players: id order is the original player-list row order (matches the draw exports).
     # Columns 1-6 mirror the shipped template.
-    roster = list(Player.objects.filter(tenant=tenant).order_by('id'))
+    players = list(Player.objects.filter(tenant=tenant).order_by('id'))
     players_sheet = wb.create_sheet('Players')
     players_sheet.append([
         'Last name', 'First name', 'EMA number', 'Country',
         'Team name (optional)', 'Random position (1 - # of players)',
     ])
-    for player in roster:
+    for player in players:
         first_name = player.full_name.split(" ")[0]
         last_name = " ".join(player.full_name.split(" ")[1:])
         players_sheet.append([
@@ -593,7 +593,7 @@ def admin_export_to_template(request):
     # seating. Draw numbers are laid out as round rows x table blocks of E/S/W/N,
     # with one spacer column between tables (col = 2 + wind + 5*table, both 0-based) —
     # exactly the layout admin_upload_from_template reads back.
-    nb_players = len(roster)
+    nb_players = len(players)
     nb_tables = nb_players // 4
     seats = list(Seat.objects.filter(tenant=tenant))
     if seats and nb_tables:
@@ -625,10 +625,10 @@ def admin_export_to_template(request):
 
 @tenant_admin_required
 def admin_generate_seating(request):
-    """Build the seating chart in-app for the current roster, instead of reading
+    """Build the seating chart in-app for the current player list, instead of reading
     it from an Excel sheet — so a field size the template doesn't cover still gets
     a chart. Replaces the seating chart (and clears scores, which are keyed by
-    seat) but keeps the roster, draw and schedule: the chart is independent of who
+    seat) but keeps the player list, draw and schedule: the chart is independent of who
     sits where. Returns the quality measures as JSON for the page to display."""
     if request.method != 'POST':
         return HttpResponse('POST required', status=405)
@@ -708,14 +708,14 @@ def admin_team_draw(request):
         return HttpResponse(template.render(
             {'draw_title': 'Team Draw', 'draw_kind': 'team draw'}, request))
 
-    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
+    players = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
     # id order is the original row order of the Excel "Players" sheet. The CSV
     # export sorts on this so the drawn numbers line up with the template rows.
-    order = {p.id: i for i, p in enumerate(sorted(roster, key=lambda p: p.id), start=1)}
+    order = {p.id: i for i, p in enumerate(sorted(players, key=lambda p: p.id), start=1)}
 
     teams_dict = {}
-    for p in roster:
+    for p in players:
         if p.team:
             teams_dict.setdefault(p.team, []).append({
                 "id": p.id,
@@ -736,7 +736,7 @@ def admin_team_draw(request):
 
     # Existing draw, if any: the competitors who already have a draw number,
     # grouped by team.
-    drawn = [p for p in roster if p.draw_number is not None and p.team]
+    drawn = [p for p in players if p.draw_number is not None and p.team]
 
     saved_draw = []
     if drawn:
@@ -796,7 +796,7 @@ def admin_team_draw_save(request):
 
     players = {p.id: p for p in Player.objects.filter(tenant=tenant, id__in=player_ids)}
     if len(players) != len(player_ids):
-        return HttpResponse('Roster changed — reload and draw again', status=400)
+        return HttpResponse('Player list changed — reload and draw again', status=400)
 
     # Free the target draw numbers from any current holder and clear these
     # competitors' current numbers, then assign each their drawn number. Clearing
@@ -826,11 +826,11 @@ def admin_player_draw(request):
         return HttpResponse(template.render(
             {'draw_title': 'Player Draw', 'draw_kind': 'individual draw'}, request))
 
-    roster = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
+    all_players = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
     # id order is the original row order of the Excel "Players" sheet, so a CSV
     # export lines up with the template rows (matches the team-draw export).
-    order = {p.id: i for i, p in enumerate(sorted(roster, key=lambda p: p.id), start=1)}
+    order = {p.id: i for i, p in enumerate(sorted(all_players, key=lambda p: p.id), start=1)}
 
     players = [{
         "id": p.id,
@@ -840,7 +840,7 @@ def admin_player_draw(request):
         "country": p.country,
         "flag": _country_flag(p.country),
         "draw_number": p.draw_number,
-    } for p in roster]
+    } for p in all_players]
 
     draw_numbers = sorted({s.draw_number for s in Seat.objects.filter(tenant=tenant)})
 
@@ -991,7 +991,7 @@ def admin_reset(request):
     """Factory-reset the tournament: wipe every tenant row and its settings.
 
     Staff-only, POST-only, and gated behind a type-to-confirm + confirm dialog in
-    the UI — this is irreversible. It clears all tournament data (roster, seating,
+    the UI — this is irreversible. It clears all tournament data (player list, seating,
     hands, score sheets, published rounds, schedule) *and* the tenant's
     configuration (title/branding/format, logo, screens, screen modes, publish
     target, ceremony state), leaving a blank instance ready for a fresh import.
@@ -1352,9 +1352,9 @@ def options(request, error=None):
                 "variables": variables,
                 "nb_players": nb_players,
                 # Whether a seating chart exists at all (imported or generated) —
-                # the roster can be drawn in only once there are seats to fill.
+                # the player list can be drawn in only once there are seats to fill.
                 "has_seats": has_seats,
-                # A player is "drawn in" once assigned a draw number; the roster is
+                # A player is "drawn in" once assigned a draw number; the player list is
                 # ready to play when every player holds one.
                 "draw_done": nb_players > 0 and nb_drawn == nb_players,
                 "nb_drawn": nb_drawn,
@@ -1563,7 +1563,7 @@ def options(request, error=None):
         variables = get_variables(request)
         nb_players = Player.objects.filter(tenant=tenant).count()
         nb_rounds = variables.nb_rounds or 0
-        # Measure the seating chart currently in place (independent of the roster:
+        # Measure the seating chart currently in place (independent of the player list:
         # its size is the draw slots it seats), so the page can show what exists.
         seats = list(Seat.objects.filter(tenant=tenant)
                      .values_list('round_nb', 'table_nb', 'wind', 'draw_number'))
