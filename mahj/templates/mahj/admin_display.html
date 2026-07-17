@@ -412,6 +412,14 @@
     // lead/countdown elapses until the next 30s poll or a manual refresh.
     setInterval(updateButtons, 1000);
     setInterval(fetchStatus, 30000);
+
+    // Adding/removing a screen redirects to #configure-screens, but a URL fragment
+    // scrolls to the <details> without opening it. Expand it so the operator lands
+    // on the just-changed screen grid rather than a collapsed panel.
+    if (location.hash === '#configure-screens') {
+      var cfg = document.getElementById('configure-screens');
+      if (cfg) cfg.open = true;
+    }
   })();
   </script>
 
