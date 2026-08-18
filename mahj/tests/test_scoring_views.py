@@ -418,7 +418,7 @@ class TestOverallWinnersMaskFinalRound:
         # Roll-up still has earlier-round data, but nothing from the withheld final.
         assert overall['mp_max']
         assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
-        assert all(h['pts'] < 100000 for h in overall['sd_hand_max'])
+        assert all(h['points'] < 100000 for h in overall['sd_hand_max'])
 
     def test_admin_overall_includes_final_round(self, request_, suspense_tournament):
         nb_rounds = suspense_tournament['variable'].nb_rounds
@@ -426,7 +426,7 @@ class TestOverallWinnersMaskFinalRound:
         assert any(
             p.round_nb == nb_rounds and p.minipoints == 100000 for p in overall['mp_max']
         )
-        assert any(h['pts'] == 100000 for h in overall['sd_hand_max'])
+        assert any(h['points'] == 100000 for h in overall['sd_hand_max'])
 
     def test_default_is_unmasked_for_ceremony(self, request_, suspense_tournament):
         # ceremony.py calls stat_all_rounds(request) with no check_final and must

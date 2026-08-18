@@ -33,23 +33,23 @@ def cross_positions(request):
         for round_ in scores:
             for table in round_:
                 for i, pos_a in enumerate(table):
-                    player_a = pos_a["position"].player
+                    player_a = pos_a["seat"].player
                     if player_a is None or player_a.team not in team_idx:
                         continue
                     ta = team_idx[player_a.team]
-                    if pos_a["position"].wind == 1:
+                    if pos_a["seat"].wind == 1:
                         cross[ta]["east"] += 1
                     for j, pos_b in enumerate(table):
                         if i == j:
                             continue
-                        player_b = pos_b["position"].player
+                        player_b = pos_b["seat"].player
                         if player_b is not None and player_b.team in team_idx:
                             cross[ta]["cross"][team_idx[player_b.team]] += 1
     else:
         # Key on the draw slot (always present on a Seat), so the sheet works even
         # before the draw is made. Rows/columns share this order.
         draws = sorted({
-            pos["position"].draw_number
+            pos["seat"].draw_number
             for round_ in scores for table in round_ for pos in table
         })
         idx = {d: i for i, d in enumerate(draws)}
@@ -61,7 +61,7 @@ def cross_positions(request):
         cross = [{"player": label(d), "east": 0, "cross": [0] * len(draws)} for d in draws]
         for round_ in scores:
             for table in round_:
-                seats = [pos["position"] for pos in table]
+                seats = [pos["seat"] for pos in table]
                 for seat in seats:
                     si = idx[seat.draw_number]
                     if seat.wind == 1:

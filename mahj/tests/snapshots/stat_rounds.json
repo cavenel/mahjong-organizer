@@ -14,7 +14,7 @@
           "team": "",
           "tenant_id": 1
         },
-        "pts": 46,
+        "points": 46,
         "round_nb": 1,
         "table_nb": 4
       }
@@ -48,7 +48,7 @@
           "team": "",
           "tenant_id": 1
         },
-        "pts": 46,
+        "points": 46,
         "round_nb": 1,
         "table_nb": 4
       }
@@ -1067,7 +1067,7 @@
           "team": "",
           "tenant_id": 1
         },
-        "pts": 46,
+        "points": 46,
         "round_nb": 2,
         "table_nb": 4
       }
@@ -1101,7 +1101,7 @@
           "team": "",
           "tenant_id": 1
         },
-        "pts": 46,
+        "points": 46,
         "round_nb": 2,
         "table_nb": 4
       }

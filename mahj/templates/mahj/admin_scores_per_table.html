@@ -188,14 +188,14 @@
                 <td class="col-table">Table {{ forloop.counter }}</td>
                 {% for s in table_json %}
                   <td class="col-wind">
-                    <div class="position_div" data-id="{{ s.position.id }}">
-                      <div class="player-name" title="{{ s.position.player_name }}">{{ s.position.player_name }}</div>
+                    <div class="position_div" data-id="{{ s.seat.id }}">
+                      <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
-                               value="{{ s.position.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">
+                               value="{{ s.seat.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">
                         {% if variables.rules == "MCR" %}
                           <input class="tp-input" type="number" name="tablepoints"
-                                 value="{{ s.position.tablepoints|default_if_none:'' }}" placeholder="TP" readonly tabindex="-1">
+                                 value="{{ s.seat.tablepoints|default_if_none:'' }}" placeholder="TP" readonly tabindex="-1">
                         {% endif %}
                       </div>
                     </div>

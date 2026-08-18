@@ -64,7 +64,7 @@ def _stat_winners(key, items):
             player, value = it.player, it.minipoints
             round_nb, table_nb = it.round_nb, it.table_nb
         elif key in ('sd_hand_max', 'ron_hand_max'):
-            player, value = it['player'], it['pts']
+            player, value = it['player'], it['points']
             round_nb, table_nb = it['round_nb'], it['table_nb']
         else:                                     # *_win_max dicts (it['pos'] is a Hand)
             player, value = it['player'], it['nb_win']

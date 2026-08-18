@@ -18,7 +18,7 @@ from .standings import player_standings
 
 
 def scores_per_table(tenant, tournament):
-    """Nested list [round][table][seat] = {} or {'position': Seat}."""
+    """Nested list [round][table][seat] = {} or {'seat': Seat}."""
     nb_tables = Player.objects.filter(tenant=tenant).count() // 4
     grid = [
         [[{} for _ in range(4)] for _ in range(nb_tables)]
@@ -27,7 +27,7 @@ def scores_per_table(tenant, tournament):
     seats = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('id')))
     for p in seats:
-        grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = {'position': p}
+        grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = {'seat': p}
     return grid
 
 
@@ -80,9 +80,9 @@ def overall_winners(tenant, tournament, check_final=False, positions=None, hands
     rounds = round_winners(tenant, tournament, check_final, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
-        'hand_max':      _roll_up(rounds, 'hand_max',      lambda h: h['pts']),
-        'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h['pts']),
-        'ron_hand_max':  _roll_up(rounds, 'ron_hand_max',  lambda h: h['pts']),
+        'hand_max':      _roll_up(rounds, 'hand_max',      lambda h: h['points']),
+        'sd_hand_max':   _roll_up(rounds, 'sd_hand_max',   lambda h: h['points']),
+        'ron_hand_max':  _roll_up(rounds, 'ron_hand_max',  lambda h: h['points']),
         'sd_win_max':    _roll_up(rounds, 'sd_win_max',    lambda d: d['nb_win']),
         'ron_win_max':   _roll_up(rounds, 'ron_win_max',   lambda d: d['nb_win']),
         'total_win_max': _roll_up(rounds, 'total_win_max', lambda d: d['nb_win']),
@@ -764,7 +764,7 @@ def _winners_for_round(positions, hands, round_complete):
     ron_hands = [h for h in game_hands if not h.is_self_draw]
     def _hand_item(h):
         return {
-            'pts': h.points,
+            'points': h.points,
             'round_nb': h.round_nb,
             'table_nb': h.table_nb,
             'player': pos_lookup.get((h.round_nb, h.table_nb, h.win_by)),

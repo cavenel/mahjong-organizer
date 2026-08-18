@@ -33,14 +33,14 @@ page, the value badge (+ chevron) → the full table/hand view.
           <a href="detailed_scores_{{ r }}_{{ t }}"
              class="group ml-3 -my-3 py-3 pr-1 flex shrink-0 items-center rounded hover:bg-amber-50 transition-colors">
             <span class="font-bold text-amber-600">
-              {% if kind == "wins" %}{{ item.nb_win }}×{% elif kind == "mp" %}{{ item.minipoints }} pts{% else %}{{ item.pts }} pts{% endif %}
+              {% if kind == "wins" %}{{ item.nb_win }}×{% elif kind == "mp" %}{{ item.minipoints }} pts{% else %}{{ item.points }} pts{% endif %}
             </span>
             <span class="ml-2 text-gray-300 group-hover:text-amber-500 transition-colors">›</span>
           </a>
           {% else %}
           <span class="ml-3 flex shrink-0 items-center">
             <span class="font-bold text-amber-600">
-              {% if kind == "wins" %}{{ item.nb_win }}×{% elif kind == "mp" %}{{ item.minipoints }} pts{% else %}{{ item.pts }} pts{% endif %}
+              {% if kind == "wins" %}{{ item.nb_win }}×{% elif kind == "mp" %}{{ item.minipoints }} pts{% else %}{{ item.points }} pts{% endif %}
             </span>
           </span>
           {% endif %}
