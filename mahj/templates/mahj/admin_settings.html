@@ -197,11 +197,19 @@
       defaults. There is no undo. Only do this to start a brand-new tournament from scratch.
     </p>
     <div class="flex flex-col sm:flex-row sm:items-end gap-3">
-      <div class="flex-1 min-w-[14rem]">
+      <div class="flex-1 min-w-[12rem]">
         <label for="reset-confirm" class="block text-xs font-medium text-gray-600 mb-1">
           Type <span class="font-mono font-semibold text-rose-700">RESET</span> to enable the button
         </label>
         <input id="reset-confirm" type="text" autocomplete="off" placeholder="RESET"
+               class="w-full text-sm border border-rose-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
+      </div>
+      <div class="flex-1 min-w-[12rem]">
+        <label for="reset-password" class="block text-xs font-medium text-gray-600 mb-1">
+          Confirm your password
+        </label>
+        <input id="reset-password" type="password" autocomplete="current-password"
+               placeholder="Your account password"
                class="w-full text-sm border border-rose-300 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-rose-300">
       </div>
       <button id="reset-tournament" type="button" disabled
@@ -326,15 +334,34 @@
     });
   });
 
-  // Danger zone: type-to-confirm gate, then a final confirm dialog, before the
-  // irreversible factory reset. The button stays disabled until "RESET" is typed.
+  // Danger zone: type-to-confirm + password re-auth, then a final confirm dialog,
+  // before the irreversible factory reset. The button stays disabled until "RESET"
+  // is typed and a password is entered; the password re-confirms the operator's
+  // identity server-side (/admin_reset is re-auth gated) so a borrowed/stale
+  // session can't trigger the wipe.
   (function() {
     var input = document.getElementById('reset-confirm');
+    var pwd = document.getElementById('reset-password');
     var btn = document.getElementById('reset-tournament');
-    if (!input || !btn) return;
-    input.addEventListener('input', function() {
-      btn.disabled = input.value.trim().toUpperCase() !== 'RESET';
-    });
+    if (!input || !pwd || !btn) return;
+    function sync() {
+      btn.disabled = input.value.trim().toUpperCase() !== 'RESET' || !pwd.value;
+    }
+    input.addEventListener('input', sync);
+    pwd.addEventListener('input', sync);
+
+    function post(url, body) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': '{{ csrf_token }}' },
+        body: JSON.stringify(body || {}),
+      }).then(function(r) {
+        return r.json().catch(function() { return {}; }).then(function(j) {
+          return { ok: r.ok, status: r.status, data: j };
+        });
+      });
+    }
+
     btn.addEventListener('click', function() {
       if (btn.disabled) return;
       confirmAction({
@@ -344,19 +371,29 @@
         danger: true,
         onConfirm: function() {
           btn.disabled = true;
-          $.ajax({
-            type: "POST", url: "/admin_reset",
-            data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-            success: function() { window.location.href = '/admin'; },
-            error: function(xhr) {
-              var msg = (xhr && xhr.responseText) || '';
-              if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
-                msg = 'The server rejected the reset (status ' + ((xhr && xhr.status) || '?') + ').';
+          // Confirm the password first (stamps the session's re-auth), then wipe.
+          post('/user_reauth', { password: pwd.value }).then(function(res) {
+            if (!res.ok) {
+              var err = (res.data && res.data.error) || 'password check failed';
+              window.alertAction({ title: 'Couldn’t reset the tournament', body: 'Re-authentication failed: ' + err + '.' });
+              pwd.value = ''; sync();
+              return;
+            }
+            return post('/admin_reset', {}).then(function(r2) {
+              if (r2.ok) { window.location.href = '/admin'; return; }
+              var msg = (r2.data && (r2.data.error || r2.data.status)) || '';
+              if (!msg || r2.status >= 500) {
+                msg = 'The server rejected the reset (status ' + r2.status + ').';
               }
               window.alertAction({ title: 'Couldn’t reset the tournament', body: msg });
-            }
+              sync();
+            });
+          }).catch(function() {
+            window.alertAction({ title: 'Couldn’t reset the tournament', body: 'Network error — please try again.' });
+            sync();
           });
         },
+        onCancel: function() { sync(); },
       });
     });
   })();

@@ -2,8 +2,10 @@
 
 The Danger-zone "Reset tournament" button wipes every tenant row and restores the
 settings to defaults, leaving a blank instance. Guards that it clears all data and
-config, is staff-only, and refuses non-POST.
+config, is admin-only, refuses non-POST, and requires a recent password re-auth.
 """
+import json
+
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
@@ -15,13 +17,21 @@ from mahj.models import (
 from mahj.tests.conftest import grant
 
 
+def reauth(client, password='pw'):
+    """Stamp the session's "sudo mode" so re-auth-gated endpoints let it through."""
+    resp = client.post('/user_reauth', data=json.dumps({'password': password}),
+                        content_type='application/json')
+    assert resp.status_code == 200, resp.content
+    return client
+
+
 @pytest.fixture
 def staff_client(tenant):
     c = Client()
     c.defaults['HTTP_HOST'] = 'test.example.com'  # -> subdomain 'test'
     u = User.objects.create_superuser('staff', password='pw')
     c.force_login(u)
-    return c
+    return reauth(c)
 
 
 @pytest.fixture
@@ -63,3 +73,21 @@ def test_reset_is_staff_only(scorer_client, tournament):
     # logged-in users to login), and nothing is wiped.
     assert resp.status_code == 403
     assert Player.objects.filter(tenant=tenant).exists()
+
+
+def test_reset_requires_reauth(tenant, tournament):
+    """An admin session that hasn't re-confirmed its password can't drive the wipe:
+    the destructive endpoint is re-auth gated just like user/tenant management."""
+    c = Client()
+    c.defaults['HTTP_HOST'] = 'test.example.com'
+    u = User.objects.create_superuser('staff', password='pw')
+    c.force_login(u)  # logged in as admin, but no /user_reauth yet
+
+    resp = c.post('/admin_reset')
+    assert resp.status_code == 403
+    assert resp.json()['status'] == 'reauth_required'
+    assert Player.objects.filter(tenant=tournament['tenant']).exists()
+
+    # After confirming the password, the same session goes through.
+    reauth(c)
+    assert c.post('/admin_reset').status_code == 200

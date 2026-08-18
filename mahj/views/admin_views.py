@@ -29,7 +29,7 @@ from .helpers import (
     tenant_role_required,
 )
 from .print_views import _country_flag
-from .user_admin import TENANT_ROLES, reauth_ok
+from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
@@ -986,12 +986,14 @@ def update_logo(request):
     return HttpResponse("OK")
 
 
-@tenant_admin_required
+@tenant_admin_and_reauthed
 def admin_reset(request):
     """Factory-reset the tournament: wipe every tenant row and its settings.
 
-    Staff-only, POST-only, and gated behind a type-to-confirm + confirm dialog in
-    the UI — this is irreversible. It clears all tournament data (player list, seating,
+    Admin-only, POST-only, and re-auth gated (``@tenant_admin_and_reauthed``): the
+    operator must have confirmed their password recently, so a stale/borrowed
+    session can't drive this irreversible wipe directly. The UI adds a
+    type-to-confirm + confirm dialog on top. It clears all tournament data (player list, seating,
     hands, score sheets, published rounds, schedule) *and* the tenant's
     configuration (title/branding/format, logo, screens, screen modes, publish
     target, ceremony state), leaving a blank instance ready for a fresh import.
