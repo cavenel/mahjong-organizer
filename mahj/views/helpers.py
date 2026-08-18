@@ -13,7 +13,7 @@ from ..models import Membership, Seat, Tenant, TournamentSettings, Hand
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 
-VARIABLES_TTL = 300  # 5 minutes; invalidated on TournamentSettings writes via signals.
+TOURNAMENT_TTL = 300  # 5 minutes; invalidated on TournamentSettings writes via signals.
 TENANT_TTL = 600     # 10 minutes; invalidated on Tenant writes via signals.
 
 
@@ -26,7 +26,7 @@ def set_counter(tenant, value):
     # .update() skips signals: counter writes don't need to invalidate leaderboard cache.
     TournamentSettings.objects.filter(tenant=tenant).update(counter=value)
     if tenant is not None:
-        cache.delete(f'variables:{tenant.subdomain}')
+        cache.delete(f'tournament:{tenant.subdomain}')
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +53,7 @@ class _SuperuserMembership:
 def current_membership(request):
     """The request user's Membership for the current subdomain's tenant, or None.
 
-    Memoized on ``request._membership`` (like get_tenant/get_variables) so the
+    Memoized on ``request._membership`` (like get_tenant/get_tournament) so the
     decorators, view bodies and context processor share one lookup. Anonymous
     users and users with no row for this tenant get None with no query for the
     anonymous case; superusers get a synthetic all-true membership (they bypass)."""
@@ -220,15 +220,15 @@ def get_tenant(request):
     return tenant
 
 
-def get_variables(request):
+def get_tournament(request):
     # Memoize on the request (like get_tenant): several context processors and
     # the view itself read the settings each request, so share one fetch — and
     # so a no-op cache backend (tests) can't turn that into repeated queries.
-    if hasattr(request, '_variables'):
-        return request._variables
+    if hasattr(request, '_tournament'):
+        return request._tournament
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    cache_key = f'variables:{subdomain}'
+    cache_key = f'tournament:{subdomain}'
     cached = cache.get(cache_key)
     if cached is None:
         cached = TournamentSettings.objects.filter(tenant=tenant).first()
@@ -240,6 +240,6 @@ def get_variables(request):
             # the *.BASE_DOMAIN wildcard). Serve a transient default instead.
             if tenant is not None:
                 cached.save()
-        cache.set(cache_key, cached, VARIABLES_TTL)
-    request._variables = cached
+        cache.set(cache_key, cached, TOURNAMENT_TTL)
+    request._tournament = cached
     return cached

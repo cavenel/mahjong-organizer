@@ -288,7 +288,7 @@
     function pad(n) { return String(n).padStart(2, '0'); }
     function getTotalTime() {
       // The total_time input is only rendered for staff; non-staff fall back to the server-rendered value.
-      var el = document.getElementById('variables-total_time');
+      var el = document.getElementById('tournament-total_time');
       var raw = el ? el.value : '{{ tournament.total_time }}';
       return parseInt(raw) || 6900;
     }
@@ -370,7 +370,7 @@
       }
     };
 
-    $(document).on('input change', '#variables-total_time', function() { updateButtons(); });
+    $(document).on('input change', '#tournament-total_time', function() { updateButtons(); });
 
     // Heartbeat + auto-reconnect via the shared display client (catches a
     // silently half-open socket after sleep). No "out of sync" banner here:
@@ -582,11 +582,11 @@
       to the room — it updates live on every screen showing it.
     </p>
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 max-w-2xl">
-      <label for="variables-welcome" class="sr-only">On-screen message</label>
+      <label for="tournament-welcome" class="sr-only">On-screen message</label>
       <!-- Stored as plain text, newlines included; the display screens render it
            escaped with white-space: pre-line. -->
-      <textarea id="variables-welcome" rows="3" placeholder="Welcome"
-                class="variable-input w-full text-base border border-gray-200 rounded-lg px-3 py-2 bg-white resize-y
+      <textarea id="tournament-welcome" rows="3" placeholder="Welcome"
+                class="tournament-input w-full text-base border border-gray-200 rounded-lg px-3 py-2 bg-white resize-y
                        focus:outline-none focus:ring-2 focus:ring-amber-300">{{ tournament.welcome }}</textarea>
       <p class="mt-1 text-xs text-gray-400">Press Enter for a line break.</p>
     </div>
@@ -606,27 +606,27 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
 
         <div>
-          <label for="variables-zoom" class="block text-xs font-medium text-gray-600 mb-1">Screen zoom (1 = 100%){% include "mahj/_info_icon.html" with text="Magnifies everything on the projector screens — Scores, Welcome, Announcement and Schedule. Raise it if the audience is far away, lower it to fit more on screen. 1 = 100%." %}</label>
-          <input id="variables-zoom" type="number" placeholder="1" value="{{ tournament.zoom }}" step="0.05"
-                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+          <label for="tournament-zoom" class="block text-xs font-medium text-gray-600 mb-1">Screen zoom (1 = 100%){% include "mahj/_info_icon.html" with text="Magnifies everything on the projector screens — Scores, Welcome, Announcement and Schedule. Raise it if the audience is far away, lower it to fit more on screen. 1 = 100%." %}</label>
+          <input id="tournament-zoom" type="number" placeholder="1" value="{{ tournament.zoom }}" step="0.05"
+                 class="tournament-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-score_lines" class="block text-xs font-medium text-gray-600 mb-1">Number of score lines per screen{% include "mahj/_info_icon.html" with text="How many players are listed per column on the Scores screen before it pages to the next set. Fewer lines means bigger, more readable rows." %}</label>
-          <input id="variables-score_lines" type="number" placeholder="20" value="{{ tournament.score_lines }}" step="1" min="1"
-                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+          <label for="tournament-score_lines" class="block text-xs font-medium text-gray-600 mb-1">Number of score lines per screen{% include "mahj/_info_icon.html" with text="How many players are listed per column on the Scores screen before it pages to the next set. Fewer lines means bigger, more readable rows." %}</label>
+          <input id="tournament-score_lines" type="number" placeholder="20" value="{{ tournament.score_lines }}" step="1" min="1"
+                 class="tournament-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout{% include "mahj/_info_icon.html" with text="Number of side-by-side columns on the Scores screen in the compact totals and teams views (the detailed view is always one column)." %}</label>
-          <input id="variables-total_columns" type="number" placeholder="3" value="{{ tournament.total_columns }}" step="1" min="1"
-                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+          <label for="tournament-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout{% include "mahj/_info_icon.html" with text="Number of side-by-side columns on the Scores screen in the compact totals and teams views (the detailed view is always one column)." %}</label>
+          <input id="tournament-total_columns" type="number" placeholder="3" value="{{ tournament.total_columns }}" step="1" min="1"
+                 class="tournament-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
-          <label for="variables-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds){% include "mahj/_info_icon.html" with text="Seconds each page stays up before the Scores screen auto-advances to the next page of players." %}</label>
-          <input id="variables-rotation_time" type="number" placeholder="10" value="{{ tournament.rotation_time }}" step="1" min="1"
-                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
+          <label for="tournament-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds){% include "mahj/_info_icon.html" with text="Seconds each page stays up before the Scores screen auto-advances to the next page of players." %}</label>
+          <input id="tournament-rotation_time" type="number" placeholder="10" value="{{ tournament.rotation_time }}" step="1" min="1"
+                 class="tournament-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
 
@@ -635,18 +635,18 @@
   </details>
 
   <script>
-    $(".variable-input").on('change', function() {
-      var getVariables = $(".variable-input").map(function() {
+    $(".tournament-input").on('change', function() {
+      var getTournament = $(".tournament-input").map(function() {
         return encodeURIComponent(this.id) + "=" + encodeURIComponent(this.value) + "&";
       }).get().join("");
-      var url = "/admin?page=display&action=set_variable&" + getVariables;
+      var url = "/admin?page=display&action=set_tournament&" + getTournament;
       $.ajax({
         type: "POST",
         url: url,
         data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
         success: function() { console.log("success"); },
         error: function(xhr) {
-          // set_variable returns a short plain-text reason on a 400; a 500 is an
+          // set_tournament returns a short plain-text reason on a 400; a 500 is an
           // HTML error page with no useful text, so fall back to a generic line.
           var msg = (xhr && xhr.responseText) || '';
           if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
@@ -667,8 +667,8 @@
     var NB_TEAMS = {{ nb_teams|default:0 }};
 
     function isScores(output) { return output === 'scores:detailed' || output === 'scores:totals' || output === 'scores:teams'; }
-    function scoreLines() { return parseInt(document.getElementById('variables-score_lines').value, 10) || 20; }
-    function totalCols() { return parseInt(document.getElementById('variables-total_columns').value, 10) || 3; }
+    function scoreLines() { return parseInt(document.getElementById('tournament-score_lines').value, 10) || 20; }
+    function totalCols() { return parseInt(document.getElementById('tournament-total_columns').value, 10) || 3; }
 
     // Rows-per-page: totals and teams lay out `total_columns` columns side by
     // side; detailed is a single wide column.
@@ -882,7 +882,7 @@
 
     // Rows-per-page / column count drive the page count: rebuild the Pages
     // options for every standings screen when either changes.
-    $(document).on('input change', '#variables-score_lines, #variables-total_columns', function() {
+    $(document).on('input change', '#tournament-score_lines, #tournament-total_columns', function() {
       document.querySelectorAll('.select-output').forEach(function(out) {
         if (!isScores(out.value)) return;
         var pageSel = document.getElementById('select-page-' + out.getAttribute('data-id'));

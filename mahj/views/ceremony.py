@@ -19,7 +19,7 @@ from django.template.defaultfilters import floatformat
 from ..models import CeremonyState, PublishedRound
 from ..scoring import _country_flag, _final_round_withheld, team_standings
 from ..signals import broadcast_display, invalidate_leaderboard
-from .helpers import get_tenant, get_variables, tenant_role_required
+from .helpers import get_tenant, get_tournament, tenant_role_required
 from .scoring import scores_per_player_json, stat_all_rounds
 
 
@@ -93,7 +93,7 @@ def _round_label(winners):
 def _ceremony_master(request):
     """Full ceremony dataset (top teams, top players, stats) for the console and
     for rendering individual slides. Uses true final standings (force_all)."""
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     rules = tournament.rules
     rows = scores_per_player_json(request, check_final=False, force_all=True)
     id_to_name = {r['player_id']: r['name'] for r in rows}
@@ -192,7 +192,7 @@ def ceremony_data(request):
     # console warns before "End — back to screens" in this state: ending without
     # publishing strands every screen on the "waiting for the ceremony" slide.
     master['final_withheld'] = _final_round_withheld(
-        tenant, get_variables(request).nb_rounds) is True
+        tenant, get_tournament(request).nb_rounds) is True
     return JsonResponse(master)
 
 
@@ -205,7 +205,7 @@ def ceremony_control(request):
       phase=blank|teams|players|stat [&step=N] [&stat_key=KEY]
     """
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     subdomain = tenant.subdomain if tenant else ''
     state, _ = CeremonyState.objects.get_or_create(tenant=tenant)
 

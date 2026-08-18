@@ -31,8 +31,8 @@ class TestTeamStandings:
             _player_row('C', tp=20.0, mp=200, pid=3),
             _player_row('D', tp=10.0, mp=100, pid=4),
         ]
-        variables = SimpleNamespace(rules='MCR', nb_rounds=1)
-        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, tournament, 1)}
         assert by_team['A']['pos'] == 1
         assert by_team['B']['pos'] == by_team['C']['pos'] == 2
         assert by_team['D']['pos'] == 4
@@ -44,8 +44,8 @@ class TestTeamStandings:
             _player_row('A', tp=20.0, mp=250, pid=1),
             _player_row('B', tp=20.0, mp=200, pid=2),
         ]
-        variables = SimpleNamespace(rules='MCR', nb_rounds=1)
-        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, tournament, 1)}
         assert by_team['A']['pos'] == 1
         assert by_team['B']['pos'] == 2
 
@@ -57,8 +57,8 @@ class TestTeamStandings:
             _player_row('A', tp=20.0, mp=200, pid=1),
             _player_row('B', tp=5.0, mp=200, pid=2),
         ]
-        variables = SimpleNamespace(rules='Riichi', nb_rounds=1)
-        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        tournament = SimpleNamespace(rules='Riichi', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, tournament, 1)}
         assert by_team['A']['pos'] == by_team['B']['pos'] == 1
 
     def test_per_round_folds_by_round_not_list_position(self):
@@ -76,8 +76,8 @@ class TestTeamStandings:
              'total': {'tp': 1.0, 'mp': 50},
              'scores': [{'tp': 1.0, 'mp': 50, 'round_nb': 2}]},
         ]
-        variables = SimpleNamespace(rules='MCR', nb_rounds=2)
-        team = team_standings(rows, variables, 2)[0]
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=2)
+        team = team_standings(rows, tournament, 2)[0]
         r1, r2 = team['scores']
         assert (r1['round_nb'], r1['mp'], r1['tp']) == (1, 100, 4.0)
         assert (r2['round_nb'], r2['mp'], r2['tp']) == (2, 250, 4.0)
@@ -94,8 +94,8 @@ class TestTeamStandings:
             _player_row('D', tp=5.0, mp=200, pid=4),
             _player_row('E', tp=1.0, mp=100, pid=5),
         ]
-        variables = SimpleNamespace(rules='Riichi', nb_rounds=1)
-        by_team = {t['team']: t for t in team_standings(rows, variables, 1)}
+        tournament = SimpleNamespace(rules='Riichi', nb_rounds=1)
+        by_team = {t['team']: t for t in team_standings(rows, tournament, 1)}
         assert by_team['A']['pos'] == 1
         assert by_team['B']['pos'] == by_team['C']['pos'] == by_team['D']['pos'] == 2
         assert by_team['E']['pos'] == 5

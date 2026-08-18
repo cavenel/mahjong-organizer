@@ -55,8 +55,8 @@ def test_player_rounds_json(request_, tournament):
 
 def test_player_extra_stats(tournament):
     from mahj import scoring
-    tenant, players, variables = tournament['tenant'], tournament['players'], tournament['variable']
-    stats = scoring.player_extra_stats(tenant, players[0], variables)
+    tenant, players, tournament = tournament['tenant'], tournament['players'], tournament['settings']
+    stats = scoring.player_extra_stats(tenant, players[0], tournament)
     assert_snapshot('player_extra_stats_opp_strength_p1', stats['opp_strength'])
 
 

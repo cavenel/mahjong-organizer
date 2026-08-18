@@ -32,7 +32,7 @@ def grant_membership():
 @pytest.fixture
 def tournament(tenant):
     """Seed: 16 players, 3 rounds (2 complete with hands, 1 partial — Positions but no points)."""
-    variable = TournamentSettings.objects.create(
+    settings = TournamentSettings.objects.create(
         tenant=tenant, welcome='Welcome', title='T', fullname='FT',
         nb_rounds=3, rules='MCR', total_time=60 * 60, zoom=1.0, score_lines=20,
         # Home nation drives the national sub-ranking (pos_se); the fixture keeps
@@ -101,7 +101,7 @@ def tournament(tenant):
     for rn in range(1, 3):
         PublishedRound.objects.create(tenant=tenant, round_nb=rn, withheld=False)
 
-    return {'tenant': tenant, 'variable': variable, 'players': players}
+    return {'tenant': tenant, 'settings': settings, 'players': players}
 
 
 @pytest.fixture
@@ -116,9 +116,9 @@ def request_(tournament):
 def riichi_tournament(tournament):
     """The standard fixture re-ruled as Riichi: ranking is on minipoints alone
     (no table points), so it exercises the non-MCR scoring/standings path."""
-    variable = tournament['variable']
-    variable.rules = 'Riichi'
-    variable.save()
+    settings = tournament['settings']
+    settings.rules = 'Riichi'
+    settings.save()
     return tournament
 
 

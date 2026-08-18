@@ -278,7 +278,7 @@ def test_welcome_is_stored_as_plain_text_with_newlines(client_, display_op, tour
     client_.force_login(display_op)
 
     resp = client_.post(
-        '/admin?page=display&action=set_variable&variables-welcome=Lunch%20now%0ABack%20at%2014%3A00')
+        '/admin?page=display&action=set_tournament&tournament-welcome=Lunch%20now%0ABack%20at%2014%3A00')
 
     assert resp.status_code == 200
     assert TournamentSettings.objects.get(tenant=tenant).welcome == 'Lunch now\nBack at 14:00'
@@ -318,19 +318,19 @@ def test_update_screen_name_persists_and_clears(client_, display_op, tournament)
     assert screen.friendly_name == ''
 
 
-# ── set_variable error surfacing ────────────────────────────────────────────
+# ── set_tournament error surfacing ────────────────────────────────────────────
 # A save that can't fit the DB used to bubble up as a bare 500 the admin page
-# swallowed silently. set_variable now validates length up front and returns a
+# swallowed silently. set_tournament now validates length up front and returns a
 # readable 400, which the page shows in an alert dialog.
 
-def test_set_variable_rejects_over_long_message(client_, display_op, tournament):
+def test_set_tournament_rejects_over_long_message(client_, display_op, tournament):
     tenant = tournament['tenant']
     TournamentSettings.objects.filter(tenant=tenant).update(welcome='ok')
     client_.force_login(display_op)
 
     too_long = 'x' * 300  # welcome is max_length=255
     resp = client_.post(
-        f'/admin?page=display&action=set_variable&variables-welcome={too_long}',
+        f'/admin?page=display&action=set_tournament&tournament-welcome={too_long}',
         {'csrfmiddlewaretoken': 'x'})
 
     assert resp.status_code == 400
@@ -341,12 +341,12 @@ def test_set_variable_rejects_over_long_message(client_, display_op, tournament)
     assert TournamentSettings.objects.get(tenant=tenant).welcome == 'ok'
 
 
-def test_set_variable_saves_valid_message(client_, display_op, tournament):
+def test_set_tournament_saves_valid_message(client_, display_op, tournament):
     tenant = tournament['tenant']
     client_.force_login(display_op)
 
     resp = client_.post(
-        '/admin?page=display&action=set_variable&variables-welcome=Round+3+starts+soon',
+        '/admin?page=display&action=set_tournament&tournament-welcome=Round+3+starts+soon',
         {'csrfmiddlewaretoken': 'x'})
 
     assert resp.status_code == 200
@@ -355,7 +355,7 @@ def test_set_variable_saves_valid_message(client_, display_op, tournament):
 
 # ── Tournament settings page (admin?page=settings) ───────────────────────────
 # Staff-only page exposing tournament identity (title/full name/city/period/
-# rules), round count/length and the logo. The shared set_variable handler
+# rules), round count/length and the logo. The shared set_tournament handler
 # persists edits regardless of which page posts them.
 
 @pytest.fixture
@@ -371,10 +371,10 @@ def test_settings_page_renders_identity_fields_for_staff(client_, staff, tournam
     client_.force_login(staff)
     html = client_.get('/admin?page=settings').content.decode()
     assert 'Tournament settings' in html
-    assert 'variables-title' in html
-    assert 'variables-nb_rounds' in html
+    assert 'tournament-title' in html
+    assert 'tournament-nb_rounds' in html
     # Round length + logo are staff surfaces, shown here.
-    assert 'variables-total_time' in html
+    assert 'tournament-total_time' in html
 
 
 def test_settings_page_forbidden_for_non_staff(client_, display_op, tournament):
@@ -382,14 +382,14 @@ def test_settings_page_forbidden_for_non_staff(client_, display_op, tournament):
     the route has to enforce it too)."""
     client_.force_login(display_op)
     html = client_.get('/admin?page=settings').content.decode()
-    assert 'variables-title' not in html
+    assert 'tournament-title' not in html
 
 
-def test_settings_page_saves_identity_via_set_variable(client_, staff, tournament):
+def test_settings_page_saves_identity_via_set_tournament(client_, staff, tournament):
     tenant = tournament['tenant']
     client_.force_login(staff)
     resp = client_.post(
-        '/admin?page=settings&action=set_variable&variables-city=Uppsala&variables-nb_rounds=9',
+        '/admin?page=settings&action=set_tournament&tournament-city=Uppsala&tournament-nb_rounds=9',
         {'csrfmiddlewaretoken': 'x'})
     assert resp.status_code == 200
     v = TournamentSettings.objects.get(tenant=tenant)

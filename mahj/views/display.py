@@ -15,7 +15,7 @@ from ..signals import broadcast_display
 from ..scoring import _final_round_withheld, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
-from .helpers import get_tenant, get_variables, has_role, tenant_role_required
+from .helpers import get_tenant, get_tournament, has_role, tenant_role_required
 from .scoring import scores_per_player_json
 
 
@@ -51,7 +51,7 @@ def _venue_clock_ms():
 
 
 def index(request, screen_id=None):
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
 
@@ -151,7 +151,7 @@ def welcome(request):
     with the tournament's key info (full name, city, period, rules) pinned at the
     bottom. Reloads live on any display event, like the other static screens."""
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_welcome.html')
     context = {
@@ -164,7 +164,7 @@ def welcome(request):
 
 def counter(request):
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     template = loader.get_template('mahj/display_counter.html')
     context = {
         'tournament': tournament,
@@ -175,13 +175,13 @@ def counter(request):
 
 
 def announcement(request):
-    """Announcement screen: the "On-screen message" variable (`tournament.welcome`),
+    """Announcement screen: the "On-screen message" field (`tournament.welcome`),
     auto-sized by the template to fill the space between the logo (upper left) and
     the tournament info bar (bottom, mirroring the Welcome screen) as large as it
     can. Reloads live on a screen switch and patches the text in place when the
     message is edited, like the other static screens."""
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_announcement.html')
     context = {
@@ -225,7 +225,7 @@ def render_scores(request, density, page_nb=None):
     whether or not the browser is logged in as staff.
     """
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     columns = 1 if density == DETAILED else max(1, tournament.total_columns)
     show_rounds = density == DETAILED
     # Guard the pagination step: 0/None/negative would make range(..., step) throw
@@ -333,10 +333,10 @@ def update_screen_name(request):
     return HttpResponse("")
 
 
-def check_variables(request):
+def check_tournament(request):
     """All tournament tournament as JSON, for displays that patch live instead of
     reloading (e.g. the counter screen). `logo` is a BinaryField (not JSON-
     serializable; served via its own URL + logo_etag) and `tenant` is the FK —
     both excluded."""
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     return JsonResponse(model_to_dict(tournament, exclude=['logo', 'tenant']))

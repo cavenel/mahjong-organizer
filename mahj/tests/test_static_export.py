@@ -21,7 +21,7 @@ def teamed_tournament(tournament):
     for i, p in enumerate(players):
         p.team = 'Alpha' if i % 2 == 0 else 'Beta'
         p.save()
-    v = tournament['variable']
+    v = tournament['settings']
     v.has_teams = True
     v.logo = b'\x89PNG\r\n\x1a\n fake-png-bytes'
     v.logo_etag = 'deadbeef'

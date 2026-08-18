@@ -48,11 +48,11 @@ class TestOverviewRows:
     def _rows(self, tournament):
         return {
             r['round_nb']: r
-            for r in publisher_overview_rows(tournament['tenant'], tournament['variable'])
+            for r in publisher_overview_rows(tournament['tenant'], tournament['settings'])
         }
 
     def test_one_row_per_round(self, tournament):
-        rows = publisher_overview_rows(tournament['tenant'], tournament['variable'])
+        rows = publisher_overview_rows(tournament['tenant'], tournament['settings'])
         assert [r['round_nb'] for r in rows] == [1, 2, 3]
 
     def test_complete_published_round(self, tournament):

@@ -6,7 +6,7 @@ from .helpers import (
     current_membership,
     get_domain,
     get_tenant,
-    get_variables,
+    get_tournament,
     has_role,
     is_tenant_admin,
     superuser_required,
@@ -77,7 +77,7 @@ from .restore_admin import (
     restore_status,
 )
 from .display import (
-    check_variables,
+    check_tournament,
     counter,
     index,
     overview,

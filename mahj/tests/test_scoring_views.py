@@ -39,7 +39,7 @@ def completed_tournament(tournament):
                 )
         ScoreSheet.objects.create(
             tenant=tournament['tenant'], round_nb=3, table_nb=tn, validated=True)
-    nb_rounds = tournament['variable'].nb_rounds
+    nb_rounds = tournament['settings'].nb_rounds
     for r in range(1, nb_rounds):
         PublishedRound.objects.update_or_create(
             tenant=tournament['tenant'], round_nb=r,
@@ -98,7 +98,7 @@ class TestPlayerStandings:
     def test_no_national_ranking_when_home_country_unset(self, request_, tournament):
         """Neutral default: with no home nation configured, no national
         sub-ranking is computed — pos_se stays blank for every player."""
-        v = tournament['variable']
+        v = tournament['settings']
         v.home_country = ''
         v.save()  # post_save signal busts the cached settings
         rows = views.scores_per_player_json(request_, force_all=True)
@@ -108,7 +108,7 @@ class TestPlayerStandings:
         rows = views.scores_per_player_json(request_, force_all=True)
         # history_pos starts at 1 (initial) then appends one entry per round in the schedule.
         # Fixture has 3 rounds total, so length == 1 + 3 = 4.
-        expected = 1 + tournament['variable'].nb_rounds
+        expected = 1 + tournament['settings'].nb_rounds
         for r in rows:
             assert len(r['history_pos']) == expected
 
@@ -121,8 +121,8 @@ class TestPlayerStandings:
 
 def _seat_one_table(tenant, seats, rules='MCR'):
     """Create a TournamentSettings + one 4-seat table. `seats` is
-    [(minipoints, tablepoints), …] in seat order. Returns (variables, [players])."""
-    variables = TournamentSettings.objects.create(
+    [(minipoints, tablepoints), …] in seat order. Returns (tournament, [players])."""
+    tournament = TournamentSettings.objects.create(
         tenant=tenant, welcome='W', title='T', fullname='F',
         nb_rounds=1, rules=rules,
     )
@@ -137,7 +137,7 @@ def _seat_one_table(tenant, seats, rules='MCR'):
             draw_number=p.draw_number, minipoints=mp, tablepoints=tp,
         )
         players.append(p)
-    return variables, players
+    return tournament, players
 
 
 # A 2-way tie for 1st (both mp=100 -> averaged tp 3.0), then a clean 3rd
@@ -151,8 +151,8 @@ class TestPlacementStats:
     silently dropped the whole round from the counts."""
 
     def test_tied_first_place_round_is_counted_not_dropped(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
-        stats = player_extra_stats(tenant, players[0], variables)
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
+        stats = player_extra_stats(tenant, players[0], tournament)
         # The tied-for-1st player's round must be counted (was dropped before).
         assert stats['total_rounds'] == 1
         by_place = {p['place']: p for p in stats['placement']}
@@ -161,19 +161,19 @@ class TestPlacementStats:
         assert by_place[2]['count'] == 0
 
     def test_both_tied_players_share_first(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         for tied in (players[0], players[1]):
             by_place = {p['place']: p['count']
-                        for p in player_extra_stats(tenant, tied, variables)['placement']}
+                        for p in player_extra_stats(tenant, tied, tournament)['placement']}
             assert by_place == {1: 1, 2: 0, 3: 0, 4: 0}
 
     def test_lower_seats_keep_their_true_place(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         # mp=50 sits behind two tied leaders -> 3rd; mp=20 -> 4th.
         third = {p['place']: p['count']
-                 for p in player_extra_stats(tenant, players[2], variables)['placement']}
+                 for p in player_extra_stats(tenant, players[2], tournament)['placement']}
         fourth = {p['place']: p['count']
-                  for p in player_extra_stats(tenant, players[3], variables)['placement']}
+                  for p in player_extra_stats(tenant, players[3], tournament)['placement']}
         assert third == {1: 0, 2: 0, 3: 1, 4: 0}
         assert fourth == {1: 0, 2: 0, 3: 0, 4: 1}
 
@@ -183,8 +183,8 @@ class TestPlacementStatsRiichi:
     points. Same tie-sharing and round-counting guarantees as MCR."""
 
     def test_tied_first_place_round_is_counted_not_dropped(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
-        stats = player_extra_stats(tenant, players[0], variables)
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        stats = player_extra_stats(tenant, players[0], tournament)
         assert stats['total_rounds'] == 1
         by_place = {p['place']: p for p in stats['placement']}
         assert by_place[1]['count'] == 1
@@ -192,18 +192,18 @@ class TestPlacementStatsRiichi:
         assert by_place[2]['count'] == 0
 
     def test_both_tied_players_share_first(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
         for tied in (players[0], players[1]):
             by_place = {p['place']: p['count']
-                        for p in player_extra_stats(tenant, tied, variables)['placement']}
+                        for p in player_extra_stats(tenant, tied, tournament)['placement']}
             assert by_place == {1: 1, 2: 0, 3: 0, 4: 0}
 
     def test_lower_seats_keep_their_true_place(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'Riichi')
         third = {p['place']: p['count']
-                 for p in player_extra_stats(tenant, players[2], variables)['placement']}
+                 for p in player_extra_stats(tenant, players[2], tournament)['placement']}
         fourth = {p['place']: p['count']
-                  for p in player_extra_stats(tenant, players[3], variables)['placement']}
+                  for p in player_extra_stats(tenant, players[3], tournament)['placement']}
         assert third == {1: 0, 2: 0, 3: 1, 4: 0}
         assert fourth == {1: 0, 2: 0, 3: 0, 4: 1}
 
@@ -211,9 +211,9 @@ class TestPlacementStatsRiichi:
         # Table points and minipoints disagree: the seat with the most table
         # points has the fewest minipoints. Riichi must place by minipoints.
         seats = [(10, 4.0), (40, 2.0), (70, 1.0), (100, 0.0)]
-        variables, players = _seat_one_table(tenant, seats, 'Riichi')
+        tournament, players = _seat_one_table(tenant, seats, 'Riichi')
         place_of = lambda pl: next(
-            p['place'] for p in player_extra_stats(tenant, pl, variables)['placement']
+            p['place'] for p in player_extra_stats(tenant, pl, tournament)['placement']
             if p['count'])
         # mp=100 (tp 0.0) is 1st; mp=10 (tp 4.0) is 4th — the reverse of MCR.
         assert place_of(players[3]) == 1
@@ -229,29 +229,29 @@ class TestWinLossStatsValidationGate:
     feed the rates."""
 
     def _table_with_hands(self, tenant):
-        variables, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
+        tournament, players = _seat_one_table(tenant, _TIE_SEATS, 'MCR')
         # Two real hands won by seat 1 (players[0]) on a discard from seat 2.
         for hn, pts in ((1, 20), (2, 30)):
             Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=hn,
                                 points=pts, win_by=1, win_from=2)
-        return variables, players
+        return tournament, players
 
     def test_unvalidated_sheet_hands_are_not_counted(self, tenant):
-        variables, players = self._table_with_hands(tenant)
+        tournament, players = self._table_with_hands(tenant)
         # No validated ScoreSheet -> table is not validated.
-        stats = player_extra_stats(tenant, players[0], variables)
+        stats = player_extra_stats(tenant, players[0], tournament)
         assert stats['total_hands'] == 0
 
     def test_validated_sheet_hands_are_counted(self, tenant):
-        variables, players = self._table_with_hands(tenant)
+        tournament, players = self._table_with_hands(tenant)
         ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
-        stats = player_extra_stats(tenant, players[0], variables)
+        stats = player_extra_stats(tenant, players[0], tournament)
         assert stats['total_hands'] == 2
         by_label = {s['label']: s['count'] for s in stats['hand_stats']}
         assert by_label['Win by discard'] == 2
 
     def test_draw_hand_counts_as_played(self, tenant):
-        variables, players = self._table_with_hands(tenant)  # hands 1,2 discard-win seat 1
+        tournament, players = self._table_with_hands(tenant)  # hands 1,2 discard-win seat 1
         # A validated sheet stores exactly the hands played: hand 3 is a genuine
         # draw (win_by 0, nobody won), hand 4 a decided hand. There is no trailing
         # unplayed (win_by NULL) row — the entry/prune flow never persists one.
@@ -260,22 +260,22 @@ class TestWinLossStatsValidationGate:
         Hand.objects.create(tenant=tenant, round_nb=1, table_nb=1, hand_nb=4,
                             points=25, win_by=1, win_from=2)
         ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
-        stats = player_extra_stats(tenant, players[0], variables)
+        stats = player_extra_stats(tenant, players[0], tournament)
         assert stats['total_hands'] == 4  # 3 decided + 1 draw
         by_label = {s['label']: s['count'] for s in stats['hand_stats']}
         assert by_label['Draw'] == 1
         assert by_label['Win by discard'] == 3
 
     def test_team_stats_also_gate_on_validation(self, tenant):
-        variables, players = self._table_with_hands(tenant)
+        tournament, players = self._table_with_hands(tenant)
         for p in players:
             p.team = 'Reds'
             p.save()
-        assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 0
+        assert team_extra_stats(tenant, 'Reds', tournament)['total_hands'] == 0
         ScoreSheet.objects.create(tenant=tenant, round_nb=1, table_nb=1, validated=True)
         # All 4 team members sit at this table, so team stats see each hand from
         # every member's seat: 2 hands x 4 players = 8 player-hand observations.
-        assert team_extra_stats(tenant, 'Reds', variables)['total_hands'] == 8
+        assert team_extra_stats(tenant, 'Reds', tournament)['total_hands'] == 8
 
 
 class TestExtraStatsMaskFinalRound:
@@ -290,36 +290,36 @@ class TestExtraStatsMaskFinalRound:
     """
 
     def test_public_cutoff_drops_the_withheld_final_round(self, completed_tournament):
-        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
-        assert public_round_max(tenant, variables, force_all=False) == variables.nb_rounds - 1
-        assert public_round_max(tenant, variables, force_all=True) == variables.nb_rounds
+        tenant, tournament = completed_tournament['tenant'], completed_tournament['settings']
+        assert public_round_max(tenant, tournament, force_all=False) == tournament.nb_rounds - 1
+        assert public_round_max(tenant, tournament, force_all=True) == tournament.nb_rounds
 
     def test_public_player_cards_exclude_final_round(self, completed_tournament):
-        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
+        tenant, tournament = completed_tournament['tenant'], completed_tournament['settings']
         player = completed_tournament['players'][0]
         public = player_extra_stats(
-            tenant, player, variables,
-            max_round=public_round_max(tenant, variables, force_all=False),
+            tenant, player, tournament,
+            max_round=public_round_max(tenant, tournament, force_all=False),
         )
-        admin = player_extra_stats(tenant, player, variables, max_round=None)
+        admin = player_extra_stats(tenant, player, tournament, max_round=None)
         # The final round is folded in for admin but withheld from the public.
-        assert admin['total_rounds'] == variables.nb_rounds
-        assert public['total_rounds'] == variables.nb_rounds - 1
+        assert admin['total_rounds'] == tournament.nb_rounds
+        assert public['total_rounds'] == tournament.nb_rounds - 1
         # Validated final-round hands count for admin, not for the public viewer.
         assert public['total_hands'] < admin['total_hands']
 
     def test_public_team_cards_exclude_final_round(self, completed_tournament):
-        tenant, variables = completed_tournament['tenant'], completed_tournament['variable']
+        tenant, tournament = completed_tournament['tenant'], completed_tournament['settings']
         player = completed_tournament['players'][0]
         player.team = 'Reds'
         player.save()
         public = team_extra_stats(
-            tenant, 'Reds', variables,
-            max_round=public_round_max(tenant, variables, force_all=False),
+            tenant, 'Reds', tournament,
+            max_round=public_round_max(tenant, tournament, force_all=False),
         )
-        admin = team_extra_stats(tenant, 'Reds', variables, max_round=None)
-        assert admin['total_rounds'] == variables.nb_rounds
-        assert public['total_rounds'] == variables.nb_rounds - 1
+        admin = team_extra_stats(tenant, 'Reds', tournament, max_round=None)
+        assert admin['total_rounds'] == tournament.nb_rounds
+        assert public['total_rounds'] == tournament.nb_rounds - 1
         assert public['total_hands'] < admin['total_hands']
 
 
@@ -330,12 +330,12 @@ class TestFinalCutoff:
 
 
 class TestEndOfTournamentHideLastRound:
-    """When all rounds are scored but the podium reveal (`variables.final`) hasn't
+    """When all rounds are scored but the podium reveal (`tournament.final`) hasn't
     progressed past 11, public viewers should see standings through the *previous*
     round — not an empty page, and not the final standings."""
 
     def test_public_viewer_sees_standings_through_previous_round(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         rows = views.scores_per_player_json(request_, check_final=True)
         assert len(rows) == len(completed_tournament['players'])
         # history_pos length == round_max + 2; hide-last-round drops round_max to nb_rounds - 1.
@@ -344,7 +344,7 @@ class TestEndOfTournamentHideLastRound:
             assert len(r['scores']) == nb_rounds - 1
 
     def test_admin_viewer_sees_full_standings_with_visibility_flags(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         rows = views.scores_per_player_json(request_, check_final=False)
         assert len(rows) == len(completed_tournament['players'])
         for r in rows:
@@ -354,14 +354,14 @@ class TestEndOfTournamentHideLastRound:
         assert all(r['visible'] is False for r in rows)
 
     def test_force_all_bypasses_hide(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         rows = views.scores_per_player_json(request_, force_all=True)
         for r in rows:
             assert len(r['scores']) == nb_rounds
             assert r['visible'] is True
 
     def test_final_past_threshold_reveals_everything(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         last_pub = PublishedRound.objects.get(
             tenant=completed_tournament['tenant'], round_nb=nb_rounds,
         )
@@ -401,7 +401,7 @@ class TestOverallWinnersMaskFinalRound:
         # no PublishedRound row yet — the exact pre-ceremony state where the leak
         # used to occur. Spike one final-round seat + one self-draw hand to the
         # unique overall best so a leak would be unmistakable.
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         tenant = completed_tournament['tenant']
         PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).delete()
         pos = Seat.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
@@ -413,7 +413,7 @@ class TestOverallWinnersMaskFinalRound:
         return completed_tournament
 
     def test_public_overall_excludes_unpublished_final_round(self, request_, suspense_tournament):
-        nb_rounds = suspense_tournament['variable'].nb_rounds
+        nb_rounds = suspense_tournament['settings'].nb_rounds
         overall = views.stat_all_rounds(request_, check_final=True)
         # Roll-up still has earlier-round data, but nothing from the withheld final.
         assert overall['mp_max']
@@ -421,7 +421,7 @@ class TestOverallWinnersMaskFinalRound:
         assert all(h['points'] < 100000 for h in overall['sd_hand_max'])
 
     def test_admin_overall_includes_final_round(self, request_, suspense_tournament):
-        nb_rounds = suspense_tournament['variable'].nb_rounds
+        nb_rounds = suspense_tournament['settings'].nb_rounds
         overall = views.stat_all_rounds(request_, check_final=False)
         assert any(
             p.round_nb == nb_rounds and p.minipoints == 100000 for p in overall['mp_max']
@@ -431,7 +431,7 @@ class TestOverallWinnersMaskFinalRound:
     def test_default_is_unmasked_for_ceremony(self, request_, suspense_tournament):
         # ceremony.py calls stat_all_rounds(request) with no check_final and must
         # keep seeing the final round (the reveal surface).
-        nb_rounds = suspense_tournament['variable'].nb_rounds
+        nb_rounds = suspense_tournament['settings'].nb_rounds
         overall = views.stat_all_rounds(request_)
         assert any(p.round_nb == nb_rounds for p in overall['mp_max'])
 
@@ -448,22 +448,22 @@ class TestStatCardsConsistentWhenFinalPublishedWithheld:
     """
 
     def test_public_round_cards_show_through_previous_round(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         rounds = views.stat_rounds(request_, check_final=True)
         # Not [] — rounds 1..n-1 are shown, matching the standings/modal cutoff.
         assert len(rounds) == nb_rounds - 1
         assert len(rounds) == public_round_max(
-            completed_tournament['tenant'], completed_tournament['variable'], force_all=False
+            completed_tournament['tenant'], completed_tournament['settings'], force_all=False
         )
 
     def test_public_overall_cards_exclude_final_but_are_not_empty(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         overall = views.stat_all_rounds(request_, check_final=True)
         assert overall['mp_max']
         assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
 
     def test_admin_still_sees_the_final_round(self, request_, completed_tournament):
-        nb_rounds = completed_tournament['variable'].nb_rounds
+        nb_rounds = completed_tournament['settings'].nb_rounds
         rounds = views.stat_rounds(request_, check_final=False)
         assert len(rounds) == nb_rounds
 
@@ -627,7 +627,7 @@ class TestUnclaimedDrawSlot:
         self._unclaim(tournament, 5)
         from mahj.scoring import tournament_seating
         seating, _ = tournament_seating(
-            tournament['tenant'], tournament['variable'], force_all=True)
+            tournament['tenant'], tournament['settings'], force_all=True)
         names = [
             s['name']
             for r in seating for t in r['tables'] for s in t['seats']
@@ -681,7 +681,7 @@ class TestPublisherOverviewRiichiColumns:
     creates or validates a sheet, so both are always 0 — the columns are hidden.
     """
 
-    def _render(self, tenant, variables):
+    def _render(self, tenant, tournament):
         from django.template import loader
         from django.test import RequestFactory
         from django.contrib.auth.models import AnonymousUser
@@ -690,20 +690,20 @@ class TestPublisherOverviewRiichiColumns:
         req = rf.get('/', HTTP_HOST='test.example.com')
         req.user = AnonymousUser()
         return loader.get_template('mahj/admin_publisher_overview.html').render({
-            'rows': publisher_overview_rows(tenant, variables),
-            'tournament': variables,
+            'rows': publisher_overview_rows(tenant, tournament),
+            'tournament': tournament,
             'subdomain': tenant.subdomain,
         }, req)
 
     def test_mcr_shows_the_sheet_columns(self, tournament):
-        html = self._render(tournament['tenant'], tournament['variable'])
+        html = self._render(tournament['tenant'], tournament['settings'])
         assert '<th>Sheets in progress</th>' in html
         assert '<th>Sheets validated</th>' in html
         assert 'class="cell-inprogress' in html
         assert 'class="cell-validated' in html
 
     def test_riichi_hides_the_sheet_columns(self, riichi_tournament):
-        html = self._render(riichi_tournament['tenant'], riichi_tournament['variable'])
+        html = self._render(riichi_tournament['tenant'], riichi_tournament['settings'])
         assert '<th>Sheets in progress</th>' not in html
         assert '<th>Sheets validated</th>' not in html
         assert 'class="cell-inprogress' not in html

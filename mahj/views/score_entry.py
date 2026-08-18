@@ -16,7 +16,7 @@ from ..signals import (
     broadcast_scorer_validation,
     invalidate_leaderboard,
 )
-from .helpers import get_tenant, get_variables, tenant_role_required
+from .helpers import get_tenant, get_tournament, tenant_role_required
 
 
 WINDS = ['E', 'S', 'W', 'N']
@@ -447,7 +447,7 @@ def set_round_published(request):
         published = published.lower() in ('1', 'true', 'yes', 'on')
     published = bool(published)
 
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     is_last_round = (round_nb == tournament.nb_rounds)
 
     if published:

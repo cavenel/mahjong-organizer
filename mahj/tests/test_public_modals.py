@@ -61,7 +61,7 @@ class TestDetailedScoresReadOnly:
 
     def test_no_nplus1_on_players(self, client_, tournament, django_assert_max_num_queries):
         # seats + one bulk players-attach query + hands + tenant resolve + the
-        # reveal gate's fixed lookups (variables, complete/published/reveal) — a
+        # reveal gate's fixed lookups (tournament, complete/published/reveal) — a
         # constant number that must not grow with the 4 seated players. Pre-fix
         # the player query did +1 per player.
         with django_assert_max_num_queries(8):

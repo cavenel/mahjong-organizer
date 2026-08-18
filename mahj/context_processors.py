@@ -3,7 +3,7 @@ from django.templatetags.static import static
 from django.urls import reverse
 
 from .views.helpers import (
-    can_access_admin, get_tenant, get_variables, has_role, is_tenant_admin,
+    can_access_admin, get_tenant, get_tournament, has_role, is_tenant_admin,
     public_site_host, public_site_url,
 )
 
@@ -15,7 +15,7 @@ def site_logo(request):
     cache-busting logic in one place so templates only reference {{ site_logo_url }}.
     """
     try:
-        tournament = get_variables(request)
+        tournament = get_tournament(request)
     except Exception:
         tournament = None
     if tournament is not None and tournament.logo:
@@ -31,7 +31,7 @@ def public_site(request):
     try:
         tenant = get_tenant(request)
         subdomain = tenant.subdomain if tenant else ''
-        tournament = get_variables(request)
+        tournament = get_tournament(request)
         public_url = tournament.public_url if tournament else ''
     except Exception:
         subdomain = ''

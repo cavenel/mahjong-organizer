@@ -18,7 +18,7 @@ def teamed(tournament):
     for i, p in enumerate(players):
         p.team = f'Team {chr(ord("A") + i % 4)}'
         p.save()
-    v = tournament['variable']
+    v = tournament['settings']
     v.has_teams = True
     v.save()
     return tournament
@@ -208,7 +208,7 @@ class TestControlEndpoint:
 
     def test_publish_reveals_all_rounds_and_ends(self, op_client, teamed):
         tenant = teamed['tenant']
-        nb_rounds = teamed['variable'].nb_rounds
+        nb_rounds = teamed['settings'].nb_rounds
         op_client.get('/ceremony_control?phase=teams&step=2')
 
         resp = op_client.get('/ceremony_control?action=publish')
@@ -227,7 +227,7 @@ class TestCeremonyData:
         """The console reads `final_withheld` to decide whether ending the
         ceremony would strand the screens on the holding slide (F-M7)."""
         tenant = teamed['tenant']
-        nb_rounds = teamed['variable'].nb_rounds
+        nb_rounds = teamed['settings'].nb_rounds
 
         # Nothing published → ending is harmless, no warning.
         assert json.loads(op_client.get('/ceremony_data').content)['final_withheld'] is False

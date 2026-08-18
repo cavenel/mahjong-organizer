@@ -385,10 +385,10 @@ class TestAdminPageRoleIsolation:
         client_.get('/admin?page=display&action=add_screen')
         assert Screen.objects.filter(tenant=tournament['tenant']).count() == before
 
-    def test_scorer_cannot_change_variable_via_display_page(self, client_, tournament, scorer_group_user):
+    def test_scorer_cannot_change_tournament_via_display_page(self, client_, tournament, scorer_group_user):
         client_.force_login(scorer_group_user)
-        resp = client_.get('/admin?page=display&action=set_variable&variables-welcome=HACKED')
-        # The set_variable action returns the settings string when it runs; a
+        resp = client_.get('/admin?page=display&action=set_tournament&tournament-welcome=HACKED')
+        # The set_tournament action returns the settings string when it runs; a
         # denied request just renders the empty shell instead.
         assert b'HACKED' not in resp.content
         assert TournamentSettings.objects.get(tenant=tournament['tenant']).welcome != 'HACKED'

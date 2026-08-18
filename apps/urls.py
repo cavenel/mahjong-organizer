@@ -74,7 +74,7 @@ urlpatterns = [
     path('details_team_<path:team_name>', views.details_team, name='details_team'),
 
     # Display-screen polling
-    path('check_variables', views.check_variables, name='check_variables'),
+    path('check_tournament', views.check_tournament, name='check_tournament'),
 
     # Scan
     path('scan', views.scan_page, name='scan'),

@@ -123,11 +123,11 @@ def invalidate_leaderboard(subdomain, published_round=None):
 
 
 @receiver([post_save, post_delete], sender=TournamentSettings)
-def on_variable_change(sender, instance, **kwargs):
+def on_tournament_change(sender, instance, **kwargs):
     subdomain = instance.tenant.subdomain if instance.tenant_id else ''
-    cache.delete(f'variables:{subdomain}')
+    cache.delete(f'tournament:{subdomain}')
     _invalidate_leaderboard(subdomain)
-    broadcast_display(subdomain, 'variables.update', {'event': 'variables_update'})
+    broadcast_display(subdomain, 'tournament.update', {'event': 'tournament_update'})
 
 
 @receiver([post_save, post_delete], sender=Tenant)

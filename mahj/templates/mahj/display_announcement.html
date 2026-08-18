@@ -109,7 +109,7 @@ window.addEventListener('resize', fitMessage);
 // Patch the message in place (plain text; newlines render via the pre-line CSS)
 // when it's edited, so no reload is needed; reload only on a screen switch.
 function refreshMessage() {
-    fetch('check_variables')
+    fetch('check_tournament')
         .then(function (r) { return r.json(); })
         .then(function (data) {
             el.textContent = data.welcome || '';
@@ -121,7 +121,7 @@ function refreshMessage() {
 connectDisplaySocket({
     subdomain: '{{ subdomain }}',
     onUpdate: function (msg) {
-        if (msg.event === 'variables_update') {
+        if (msg.event === 'tournament_update') {
             refreshMessage();
         } else if (msg.event === 'screen_update' || msg.event === 'ceremony') {
             location.reload();

@@ -299,10 +299,10 @@ function applyCounterState(data, rttMs) {
     restartLoop();
 }
 
-// Patch the variable-derived DOM in place (title, welcome, round length) instead
+// Patch the tournament-derived DOM in place (title, welcome, round length) instead
 // of reloading, so a running countdown is never interrupted. The counter sizes
 // itself off the viewport, so there's no zoom to mirror here.
-function applyVariables(data) {
+function applyTournament(data) {
     document.title = data.title || data.fullname || 'Mahjong Championship';
     el.welcome.textContent = data.welcome || '';   // plain text; newlines render via pre-line CSS
     // Round length: apply only when no round is in progress, so a stray edit can't
@@ -314,10 +314,10 @@ function applyVariables(data) {
     }
 }
 
-function refreshVariables() {
-    fetch('check_variables')
+function refreshTournament() {
+    fetch('check_tournament')
         .then(function (r) { return r.json(); })
-        .then(applyVariables)
+        .then(applyTournament)
         .catch(function () {});
 }
 
@@ -340,7 +340,7 @@ function isRoundActive() {
 }
 
 // Pull current state immediately on load; don't wait for a WS push. The page is
-// rendered with the current variables already, so only the timer needs fetching.
+// rendered with the current tournament already, so only the timer needs fetching.
 fetchCounterState();
 
 connectDisplaySocket({
@@ -348,8 +348,8 @@ connectDisplaySocket({
     onUpdate: function (msg) {
         if (msg.event === 'counter_update') {
             applyCounterState(msg);     // start/stop — live, never reloads
-        } else if (msg.event === 'variables_update') {
-            refreshVariables();         // title/welcome/total_time — patch live
+        } else if (msg.event === 'tournament_update') {
+            refreshTournament();         // title/welcome/total_time — patch live
         } else if (msg.event === 'screen_update') {
             location.reload();          // operator switched the view → swap template
         } else if (msg.event === 'ceremony') {
@@ -372,7 +372,7 @@ connectDisplaySocket({
     onReconnect: function () {
         if (isRoundActive()) {
             fetchCounterState();
-            refreshVariables();
+            refreshTournament();
         } else {
             location.reload();
         }

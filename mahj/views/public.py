@@ -12,7 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from ..models import Hand, ScoreSheet, Schedule, Seat
 from ..scoring import _attach_players, team_standings
-from .helpers import can_access_admin, get_tenant, get_variables, is_tenant_admin
+from .helpers import can_access_admin, get_tenant, get_tournament, is_tenant_admin
 from .scoring import (
     LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
     stats_export, table_stats, table_stats_rounds, tournament_seating,
@@ -60,7 +60,7 @@ def desktop(request):
         if cached_html is not None:
             return HttpResponse(cached_html)
 
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
 
     # Fetch positions and hands once; share between standings, seating, and stats.

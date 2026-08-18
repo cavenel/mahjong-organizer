@@ -6,7 +6,7 @@ from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Hand, Player, Seat
-from .helpers import get_tenant, get_variables, is_tenant_admin
+from .helpers import get_tenant, get_tournament, is_tenant_admin
 from ..scoring import (
     _assign_ranks, _attach_players, _standings_rank_key, _standings_sort_key,
     player_extra_stats, public_round_max, team_extra_stats, team_standings,
@@ -31,7 +31,7 @@ def details_player(request, id):
     if cached is not None:
         return HttpResponse(cached)
 
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     player = Player.objects.get(tenant=tenant, id=id)
     scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
@@ -70,7 +70,7 @@ def details_team(request, team_name):
     if cached is not None:
         return HttpResponse(cached)
 
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     extra_stats = team_extra_stats(
         tenant, team_name, tournament,
         max_round=public_round_max(tenant, tournament, force_all=is_admin),
@@ -153,7 +153,7 @@ def detailed_scores(request, round_nb, table_nb):
     # as the standings: a public viewer may not open a round held back for the
     # ceremony (unpublished, or the final round in pre-publish suspense). Staff see
     # everything. Mirrors public_round_max used by the standings/modal stat cards.
-    if not is_admin and round_nb > public_round_max(tenant, get_variables(request)):
+    if not is_admin and round_nb > public_round_max(tenant, get_tournament(request)):
         template = loader.get_template('mahj/modal_not_revealed.html')
         html = template.render({'round_nb': round_nb, 'table_nb': table_nb}, request)
         cache.set(cache_key, html, MODAL_CACHE_TTL)

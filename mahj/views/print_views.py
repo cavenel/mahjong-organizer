@@ -5,7 +5,7 @@ from django.template import loader
 
 from ..models import Player, Seat, Schedule
 from ..scoring import _attach_players, _country_flag
-from .helpers import get_tenant, get_variables, tenant_admin_required
+from .helpers import get_tenant, get_tournament, tenant_admin_required
 from .. import scoring as _scoring
 from .scoring import scores_per_player_json, scores_per_table_json
 
@@ -75,7 +75,7 @@ def cross_positions(request):
 
 
 def print_scores(request):
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
     scores_json = scores_per_player_json(request, force_all=True)
     template = loader.get_template('mahj/print_scores.html')
@@ -90,7 +90,7 @@ def print_scores(request):
 
 def print_schedule(request):
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     template = loader.get_template('mahj/print_schedule.html')
     return HttpResponse(template.render({'schedule': schedule, 'tournament': tournament}, request))
@@ -98,7 +98,7 @@ def print_schedule(request):
 
 def player_cards(request):
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
 
     # One card per draw slot, not per listed player: the seating (and so a slot's
     # rounds and opponents) exists before the draw is made, so an undrawn slot
@@ -169,7 +169,7 @@ def team_names(request):
 @tenant_admin_required
 def table_posters(request):
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     position_vals = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('id')))
 

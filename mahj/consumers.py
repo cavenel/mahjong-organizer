@@ -6,7 +6,7 @@ class TenantConsumer(AsyncJsonWebsocketConsumer):
 
     Joins:
       leaderboard_{subdomain} — fired on round publish/unpublish only.
-      display_{subdomain}     — screen switches, variable changes, counter updates.
+      display_{subdomain}     — screen switches, tournament changes, counter updates.
     """
 
     async def connect(self):
@@ -36,7 +36,7 @@ class TenantConsumer(AsyncJsonWebsocketConsumer):
     async def screen_update(self, event):
         await self.send_json(event['data'])
 
-    async def variables_update(self, event):
+    async def tournament_update(self, event):
         await self.send_json(event['data'])
 
     async def counter_update(self, event):

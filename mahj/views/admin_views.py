@@ -24,7 +24,7 @@ from django.utils.html import escape
 from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
-    BASE_DIR, get_counter, get_tenant, get_variables, has_role,
+    BASE_DIR, get_counter, get_tenant, get_tournament, has_role,
     is_tenant_admin, set_counter, tenant_admin_required,
     tenant_role_required,
 )
@@ -45,7 +45,7 @@ from .scoring import (
 # Friendly labels for the editable tournament tournament, matching the field
 # labels on the display admin page, so a rejected save names the field the way
 # the operator sees it ("On-screen message", not "welcome").
-_VARIABLE_LABELS = {
+_TOURNAMENT_LABELS = {
     "welcome": "On-screen message",
     "title": "Title",
     "fullname": "Full tournament name",
@@ -217,7 +217,7 @@ def publisher_overview_rows(tenant, tournament):
 
 @tenant_admin_required
 def admin_print_EMA(request):
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     if tournament.rules == "MCR":
         wb = load_workbook(filename=str(BASE_DIR / "files/report_template.xlsx"), data_only=True)
         sheet_ranges = wb['MCR template']
@@ -305,7 +305,7 @@ def admin_upload_from_template(request):
 
             opt_sheet = wb['Options']
             opt_vals = [row[1] for row in opt_sheet.iter_rows(min_row=1, max_row=6, max_col=2, values_only=True)]
-            tournament = get_variables(request)
+            tournament = get_tournament(request)
             tournament.fullname = opt_vals[0] or ""
             tournament.title = opt_vals[1] or ""
             # A blank/zero rounds count would create no seating at all and "succeed"
@@ -504,7 +504,7 @@ def admin_upload_from_template(request):
             Seat.objects.filter(tenant=tenant).delete()
             PublishedRound.objects.filter(tenant=tenant).delete()
             Schedule.objects.filter(tenant=tenant).delete()
-            tournament = get_variables(request)
+            tournament = get_tournament(request)
             tournament.fullname = ""
             tournament.title = ""
             tournament.nb_rounds = 0
@@ -542,7 +542,7 @@ def admin_export_to_template(request):
     included — re-importing intentionally clears them.
     """
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
 
     wb = Workbook()
 
@@ -634,7 +634,7 @@ def admin_generate_seating(request):
         return HttpResponse('POST required', status=405)
 
     tenant = get_tenant(request)
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     nb_players = Player.objects.filter(tenant=tenant).count()
     nb_rounds = tournament.nb_rounds or 0
 
@@ -952,7 +952,7 @@ def player_editor_save(request):
 # tenant's uploaded logo. Templates fall back to the static mcr_logo when unset,
 # so this is only hit when a logo exists.
 def logo(request):
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     if not tournament.logo:
         raise Http404
     resp = HttpResponse(bytes(tournament.logo), content_type="image/png")
@@ -963,7 +963,7 @@ def logo(request):
 
 @tenant_admin_required
 def update_logo(request):
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     if request.POST.get("reset") == "1":
         tournament.logo = None
         tournament.logo_etag = ""
@@ -997,7 +997,7 @@ def admin_reset(request):
     hands, score sheets, published rounds, schedule) *and* the tenant's
     configuration (title/branding/format, logo, screens, screen modes, publish
     target, ceremony state), leaving a blank instance ready for a fresh import.
-    Deleting the TournamentSettings row lets get_variables recreate it at defaults;
+    Deleting the TournamentSettings row lets get_tournament recreate it at defaults;
     its post_delete signal busts the settings cache and refreshes public displays.
     """
     if request.method != 'POST':
@@ -1018,7 +1018,7 @@ def admin_reset(request):
         CeremonyState.objects.filter(tenant=tenant).delete()
         PublishTarget.objects.filter(tenant=tenant).delete()
         # Deleting the settings row resets identity/branding/format, logo and the
-        # round timer to defaults; get_variables recreates a fresh one on next read.
+        # round timer to defaults; get_tournament recreates a fresh one on next read.
         TournamentSettings.objects.filter(tenant=tenant).delete()
     # Wake public displays and scorer pages: nothing is published anymore, the
     # screen set is gone, and the leaderboard/settings caches are stale.
@@ -1107,7 +1107,7 @@ def publish_target_save(request):
 
     # The advertised spectator URL is a TournamentSettings field (cached and read
     # on every public request), but edited on this page next to the SFTP target.
-    tournament = get_variables(request)
+    tournament = get_tournament(request)
     public_url = request.POST.get('public_url', '').strip()
     if public_url != tournament.public_url:
         tournament.public_url = public_url
@@ -1209,8 +1209,8 @@ def counter_start(request):
     })
 
 
-def _apply_set_variable(request, tournament):
-    """Persist ``?variables-<field>=<value>`` params onto the tenant settings and
+def _apply_set_tournament(request, tournament):
+    """Persist ``?tournament-<field>=<value>`` params onto the tenant settings and
     return the response to send back. Shared by the Display page (screen-layout
     tuning) and the Tournament settings page (identity + round length)."""
     # Admin-only fields: display operators may tune the layout, but not the
@@ -1218,12 +1218,12 @@ def _apply_set_variable(request, tournament):
     admin_only_fields = {"total_time"}
     # The round timer is written only by counter_start (server-authoritative);
     # it must never be settable through this generic field loop, or a stray
-    # `variables-counter=...` would stop/reset a running clock.
+    # `tournament-counter=...` would stop/reset a running clock.
     protected_fields = {"counter"}
     touched_fields = []
     for var in request.GET.keys():
-        if "variables-" in var:
-            field = var.replace("variables-", "")
+        if "tournament-" in var:
+            field = var.replace("tournament-", "")
             if field in protected_fields:
                 continue
             if field in admin_only_fields and not is_tenant_admin(request):
@@ -1246,7 +1246,7 @@ def _apply_set_variable(request, tournament):
             max_length = getattr(tournament._meta.get_field(field), "max_length", None)
             value = getattr(tournament, field)
             if max_length and isinstance(value, str) and len(value) > max_length:
-                label = _VARIABLE_LABELS.get(field, field)
+                label = _TOURNAMENT_LABELS.get(field, field)
                 return HttpResponse(
                     f"{label} is too long: {len(value)} characters "
                     f"(maximum {max_length}).",
@@ -1330,7 +1330,7 @@ def options(request, error=None):
         page = "welcome"
         from ..publish.sftp_upload import is_configured as _static_publish_configured
         from ..scoring import _last_complete_round, publish_state
-        tournament = get_variables(request)
+        tournament = get_tournament(request)
         nb_players = Player.objects.filter(tenant=tenant).count()
         nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
         nb_screens = Screen.objects.filter(tenant=tenant).count()
@@ -1375,12 +1375,12 @@ def options(request, error=None):
         # Display-operator-only: the shared admin gate admits any app role, so a
         # scorer/publisher must be turned away here — otherwise they could not
         # only view this page but drive its inline mutating actions below
-        # (add/remove screen, set_variable, set_all_views, set_mode…).
+        # (add/remove screen, set_tournament, set_all_views, set_mode…).
         page_content = "None"
     elif page == "display":
-        tournament = get_variables(request)
-        if request.GET.get('action') == "set_variable":
-            return _apply_set_variable(request, tournament)
+        tournament = get_tournament(request)
+        if request.GET.get('action') == "set_tournament":
+            return _apply_set_tournament(request, tournament)
         elif request.GET.get('action') == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()
             # 'screens_changed' (not plain 'screen_update') so the overview grid
@@ -1486,9 +1486,9 @@ def options(request, error=None):
         if not is_tenant_admin(request):
             page_content = "None"
         else:
-            tournament = get_variables(request)
-            if request.GET.get('action') == "set_variable":
-                return _apply_set_variable(request, tournament)
+            tournament = get_tournament(request)
+            if request.GET.get('action') == "set_tournament":
+                return _apply_set_tournament(request, tournament)
             if request.GET.get('action') == "save_schedule":
                 return _save_schedule(request, tenant)
             template2 = loader.get_template('mahj/admin_settings.html')
@@ -1538,7 +1538,7 @@ def options(request, error=None):
                 "has_key": bool(target and target.private_key_enc),
                 # The advertised spectator URL lives on TournamentSettings (cached,
                 # non-secret) but is edited here, next to the SFTP target.
-                "public_url": get_variables(request).public_url,
+                "public_url": get_tournament(request).public_url,
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "import_template" and not is_tenant_admin(request):
@@ -1562,7 +1562,7 @@ def options(request, error=None):
         page_content = "None"
     elif page == "seating":
         from .. import seating as _seating
-        tournament = get_variables(request)
+        tournament = get_tournament(request)
         nb_players = Player.objects.filter(tenant=tenant).count()
         nb_rounds = tournament.nb_rounds or 0
         # Measure the seating chart currently in place (independent of the player list:
@@ -1602,7 +1602,7 @@ def options(request, error=None):
         # to see it); the shared admin gate admits display ops too, so exclude them.
         page_content = "None"
     elif page == "scoring":
-        tournament = get_variables(request)
+        tournament = get_tournament(request)
         scores_json = scores_per_table_json(request)
         all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
         try:
@@ -1647,7 +1647,7 @@ def options(request, error=None):
     elif page == "ceremony":
         template2 = loader.get_template('mahj/admin_ceremony.html')
         page_content = template2.render({
-            "tournament": get_variables(request),
+            "tournament": get_tournament(request),
             "subdomain": tenant.subdomain if tenant else '',
             "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
             # Same-origin base for the preview iframes (see the display page):
@@ -1660,7 +1660,7 @@ def options(request, error=None):
         if not has_role(request, 'publisher'):
             page_content = "None"
         else:
-            tournament = get_variables(request)
+            tournament = get_tournament(request)
             template2 = loader.get_template('mahj/admin_publisher_overview.html')
             page_content = template2.render({
                 "rows": publisher_overview_rows(tenant, tournament),
@@ -1781,7 +1781,7 @@ def options(request, error=None):
         "page_content": page_content,
         # user_is_scorer / user_is_display_op / user_is_publisher / is_tenant_admin
         # come from the role_flags context processor (tenant-scoped).
-        "uses_teams": get_variables(request).has_teams,
+        "uses_teams": get_tournament(request).has_teams,
         # Standalone is single-tenant (pinned via LOCAL_TENANT), so the superuser
         # tenant-management page is meaningless there — hide it.
         "standalone": settings.STANDALONE,
