@@ -51,6 +51,23 @@ printed. Rename path + `name=` + every hardcoded JS/href/test string in lockstep
 - **`restore_worker.py` `AS positions` / `db_counts.positions`** — counts `Seat`
   rows; surfaces in `admin_database_restore.html`. → `seats`.
 
+## First name / last name handling refactor — IN PROGRESS
+
+Store the real first/last name from the import's two columns instead of
+re-deriving parts by splitting `full_name` (which returns `""` for a mononym and
+mis-splits multi-word surnames), and give the three concepts honest names:
+`first_name` / `last_name` = real names, `short_name` = the disambiguated display
+token ("Chris D."), `full_name` = computed "First Last".
+
+**Full step-by-step design: `~/.claude/plans/splendid-hugging-cat.md`.**
+
+Status: the Player **model** fields are in place (+ migration `0012`). Still to
+do per that plan — import parser (preserve casing, no title-case) + last-name-
+initial disambiguation, lossless export round-trip, standings/EMA report using
+the real names, the token read sites (`Seat.player_short_name`, print, scan),
+the player editor's First/Last columns, and Step 7 tests (mononym, multi-word
+surname, casing preserved, short_name collision).
+
 ## Dead code (safe deletes)
 
 - **`PositionForm`** (`views/helpers.py`) — never instantiated. Delete + drop the
@@ -99,8 +116,9 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
 
 ## Suggested order
 
-1. `positions → seats` internal rename (safe, biggest, disambiguates rank).
-2. `_json` misnomer rename (safe).
+1. Finish the first name / last name refactor (in progress — see its plan).
+2. `positions → seats` internal rename (safe, biggest, disambiguates rank).
+3. `_json` misnomer rename (safe).
 3. `PositionForm` removal + `position_div` (safe, small).
 4. Dead timestamp fields (one migration).
 5. History-comment rewording (trivial).
