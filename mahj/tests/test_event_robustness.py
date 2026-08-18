@@ -63,6 +63,31 @@ def test_team_modal_is_cached(tournament):
     ) is not None
 
 
+@override_settings(CACHES=LOCMEM)
+def test_scoring_subcaches_busted_on_invalidate(tournament):
+    """A real leaderboard write must clear the exact sub-cache keys the view
+    wrappers set. Regression: the invalidation used to delete a stale two-boolean
+    key shape (`leaderboard:{sub}:{cf}:{fa}`) that no longer matched the single
+    `full_view` key the wrappers write, so the leaderboard/seating caches went
+    stale for up to the sub-cache TTL after every score."""
+    from django.core.cache import cache
+    from mahj.views import scores_per_player_json, tournament_seating
+    cache.clear()
+    # Prime the sub-caches exactly as the views do (both full_view variants).
+    scores_per_player_json(_req())
+    scores_per_player_json(_req(), full_view=True)
+    tournament_seating(_req())
+    assert cache.get('leaderboard:test:False') is not None
+    assert cache.get('leaderboard:test:True') is not None
+    assert cache.get('seating_v2:test:False') is not None
+
+    signals.invalidate_leaderboard('test')
+
+    assert cache.get('leaderboard:test:False') is None
+    assert cache.get('leaderboard:test:True') is None
+    assert cache.get('seating_v2:test:False') is None
+
+
 def test_scores_per_player_page_with_under_12_players(tournament):
     """E8: standings render with < 12 players instead of raising IndexError."""
     # Trim to 10 players (and their seats) so scores_json[11] is out of range.

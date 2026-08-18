@@ -39,20 +39,16 @@ def _bump_leaderboard_gen(subdomain):
 
 def _invalidate_leaderboard(subdomain):
     _bump_leaderboard_gen(subdomain)
-    for cf in (True, False):
-        for fa in (True, False):
-            cache.delete(f'leaderboard:{subdomain}:{cf}:{fa}')
-    for cf in (True, False):
-        cache.delete(f'stat_rounds:{subdomain}:{cf}')
-        cache.delete(f'stat_all:{subdomain}:{cf}')
-        cache.delete(f'table_stats:{subdomain}:{cf}')
-        cache.delete(f'table_stats_rounds:{subdomain}:{cf}')
+    # Every cached scoring surface is keyed by the single `full_view` flag (public
+    # vs full — see views/scoring.py); bust both variants on any leaderboard write.
+    for full_view in (True, False):
+        cache.delete(f'leaderboard:{subdomain}:{full_view}')
+        cache.delete(f'stat_rounds:{subdomain}:{full_view}')
+        cache.delete(f'stat_all:{subdomain}:{full_view}')
+        cache.delete(f'table_stats:{subdomain}:{full_view}')
+        cache.delete(f'table_stats_rounds:{subdomain}:{full_view}')
+        cache.delete(f'seating_v2:{subdomain}:{full_view}')
     cache.delete(f'schedule:{subdomain}')
-    cache.delete(f'seating:{subdomain}')
-    cache.delete(f'player_table:{subdomain}')
-    for cf in (True, False):
-        for fa in (True, False):
-            cache.delete(f'seating_v2:{subdomain}:{cf}:{fa}')
     # One entry per desktop view token (see views/public.py: anonymous crowd +
     # the privileged role classes). All are busted on any leaderboard write.
     for view in ('staff', 'admin', 'user', 'anon'):
