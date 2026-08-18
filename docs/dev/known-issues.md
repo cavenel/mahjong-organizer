@@ -1,14 +1,9 @@
 # Known issues (developer notes)
 
-Open correctness/robustness issues carried over from internal pre-release
-auditing. Kept for maintainers; not user-facing. Ranking is computed **only**
-from seat minipoints/tablepoints — hand-level bugs corrupt stats/badges and the
-detailed-hand modal, never the championship ranking.
-
-Several of these were deferred in the past only because a schema migration was
-too risky before a live event. That constraint is gone during the public
-refactor (fresh migration baseline), so the schema-touching ones are good
-candidates to fix as their surrounding code is rewritten.
+Open correctness and robustness issues, for maintainers — not user-facing. None
+of them affect the championship ranking: standings are computed **only** from
+seat minipoints/tablepoints, so the hand-level bugs below can corrupt
+stats/badges and the detailed-hand modal, but never the final ranking.
 
 ## Open
 
@@ -17,8 +12,7 @@ candidates to fix as their surrounding code is rewritten.
   submitting the same table row → the later `bulk_update` silently clobbers the
   earlier with no 409. The publish check is also a TOCTOU just outside the
   surrounding transaction. Fix: add a `version` field + version-predicated
-  update (mirror the Hand path). *Natural to do alongside the Phase 2 schema
-  redesign.* Interim mitigation: one scorer per table.
+  update (mirror the Hand path). Interim mitigation: one scorer per table.
 
 - **Excel import is destructive before validation.** The import path deletes
   Players/Schedule/Hands/Seats/PublishedRounds up front, then a broad `except`
@@ -26,8 +20,8 @@ candidates to fix as their surrounding code is rewritten.
   sheet, non-int `nb_rounds`, duplicate/blank `rand_id`, player count not
   divisible by 4) can erase a live tournament instead of being rejected. Fix:
   validate the whole workbook in memory, then do all deletes+creates in one
-  transaction. *Natural to do alongside the Phase 2 import-flow rewrite.*
-  Interim mitigation: back up first, import into a fresh/staging tenant.
+  transaction. Interim mitigation: back up first, import into a fresh/staging
+  tenant.
 
 - **Penalty edit on a published round doesn't bust the detailed-modal cache.**
   Saving `penalty` with `update_fields=['penalty']` never bumps
@@ -45,32 +39,38 @@ candidates to fix as their surrounding code is rewritten.
   `None`, which blocks publishing with no indication of which seat. Fix: 409 on
   unresolved id; reject non-numeric instead of nulling.
 
-- **set_variable builds a query string with no `encodeURIComponent`.** Welcome/
-  title text containing `&`/`=`/space is truncated or corrupted. Fix: encode each
-  pair, or POST a form body.
-
 - **TP-recompute guard checks `from > 4` but not `from < 0`.** A negative seat
-  index mis-distributes points. Fix: guard `from < 0 || from > 4`.
+  index mis-distributes points. The guard bounds the winner both sides but only
+  clamps `from` on the high end (`admin_scores_per_hand.html`,
+  `modal_detailed_scores.html`). Fix: guard `from < 0 || from > 4`.
 
-- **`cross_positions` print crashes on non-dense `rand_id`.** Indexes
-  `cross[...][rand_id - 1]` assuming `rand_id ∈ 1..n`; draw numbers like 101–116
-  → IndexError → 500 on that print page. Fix: map `rand_id` → dense index.
-
-- **Name handling oddities (cosmetic).** `Player.save()` corrupts real names
-  containing the substring "Player" and gives mononyms an empty last name; the
-  import's first-name disambiguation aborts at the first placeholder; team
-  grouping is case-sensitive. Fix opportunistically.
+- **Name handling oddities (cosmetic).** `last_name()` returns an empty string for
+  a mononym (single-token `full_name`); team grouping is case-sensitive
+  (`"Dragons"` ≠ `"dragons"`) — now mitigated, since a case-split team fails the
+  "team size must be 4" import check rather than silently splitting. Fix
+  opportunistically.
 
 ### Scan / OCR (only if camera-scan is used live)
 
-- **Overwrite gate is `pts > 0`-only.** Zero-point manual corrections aren't
-  protected; a re-scan overwrites `confidence=1.0` edits with low-confidence OCR.
 - **`_write_hand` does a blind version bump** with no `version=` predicate (its
   docstring claiming a 409 is wrong), and the gate+write aren't atomic → scorer
   edits between gate and write are clobbered.
 - **OCR values written verbatim** with no range/balance check (seat ∈ 1..4/null,
   `win_by != win_from`, winner ⇒ points ≥ 8, four-player balance). A garbled digit
   silently mis-attributes or drops a win.
+
+## Deferred cleanups (not bugs — intentional, documented here so they aren't "fixed" blindly)
+
+- **Template context key is `variables`, not `tournament`.** The model is
+  `TournamentSettings`, but the template context key was deliberately left as
+  `variables` — renaming touches ~90 sites with silent-failure risk and no
+  behaviour change. Not worth the churn; don't rename piecemeal.
+- **Visibility flags `check_final` / `force_all` kept over a `viewer` concept.**
+  The reveal-masking policy could collapse the two booleans into a single
+  `viewer ∈ {public, admin, display}`, but the flags are kept (documented with
+  their viewer-mode mapping in `mahj/scoring/visibility.py`) to avoid churning
+  many signatures and risking the end-of-tournament masking. Safe follow-up if
+  wanted.
 
 ## Invariants worth preserving (verified correct — do not "fix")
 

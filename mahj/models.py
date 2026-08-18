@@ -26,7 +26,7 @@ class Membership(models.Model):
     request's tenant has no access there — cross-tenant isolation falls straight
     out of the row's absence.
 
-    Tiers (see docs/dev/plan-per-tenant-users.md):
+    Tiers (see docs/dev/access-control.md):
       - platform superuser — Django ``is_superuser``; cross-tenant, needs no row.
       - tenant admin — ``is_tenant_admin`` for a tenant; implies every app role
         there (mirrors the old "staff implies scorer/display/publisher").

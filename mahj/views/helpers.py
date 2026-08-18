@@ -32,7 +32,7 @@ def set_counter(tenant, value):
 # ---------------------------------------------------------------------------
 # Per-tenant authorization.
 #
-# Roles are scoped to a tenant via Membership (see docs/dev/plan-per-tenant-users.md).
+# Roles are scoped to a tenant via Membership (see docs/dev/access-control.md).
 # Every check is evaluated against the CURRENT subdomain's tenant, so a user's
 # access on one tenant says nothing about another — cross-tenant isolation is
 # just the membership row's absence. Platform superusers bypass membership.
