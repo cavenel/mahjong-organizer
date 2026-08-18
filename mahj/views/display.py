@@ -51,7 +51,7 @@ def _venue_clock_ms():
 
 
 def index(request, screen_id=None):
-    variables = get_variables(request)
+    tournament = get_variables(request)
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
 
@@ -62,7 +62,7 @@ def index(request, screen_id=None):
         template = loader.get_template('mahj/display_ceremony.html')
         return HttpResponse(template.render({
             'payload_json': json.dumps(ceremony_payload),
-            'tournament': variables,
+            'tournament': tournament,
             'subdomain': subdomain,
         }, request))
 
@@ -89,7 +89,7 @@ def index(request, screen_id=None):
         elif view == "announcement":
             return announcement(request)
         elif view == "schedule":
-            return _render_schedule(request, tenant, variables, subdomain)
+            return _render_schedule(request, tenant, tournament, subdomain)
         elif view.startswith("scores:"):
             parts = view.split(":")
             density = parts[1] if len(parts) > 1 and parts[1] in (DETAILED, TOTALS, TEAMS) else DETAILED
@@ -104,10 +104,10 @@ def index(request, screen_id=None):
         return HttpResponse(template.render({'subdomain': subdomain}, request))
 
 
-def _render_schedule(request, tenant, variables, subdomain):
+def _render_schedule(request, tenant, tournament, subdomain):
     template = loader.get_template('mahj/display_schedule.html')
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    context = {"schedule": schedule, "tournament": variables, "subdomain": subdomain}
+    context = {"schedule": schedule, "tournament": tournament, "subdomain": subdomain}
     return HttpResponse(template.render(context, request))
 
 
@@ -151,43 +151,43 @@ def welcome(request):
     with the tournament's key info (full name, city, period, rules) pinned at the
     bottom. Reloads live on any display event, like the other static screens."""
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_welcome.html')
     context = {
-        'tournament': variables,
+        'tournament': tournament,
         'subdomain': subdomain,
-        'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
+        'qr_svg': _spectator_qr_svg(subdomain, tournament.public_url if tournament else ''),
     }
     return HttpResponse(template.render(context, request))
 
 
 def counter(request):
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     template = loader.get_template('mahj/display_counter.html')
     context = {
-        'tournament': variables,
-        'counter': variables.counter,
+        'tournament': tournament,
+        'counter': tournament.counter,
         'subdomain': tenant.subdomain if tenant else '',
     }
     return HttpResponse(template.render(context, request))
 
 
 def announcement(request):
-    """Announcement screen: the "On-screen message" variable (`variables.welcome`),
+    """Announcement screen: the "On-screen message" variable (`tournament.welcome`),
     auto-sized by the template to fill the space between the logo (upper left) and
     the tournament info bar (bottom, mirroring the Welcome screen) as large as it
     can. Reloads live on a screen switch and patches the text in place when the
     message is edited, like the other static screens."""
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_announcement.html')
     context = {
-        'tournament': variables,
+        'tournament': tournament,
         'subdomain': subdomain,
-        'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
+        'qr_svg': _spectator_qr_svg(subdomain, tournament.public_url if tournament else ''),
     }
     return HttpResponse(template.render(context, request))
 
@@ -219,20 +219,20 @@ def render_scores(request, density, page_nb=None):
     """Unified projector standings.
 
     density: DETAILED (per-round breakdown, one column), TOTALS (compact,
-    `variables.total_columns` columns) or TEAMS (the totals pages followed by
+    `tournament.total_columns` columns) or TEAMS (the totals pages followed by
     team-totals pages). page_nb: a 1-based page to pin, or None to show every page
     and rotate. An out-of-range page clamps to the last one. The view is identical
     whether or not the browser is logged in as staff.
     """
     tenant = get_tenant(request)
-    variables = get_variables(request)
-    columns = 1 if density == DETAILED else max(1, variables.total_columns)
+    tournament = get_variables(request)
+    columns = 1 if density == DETAILED else max(1, tournament.total_columns)
     show_rounds = density == DETAILED
     # Guard the pagination step: 0/None/negative would make range(..., step) throw
     # (ValueError) and 500 every projector. 0 columns of scores is never intended.
-    score_lines = max(1, variables.score_lines or 0)
+    score_lines = max(1, tournament.score_lines or 0)
 
-    prepublish = _final_round_withheld(tenant, variables.nb_rounds) is True
+    prepublish = _final_round_withheld(tenant, tournament.nb_rounds) is True
     check_final = False if prepublish else True
     scores_json = scores_per_player_json(request, check_final)
     try:
@@ -243,14 +243,14 @@ def render_scores(request, density, page_nb=None):
     # No rounds scored yet: "Scores after round 0" with an all-zero table is
     # meaningless, so fall back to the schedule screen until results exist.
     if nb_rounds == 0 and not prepublish:
-        return _render_schedule(request, tenant, variables, tenant.subdomain if tenant else '')
+        return _render_schedule(request, tenant, tournament, tenant.subdomain if tenant else '')
 
     # Individual pages first; the TEAMS view appends team-totals pages after them
     # (skipped when the tournament has no teams — then TEAMS just reads as TOTALS).
     # Section headings ("Individuals"/"Teams") only appear when both sections are
     # present, so a no-team tournament shows an unlabelled totals view. All pages
     # share one rotation loop in the template.
-    team_rows = team_standings(scores_json, variables, nb_rounds) if density == TEAMS else []
+    team_rows = team_standings(scores_json, tournament, nb_rounds) if density == TEAMS else []
     all_pages = _paginate(scores_json, columns, score_lines,
                           'players', 'Individuals' if team_rows else '')
     if team_rows:
@@ -269,7 +269,7 @@ def render_scores(request, density, page_nb=None):
     # verbatim; skip when there's no matching schedule row or it's blank.
     next_round = nb_rounds + 1
     next_round_time = None
-    if not prepublish and next_round <= variables.nb_rounds:
+    if not prepublish and next_round <= tournament.nb_rounds:
         sched = player_schedule(tenant)
         if next_round - 1 < len(sched):
             next_round_time = sched[next_round - 1].time
@@ -287,7 +287,7 @@ def render_scores(request, density, page_nb=None):
         "next_round": next_round,
         "next_round_time": next_round_time,
         "server_clock_ms": _venue_clock_ms(),
-        "tournament": variables,
+        "tournament": tournament,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
         # Last round published but withheld for the ceremony: every row is masked,
@@ -334,9 +334,9 @@ def update_screen_name(request):
 
 
 def check_variables(request):
-    """All tournament variables as JSON, for displays that patch live instead of
+    """All tournament tournament as JSON, for displays that patch live instead of
     reloading (e.g. the counter screen). `logo` is a BinaryField (not JSON-
     serializable; served via its own URL + logo_etag) and `tenant` is the FK —
     both excluded."""
-    variables = get_variables(request)
-    return JsonResponse(model_to_dict(variables, exclude=['logo', 'tenant']))
+    tournament = get_variables(request)
+    return JsonResponse(model_to_dict(tournament, exclude=['logo', 'tenant']))

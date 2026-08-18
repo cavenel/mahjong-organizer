@@ -93,8 +93,8 @@ def _round_label(winners):
 def _ceremony_master(request):
     """Full ceremony dataset (top teams, top players, stats) for the console and
     for rendering individual slides. Uses true final standings (force_all)."""
-    variables = get_variables(request)
-    rules = variables.rules
+    tournament = get_variables(request)
+    rules = tournament.rules
     rows = scores_per_player_json(request, check_final=False, force_all=True)
     id_to_name = {r['player_id']: r['name'] for r in rows}
 
@@ -103,7 +103,7 @@ def _ceremony_master(request):
          'total': _total(r, rules), 'mp': r['total']['mp']}
         for r in rows[:TOP_N]
     ]
-    team_rows = team_standings(rows, variables, variables.nb_rounds)
+    team_rows = team_standings(rows, tournament, tournament.nb_rounds)
     teams = [
         {'pos': t['pos'], 'name': t['team'], 'flag': t['flag'],
          'tp': floatformat(t['total']['tp'], -2), 'mp': t['total']['mp'],
@@ -138,7 +138,7 @@ def _ceremony_master(request):
                           'round_label': _round_label(winners)})
 
     return {'rules': rules, 'teams': teams, 'players': players,
-            'stats': stats, 'uses_teams': variables.has_teams}
+            'stats': stats, 'uses_teams': tournament.has_teams}
 
 
 def _slide_payload(master, state):
@@ -205,13 +205,13 @@ def ceremony_control(request):
       phase=blank|teams|players|stat [&step=N] [&stat_key=KEY]
     """
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     subdomain = tenant.subdomain if tenant else ''
     state, _ = CeremonyState.objects.get_or_create(tenant=tenant)
 
     if request.GET.get('action') == 'publish':
         # Reveal everything to everyone: publish all rounds fully.
-        for rnd in range(1, variables.nb_rounds + 1):
+        for rnd in range(1, tournament.nb_rounds + 1):
             PublishedRound.objects.update_or_create(
                 tenant=tenant, round_nb=rnd, defaults={'withheld': False})
         state.phase, state.step, state.stat_key = 'idle', 0, ''

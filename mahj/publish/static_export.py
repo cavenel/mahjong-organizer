@@ -147,10 +147,10 @@ def export_public(subdomain, out_dir, copy_static=True):
     poll_url = static_url('js/static_poll.js')
 
     # Tenant logo: dump the DB BLOB to a file and repoint the HTML at it.
-    variables = TournamentSettings.objects.filter(tenant=tenant).first()
+    tournament = TournamentSettings.objects.filter(tenant=tenant).first()
     logo_replacement = ''
-    if variables and variables.logo:
-        (out / 'logo.png').write_bytes(bytes(variables.logo))
+    if tournament and tournament.logo:
+        (out / 'logo.png').write_bytes(bytes(tournament.logo))
         logo_replacement = 'logo.png'
 
     def render(view_fn, *args):

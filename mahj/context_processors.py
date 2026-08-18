@@ -15,11 +15,11 @@ def site_logo(request):
     cache-busting logic in one place so templates only reference {{ site_logo_url }}.
     """
     try:
-        variables = get_variables(request)
+        tournament = get_variables(request)
     except Exception:
-        variables = None
-    if variables is not None and variables.logo:
-        return {"site_logo_url": f"{reverse('logo')}?v={variables.logo_etag}"}
+        tournament = None
+    if tournament is not None and tournament.logo:
+        return {"site_logo_url": f"{reverse('logo')}?v={tournament.logo_etag}"}
     return {"site_logo_url": static("images/mcr_logo.png")}
 
 
@@ -31,8 +31,8 @@ def public_site(request):
     try:
         tenant = get_tenant(request)
         subdomain = tenant.subdomain if tenant else ''
-        variables = get_variables(request)
-        public_url = variables.public_url if variables else ''
+        tournament = get_variables(request)
+        public_url = tournament.public_url if tournament else ''
     except Exception:
         subdomain = ''
         public_url = ''

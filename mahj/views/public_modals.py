@@ -31,7 +31,7 @@ def details_player(request, id):
     if cached is not None:
         return HttpResponse(cached)
 
-    variables = get_variables(request)
+    tournament = get_variables(request)
     player = Player.objects.get(tenant=tenant, id=id)
     scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
@@ -39,8 +39,8 @@ def details_player(request, id):
     # Cap the placement/hand cards to the same rounds the score grid shows, so a
     # withheld final round can't leak into them ahead of the ceremony.
     extra_stats = player_extra_stats(
-        tenant, player, variables,
-        max_round=public_round_max(tenant, variables, force_all=is_admin),
+        tenant, player, tournament,
+        max_round=public_round_max(tenant, tournament, force_all=is_admin),
     )
     template = loader.get_template('mahj/modal_details_player.html')
     context = {
@@ -50,7 +50,7 @@ def details_player(request, id):
         'scores_json': scores_json,
         'rounds': range(1, 1 + len(scores_json["scores"])),
         'max_round': len(scores_json["scores"]),
-        'tournament': variables,
+        'tournament': tournament,
         'extra_stats': extra_stats,
     }
     html = template.render(context, request)
@@ -70,10 +70,10 @@ def details_team(request, team_name):
     if cached is not None:
         return HttpResponse(cached)
 
-    variables = get_variables(request)
+    tournament = get_variables(request)
     extra_stats = team_extra_stats(
-        tenant, team_name, variables,
-        max_round=public_round_max(tenant, variables, force_all=is_admin),
+        tenant, team_name, tournament,
+        max_round=public_round_max(tenant, tournament, force_all=is_admin),
     )
     if extra_stats is None:
         from django.http import Http404
@@ -92,8 +92,8 @@ def details_team(request, team_name):
         (sum(1 for sc in s['scores'] if sc.get('tp') is not None) for s in members),
         default=0,
     )
-    sort_key = _standings_sort_key(variables)
-    rank_key = _standings_rank_key(variables)
+    sort_key = _standings_sort_key(tournament)
+    rank_key = _standings_rank_key(tournament)
     team_history_pos = []
     for rnd in range(1, max_played + 1):
         cumulative = {}
@@ -113,7 +113,7 @@ def details_team(request, team_name):
         )
 
     # Final team rank and totals: tied teams share a position, like the leaderboard.
-    team_rows = team_standings(leaderboard, variables, variables.nb_rounds)
+    team_rows = team_standings(leaderboard, tournament, tournament.nb_rounds)
     match = next((t for t in team_rows if t['team'] == team_name), None)
     team_pos = match['pos'] if match else None
     team_total = match['total'] if match else {'tp': 0.0, 'mp': 0}
@@ -126,7 +126,7 @@ def details_team(request, team_name):
         'team_pos': team_pos,
         'team_total': team_total,
         'team_history_pos': team_history_pos,
-        'tournament': variables,
+        'tournament': tournament,
     }
     html = template.render(context, request)
     cache.set(cache_key, html, MODAL_CACHE_TTL)

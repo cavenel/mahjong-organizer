@@ -42,7 +42,7 @@ from .scoring import (
 )
 
 
-# Friendly labels for the editable tournament variables, matching the field
+# Friendly labels for the editable tournament tournament, matching the field
 # labels on the display admin page, so a rejected save names the field the way
 # the operator sees it ("On-screen message", not "welcome").
 _VARIABLE_LABELS = {
@@ -154,7 +154,7 @@ def _mode_breakdowns(modes, screens):
     return out
 
 
-def publisher_overview_rows(tenant, variables):
+def publisher_overview_rows(tenant, tournament):
     """Per-round summary for the Publisher overview page.
 
     One dict per round 1..nb_rounds with the counts shown in the table and the
@@ -164,7 +164,7 @@ def publisher_overview_rows(tenant, variables):
     mirrors the Scoring page badge exactly: a validated sheet is never also
     counted as in-progress (filled_keys already excludes validated tables).
     """
-    nb_rounds = variables.nb_rounds or 0
+    nb_rounds = tournament.nb_rounds or 0
 
     total_per = defaultdict(int)
     mp_per = defaultdict(int)
@@ -217,8 +217,8 @@ def publisher_overview_rows(tenant, variables):
 
 @tenant_admin_required
 def admin_print_EMA(request):
-    variables = get_variables(request)
-    if variables.rules == "MCR":
+    tournament = get_variables(request)
+    if tournament.rules == "MCR":
         wb = load_workbook(filename=str(BASE_DIR / "files/report_template.xlsx"), data_only=True)
         sheet_ranges = wb['MCR template']
     else:
@@ -227,7 +227,7 @@ def admin_print_EMA(request):
     scores_json = scores_per_player_json(request, True)
     for row, player in enumerate(scores_json):
         items = [
-            variables.fullname,
+            tournament.fullname,
             len(scores_json),
             player["pos"],
             player["first_name"],
@@ -238,12 +238,12 @@ def admin_print_EMA(request):
             "YES" if player["EMA_ID"] != "" else "NO",
             player["flag"].upper(),
             datetime.today().strftime('%d/%m/%Y'),
-            variables.countrycourt,   # Countrycourt: organising federation code (settings)
-            variables.city,
+            tournament.countrycourt,   # Countrycourt: organising federation code (settings)
+            tournament.city,
             2,
-            variables.title,
-            variables.rules,   # discipline column: "MCR" or "Riichi", not hardcoded
-            variables.period,
+            tournament.title,
+            tournament.rules,   # discipline column: "MCR" or "Riichi", not hardcoded
+            tournament.period,
             2,
             "NO",
         ]
@@ -305,9 +305,9 @@ def admin_upload_from_template(request):
 
             opt_sheet = wb['Options']
             opt_vals = [row[1] for row in opt_sheet.iter_rows(min_row=1, max_row=6, max_col=2, values_only=True)]
-            variables = get_variables(request)
-            variables.fullname = opt_vals[0] or ""
-            variables.title = opt_vals[1] or ""
+            tournament = get_variables(request)
+            tournament.fullname = opt_vals[0] or ""
+            tournament.title = opt_vals[1] or ""
             # A blank/zero rounds count would create no seating at all and "succeed"
             # with nothing playable, so reject it. int() also normalises Excel's
             # float (5.0 -> 5) before it reaches iter_rows' max_row below.
@@ -320,11 +320,11 @@ def admin_upload_from_template(request):
                     "The Options sheet must set the number of rounds to at least 1 "
                     "(it was blank or zero) — otherwise no seating chart is created."
                 )
-            variables.nb_rounds = nb_rounds
-            variables.city = opt_vals[3] or ""
-            variables.period = opt_vals[4] or ""
-            variables.rules = opt_vals[5] or "MCR"
-            variables.save()
+            tournament.nb_rounds = nb_rounds
+            tournament.city = opt_vals[3] or ""
+            tournament.period = opt_vals[4] or ""
+            tournament.rules = opt_vals[5] or "MCR"
+            tournament.save()
 
             # Player list: one Player per real person. The optional 'rand' column is a
             # pre-assigned draw number; when present the person is linked to their
@@ -417,8 +417,8 @@ def admin_upload_from_template(request):
             # The player list is all-or-nothing on teams (enforced just above), so the
             # presence of any team name is the single signal for has_teams, which
             # gates team standings/columns/printouts everywhere.
-            variables.has_teams = any_team
-            variables.save()
+            tournament.has_teams = any_team
+            tournament.save()
 
             # Disambiguate first names for display (two "Chris" -> "Chris."/"Christo").
             # bulk_create skips Player.save(), so set first_name here in one bulk_update.
@@ -454,7 +454,7 @@ def admin_upload_from_template(request):
                 # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
                 # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated.
                 pos_rows = list(pos_sheet.iter_rows(
-                    min_row=3, max_row=2 + variables.nb_rounds,
+                    min_row=3, max_row=2 + tournament.nb_rounds,
                     min_col=2, max_col=1 + 5 * nb_tables,
                     values_only=True,
                 ))
@@ -504,15 +504,15 @@ def admin_upload_from_template(request):
             Seat.objects.filter(tenant=tenant).delete()
             PublishedRound.objects.filter(tenant=tenant).delete()
             Schedule.objects.filter(tenant=tenant).delete()
-            variables = get_variables(request)
-            variables.fullname = ""
-            variables.title = ""
-            variables.nb_rounds = 0
-            variables.city = ""
-            variables.period = ""
-            variables.rules = "MCR"
-            variables.has_teams = False
-            variables.save()
+            tournament = get_variables(request)
+            tournament.fullname = ""
+            tournament.title = ""
+            tournament.nb_rounds = 0
+            tournament.city = ""
+            tournament.period = ""
+            tournament.rules = "MCR"
+            tournament.has_teams = False
+            tournament.save()
             if isinstance(exc, TemplateImportError):
                 # A validation problem we detected: show the actionable message.
                 message = "Import failed — nothing was loaded.<br/>{0}".format(escape(str(exc)))
@@ -542,7 +542,7 @@ def admin_export_to_template(request):
     included — re-importing intentionally clears them.
     """
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
 
     wb = Workbook()
 
@@ -550,12 +550,12 @@ def admin_export_to_template(request):
     opt_sheet = wb.active
     opt_sheet.title = 'Options'
     for row, (label, value) in enumerate([
-        ('Competition name', variables.fullname),
-        ('Short name (initials)', variables.title),
-        ('Number of rounds', variables.nb_rounds),
-        ('City', variables.city),
-        ('Period', variables.period),
-        ('Rules', variables.rules),
+        ('Competition name', tournament.fullname),
+        ('Short name (initials)', tournament.title),
+        ('Number of rounds', tournament.nb_rounds),
+        ('City', tournament.city),
+        ('Period', tournament.period),
+        ('Rules', tournament.rules),
     ], start=1):
         opt_sheet.cell(row=row, column=1, value=label)
         opt_sheet.cell(row=row, column=2, value=value)
@@ -603,7 +603,7 @@ def admin_export_to_template(request):
             pos_sheet.cell(row=1, column=base, value='Table {0}'.format(table_nb))
             for wind, label in enumerate(['East', 'South', 'West', 'North']):
                 pos_sheet.cell(row=2, column=base + wind, value=label)
-        nb_rounds = max(variables.nb_rounds, max(s.round_nb for s in seats))
+        nb_rounds = max(tournament.nb_rounds, max(s.round_nb for s in seats))
         for round_nb in range(1, nb_rounds + 1):
             pos_sheet.cell(row=round_nb + 2, column=1, value='R{0}'.format(round_nb))
         for seat in seats:
@@ -613,7 +613,7 @@ def admin_export_to_template(request):
     buf = io.BytesIO()
     wb.save(buf)
     # Keep the download name to a safe charset (the title is free text).
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (variables.title or ""))
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (tournament.title or ""))
     filename = safe.strip("_") or "tournament"
     response = HttpResponse(
         buf.getvalue(),
@@ -634,9 +634,9 @@ def admin_generate_seating(request):
         return HttpResponse('POST required', status=405)
 
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     nb_players = Player.objects.filter(tenant=tenant).count()
-    nb_rounds = variables.nb_rounds or 0
+    nb_rounds = tournament.nb_rounds or 0
 
     # Body carries the chosen method, a variation seed, and whether to apply (vs
     # just preview the measures). Absent body -> auto method, apply immediately.
@@ -662,12 +662,12 @@ def admin_generate_seating(request):
     from .. import seating
     try:
         rows, meta = seating.generate(
-            nb_players, nb_rounds, has_teams=variables.has_teams,
+            nb_players, nb_rounds, has_teams=tournament.has_teams,
             seed=seed, method=method, tries=tries)
     except seating.SeatingInfeasible as exc:
         return JsonResponse({'error': str(exc)}, status=400)
 
-    m = seating.measure(rows, nb_players, nb_rounds, has_teams=variables.has_teams)
+    m = seating.measure(rows, nb_players, nb_rounds, has_teams=tournament.has_teams)
     m['engine'] = meta['engine']
     payload = {'ok': True, 'applied': do_apply,
                'headline': seating.headline(m), 'measures': m,
@@ -952,21 +952,21 @@ def player_editor_save(request):
 # tenant's uploaded logo. Templates fall back to the static mcr_logo when unset,
 # so this is only hit when a logo exists.
 def logo(request):
-    variables = get_variables(request)
-    if not variables.logo:
+    tournament = get_variables(request)
+    if not tournament.logo:
         raise Http404
-    resp = HttpResponse(bytes(variables.logo), content_type="image/png")
+    resp = HttpResponse(bytes(tournament.logo), content_type="image/png")
     resp["Cache-Control"] = "public, max-age=86400"
-    resp["ETag"] = f'"{variables.logo_etag}"'
+    resp["ETag"] = f'"{tournament.logo_etag}"'
     return resp
 
 
 @tenant_admin_required
 def update_logo(request):
-    variables = get_variables(request)
+    tournament = get_variables(request)
     if request.POST.get("reset") == "1":
-        variables.logo = None
-        variables.logo_etag = ""
+        tournament.logo = None
+        tournament.logo_etag = ""
     else:
         f = request.FILES.get("logo")
         if f is None:
@@ -977,12 +977,12 @@ def update_logo(request):
         # Trust the bytes, not the extension: must be a real PNG.
         if data[:8] != b"\x89PNG\r\n\x1a\n":
             return HttpResponseBadRequest("PNG files only")
-        variables.logo = data
-        variables.logo_etag = hashlib.md5(data).hexdigest()
+        tournament.logo = data
+        tournament.logo_etag = hashlib.md5(data).hexdigest()
     # Scope the write to the logo fields: a full-row save would also persist this
     # (possibly stale) instance's `counter`, which could stop a running round
     # timer. signals.py still invalidates the cached settings on post_save.
-    variables.save(update_fields=['logo', 'logo_etag'])
+    tournament.save(update_fields=['logo', 'logo_etag'])
     return HttpResponse("OK")
 
 
@@ -1107,11 +1107,11 @@ def publish_target_save(request):
 
     # The advertised spectator URL is a TournamentSettings field (cached and read
     # on every public request), but edited on this page next to the SFTP target.
-    variables = get_variables(request)
+    tournament = get_variables(request)
     public_url = request.POST.get('public_url', '').strip()
-    if public_url != variables.public_url:
-        variables.public_url = public_url
-        variables.save(update_fields=['public_url'])  # signals bust the cache
+    if public_url != tournament.public_url:
+        tournament.public_url = public_url
+        tournament.save(update_fields=['public_url'])  # signals bust the cache
     return JsonResponse({'status': 'ok'})
 
 
@@ -1209,7 +1209,7 @@ def counter_start(request):
     })
 
 
-def _apply_set_variable(request, variables):
+def _apply_set_variable(request, tournament):
     """Persist ``?variables-<field>=<value>`` params onto the tenant settings and
     return the response to send back. Shared by the Display page (screen-layout
     tuning) and the Tournament settings page (identity + round length)."""
@@ -1228,14 +1228,14 @@ def _apply_set_variable(request, variables):
                 continue
             if field in admin_only_fields and not is_tenant_admin(request):
                 continue
-            if hasattr(variables, field):
+            if hasattr(tournament, field):
                 value = request.GET.get(var)
                 # Coerce booleans: every GET value is a string, and a non-empty
                 # string ("false") is truthy — so a raw setattr would store True
                 # for both. Map the usual truthy spellings instead.
-                if variables._meta.get_field(field).get_internal_type() == 'BooleanField':
+                if tournament._meta.get_field(field).get_internal_type() == 'BooleanField':
                     value = value.strip().lower() in ('true', '1', 'on', 'yes')
-                setattr(variables, field, value)
+                setattr(tournament, field, value)
                 touched_fields.append(field)
     if touched_fields:
         # Reject over-long text here, before it reaches the DB: on
@@ -1243,8 +1243,8 @@ def _apply_set_variable(request, variables):
         # UI showed silently. Returning a readable 400 instead lets the
         # page surface exactly which field was too long, and why.
         for field in touched_fields:
-            max_length = getattr(variables._meta.get_field(field), "max_length", None)
-            value = getattr(variables, field)
+            max_length = getattr(tournament._meta.get_field(field), "max_length", None)
+            value = getattr(tournament, field)
             if max_length and isinstance(value, str) and len(value) > max_length:
                 label = _VARIABLE_LABELS.get(field, field)
                 return HttpResponse(
@@ -1255,12 +1255,12 @@ def _apply_set_variable(request, variables):
         # also persist this instance's `counter`, which could stop a running
         # round timer. signals.py still busts the cache on post_save.
         try:
-            variables.save(update_fields=touched_fields)
+            tournament.save(update_fields=touched_fields)
         except Exception as exc:
             # Any other save failure (e.g. a non-numeric value for a number
             # field) — return the reason rather than a silent 500.
             return HttpResponse(f"Could not save: {exc}", status=400)
-    return HttpResponse(str(variables))
+    return HttpResponse(str(tournament))
 
 
 def _save_schedule(request, tenant):
@@ -1330,7 +1330,7 @@ def options(request, error=None):
         page = "welcome"
         from ..publish.sftp_upload import is_configured as _static_publish_configured
         from ..scoring import _last_complete_round, publish_state
-        variables = get_variables(request)
+        tournament = get_variables(request)
         nb_players = Player.objects.filter(tenant=tenant).count()
         nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
         nb_screens = Screen.objects.filter(tenant=tenant).count()
@@ -1338,8 +1338,8 @@ def options(request, error=None):
         # which also happens with no seats at all, a false "all complete". Guard on
         # the seating chart actually existing.
         has_seats = Seat.objects.filter(tenant=tenant).exists()
-        complete_round = _last_complete_round(tenant, variables) if has_seats else 0
-        last_published, _ = publish_state(tenant, variables)
+        complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
+        last_published, _ = publish_state(tenant, tournament)
         # Warn when a schedule exists but its playing rounds don't line up with
         # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
         # mismatch leaves per-round times blank/misaligned. Only flag once a
@@ -1351,7 +1351,7 @@ def options(request, error=None):
             {
                 "error": error,
                 "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
-                "tournament": variables,
+                "tournament": tournament,
                 "nb_players": nb_players,
                 # Whether a seating chart exists at all (imported or generated) —
                 # the player list can be drawn in only once there are seats to fill.
@@ -1364,7 +1364,7 @@ def options(request, error=None):
                 "complete_round": complete_round,
                 "last_published": last_published,
                 "schedule_rounds": schedule_rounds,
-                "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != variables.nb_rounds,
+                "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
                 # Server-authoritative round timer: >0 and in the future means a
                 # round is counting down / running (the dashboard shows it live).
                 "counter": get_counter(tenant),
@@ -1378,9 +1378,9 @@ def options(request, error=None):
         # (add/remove screen, set_variable, set_all_views, set_mode…).
         page_content = "None"
     elif page == "display":
-        variables = get_variables(request)
+        tournament = get_variables(request)
         if request.GET.get('action') == "set_variable":
-            return _apply_set_variable(request, variables)
+            return _apply_set_variable(request, tournament)
         elif request.GET.get('action') == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()
             # 'screens_changed' (not plain 'screen_update') so the overview grid
@@ -1457,7 +1457,7 @@ def options(request, error=None):
             # picker (individual pages + team pages).
             "nb_teams": Player.objects.filter(tenant=tenant).exclude(team="")
                 .values_list('team', flat=True).distinct().count(),
-            "tournament": variables,
+            "tournament": tournament,
             "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
             # Base URL the screens are reachable at, taken from THIS request so the
             # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
@@ -1486,9 +1486,9 @@ def options(request, error=None):
         if not is_tenant_admin(request):
             page_content = "None"
         else:
-            variables = get_variables(request)
+            tournament = get_variables(request)
             if request.GET.get('action') == "set_variable":
-                return _apply_set_variable(request, variables)
+                return _apply_set_variable(request, tournament)
             if request.GET.get('action') == "save_schedule":
                 return _save_schedule(request, tenant)
             template2 = loader.get_template('mahj/admin_settings.html')
@@ -1498,7 +1498,7 @@ def options(request, error=None):
                 for s in Schedule.objects.filter(tenant=tenant).order_by('id')
             ]
             page_content = template2.render({
-                "tournament": variables,
+                "tournament": tournament,
                 "schedule_rows": schedule_rows,
             }, request)
     elif page == "player_editor":
@@ -1562,9 +1562,9 @@ def options(request, error=None):
         page_content = "None"
     elif page == "seating":
         from .. import seating as _seating
-        variables = get_variables(request)
+        tournament = get_variables(request)
         nb_players = Player.objects.filter(tenant=tenant).count()
-        nb_rounds = variables.nb_rounds or 0
+        nb_rounds = tournament.nb_rounds or 0
         # Measure the seating chart currently in place (independent of the player list:
         # its size is the draw slots it seats), so the page can show what exists.
         seats = list(Seat.objects.filter(tenant=tenant)
@@ -1575,7 +1575,7 @@ def options(request, error=None):
             r_chart = len({s[0] for s in seats})
             try:
                 current = _seating.measure(seats, n_chart, r_chart,
-                                           has_teams=variables.has_teams)
+                                           has_teams=tournament.has_teams)
                 current_headline = _seating.headline(current)
                 current['headline'] = current_headline
             except Exception:
@@ -1589,7 +1589,7 @@ def options(request, error=None):
         page_content = template2.render({
             'nb_players': nb_players,
             'nb_rounds': nb_rounds,
-            'has_teams': variables.has_teams,
+            'has_teams': tournament.has_teams,
             'has_seats': bool(seats),
             'existing_scores': seating_scores,
             'current': current,
@@ -1602,7 +1602,7 @@ def options(request, error=None):
         # to see it); the shared admin gate admits display ops too, so exclude them.
         page_content = "None"
     elif page == "scoring":
-        variables = get_variables(request)
+        tournament = get_variables(request)
         scores_json = scores_per_table_json(request)
         all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
         try:
@@ -1628,7 +1628,7 @@ def options(request, error=None):
         context = {
             'scores_json': scores_json,
             "players": all_players,
-            "tournament": variables,
+            "tournament": tournament,
             "active_round": nb_rounds + 1,
             "published_rounds": published_rounds,
             "subdomain": tenant.subdomain if tenant else '',
@@ -1660,11 +1660,11 @@ def options(request, error=None):
         if not has_role(request, 'publisher'):
             page_content = "None"
         else:
-            variables = get_variables(request)
+            tournament = get_variables(request)
             template2 = loader.get_template('mahj/admin_publisher_overview.html')
             page_content = template2.render({
-                "rows": publisher_overview_rows(tenant, variables),
-                "tournament": variables,
+                "rows": publisher_overview_rows(tenant, tournament),
+                "tournament": tournament,
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "users":

@@ -75,30 +75,30 @@ def cross_positions(request):
 
 
 def print_scores(request):
-    variables = get_variables(request)
-    nb_rounds = variables.nb_rounds
+    tournament = get_variables(request)
+    nb_rounds = tournament.nb_rounds
     scores_json = scores_per_player_json(request, force_all=True)
     template = loader.get_template('mahj/print_scores.html')
     context = {
         'scores_json': scores_json,
         'rounds': range(1, 1 + nb_rounds),
         'max_round': nb_rounds,
-        'tournament': variables,
+        'tournament': tournament,
     }
     return HttpResponse(template.render(context, request))
 
 
 def print_schedule(request):
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     template = loader.get_template('mahj/print_schedule.html')
-    return HttpResponse(template.render({'schedule': schedule, 'tournament': variables}, request))
+    return HttpResponse(template.render({'schedule': schedule, 'tournament': tournament}, request))
 
 
 def player_cards(request):
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
 
     # One card per draw slot, not per listed player: the seating (and so a slot's
     # rounds and opponents) exists before the draw is made, so an undrawn slot
@@ -144,7 +144,7 @@ def player_cards(request):
     pages = list(grouper(4, cards))
 
     template = loader.get_template('mahj/print_player_cards.html')
-    return HttpResponse(template.render({"pages": pages, 'tournament': variables}, request))
+    return HttpResponse(template.render({"pages": pages, 'tournament': tournament}, request))
 
 
 def player_names(request):
@@ -169,7 +169,7 @@ def team_names(request):
 @tenant_admin_required
 def table_posters(request):
     tenant = get_tenant(request)
-    variables = get_variables(request)
+    tournament = get_variables(request)
     position_vals = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('id')))
 
@@ -186,5 +186,5 @@ def table_posters(request):
 
     schedule = list(Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id'))
     template = loader.get_template('mahj/print_table_posters.html')
-    context = {"rounds": zip(positions, schedule), "tournament": variables}
+    context = {"rounds": zip(positions, schedule), "tournament": tournament}
     return HttpResponse(template.render(context, request))

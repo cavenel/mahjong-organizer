@@ -52,7 +52,7 @@ def desktop(request):
     # (that variant still needs the menu).
     static_export = getattr(request, '_static_export', False)
 
-    # Cache the full rendered HTML — it only changes when scores/variables are written,
+    # Cache the full rendered HTML — it only changes when scores/tournament are written,
     # both of which already call invalidate_leaderboard() which deletes this key.
     html_key = f'desktop_html:{subdomain}:{view}'
     if not static_export:
@@ -60,8 +60,8 @@ def desktop(request):
         if cached_html is not None:
             return HttpResponse(cached_html)
 
-    variables = get_variables(request)
-    nb_rounds = variables.nb_rounds
+    tournament = get_variables(request)
+    nb_rounds = tournament.nb_rounds
 
     # Fetch positions and hands once; share between standings, seating, and stats.
     positions = _attach_players(tenant, list(
@@ -127,8 +127,8 @@ def desktop(request):
             'scores': scores_with_table,
         })
 
-    uses_teams = variables.has_teams
-    team_rows = team_standings(rows, variables, nb_rounds) if uses_teams else []
+    uses_teams = tournament.has_teams
+    team_rows = team_standings(rows, tournament, nb_rounds) if uses_teams else []
 
     schedule_key = f'schedule:{subdomain}'
     schedule = cache.get(schedule_key)
@@ -147,7 +147,7 @@ def desktop(request):
     ]
 
     context = {
-        'tournament': variables,
+        'tournament': tournament,
         'rows': rows,
         'rounds': list(range(1, 1 + nb_rounds)),
         'max_round': nb_rounds,
