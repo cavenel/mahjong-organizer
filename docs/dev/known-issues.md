@@ -61,10 +61,6 @@ stats/badges and the detailed-hand modal, but never the final ranking.
 
 ## Deferred cleanups (not bugs — intentional, documented here so they aren't "fixed" blindly)
 
-- **Template context key is `variables`, not `tournament`.** The model is
-  `TournamentSettings`, but the template context key was deliberately left as
-  `variables` — renaming touches ~90 sites with silent-failure risk and no
-  behaviour change. Not worth the churn; don't rename piecemeal.
 - **Visibility flags `check_final` / `force_all` kept over a `viewer` concept.**
   The reveal-masking policy could collapse the two booleans into a single
   `viewer ∈ {public, admin, display}`, but the flags are kept (documented with
