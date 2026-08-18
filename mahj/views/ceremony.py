@@ -92,10 +92,10 @@ def _round_label(winners):
 
 def _ceremony_master(request):
     """Full ceremony dataset (top teams, top players, stats) for the console and
-    for rendering individual slides. Uses true final standings (force_all)."""
+    for rendering individual slides. Uses true final standings (full_view)."""
     tournament = get_tournament(request)
     rules = tournament.rules
-    rows = scores_per_player_json(request, check_final=False, force_all=True)
+    rows = scores_per_player_json(request, full_view=True)
     id_to_name = {r['player_id']: r['name'] for r in rows}
 
     players = [
@@ -110,7 +110,7 @@ def _ceremony_master(request):
          'players': [id_to_name[pid] for pid in t['player_ids'] if pid in id_to_name]}
         for t in team_rows[:TOP_TEAMS]
     ]
-    overall = stat_all_rounds(request)
+    overall = stat_all_rounds(request, full_view=True)
     stats = []
 
     # Best European: top-ranked player whose flag is a European code. rows are

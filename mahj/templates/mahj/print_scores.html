@@ -101,10 +101,6 @@
                     </thead>
                     {% for s in score_chunk %}
                         <tr>
-                        {% if not s.visible and s.pos <= 10 %}
-                            <td colspan="30" style="padding-top:3px;background-color:#aaaaaa;">&nbsp;</td>
-                        {% endif %}
-                        {% if s.visible %}
                             <td style="text-align:center;"> {{ s.pos }}</td>
                             <!--<td style="text-align:center;"> {{ s.pos_se }}</td>-->
                             <td> {{ s.name }}</td>
@@ -133,8 +129,7 @@
                                     {% endif %}
                                 </td>
                             {% endfor %}
-                        {% endif %}
-                        </tr> 
+                        </tr>
                     {% endfor %}
                 </table>
             </page>

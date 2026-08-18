@@ -31,8 +31,7 @@
     "total": {
       "mp": 245,
       "tp": 8.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00009",
@@ -66,8 +65,7 @@
     "total": {
       "mp": 165,
       "tp": 8.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00005",
@@ -101,8 +99,7 @@
     "total": {
       "mp": 85,
       "tp": 8.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00001",
@@ -136,8 +133,7 @@
     "total": {
       "mp": 5,
       "tp": 8.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00014",
@@ -171,8 +167,7 @@
     "total": {
       "mp": 265,
       "tp": 4.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00010",
@@ -206,8 +201,7 @@
     "total": {
       "mp": 185,
       "tp": 4.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00006",
@@ -241,8 +235,7 @@
     "total": {
       "mp": 105,
       "tp": 4.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00002",
@@ -276,8 +269,7 @@
     "total": {
       "mp": 25,
       "tp": 4.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00015",
@@ -311,8 +303,7 @@
     "total": {
       "mp": 285,
       "tp": 2.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00011",
@@ -346,8 +337,7 @@
     "total": {
       "mp": 205,
       "tp": 2.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00007",
@@ -381,8 +371,7 @@
     "total": {
       "mp": 125,
       "tp": 2.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00003",
@@ -416,8 +405,7 @@
     "total": {
       "mp": 45,
       "tp": 2.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00016",
@@ -451,8 +439,7 @@
     "total": {
       "mp": 305,
       "tp": 0.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00012",
@@ -486,8 +473,7 @@
     "total": {
       "mp": 225,
       "tp": 0.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00008",
@@ -521,8 +507,7 @@
     "total": {
       "mp": 145,
       "tp": 0.0
-    },
-    "visible": true
+    }
   },
   {
     "EMA_ID": "E00004",
@@ -556,7 +541,6 @@
     "total": {
       "mp": 65,
       "tp": 0.0
-    },
-    "visible": true
+    }
   }
 ]

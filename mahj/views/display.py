@@ -233,8 +233,10 @@ def render_scores(request, density, page_nb=None):
     score_lines = max(1, tournament.score_lines or 0)
 
     prepublish = _final_round_withheld(tenant, tournament.nb_rounds) is True
-    check_final = False if prepublish else True
-    scores_json = scores_per_player_json(request, check_final)
+    # The projector standings screen is a public view (masked to published rounds).
+    # During the withheld-final ceremony window it shows a holding message instead
+    # of the table (see `awaiting_ceremony` below), so no reveal masking is needed.
+    scores_json = scores_per_player_json(request)
     try:
         nb_rounds = len(scores_json[0]["scores"])
     except (IndexError, KeyError):

@@ -77,7 +77,7 @@ def cross_positions(request):
 def print_scores(request):
     tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
-    scores_json = scores_per_player_json(request, force_all=True)
+    scores_json = scores_per_player_json(request, full_view=True)
     template = loader.get_template('mahj/print_scores.html')
     context = {
         'scores_json': scores_json,

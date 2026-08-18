@@ -31,13 +31,13 @@ def scores_per_table(tenant, tournament):
     return grid
 
 
-def round_winners(tenant, tournament, check_final=False, positions=None, hands=None):
+def round_winners(tenant, tournament, full_view=False, positions=None, hands=None):
     """Per-round top minipoints / single-hand score / same-seat-win streaks."""
-    if check_final:
+    if not full_view:
         # Public viewers see the same rounds as the standings and the detail
         # modals: capped at the last published round, with the withheld final
         # round dropped during the ceremony-pending window.
-        round_max = public_round_max(tenant, tournament, force_all=False)
+        round_max = public_round_max(tenant, tournament)
     else:
         round_max = _last_complete_round(tenant, tournament)
 
@@ -70,14 +70,14 @@ def round_winners(tenant, tournament, check_final=False, positions=None, hands=N
     ]
 
 
-def overall_winners(tenant, tournament, check_final=False, positions=None, hands=None):
+def overall_winners(tenant, tournament, full_view=False, positions=None, hands=None):
     """Aggregate round_winners across rounds: items from rounds tying for overall top.
 
-    ``check_final`` is forwarded to ``round_winners`` so the overall roll-up honours
+    ``full_view`` is forwarded to ``round_winners`` so the overall roll-up honours
     the same end-of-tournament masking as the per-round stats: while the final round
     is prepared but not yet published, its hands/scores stay out of these cards.
     """
-    rounds = round_winners(tenant, tournament, check_final, positions=positions, hands=hands)
+    rounds = round_winners(tenant, tournament, full_view, positions=positions, hands=hands)
     return {
         'mp_max':        _roll_up(rounds, 'mp_max',        lambda p: p.minipoints),
         'hand_max':      _roll_up(rounds, 'hand_max',      lambda h: h['points']),
@@ -89,15 +89,15 @@ def overall_winners(tenant, tournament, check_final=False, positions=None, hands
     }
 
 
-def table_stats(tenant, tournament, check_final=False, positions=None, hands=None):
+def table_stats(tenant, tournament, full_view=False, positions=None, hands=None):
     """Validated-table completion + per-player deal-in ("From") ratios.
 
     Scope: only validated score sheets, capped at the same published round as the
     other stats. A validated sheet stores exactly the hands played, so hands-played
     is just its Hand row count.
     """
-    if check_final:
-        round_max = public_round_max(tenant, tournament, force_all=False)
+    if not full_view:
+        round_max = public_round_max(tenant, tournament)
     else:
         round_max = _last_complete_round(tenant, tournament)
 
@@ -112,10 +112,10 @@ def table_stats(tenant, tournament, check_final=False, positions=None, hands=Non
     return _table_stats_for(positions, hands, valid)
 
 
-def table_stats_rounds(tenant, tournament, check_final=False, positions=None, hands=None):
+def table_stats_rounds(tenant, tournament, full_view=False, positions=None, hands=None):
     """Per-round version of table_stats: one dict per round, like round_winners."""
-    if check_final:
-        round_max = public_round_max(tenant, tournament, force_all=False)
+    if not full_view:
+        round_max = public_round_max(tenant, tournament)
     else:
         round_max = _last_complete_round(tenant, tournament)
 
@@ -138,7 +138,7 @@ def table_stats_rounds(tenant, tournament, check_final=False, positions=None, ha
     ]
 
 
-def stats_export(tenant, tournament, check_final=False, positions=None, hands=None):
+def stats_export(tenant, tournament, full_view=False, positions=None, hands=None):
     """One comprehensive per-player stats row for the 'Download stats' export.
 
     Folds together everything the player-detail modal and the tournament stats tab
@@ -148,8 +148,8 @@ def stats_export(tenant, tournament, check_final=False, positions=None, hands=No
     exactly like the on-screen stats: public viewers see published rounds, admins
     see every scored round.
     """
-    if check_final:
-        round_max = public_round_max(tenant, tournament, force_all=False)
+    if not full_view:
+        round_max = public_round_max(tenant, tournament)
     else:
         round_max = _last_complete_round(tenant, tournament)
 
@@ -243,7 +243,7 @@ def stats_export(tenant, tournament, check_final=False, positions=None, hands=No
     # Standings drive rank, totals and per-round scores, masked exactly like the
     # public leaderboard (mirrors desktop's scores_per_player_json call).
     standings = player_standings(
-        tenant, tournament, check_final=True, force_all=not check_final, positions=positions,
+        tenant, tournament, full_view=full_view, positions=positions,
     )
 
     def _rate(n, d):

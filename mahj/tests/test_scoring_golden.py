@@ -66,7 +66,7 @@ def test_scores_per_player_json_default(request_):
 
 def test_scores_per_player_json_force_all(request_):
     assert_snapshot('scores_per_player_json_force_all',
-                    views.scores_per_player_json(request_, force_all=True))
+                    views.scores_per_player_json(request_, full_view=True))
 
 
 def test_scores_per_player_json_query_count(request_, django_assert_max_num_queries):

@@ -54,24 +54,24 @@ def completed_tournament(tournament):
 
 class TestPlayerStandings:
     def test_returns_one_row_per_player(self, request_, tournament):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         assert len(rows) == len(tournament['players'])
 
     def test_sorted_by_tp_then_mp_for_mcr(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         totals = [(r['total']['tp'], r['total']['mp']) for r in rows]
         # MCR: descending by tp, tiebreak descending by mp
         assert totals == sorted(totals, key=lambda t: (-t[0], -t[1]))
 
     def test_sorted_by_mp_only_for_riichi(self, request_riichi):
-        rows = views.scores_per_player_json(request_riichi, force_all=True)
+        rows = views.scores_per_player_json(request_riichi, full_view=True)
         mps = [r['total']['mp'] for r in rows]
         # Riichi ranks on minipoints alone — strictly non-increasing, regardless
         # of table points (which must not influence the order).
         assert mps == sorted(mps, reverse=True)
 
     def test_ranks_are_dense_with_ties_sharing(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         # pos values must be 1..n, with ties sharing (1,2,2,4 pattern).
         positions = [r['pos'] for r in rows]
         assert positions[0] == 1
@@ -81,7 +81,7 @@ class TestPlayerStandings:
             assert a <= b
 
     def test_pos_se_only_assigned_to_swedish_players(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         for r in rows:
             if r['country'].strip() == 'Sweden':
                 assert isinstance(r['pos_se'], int) and r['pos_se'] >= 1
@@ -89,7 +89,7 @@ class TestPlayerStandings:
                 assert r['pos_se'] == ''
 
     def test_pos_se_is_dense_1_to_count(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         swedes = [r for r in rows if r['country'].strip() == 'Sweden']
         pos_se = sorted(r['pos_se'] for r in swedes)
         assert pos_se[0] == 1
@@ -101,11 +101,11 @@ class TestPlayerStandings:
         v = tournament['settings']
         v.home_country = ''
         v.save()  # post_save signal busts the cached settings
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         assert all(r['pos_se'] == '' for r in rows)
 
     def test_history_pos_length_matches_rounds_plus_initial(self, request_, tournament):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         # history_pos starts at 1 (initial) then appends one entry per round in the schedule.
         # Fixture has 3 rounds total, so length == 1 + 3 = 4.
         expected = 1 + tournament['settings'].nb_rounds
@@ -113,7 +113,7 @@ class TestPlayerStandings:
             assert len(r['history_pos']) == expected
 
     def test_scores_length_matches_scored_rounds(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         # Round 3 is partial (no minipoints), so only 2 rounds appear in scores.
         for r in rows:
             assert len(r['scores']) == 2
@@ -291,15 +291,15 @@ class TestExtraStatsMaskFinalRound:
 
     def test_public_cutoff_drops_the_withheld_final_round(self, completed_tournament):
         tenant, tournament = completed_tournament['tenant'], completed_tournament['settings']
-        assert public_round_max(tenant, tournament, force_all=False) == tournament.nb_rounds - 1
-        assert public_round_max(tenant, tournament, force_all=True) == tournament.nb_rounds
+        assert public_round_max(tenant, tournament, full_view=False) == tournament.nb_rounds - 1
+        assert public_round_max(tenant, tournament, full_view=True) == tournament.nb_rounds
 
     def test_public_player_cards_exclude_final_round(self, completed_tournament):
         tenant, tournament = completed_tournament['tenant'], completed_tournament['settings']
         player = completed_tournament['players'][0]
         public = player_extra_stats(
             tenant, player, tournament,
-            max_round=public_round_max(tenant, tournament, force_all=False),
+            max_round=public_round_max(tenant, tournament, full_view=False),
         )
         admin = player_extra_stats(tenant, player, tournament, max_round=None)
         # The final round is folded in for admin but withheld from the public.
@@ -315,18 +315,12 @@ class TestExtraStatsMaskFinalRound:
         player.save()
         public = team_extra_stats(
             tenant, 'Reds', tournament,
-            max_round=public_round_max(tenant, tournament, force_all=False),
+            max_round=public_round_max(tenant, tournament, full_view=False),
         )
         admin = team_extra_stats(tenant, 'Reds', tournament, max_round=None)
         assert admin['total_rounds'] == tournament.nb_rounds
         assert public['total_rounds'] == tournament.nb_rounds - 1
         assert public['total_hands'] < admin['total_hands']
-
-
-class TestFinalCutoff:
-    def test_default_shows_all_when_final_is_zero(self, request_):
-        rows = views.scores_per_player_json(request_, force_all=True)
-        assert all(r['visible'] is True for r in rows)
 
 
 class TestEndOfTournamentHideLastRound:
@@ -336,29 +330,28 @@ class TestEndOfTournamentHideLastRound:
 
     def test_public_viewer_sees_standings_through_previous_round(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, check_final=True)
+        rows = views.scores_per_player_json(request_, full_view=False)
         assert len(rows) == len(completed_tournament['players'])
         # history_pos length == round_max + 2; hide-last-round drops round_max to nb_rounds - 1.
         for r in rows:
             assert len(r['history_pos']) == nb_rounds + 1
             assert len(r['scores']) == nb_rounds - 1
 
-    def test_admin_viewer_sees_full_standings_with_visibility_flags(self, request_, completed_tournament):
+    def test_full_view_sees_all_rounds_in_suspense(self, request_, completed_tournament):
+        """A full view (admin / ceremony / print) bypasses the public cutoff and
+        sees every scored round even while the final round is withheld."""
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, check_final=False)
+        rows = views.scores_per_player_json(request_, full_view=True)
         assert len(rows) == len(completed_tournament['players'])
         for r in rows:
             assert len(r['scores']) == nb_rounds
             assert len(r['history_pos']) == nb_rounds + 2  # round_max stays at nb_rounds
-        # final=0 means nothing has been revealed yet: every row is marked not visible.
-        assert all(r['visible'] is False for r in rows)
 
-    def test_force_all_bypasses_hide(self, request_, completed_tournament):
+    def test_full_view_bypasses_hide(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, force_all=True)
+        rows = views.scores_per_player_json(request_, full_view=True)
         for r in rows:
             assert len(r['scores']) == nb_rounds
-            assert r['visible'] is True
 
     def test_final_past_threshold_reveals_everything(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
@@ -367,10 +360,9 @@ class TestEndOfTournamentHideLastRound:
         )
         last_pub.withheld = False  # final round revealed to everyone
         last_pub.save()
-        rows = views.scores_per_player_json(request_, check_final=True)
+        rows = views.scores_per_player_json(request_, full_view=False)
         for r in rows:
             assert len(r['scores']) == nb_rounds
-            assert r['visible'] is True
 
 
 class TestRoundWinners:
@@ -390,9 +382,9 @@ class TestOverallWinnersMaskFinalRound:
     """The 'Overall — after N rounds' cards must honour the same end-of-tournament
     masking as the per-round cards. While the final round is scored but not yet
     published (ceremony pending), its hands/scores must stay out of the overall
-    roll-up for public viewers (check_final=True) — otherwise the projector/desktop
+    roll-up for public viewers (full_view=False) — otherwise the projector/desktop
     leaks the champion's biggest hand/top game before the ceremony reveals it.
-    Admin/ceremony (check_final=False) still see everything.
+    Admin/ceremony (full_view=True) still see everything.
     """
 
     @pytest.fixture
@@ -414,7 +406,7 @@ class TestOverallWinnersMaskFinalRound:
 
     def test_public_overall_excludes_unpublished_final_round(self, request_, suspense_tournament):
         nb_rounds = suspense_tournament['settings'].nb_rounds
-        overall = views.stat_all_rounds(request_, check_final=True)
+        overall = views.stat_all_rounds(request_, full_view=False)
         # Roll-up still has earlier-round data, but nothing from the withheld final.
         assert overall['mp_max']
         assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
@@ -422,17 +414,17 @@ class TestOverallWinnersMaskFinalRound:
 
     def test_admin_overall_includes_final_round(self, request_, suspense_tournament):
         nb_rounds = suspense_tournament['settings'].nb_rounds
-        overall = views.stat_all_rounds(request_, check_final=False)
+        overall = views.stat_all_rounds(request_, full_view=True)
         assert any(
             p.round_nb == nb_rounds and p.minipoints == 100000 for p in overall['mp_max']
         )
         assert any(h['points'] == 100000 for h in overall['sd_hand_max'])
 
-    def test_default_is_unmasked_for_ceremony(self, request_, suspense_tournament):
-        # ceremony.py calls stat_all_rounds(request) with no check_final and must
-        # keep seeing the final round (the reveal surface).
+    def test_full_view_is_unmasked_for_ceremony(self, request_, suspense_tournament):
+        # ceremony.py calls stat_all_rounds(request, full_view=True) and must keep
+        # seeing the final round (the reveal surface).
         nb_rounds = suspense_tournament['settings'].nb_rounds
-        overall = views.stat_all_rounds(request_)
+        overall = views.stat_all_rounds(request_, full_view=True)
         assert any(p.round_nb == nb_rounds for p in overall['mp_max'])
 
 
@@ -449,22 +441,22 @@ class TestStatCardsConsistentWhenFinalPublishedWithheld:
 
     def test_public_round_cards_show_through_previous_round(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rounds = views.stat_rounds(request_, check_final=True)
+        rounds = views.stat_rounds(request_, full_view=False)
         # Not [] — rounds 1..n-1 are shown, matching the standings/modal cutoff.
         assert len(rounds) == nb_rounds - 1
         assert len(rounds) == public_round_max(
-            completed_tournament['tenant'], completed_tournament['settings'], force_all=False
+            completed_tournament['tenant'], completed_tournament['settings'], full_view=False
         )
 
     def test_public_overall_cards_exclude_final_but_are_not_empty(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        overall = views.stat_all_rounds(request_, check_final=True)
+        overall = views.stat_all_rounds(request_, full_view=False)
         assert overall['mp_max']
         assert all(p.round_nb < nb_rounds for p in overall['mp_max'])
 
     def test_admin_still_sees_the_final_round(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rounds = views.stat_rounds(request_, check_final=False)
+        rounds = views.stat_rounds(request_, full_view=True)
         assert len(rounds) == nb_rounds
 
 
@@ -627,7 +619,7 @@ class TestUnclaimedDrawSlot:
         self._unclaim(tournament, 5)
         from mahj.scoring import tournament_seating
         seating, _ = tournament_seating(
-            tournament['tenant'], tournament['settings'], force_all=True)
+            tournament['tenant'], tournament['settings'], full_view=True)
         names = [
             s['name']
             for r in seating for t in r['tables'] for s in t['seats']

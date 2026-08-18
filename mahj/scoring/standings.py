@@ -7,7 +7,7 @@ from ._common import WINDS, _attach_players, _country_flag
 from .visibility import publish_state, final_withheld_now, _last_complete_round
 
 
-def player_standings(tenant, tournament, check_final=True, force_all=False, positions=None):
+def player_standings(tenant, tournament, full_view=False, positions=None):
     """Cumulative player totals with rank evolution across rounds."""
     players = list(Player.objects.filter(tenant=tenant).order_by('id'))
     # Resolve each seat's competitor from the players we already have (the draw
@@ -38,14 +38,15 @@ def player_standings(tenant, tournament, check_final=True, force_all=False, posi
     last_published, final_withheld = publish_state(tenant, tournament)
 
     # Public viewers only see rounds that have been explicitly published.
-    if check_final and not force_all:
+    if not full_view:
         round_max = min(round_max, last_published)
 
     # End-of-tournament suspense: the last round is published but withheld —
     # prepared for the ceremony yet held back from the public. Public viewers see
-    # standings through round_max-1 until it's revealed.
-    end_of_tournament = final_withheld_now(round_max, tournament, final_withheld) and not force_all
-    if end_of_tournament and check_final:
+    # standings through round_max-1 until it's revealed (the display screen shows a
+    # holding message meanwhile; a full-view admin/ceremony bypasses this entirely).
+    end_of_tournament = final_withheld_now(round_max, tournament, final_withheld) and not full_view
+    if end_of_tournament:
         round_max = max(0, round_max - 1)
 
     flags = {p.id: _country_flag(p.country) for p in players}
@@ -74,13 +75,6 @@ def player_standings(tenant, tournament, check_final=True, force_all=False, posi
 
     for r in ranked:
         r['history_pos'] = history[r['player_id']]
-
-    # Admin/display viewers (check_final=False) get the full standings, but every
-    # row is masked while the final round is withheld. The reveal animation is the
-    # ceremony page's job, so these rows stay hidden until the results are revealed.
-    if end_of_tournament and not check_final:
-        for r in ranked:
-            r['visible'] = False
 
     return ranked
 
@@ -132,10 +126,10 @@ def team_standings(rows, tournament, nb_rounds):
     return team_rows
 
 
-def tournament_seating(tenant, tournament, check_final=True, force_all=False, valid_pairs=None, positions=None):
+def tournament_seating(tenant, tournament, full_view=False, valid_pairs=None, positions=None):
     """seating grid + player→table lookup. Applies the same end-of-tournament
     masking as player_standings: when the last round is published but withheld for
-    the ceremony, check_final viewers see the final round's seats without MP/TP.
+    the ceremony, public viewers see the final round's seats without MP/TP.
     Public viewers also see MP/TP masked for any unpublished round.
     """
     if positions is None:
@@ -149,8 +143,8 @@ def tournament_seating(tenant, tournament, check_final=True, force_all=False, va
 
     last_published, final_withheld = publish_state(tenant, tournament)
     last_complete = _last_complete_round(tenant, tournament)
-    end_of_tournament = final_withheld_now(last_complete, tournament, final_withheld) and not force_all
-    hide_scores_round = last_complete if (end_of_tournament and check_final) else None
+    end_of_tournament = final_withheld_now(last_complete, tournament, final_withheld) and not full_view
+    hide_scores_round = last_complete if end_of_tournament else None
 
     player_table = {(p.player_id, p.round_nb): p.table_nb for p in position_vals}
 
@@ -163,7 +157,7 @@ def tournament_seating(tenant, tournament, check_final=True, force_all=False, va
         round_nb = r_idx + 1
         hide_scores = hide_scores_round == round_nb
         # Public viewers see scores only from published rounds.
-        if check_final and not force_all and round_nb > last_published:
+        if not full_view and round_nb > last_published:
             hide_scores = True
         tables = []
         for t_idx, table in enumerate(round_positions):
@@ -230,7 +224,7 @@ def _assign_ranks(rows, key, field):
 def _cumulative_row(player, all_positions, up_to_round, flag):
     played = [p for p in all_positions if p.round_nb <= up_to_round]
     return {
-        'history_pos': [1], 'visible': True, 'pos': 0, 'pos_se': '',
+        'history_pos': [1], 'pos': 0, 'pos_se': '',
         'player_id': player.id, 'EMA_ID': player.EMA_ID,
         'first_name': player.first_name, 'last_name': player.last_name(),
         'name': player.full_name, 'country': player.country, 'flag': flag,

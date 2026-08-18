@@ -367,7 +367,6 @@
                 </thead>
                 <tbody class="divide-y divide-gray-100">
                   {% for s in rows %}
-                    {% if s.visible %}
                       <tr class="hover:bg-amber-50/40 transition-colors"
                           data-score-row="player"
                           data-name="{{ s.name|lower }}"
@@ -422,11 +421,6 @@
                           </td>
                         {% endfor %}
                       </tr>
-                    {% else %}
-                      {% if s.pos <= 10 %}
-                        <tr x-show="!scoreFilter.trim()"><td colspan="{{ rounds|length|add:4 }}" class="bg-gray-200/50 py-0.5"></td></tr>
-                      {% endif %}
-                    {% endif %}
                   {% endfor %}
                 </tbody>
               </table>

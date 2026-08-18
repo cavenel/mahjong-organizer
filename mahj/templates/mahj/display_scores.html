@@ -79,10 +79,6 @@
                 {% else %}
                 {% for s in col %}
                   <tr>
-                    {% if not s.visible and s.pos <= 10 %}
-                      <td colspan="{{ col_span }}" class="py-0.5 bg-slate-500/30">&nbsp;</td>
-                    {% endif %}
-                    {% if s.visible %}
                       <td class="px-2 py-px text-center font-bold text-amber-300">{{ s.pos }}</td>
                       <td class="px-3 py-px font-semibold text-white truncate">{{ s.name }}</td>
                       <td class="px-2 py-px text-center"><img src='{% static "images/blank.png" %}' class='flag flag-{{ s.flag }}' alt=''></td>
@@ -110,7 +106,6 @@
                           </td>
                         {% endfor %}
                       {% endif %}
-                    {% endif %}
                   </tr>
                 {% endfor %}
                 {% endif %}

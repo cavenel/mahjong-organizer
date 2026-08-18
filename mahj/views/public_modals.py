@@ -33,14 +33,14 @@ def details_player(request, id):
 
     tournament = get_tournament(request)
     player = Player.objects.get(tenant=tenant, id=id)
-    scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin)
+    scores_json = scores_per_player_json(request, full_view=is_admin)
     scores_json = [s for s in scores_json if s["player_id"] == id][0]
     rounds = player_rounds_json(request, id)
     # Cap the placement/hand cards to the same rounds the score grid shows, so a
     # withheld final round can't leak into them ahead of the ceremony.
     extra_stats = player_extra_stats(
         tenant, player, tournament,
-        max_round=public_round_max(tenant, tournament, force_all=is_admin),
+        max_round=public_round_max(tenant, tournament, full_view=is_admin),
     )
     template = loader.get_template('mahj/modal_details_player.html')
     context = {
@@ -73,13 +73,13 @@ def details_team(request, team_name):
     tournament = get_tournament(request)
     extra_stats = team_extra_stats(
         tenant, team_name, tournament,
-        max_round=public_round_max(tenant, tournament, force_all=is_admin),
+        max_round=public_round_max(tenant, tournament, full_view=is_admin),
     )
     if extra_stats is None:
         from django.http import Http404
         raise Http404
 
-    leaderboard = scores_per_player_json(request, check_final=True, force_all=is_admin)
+    leaderboard = scores_per_player_json(request, full_view=is_admin)
     member_ids = {p['id'] for p in extra_stats['players']}
     members = sorted(
         [s for s in leaderboard if s['player_id'] in member_ids],

@@ -34,12 +34,12 @@ def desktop(request):
     # a tenant admin or a platform superuser. Tenant-scoped, so a member of another
     # tenant on this subdomain is treated as a plain viewer.
     is_admin = is_tenant_admin(request)
-    check_final = not is_admin
+    full_view = is_admin
 
     # The overflow menu (Admin / Log out / Login) varies by role, but the page is
     # cached as one HTML blob, so the cache key must capture every menu variant or
     # the first render leaks its menu to the whole bucket. One token covers both
-    # the data view (is_admin → force_all) and the menu: the anonymous crowd all
+    # the data view (is_admin → full_view) and the menu: the anonymous crowd all
     # share 'anon' (so nginx still microcaches a single `/` entry), while the few
     # privileged sessions each get their own variant.
     authenticated = request.user.is_authenticated
@@ -72,9 +72,9 @@ def desktop(request):
         ScoreSheet.objects.filter(tenant=tenant, validated=True)
         .values_list('round_nb', 'table_nb')
     )
-    scores_json = scores_per_player_json(request, check_final=True, force_all=is_admin, positions=positions)
+    scores_json = scores_per_player_json(request, full_view=is_admin, positions=positions)
     seating, player_table = tournament_seating(
-        request, check_final=check_final, force_all=is_admin, valid_pairs=valid_pairs, positions=positions,
+        request, full_view=full_view, valid_pairs=valid_pairs, positions=positions,
     )
     seating_json = [
         {
@@ -122,7 +122,6 @@ def desktop(request):
             'pos': s['pos'],
             'pos_se': s.get('pos_se'),
             'total': s['total'],
-            'visible': s.get('visible', True),
             'team': s.get('team', ''),
             'scores': scores_with_table,
         })
@@ -135,10 +134,10 @@ def desktop(request):
     if schedule is None:
         schedule = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
         cache.set(schedule_key, schedule, 300)
-    stat_rounds_data = stat_rounds(request, check_final=check_final, positions=positions, hands=hands)
-    stat_all_data = stat_all_rounds(request, check_final=check_final, positions=positions, hands=hands)
-    stat_tables_data = table_stats(request, check_final=check_final, positions=positions, hands=hands)
-    stat_tables_rounds_data = table_stats_rounds(request, check_final=check_final, positions=positions, hands=hands)
+    stat_rounds_data = stat_rounds(request, full_view=full_view, positions=positions, hands=hands)
+    stat_all_data = stat_all_rounds(request, full_view=full_view, positions=positions, hands=hands)
+    stat_tables_data = table_stats(request, full_view=full_view, positions=positions, hands=hands)
+    stat_tables_rounds_data = table_stats_rounds(request, full_view=full_view, positions=positions, hands=hands)
     # Pair each round's winner stats with its table stats so one per-round loop in the
     # template can render both panels (both lists are round-aligned, length round_max).
     stat_rounds_combined = [
@@ -199,13 +198,13 @@ def stats_xlsx(request):
         return HttpResponseRedirect('admin')
     subdomain = tenant.subdomain if tenant else ''
     is_admin = is_tenant_admin(request)
-    check_final = not is_admin
+    full_view = is_admin
 
     positions = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('round_nb')
     ))
     hands = list(Hand.objects.filter(tenant=tenant))
-    data = stats_export(request, check_final=check_final, positions=positions, hands=hands)
+    data = stats_export(request, full_view=full_view, positions=positions, hands=hands)
 
     is_mcr = data['rules'] == 'MCR'
     uses_teams = data['uses_teams']

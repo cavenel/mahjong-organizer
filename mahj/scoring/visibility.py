@@ -7,14 +7,12 @@ seating grid, per-round/overall stat cards, the modal cards — derives its roun
 cutoff from the helpers here, so the end-of-tournament "hold the final round for
 the ceremony" rule is expressed in exactly one place.
 
-Viewer modes (expressed by the ``check_final`` / ``force_all`` flags the callers
-still take):
-  - public  (check_final=True,  force_all=False): clamp to the last published
-    round, and drop the final round while it is withheld for the ceremony.
-  - admin   (force_all=True): see every scored round, no masking.
-  - display (check_final=False, force_all=False): see every scored round, but the
-    rows are marked not-visible during the ceremony-suspense window (the reveal
-    animation is the ceremony page's job).
+A single ``full_view`` flag on the callers picks the mode:
+  - public  (``full_view=False``, the default): clamp to the last published round,
+    and drop the final round while it is withheld for the ceremony. The display
+    screen shows a holding message during that window.
+  - full    (``full_view=True``, admin / ceremony / print): see every scored round,
+    no masking.
 """
 from django.db.models import Q
 
@@ -66,14 +64,14 @@ def final_withheld_now(complete_round, tournament, final_withheld):
     return complete_round == tournament.nb_rounds and final_withheld
 
 
-def public_round_max(tenant, tournament, force_all=False):
+def public_round_max(tenant, tournament, full_view=False):
     """Highest round a public viewer may see: clamped to the last published round,
     with a withheld final round dropped during the ceremony-suspense window.
-    ``force_all=True`` (admin/ceremony) sees every scored round. Use this to cap
+    ``full_view=True`` (admin/ceremony) sees every scored round. Use this to cap
     auxiliary surfaces — e.g. the modal's placement/hand cards — to the same rounds
     the standings expose.
     """
-    if force_all:
+    if full_view:
         return tournament.nb_rounds
     last_published, final_withheld = publish_state(tenant, tournament)
     round_max = min(_last_complete_round(tenant, tournament), last_published)

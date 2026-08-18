@@ -15,21 +15,21 @@ def scores_per_table_json(request):
     return _scoring.scores_per_table(get_tenant(request), get_tournament(request))
 
 
-def scores_per_player_json(request, check_final=True, force_all=False, positions=None):
+def scores_per_player_json(request, full_view=False, positions=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None:
         return _scoring.player_standings(
             tenant, get_tournament(request),
-            check_final=check_final, force_all=force_all, positions=positions,
+            full_view=full_view, positions=positions,
         )
-    cache_key = f'leaderboard:{subdomain}:{check_final}:{force_all}'
+    cache_key = f'leaderboard:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
     scores = _scoring.player_standings(
         tenant, get_tournament(request),
-        check_final=check_final, force_all=force_all,
+        full_view=full_view,
     )
     cache.set(cache_key, scores, SUB_CACHE_TTL)
     return scores
@@ -40,97 +40,97 @@ def player_rounds_json(request, player_id):
     return _scoring.player_rounds(tenant, Player.objects.get(id=player_id))
 
 
-def stat_rounds(request, check_final=False, positions=None, hands=None):
+def stat_rounds(request, full_view=False, positions=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None or hands is not None:
         return _scoring.round_winners(
-            tenant, get_tournament(request), check_final,
+            tenant, get_tournament(request), full_view,
             positions=positions, hands=hands,
         )
-    cache_key = f'stat_rounds:{subdomain}:{check_final}'
+    cache_key = f'stat_rounds:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _scoring.round_winners(tenant, get_tournament(request), check_final)
+    result = _scoring.round_winners(tenant, get_tournament(request), full_view)
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 
 
-def stat_all_rounds(request, check_final=False, positions=None, hands=None):
+def stat_all_rounds(request, full_view=False, positions=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None or hands is not None:
         return _scoring.overall_winners(
-            tenant, get_tournament(request), check_final,
+            tenant, get_tournament(request), full_view,
             positions=positions, hands=hands,
         )
-    cache_key = f'stat_all:{subdomain}:{check_final}'
+    cache_key = f'stat_all:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _scoring.overall_winners(tenant, get_tournament(request), check_final)
+    result = _scoring.overall_winners(tenant, get_tournament(request), full_view)
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 
 
-def table_stats(request, check_final=False, positions=None, hands=None):
+def table_stats(request, full_view=False, positions=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None or hands is not None:
         return _scoring.table_stats(
-            tenant, get_tournament(request), check_final,
+            tenant, get_tournament(request), full_view,
             positions=positions, hands=hands,
         )
-    cache_key = f'table_stats:{subdomain}:{check_final}'
+    cache_key = f'table_stats:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _scoring.table_stats(tenant, get_tournament(request), check_final)
+    result = _scoring.table_stats(tenant, get_tournament(request), full_view)
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 
 
-def table_stats_rounds(request, check_final=False, positions=None, hands=None):
+def table_stats_rounds(request, full_view=False, positions=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None or hands is not None:
         return _scoring.table_stats_rounds(
-            tenant, get_tournament(request), check_final,
+            tenant, get_tournament(request), full_view,
             positions=positions, hands=hands,
         )
-    cache_key = f'table_stats_rounds:{subdomain}:{check_final}'
+    cache_key = f'table_stats_rounds:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
-    result = _scoring.table_stats_rounds(tenant, get_tournament(request), check_final)
+    result = _scoring.table_stats_rounds(tenant, get_tournament(request), full_view)
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
 
 
-def stats_export(request, check_final=False, positions=None, hands=None):
+def stats_export(request, full_view=False, positions=None, hands=None):
     return _scoring.stats_export(
-        get_tenant(request), get_tournament(request), check_final,
+        get_tenant(request), get_tournament(request), full_view,
         positions=positions, hands=hands,
     )
 
 
-def tournament_seating(request, check_final=True, force_all=False, valid_pairs=None, positions=None):
+def tournament_seating(request, full_view=False, valid_pairs=None, positions=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if positions is not None:
         return _scoring.tournament_seating(
             tenant, get_tournament(request),
-            check_final=check_final, force_all=force_all,
+            full_view=full_view,
             valid_pairs=valid_pairs, positions=positions,
         )
-    cache_key = f'seating_v2:{subdomain}:{check_final}:{force_all}'
+    cache_key = f'seating_v2:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
     if cached is not None:
         return cached
     result = _scoring.tournament_seating(
         tenant, get_tournament(request),
-        check_final=check_final, force_all=force_all, valid_pairs=valid_pairs,
+        full_view=full_view, valid_pairs=valid_pairs,
     )
     cache.set(cache_key, result, SUB_CACHE_TTL)
     return result
