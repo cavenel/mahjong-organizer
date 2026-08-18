@@ -59,15 +59,6 @@ stats/badges and the detailed-hand modal, but never the final ranking.
   `win_by != win_from`, winner ⇒ points ≥ 8, four-player balance). A garbled digit
   silently mis-attributes or drops a win.
 
-## Deferred cleanups (not bugs — intentional, documented here so they aren't "fixed" blindly)
-
-- **Visibility flags `check_final` / `force_all` kept over a `viewer` concept.**
-  The reveal-masking policy could collapse the two booleans into a single
-  `viewer ∈ {public, admin, display}`, but the flags are kept (documented with
-  their viewer-mode mapping in `mahj/scoring/visibility.py`) to avoid churning
-  many signatures and risking the end-of-tournament masking. Safe follow-up if
-  wanted.
-
 ## Invariants worth preserving (verified correct — do not "fix")
 
 - **Penalty is display-only for ranking.** Standings rank on raw minipoints and
