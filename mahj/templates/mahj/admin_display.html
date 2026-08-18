@@ -289,7 +289,7 @@
     function getTotalTime() {
       // The total_time input is only rendered for staff; non-staff fall back to the server-rendered value.
       var el = document.getElementById('variables-total_time');
-      var raw = el ? el.value : '{{ variables.total_time }}';
+      var raw = el ? el.value : '{{ tournament.total_time }}';
       return parseInt(raw) || 6900;
     }
 
@@ -384,7 +384,7 @@
     }
 
     connectDisplaySocket({
-      subdomain: '{{ variables.tenant.subdomain }}',
+      subdomain: '{{ tournament.tenant.subdomain }}',
       path: '/ws/display/',
       statusBanner: false,
       onUpdate: function(msg) {
@@ -587,7 +587,7 @@
            escaped with white-space: pre-line. -->
       <textarea id="variables-welcome" rows="3" placeholder="Welcome"
                 class="variable-input w-full text-base border border-gray-200 rounded-lg px-3 py-2 bg-white resize-y
-                       focus:outline-none focus:ring-2 focus:ring-amber-300">{{ variables.welcome }}</textarea>
+                       focus:outline-none focus:ring-2 focus:ring-amber-300">{{ tournament.welcome }}</textarea>
       <p class="mt-1 text-xs text-gray-400">Press Enter for a line break.</p>
     </div>
   </section>
@@ -607,25 +607,25 @@
 
         <div>
           <label for="variables-zoom" class="block text-xs font-medium text-gray-600 mb-1">Screen zoom (1 = 100%){% include "mahj/_info_icon.html" with text="Magnifies everything on the projector screens — Scores, Welcome, Announcement and Schedule. Raise it if the audience is far away, lower it to fit more on screen. 1 = 100%." %}</label>
-          <input id="variables-zoom" type="number" placeholder="1" value="{{ variables.zoom }}" step="0.05"
+          <input id="variables-zoom" type="number" placeholder="1" value="{{ tournament.zoom }}" step="0.05"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
           <label for="variables-score_lines" class="block text-xs font-medium text-gray-600 mb-1">Number of score lines per screen{% include "mahj/_info_icon.html" with text="How many players are listed per column on the Scores screen before it pages to the next set. Fewer lines means bigger, more readable rows." %}</label>
-          <input id="variables-score_lines" type="number" placeholder="20" value="{{ variables.score_lines }}" step="1" min="1"
+          <input id="variables-score_lines" type="number" placeholder="20" value="{{ tournament.score_lines }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
           <label for="variables-total_columns" class="block text-xs font-medium text-gray-600 mb-1">Columns in totals layout{% include "mahj/_info_icon.html" with text="Number of side-by-side columns on the Scores screen in the compact totals and teams views (the detailed view is always one column)." %}</label>
-          <input id="variables-total_columns" type="number" placeholder="3" value="{{ variables.total_columns }}" step="1" min="1"
+          <input id="variables-total_columns" type="number" placeholder="3" value="{{ tournament.total_columns }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>
         <div>
           <label for="variables-rotation_time" class="block text-xs font-medium text-gray-600 mb-1">Standings rotation time (seconds){% include "mahj/_info_icon.html" with text="Seconds each page stays up before the Scores screen auto-advances to the next page of players." %}</label>
-          <input id="variables-rotation_time" type="number" placeholder="10" value="{{ variables.rotation_time }}" step="1" min="1"
+          <input id="variables-rotation_time" type="number" placeholder="10" value="{{ tournament.rotation_time }}" step="1" min="1"
                  class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white
                         focus:outline-none focus:ring-2 focus:ring-amber-300">
         </div>

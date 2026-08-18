@@ -62,7 +62,7 @@ def index(request, screen_id=None):
         template = loader.get_template('mahj/display_ceremony.html')
         return HttpResponse(template.render({
             'payload_json': json.dumps(ceremony_payload),
-            'variables': variables,
+            'tournament': variables,
             'subdomain': subdomain,
         }, request))
 
@@ -107,7 +107,7 @@ def index(request, screen_id=None):
 def _render_schedule(request, tenant, variables, subdomain):
     template = loader.get_template('mahj/display_schedule.html')
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
-    context = {"schedule": schedule, "variables": variables, "subdomain": subdomain}
+    context = {"schedule": schedule, "tournament": variables, "subdomain": subdomain}
     return HttpResponse(template.render(context, request))
 
 
@@ -155,7 +155,7 @@ def welcome(request):
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_welcome.html')
     context = {
-        'variables': variables,
+        'tournament': variables,
         'subdomain': subdomain,
         'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
     }
@@ -167,7 +167,7 @@ def counter(request):
     variables = get_variables(request)
     template = loader.get_template('mahj/display_counter.html')
     context = {
-        'variables': variables,
+        'tournament': variables,
         'counter': variables.counter,
         'subdomain': tenant.subdomain if tenant else '',
     }
@@ -185,7 +185,7 @@ def announcement(request):
     subdomain = tenant.subdomain if tenant else ''
     template = loader.get_template('mahj/display_announcement.html')
     context = {
-        'variables': variables,
+        'tournament': variables,
         'subdomain': subdomain,
         'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
     }
@@ -287,7 +287,7 @@ def render_scores(request, density, page_nb=None):
         "next_round": next_round,
         "next_round_time": next_round_time,
         "server_clock_ms": _venue_clock_ms(),
-        "variables": variables,
+        "tournament": variables,
         "subdomain": tenant.subdomain if tenant else '',
         "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
         # Last round published but withheld for the ceremony: every row is masked,

@@ -691,7 +691,7 @@ class TestPublisherOverviewRiichiColumns:
         req.user = AnonymousUser()
         return loader.get_template('mahj/admin_publisher_overview.html').render({
             'rows': publisher_overview_rows(tenant, variables),
-            'variables': variables,
+            'tournament': variables,
             'subdomain': tenant.subdomain,
         }, req)
 

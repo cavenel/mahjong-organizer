@@ -1,7 +1,7 @@
 {% extends "mahj/base.html" %}
 {% load static %}
 {% load mathfilters %}
-{% block title %}{{ variables.title|default:variables.fullname|default:"Welcome" }}{% endblock %}
+{% block title %}{{ tournament.title|default:tournament.fullname|default:"Welcome" }}{% endblock %}
 {% block html_class %} class="h-full"{% endblock %}
 {% block viewport %}user-scalable=no{% endblock %}
 {% block body_attrs %}class="h-full overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200"{% endblock %}
@@ -15,19 +15,19 @@
 
         <!-- Logo + title are centered vertically as a pair; the message hangs
              below (absolutely positioned) so it doesn't pull the pair upward. -->
-        <div class="relative flex flex-col items-center" style="zoom: {{ variables.zoom|mul:1.2 }};">
+        <div class="relative flex flex-col items-center" style="zoom: {{ tournament.zoom|mul:1.2 }};">
 
             <!-- Hero logo -->
             <img src="{{ site_logo_url }}" class="h-64 w-auto mb-10 drop-shadow-2xl" alt="">
 
             <!-- Tournament name (long name) -->
             <h1 class="text-7xl font-extrabold tracking-tight text-white leading-tight">
-                {{ variables.fullname|default:variables.title }}
+                {{ tournament.fullname|default:tournament.title }}
             </h1>
 
             <!-- Message -->
-            {% if variables.welcome %}
-                <p class="absolute top-full left-1/2 -translate-x-1/2 mt-10 w-full max-w-5xl text-4xl font-medium text-amber-300 whitespace-pre-line">{{ variables.welcome }}</p>
+            {% if tournament.welcome %}
+                <p class="absolute top-full left-1/2 -translate-x-1/2 mt-10 w-full max-w-5xl text-4xl font-medium text-amber-300 whitespace-pre-line">{{ tournament.welcome }}</p>
             {% endif %}
         </div>
     </div>
@@ -35,18 +35,18 @@
     <!-- Important info, pinned to the bottom -->
     <footer class="fixed inset-x-0 bottom-0 bg-slate-900/70 ring-1 ring-white/10 backdrop-blur-sm">
         <div class="relative flex flex-wrap items-center justify-center gap-x-12 gap-y-2 px-14 py-6 text-2xl min-h-[7rem]"
-             style="zoom: {{ variables.zoom|mul:1.2 }};">
-            {% if variables.title %}
-                <span class="font-bold text-white">{{ variables.title }}</span>
+             style="zoom: {{ tournament.zoom|mul:1.2 }};">
+            {% if tournament.title %}
+                <span class="font-bold text-white">{{ tournament.title }}</span>
             {% endif %}
-            {% if variables.city %}
-                <span class="text-slate-300">{{ variables.city }}</span>
+            {% if tournament.city %}
+                <span class="text-slate-300">{{ tournament.city }}</span>
             {% endif %}
-            {% if variables.period %}
-                <span class="text-slate-300">{{ variables.period }}</span>
+            {% if tournament.period %}
+                <span class="text-slate-300">{{ tournament.period }}</span>
             {% endif %}
-            {% if variables.rules %}
-                <span class="text-amber-300 font-semibold">{{ variables.rules }}</span>
+            {% if tournament.rules %}
+                <span class="text-amber-300 font-semibold">{{ tournament.rules }}</span>
             {% endif %}
 
             <!-- Tournament app URL + QR, pinned to the right edge -->

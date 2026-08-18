@@ -25,14 +25,14 @@
 
 <div class="max-w-3xl space-y-6">
   <div>
-    <h2 class="text-2xl font-bold text-gray-800">{{ variables.title|default:"Dashboard" }}</h2>
-    <p class="text-sm text-gray-500 mt-1">{{ variables.fullname }}{% if variables.city %} · {{ variables.city }}{% endif %}{% if variables.period %} · {{ variables.period }}{% endif %}</p>
+    <h2 class="text-2xl font-bold text-gray-800">{{ tournament.title|default:"Dashboard" }}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{ tournament.fullname }}{% if tournament.city %} · {{ tournament.city }}{% endif %}{% if tournament.period %} · {{ tournament.period }}{% endif %}</p>
     <div class="flex flex-wrap gap-2 mt-2">
       <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
-        {% if variables.rules == 'Riichi' %}Riichi{% else %}MCR{% endif %}
+        {% if tournament.rules == 'Riichi' %}Riichi{% else %}MCR{% endif %}
       </span>
-      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {% if variables.has_teams %}bg-amber-50 text-amber-700 border border-amber-200{% else %}bg-gray-100 text-gray-500 border border-gray-200{% endif %}">
-        {% if variables.has_teams %}Team tournament{% else %}Individual{% endif %}
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {% if tournament.has_teams %}bg-amber-50 text-amber-700 border border-amber-200{% else %}bg-gray-100 text-gray-500 border border-gray-200{% endif %}">
+        {% if tournament.has_teams %}Team tournament{% else %}Individual{% endif %}
       </span>
     </div>
   </div>
@@ -43,7 +43,7 @@
     <span class="text-amber-500 text-lg leading-none shrink-0 mt-0.5">⚠</span>
     <div class="text-sm text-amber-800">
       The schedule marks <strong>{{ schedule_rounds }}</strong> playing round{{ schedule_rounds|pluralize }},
-      but the tournament is set to <strong>{{ variables.nb_rounds }}</strong>.
+      but the tournament is set to <strong>{{ tournament.nb_rounds }}</strong>.
       Per-round times won't line up until they match —
       <a href="admin?page=settings" class="font-medium underline hover:no-underline">fix the schedule</a>.
     </div>
@@ -101,11 +101,11 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
       <h3 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Rounds</h3>
-      <p class="text-2xl font-bold text-gray-800">{{ complete_round }} <span class="text-lg font-normal text-gray-400">/ {{ variables.nb_rounds }}</span></p>
+      <p class="text-2xl font-bold text-gray-800">{{ complete_round }} <span class="text-lg font-normal text-gray-400">/ {{ tournament.nb_rounds }}</span></p>
       <p class="text-xs text-gray-500 mt-1">scored{% if last_published %} · published up to R{{ last_published }}{% else %} · nothing published yet{% endif %}</p>
     </div>
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5"
-         x-data="dashCounter({{ counter }}, {{ variables.total_time }})" x-init="tick()">
+         x-data="dashCounter({{ counter }}, {{ tournament.total_time }})" x-init="tick()">
       <h3 class="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-2">Round timer</h3>
       <p class="text-2xl font-bold" :class="state==='running' ? 'text-green-600' : 'text-gray-400'" x-text="label"></p>
       {% if is_tenant_admin or user_is_display_op %}
@@ -220,7 +220,7 @@
   (function() {
     if (typeof connectDisplaySocket !== 'function') return;
     connectDisplaySocket({
-      subdomain: '{{ variables.tenant.subdomain }}',
+      subdomain: '{{ tournament.tenant.subdomain }}',
       onUpdate: function(msg) {
         if (msg.event === 'counter_update') {
           window.dispatchEvent(new CustomEvent('counter-update',

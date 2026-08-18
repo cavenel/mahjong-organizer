@@ -1,6 +1,6 @@
 {% extends "mahj/base.html" %}
 {% load static %}
-{% block title %}{{ variables.title }}{% endblock %}
+{% block title %}{{ tournament.title }}{% endblock %}
 {% block viewport %}width=device-width, initial-scale=0.8{% endblock %}
 {% block head_extra %}
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
@@ -31,8 +31,8 @@
     <div class="max-w-screen-xl mx-auto px-4 flex items-center h-14 gap-4">
       <img src="{{ site_logo_url }}" class="h-10 w-auto shrink-0">
       <div class="flex-1 min-w-0 hidden sm:block">
-        <div class="font-semibold text-gray-800 truncate text-sm">{{ variables.fullname|default:variables.title }}</div>
-        <div class="text-xs text-gray-500 truncate">{{ variables.period }}</div>
+        <div class="font-semibold text-gray-800 truncate text-sm">{{ tournament.fullname|default:tournament.title }}</div>
+        <div class="text-xs text-gray-500 truncate">{{ tournament.period }}</div>
       </div>
       <!-- Tab nav (desktop) -->
       <nav class="hidden md:flex items-center gap-1">
@@ -198,7 +198,7 @@
                     <div class="rounded-xl border border-gray-200 bg-white overflow-hidden shadow-sm">
                       <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                         <span class="font-semibold text-sm text-amber-600">Table {{ t.table_nb }}</span>
-                        {% if t.has_scores and variables.rules == "MCR" %}
+                        {% if t.has_scores and tournament.rules == "MCR" %}
                           <a href="detailed_scores_{{ r.round_nb }}_{{ t.table_nb }}"
                              class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
                         {% endif %}
@@ -216,7 +216,7 @@
                               <span class="flex-1 text-gray-300 italic">—</span>
                             {% endif %}
                             {% if seat.mp is not None %}
-                              {% if variables.rules == "MCR" %}
+                              {% if tournament.rules == "MCR" %}
                                 <span class="text-xs font-semibold text-gray-700 tabular-nums shrink-0">{{ seat.tp|floatformat:-2 }}</span>
                                 <span class="text-xs text-gray-400 tabular-nums shrink-0 w-10 text-right">{{ seat.mp }}</span>
                               {% else %}
@@ -251,7 +251,7 @@
                       <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
                         <span class="font-semibold text-sm text-amber-600"
                               x-text="'Round ' + entry.round_nb + ' — Table ' + entry.table_nb"></span>
-                        {% if variables.rules == "MCR" %}
+                        {% if tournament.rules == "MCR" %}
                         <template x-if="entry.has_scores">
                           <a :href="'detailed_scores_' + entry.round_nb + '_' + entry.table_nb"
                              class="text-xs text-gray-400 hover:text-amber-600 transition-colors">Scores ›</a>
@@ -273,7 +273,7 @@
                                     :class="seat.name ? 'text-gray-400' : 'text-gray-300 italic'"
                                     x-text="seat.name || '—'"></span>
                             </template>
-                            {% if variables.rules == "MCR" %}
+                            {% if tournament.rules == "MCR" %}
                               <template x-if="seat.mp !== null && seat.mp !== undefined">
                                 <span class="flex items-center gap-2 shrink-0">
                                   <span class="text-xs font-semibold text-gray-700 tabular-nums"
@@ -388,7 +388,7 @@
                           <img style="zoom:0.8;" src="{% static 'images/blank.png' %}" class="flag flag-{{ s.flag }} inline-block" alt="">
                         </td>
                         <td class="px-3 py-2 text-right bg-amber-50/60 border-x border-amber-100">
-                          {% if variables.rules == "MCR" %}
+                          {% if tournament.rules == "MCR" %}
                             <span class="font-bold text-amber-700">{{ s.total.tp|floatformat:-2 }}</span>
                             <span class="block text-xs text-gray-400">{{ s.total.mp }}</span>
                           {% else %}
@@ -398,7 +398,7 @@
                         {% for r in s.scores %}
                           <td class="px-0 py-0 text-right score-link">
                             {% if r.table_nb %}
-                              {% if variables.rules == "MCR" %}
+                              {% if tournament.rules == "MCR" %}
                               <a href="detailed_scores_{{ r.round_nb }}_{{ r.table_nb }}"
                                  class="block px-3 py-2 text-gray-700 hover:text-amber-600 transition-colors">
                                   <span>{{ r.tp|floatformat:-2 }}</span>
@@ -412,7 +412,7 @@
                               {% endif %}
                             {% else %}
                               <span class="block px-3 py-2 text-gray-400">
-                                {% if variables.rules == "MCR" %}
+                                {% if tournament.rules == "MCR" %}
                                   {{ r.tp|floatformat:-2 }}<span class="block text-xs">{{ r.mp }}</span>
                                 {% else %}
                                   {{ r.mp }}
@@ -467,7 +467,7 @@
                         {% endif %}
                       </td>
                       <td class="px-3 py-2 text-right bg-amber-50/60 border-x border-amber-100">
-                        {% if variables.rules == "MCR" %}
+                        {% if tournament.rules == "MCR" %}
                           <span class="font-bold text-amber-700">{{ tr.total.tp|floatformat:-2 }}</span>
                           <span class="block text-xs text-gray-400">{{ tr.total.mp }}</span>
                         {% else %}
@@ -477,7 +477,7 @@
                       {% for sc in tr.scores %}
                         <td class="px-3 py-2 text-right text-gray-700">
                           {% if sc.tp is not None %}
-                            {% if variables.rules == "MCR" %}
+                            {% if tournament.rules == "MCR" %}
                               <span>{{ sc.tp|floatformat:-2 }}</span>
                               <span class="block text-xs text-gray-400">{{ sc.mp }}</span>
                             {% else %}

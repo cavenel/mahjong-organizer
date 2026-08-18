@@ -147,7 +147,7 @@ def desktop(request):
     ]
 
     context = {
-        'variables': variables,
+        'tournament': variables,
         'rows': rows,
         'rounds': list(range(1, 1 + nb_rounds)),
         'max_round': nb_rounds,

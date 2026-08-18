@@ -10,34 +10,34 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div class="md:col-span-2">
         <label for="variables-title" class="block text-xs font-medium text-gray-600 mb-1">Title</label>
-        <input id="variables-title" type="text" placeholder="Mahjong Tournament" value="{{ variables.title }}" maxlength="70"
+        <input id="variables-title" type="text" placeholder="Mahjong Tournament" value="{{ tournament.title }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <p class="text-xs text-gray-400 mt-1">Short name shown in the browser tab and on screens.</p>
       </div>
       <div class="md:col-span-2">
         <label for="variables-fullname" class="block text-xs font-medium text-gray-600 mb-1">Full tournament name{% include "mahj/_info_icon.html" with text="The complete name shown on report headers and printouts — the Title above is the short version used in browser tabs and on screens." %}</label>
-        <input id="variables-fullname" type="text" placeholder="" value="{{ variables.fullname }}" maxlength="70"
+        <input id="variables-fullname" type="text" placeholder="" value="{{ tournament.fullname }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       <div>
         <label for="variables-city" class="block text-xs font-medium text-gray-600 mb-1">City</label>
-        <input id="variables-city" type="text" placeholder="" value="{{ variables.city }}" maxlength="70"
+        <input id="variables-city" type="text" placeholder="" value="{{ tournament.city }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       <div>
         <label for="variables-period" class="block text-xs font-medium text-gray-600 mb-1">Period</label>
-        <input id="variables-period" type="text" placeholder="" value="{{ variables.period }}" maxlength="70"
+        <input id="variables-period" type="text" placeholder="" value="{{ tournament.period }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       <div>
         <label for="variables-home_country" class="block text-xs font-medium text-gray-600 mb-1">Home nation <span class="text-gray-400 font-normal">(optional)</span></label>
-        <input id="variables-home_country" type="text" placeholder="e.g. Sweden" value="{{ variables.home_country }}" maxlength="70"
+        <input id="variables-home_country" type="text" placeholder="e.g. Sweden" value="{{ tournament.home_country }}" maxlength="70"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <p class="text-xs text-gray-400 mt-1">Set to rank your own nation's players separately in the standings.</p>
       </div>
       <div>
         <label for="variables-countrycourt" class="block text-xs font-medium text-gray-600 mb-1">Federation code <span class="text-gray-400 font-normal">(optional)</span></label>
-        <input id="variables-countrycourt" type="text" placeholder="e.g. SE" value="{{ variables.countrycourt }}" maxlength="8"
+        <input id="variables-countrycourt" type="text" placeholder="e.g. SE" value="{{ tournament.countrycourt }}" maxlength="8"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <p class="text-xs text-gray-400 mt-1">Organising federation stamped on the EMA report.</p>
       </div>
@@ -52,15 +52,15 @@
         <label for="variables-rules" class="block text-xs font-medium text-gray-600 mb-1">Ruleset</label>
         <select id="variables-rules"
                 class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-          <option value="MCR" {% if variables.rules != 'Riichi' %}selected{% endif %}>MCR (Mahjong Competition Rules)</option>
-          <option value="Riichi" {% if variables.rules == 'Riichi' %}selected{% endif %}>Riichi</option>
+          <option value="MCR" {% if tournament.rules != 'Riichi' %}selected{% endif %}>MCR (Mahjong Competition Rules)</option>
+          <option value="Riichi" {% if tournament.rules == 'Riichi' %}selected{% endif %}>Riichi</option>
         </select>
         <p class="text-xs text-gray-400 mt-1">MCR ranks on table points then minipoints; Riichi on minipoints.</p>
       </div>
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Teams</label>
         <label class="inline-flex items-center gap-2 mt-1.5 cursor-pointer">
-          <input id="variables-has_teams" type="checkbox" {% if variables.has_teams %}checked{% endif %}
+          <input id="variables-has_teams" type="checkbox" {% if tournament.has_teams %}checked{% endif %}
                  class="variable-input w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
           <span class="text-sm text-gray-700">Team tournament</span>
         </label>
@@ -75,13 +75,13 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
         <label for="variables-nb_rounds" class="block text-xs font-medium text-gray-600 mb-1">Number of rounds{% include "mahj/_info_icon.html" with text="How many playing rounds the tournament has. Mark exactly this many rows as “Round” in the Schedule below so per-round times line up." %}</label>
-        <input id="variables-nb_rounds" type="number" placeholder="7" value="{{ variables.nb_rounds }}" step="1" min="1"
+        <input id="variables-nb_rounds" type="number" placeholder="7" value="{{ tournament.nb_rounds }}" step="1" min="1"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       {% if is_tenant_admin %}
       <div>
         <label for="variables-total_time" class="block text-xs font-medium text-gray-600 mb-1">Total time of a round (seconds){% include "mahj/_info_icon.html" with text="Length of one round’s countdown clock on the timer screen, in seconds (e.g. 6900 = 1 h 55 m)." %}</label>
-        <input id="variables-total_time" type="number" placeholder="6900" value="{{ variables.total_time }}" step="1" min="1"
+        <input id="variables-total_time" type="number" placeholder="6900" value="{{ tournament.total_time }}" step="1" min="1"
                class="variable-input w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
       </div>
       {% endif %}
@@ -226,7 +226,7 @@
   function scheduleEditor() {
     return {
       rows: JSON.parse(document.getElementById('schedule-data').textContent),
-      nbRounds: parseInt("{{ variables.nb_rounds }}", 10) || 0,
+      nbRounds: parseInt("{{ tournament.nb_rounds }}", 10) || 0,
       nextKey: 0,
       saveState: '',
       _timer: null,

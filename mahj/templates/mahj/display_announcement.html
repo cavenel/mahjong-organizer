@@ -1,7 +1,7 @@
 {% extends "mahj/base.html" %}
 {% load static %}
 {% load mathfilters %}
-{% block title %}{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}{% endblock %}
+{% block title %}{{ tournament.title|default:tournament.fullname|default:"Mahjong Championship" }}{% endblock %}
 {% block head_extra %}
 <style>
 /* Dark slate gradient matching the counter/schedule/ceremony screens, painted on
@@ -45,24 +45,24 @@ body {
     <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
 
     <div id="message-area">
-        <div id="message">{{ variables.welcome }}</div>
+        <div id="message">{{ tournament.welcome }}</div>
     </div>
 
     <!-- Tournament info bar, mirroring the Welcome screen's footer. -->
     <footer class="flex-none bg-slate-900/70 ring-1 ring-white/10 backdrop-blur-sm text-slate-200">
         <div class="relative flex flex-wrap items-center justify-center gap-x-12 gap-y-2 px-14 py-6 text-2xl min-h-[7rem]"
-             style="zoom: {{ variables.zoom|default:1|mul:1.2 }};">
-            {% if variables.title %}
-                <span class="font-bold text-white">{{ variables.title }}</span>
+             style="zoom: {{ tournament.zoom|default:1|mul:1.2 }};">
+            {% if tournament.title %}
+                <span class="font-bold text-white">{{ tournament.title }}</span>
             {% endif %}
-            {% if variables.city %}
-                <span class="text-slate-300">{{ variables.city }}</span>
+            {% if tournament.city %}
+                <span class="text-slate-300">{{ tournament.city }}</span>
             {% endif %}
-            {% if variables.period %}
-                <span class="text-slate-300">{{ variables.period }}</span>
+            {% if tournament.period %}
+                <span class="text-slate-300">{{ tournament.period }}</span>
             {% endif %}
-            {% if variables.rules %}
-                <span class="text-amber-300 font-semibold">{{ variables.rules }}</span>
+            {% if tournament.rules %}
+                <span class="text-amber-300 font-semibold">{{ tournament.rules }}</span>
             {% endif %}
 
             <!-- Tournament app URL + QR, pinned to the right edge -->

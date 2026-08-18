@@ -39,7 +39,7 @@
     // re-renders the screen's normal view.
     const BLANK_PNG = "{% static 'images/blank.png' %}";
     const LOGO_PNG  = "{{ site_logo_url }}";
-    const TITLE     = "{{ variables.title|default:variables.fullname|default:'Prize-giving'|escapejs }}";
+    const TITLE     = "{{ tournament.title|default:tournament.fullname|default:'Prize-giving'|escapejs }}";
     const SUBDOMAIN = "{{ subdomain }}";
     let slide = {{ payload_json|safe }};
 

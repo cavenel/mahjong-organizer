@@ -4,7 +4,7 @@
 {% block title %}Schedule{% endblock %}
 {% block viewport %}user-scalable=no{% endblock %}
 {% block body_attrs %}class="min-h-screen overflow-hidden bg-gradient-to-b from-slate-800 via-slate-900 to-slate-950 text-slate-200 px-14 py-11"
-      style="zoom: {{ variables.zoom|mul:1.2 }};"{% endblock %}
+      style="zoom: {{ tournament.zoom|mul:1.2 }};"{% endblock %}
 {% block content %}
 
     <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">

@@ -1,6 +1,6 @@
 {% extends "mahj/base.html" %}
 {% load static %}
-{% block title %}{{ variables.title|default:variables.fullname|default:"Mahjong Championship" }}{% endblock %}
+{% block title %}{{ tournament.title|default:tournament.fullname|default:"Mahjong Championship" }}{% endblock %}
 {% block head_extra %}
   <link rel="stylesheet" href="{% static "images/flags.css" %}">
 <style>
@@ -108,7 +108,7 @@ body {
 🔇
 </div>
 <div id="counter"><span class='digit' id='hours_1'>0</span><span class='digit' id='hours_2'>0</span><span class='colon'>:</span><span class='digit' id='minutes_1'>0</span><span class='digit' id='minutes_2'>0</span><span class='colon'>:</span><span class='digit' id='seconds_1'>0</span><span class='digit' id='seconds_2'>0</span></div>
-<div id="welcome">{{ variables.welcome }}</div>
+<div id="welcome">{{ tournament.welcome }}</div>
 <div style="height: 16vh; position: absolute; left: Calc(50% - 8vw); top: 3vh; width: 16vw;">
     <div id='countdown'></div>
 </div>
@@ -124,7 +124,7 @@ body {
 // COUNTDOWN_MS mirror counter_start in admin_views.py — keep them in sync.
 var LEAD_MS = 1000;
 var COUNTDOWN_MS = 3000;
-var TOTAL_TIME = {{ variables.total_time }};
+var TOTAL_TIME = {{ tournament.total_time }};
 var GONG_SRC = '{% static "sounds/gong.mp3" %}';
 var CSRF = '{{ csrf_token }}';
 

@@ -66,7 +66,7 @@
           Sheets in progress / validated come from the hand-by-hand sheet, which
           only MCR has — Riichi enters a per-seat total, so both are always 0.
           {% endcomment %}
-          {% if variables.rules == "MCR" %}
+          {% if tournament.rules == "MCR" %}
           <th>Sheets in progress</th>
           <th>Sheets validated</th>
           {% endif %}
@@ -80,7 +80,7 @@
             <td class="po-scored">
               <span class="cell-scored num"></span><span class="den"> / {{ row.tables_total }}</span>
             </td>
-            {% if variables.rules == "MCR" %}
+            {% if tournament.rules == "MCR" %}
             <td><span class="cell-inprogress po-pill"></span></td>
             <td><span class="cell-validated po-pill"></span></td>
             {% endif %}

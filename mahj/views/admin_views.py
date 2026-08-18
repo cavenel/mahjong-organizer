@@ -1351,7 +1351,7 @@ def options(request, error=None):
             {
                 "error": error,
                 "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
-                "variables": variables,
+                "tournament": variables,
                 "nb_players": nb_players,
                 # Whether a seating chart exists at all (imported or generated) —
                 # the player list can be drawn in only once there are seats to fill.
@@ -1457,7 +1457,7 @@ def options(request, error=None):
             # picker (individual pages + team pages).
             "nb_teams": Player.objects.filter(tenant=tenant).exclude(team="")
                 .values_list('team', flat=True).distinct().count(),
-            "variables": variables,
+            "tournament": variables,
             "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
             # Base URL the screens are reachable at, taken from THIS request so the
             # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
@@ -1498,7 +1498,7 @@ def options(request, error=None):
                 for s in Schedule.objects.filter(tenant=tenant).order_by('id')
             ]
             page_content = template2.render({
-                "variables": variables,
+                "tournament": variables,
                 "schedule_rows": schedule_rows,
             }, request)
     elif page == "player_editor":
@@ -1628,7 +1628,7 @@ def options(request, error=None):
         context = {
             'scores_json': scores_json,
             "players": all_players,
-            "variables": variables,
+            "tournament": variables,
             "active_round": nb_rounds + 1,
             "published_rounds": published_rounds,
             "subdomain": tenant.subdomain if tenant else '',
@@ -1647,7 +1647,7 @@ def options(request, error=None):
     elif page == "ceremony":
         template2 = loader.get_template('mahj/admin_ceremony.html')
         page_content = template2.render({
-            "variables": get_variables(request),
+            "tournament": get_variables(request),
             "subdomain": tenant.subdomain if tenant else '',
             "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
             # Same-origin base for the preview iframes (see the display page):
@@ -1664,7 +1664,7 @@ def options(request, error=None):
             template2 = loader.get_template('mahj/admin_publisher_overview.html')
             page_content = template2.render({
                 "rows": publisher_overview_rows(tenant, variables),
-                "variables": variables,
+                "tournament": variables,
                 "subdomain": tenant.subdomain if tenant else '',
             }, request)
     elif page == "users":

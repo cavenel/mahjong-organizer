@@ -90,7 +90,7 @@
   .btn-sheet:hover { background: var(--bg-header); color: var(--text-main); }
 </style>
 
-{% with last_round=variables.nb_rounds %}
+{% with last_round=tournament.nb_rounds %}
 <div x-data="{ activeRound: {{ active_round }} }">
 
   {% if subdomain == "test" %}
@@ -175,7 +175,7 @@
               <th class="col-wind">West</th>
               <th class="col-wind">North</th>
               <th class="col-sum">Sum</th>
-              {% if variables.rules == "MCR" %}<th class="col-action"></th>{% endif %}
+              {% if tournament.rules == "MCR" %}<th class="col-action"></th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -193,7 +193,7 @@
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
                                value="{{ s.seat.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">
-                        {% if variables.rules == "MCR" %}
+                        {% if tournament.rules == "MCR" %}
                           <input class="tp-input" type="number" name="tablepoints"
                                  value="{{ s.seat.tablepoints|default_if_none:'' }}" placeholder="TP" readonly tabindex="-1">
                         {% endif %}
@@ -202,7 +202,7 @@
                   </td>
                 {% endfor %}
                 <td class="col-sum"></td>
-                {% if variables.rules == "MCR" %}
+                {% if tournament.rules == "MCR" %}
                   <td class="col-action">
                     <button class="btn-sheet show_hands"
                             data-link="scores_per_hand_{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
@@ -584,7 +584,7 @@
   // all rounds we stagger the writes so we don't fire hundreds of requests in a
   // single tick, and we leave ~1/3 of the LAST round's tables blank so the
   // incomplete-round / partial-publish paths still have something to exercise.
-  var LAST_ROUND = {{ variables.nb_rounds }};
+  var LAST_ROUND = {{ tournament.nb_rounds }};
 
   function _eachTargetRow(allRounds, fn) {
     var delay = 0;

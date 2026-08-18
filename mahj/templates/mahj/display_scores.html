@@ -22,7 +22,7 @@
   </style>
 {% endblock %}
 {% block body_attrs %}class="min-h-screen overflow-hidden text-slate-200 px-10 py-4"
-      style="zoom: {{ variables.zoom|mul:1.2 }};"{% endblock %}
+      style="zoom: {{ tournament.zoom|mul:1.2 }};"{% endblock %}
 {% block content %}
 
   <img src="{{ site_logo_url }}" class="fixed top-4 left-6 h-16 w-auto opacity-90" alt="">
@@ -65,7 +65,7 @@
                     <td class="px-3 py-px font-semibold text-white truncate">{{ s.team }}</td>
                     <td class="px-2 py-px text-center"><img src='{% static "images/blank.png" %}' class='flag flag-{{ s.flag }}' alt=''></td>
                     <td class="px-3 py-px bg-white/[0.05]">
-                      {% if variables.rules == "MCR" %}
+                      {% if tournament.rules == "MCR" %}
                         <div class="flex items-baseline justify-between gap-2">
                           <span class="font-bold text-white">{{ s.total.tp|floatformat:-2 }}</span>
                           <span class="text-[0.78em] italic text-slate-400">{{ s.total.mp }}</span>
@@ -87,7 +87,7 @@
                       <td class="px-3 py-px font-semibold text-white truncate">{{ s.name }}</td>
                       <td class="px-2 py-px text-center"><img src='{% static "images/blank.png" %}' class='flag flag-{{ s.flag }}' alt=''></td>
                       <td class="px-3 py-px bg-white/[0.05]">
-                        {% if variables.rules == "MCR" %}
+                        {% if tournament.rules == "MCR" %}
                           <div class="flex items-baseline justify-between gap-2">
                             <span class="font-bold text-white">{{ s.total.tp|floatformat:-2 }}</span>
                             <span class="text-[0.78em] italic text-slate-400">{{ s.total.mp }}</span>
@@ -99,7 +99,7 @@
                       {% if show_rounds %}
                         {% for r in s.scores %}
                           <td class="px-2 py-px">
-                            {% if variables.rules == "MCR" %}
+                            {% if tournament.rules == "MCR" %}
                               <div class="flex items-baseline justify-between gap-2">
                                 <span class="text-slate-200">{{ r.tp|floatformat:-2 }}</span>
                                 <span class="text-[0.78em] italic text-slate-500">{{ r.mp }}</span>
@@ -135,7 +135,7 @@
         var pages = document.querySelectorAll(".scores_page");
         var cur = 0;
         // Floor at 1s: a 0/negative rotation_time would flip pages every tick and flicker.
-        var rotation_ms = Math.max(1, {{ variables.rotation_time|default:10 }}) * 1000;
+        var rotation_ms = Math.max(1, {{ tournament.rotation_time|default:10 }}) * 1000;
         setInterval(function() {
           pages[cur].style.display = "none";
           cur = (cur + 1) % pages.length;

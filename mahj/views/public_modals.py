@@ -50,7 +50,7 @@ def details_player(request, id):
         'scores_json': scores_json,
         'rounds': range(1, 1 + len(scores_json["scores"])),
         'max_round': len(scores_json["scores"]),
-        'variables': variables,
+        'tournament': variables,
         'extra_stats': extra_stats,
     }
     html = template.render(context, request)
@@ -126,7 +126,7 @@ def details_team(request, team_name):
         'team_pos': team_pos,
         'team_total': team_total,
         'team_history_pos': team_history_pos,
-        'variables': variables,
+        'tournament': variables,
     }
     html = template.render(context, request)
     cache.set(cache_key, html, MODAL_CACHE_TTL)

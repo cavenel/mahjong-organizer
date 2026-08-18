@@ -83,7 +83,7 @@ def print_scores(request):
         'scores_json': scores_json,
         'rounds': range(1, 1 + nb_rounds),
         'max_round': nb_rounds,
-        'variables': variables,
+        'tournament': variables,
     }
     return HttpResponse(template.render(context, request))
 
@@ -93,7 +93,7 @@ def print_schedule(request):
     variables = get_variables(request)
     schedule = Schedule.objects.filter(tenant=tenant).order_by('id')
     template = loader.get_template('mahj/print_schedule.html')
-    return HttpResponse(template.render({'schedule': schedule, 'variables': variables}, request))
+    return HttpResponse(template.render({'schedule': schedule, 'tournament': variables}, request))
 
 
 def player_cards(request):
@@ -144,7 +144,7 @@ def player_cards(request):
     pages = list(grouper(4, cards))
 
     template = loader.get_template('mahj/print_player_cards.html')
-    return HttpResponse(template.render({"pages": pages, 'variables': variables}, request))
+    return HttpResponse(template.render({"pages": pages, 'tournament': variables}, request))
 
 
 def player_names(request):
@@ -186,5 +186,5 @@ def table_posters(request):
 
     schedule = list(Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id'))
     template = loader.get_template('mahj/print_table_posters.html')
-    context = {"rounds": zip(positions, schedule), "variables": variables}
+    context = {"rounds": zip(positions, schedule), "tournament": variables}
     return HttpResponse(template.render(context, request))

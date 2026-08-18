@@ -24,7 +24,7 @@
             <th class="px-4 py-2 text-center font-medium w-12">Pos</th>
             <th class="px-4 py-2 text-left font-medium">Player</th>
             <th class="px-4 py-2 text-center font-medium w-16">CTRY</th>
-            {% if variables.rules == "MCR" %}
+            {% if tournament.rules == "MCR" %}
               <th class="px-4 py-2 text-right font-medium">TP</th>
             {% endif %}
             <th class="px-4 py-2 text-right font-medium">MP</th>
@@ -43,7 +43,7 @@
             <td class="px-4 py-2.5 text-center">
               <img style="zoom:0.8;" src="{% static 'images/blank.png' %}" class="flag flag-{{ m.flag }} inline-block" alt="">
             </td>
-            {% if variables.rules == "MCR" %}
+            {% if tournament.rules == "MCR" %}
               <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ m.total.tp|floatformat:-2 }}</td>
             {% endif %}
             <td class="px-4 py-2.5 text-right text-gray-500">{{ m.total.mp }}</td>
@@ -55,7 +55,7 @@
             <td class="px-4 py-2.5 text-center font-bold text-amber-600">{{ team_pos }}</td>
             <td class="px-4 py-2.5 font-bold text-gray-800">{{ team_name }}</td>
             <td class="px-4 py-2.5 text-center"></td>
-            {% if variables.rules == "MCR" %}
+            {% if tournament.rules == "MCR" %}
               <td class="px-4 py-2.5 text-right font-bold text-amber-600">{{ team_total.tp|floatformat:-2 }}</td>
             {% endif %}
             <td class="px-4 py-2.5 text-right font-bold text-gray-700">{{ team_total.mp }}</td>
@@ -97,7 +97,7 @@
     </div>
 
     {# Win/lose rates come from per-hand rows (MCR only); Riichi stores per-seat totals, so these are empty. #}
-    {% if variables.rules == "MCR" %}
+    {% if tournament.rules == "MCR" %}
     <!-- Winning & Losing Stats -->
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">

@@ -11,7 +11,7 @@ Arguments:
 1 & 2 are hand-by-hand stats, which only exist for MCR — Riichi records a
 per-seat score total and no Hand rows, so these would be empty.
 {% endcomment %}
-{% if variables.rules == "MCR" %}
+{% if tournament.rules == "MCR" %}
 {# 1 — Highest winning hand (points) #}
 <h3 class="font-semibold text-gray-600 text-sm mb-3">Highest winning hand{% if rn %} — Round {{ rn }}{% endif %}</h3>
 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
