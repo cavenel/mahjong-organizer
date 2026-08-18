@@ -243,33 +243,3 @@ def get_variables(request):
         cache.set(cache_key, cached, VARIABLES_TTL)
     request._variables = cached
     return cached
-
-
-def player_statistics(request, player, variables):
-    tenant = get_tenant(request)
-    position_vals = Seat.objects.filter(tenant=tenant, draw_number=player.draw_number).order_by('round_nb')
-    position_vals = [p for p in position_vals if p.minipoints is not None]
-    hand_vals = []
-    num_wins = {"num": 0, "round": ""}
-    for position_val in position_vals:
-        win_hands = Hand.objects.filter(tenant=tenant).order_by('id').filter(
-            round_nb=position_val.round_nb,
-            table_nb=position_val.table_nb,
-            win_by=position_val.wind,
-        )
-        hand_vals += win_hands
-        if len(win_hands) > num_wins["num"]:
-            num_wins = {"num": len(win_hands), "round": position_val.round_nb}
-    biggest_hands = sorted(
-        [{"pts": h.points, "round": h.round_nb} for h in hand_vals],
-        reverse=True, key=lambda x: x["pts"],
-    )
-    biggest_total = sorted(
-        [{"pts": p.minipoints, "round": p.round_nb} for p in position_vals],
-        reverse=True, key=lambda x: x["pts"],
-    )
-    return {
-        "biggest_hands": biggest_hands,
-        "biggest_total": biggest_total,
-        "num_wins": num_wins,
-    }

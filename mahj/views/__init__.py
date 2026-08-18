@@ -9,7 +9,6 @@ from .helpers import (
     get_variables,
     has_role,
     is_tenant_admin,
-    player_statistics,
     superuser_required,
     tenant_admin_required,
     tenant_role_required,
@@ -83,7 +82,6 @@ from .display import (
     index,
     overview,
     render_scores,
-    scores_per_table,
     update_screen_name,
     update_screen_view,
 )

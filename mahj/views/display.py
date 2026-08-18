@@ -5,18 +5,18 @@ import json
 
 from django.conf import settings
 from django.forms.models import model_to_dict
-from django.http import Http404, HttpResponse, HttpResponseNotFound, JsonResponse
+from django.http import Http404, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template import loader
 from django.utils import timezone
 
-from ..models import Player, Schedule, Screen, ScreenMode
+from ..models import Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
 from ..scoring import _final_round_withheld, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_variables, has_role, tenant_role_required
-from .scoring import scores_per_player_json, scores_per_table_json
+from .scoring import scores_per_player_json
 
 
 def _spectator_qr_svg(subdomain, public_url=''):
@@ -190,25 +190,6 @@ def announcement(request):
         'qr_svg': _spectator_qr_svg(subdomain, variables.public_url if variables else ''),
     }
     return HttpResponse(template.render(context, request))
-
-
-def scores_per_table(request, ext):
-    tenant = get_tenant(request)
-    variables = get_variables(request)
-    scores_json = scores_per_table_json(request)
-    all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
-
-    if ext == "json":
-        return HttpResponse(json.dumps(scores_json))
-    elif ext == "html":
-        template = loader.get_template('mahj/scores_per_table.html')
-        context = {
-            'scores_json': scores_json,
-            "players": all_players,
-            "variables": variables,
-        }
-        return HttpResponse(template.render(context, request))
-    return HttpResponseNotFound('<h1>Page not found</h1>')
 
 
 DETAILED = "detailed"   # one wide table, per-round columns

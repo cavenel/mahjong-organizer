@@ -25,7 +25,7 @@ from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, 
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
     BASE_DIR, get_counter, get_tenant, get_variables, has_role,
-    is_tenant_admin, player_statistics, set_counter, tenant_admin_required,
+    is_tenant_admin, set_counter, tenant_admin_required,
     tenant_role_required,
 )
 from .print_views import _country_flag
