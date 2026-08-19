@@ -205,7 +205,7 @@ for every round, the schedule, and the tournament options.
 
 1. **Import from template** — download the blank template from the link on that
    page, fill it in, and upload it. This creates the players, the
-   seating/positions for every round, the schedule, and the tournament options
+   seating chart for every round, the schedule, and the tournament options
    (title, number of rounds, **rules** — MCR or Riichi).
    - ⚠️ Importing **wipes any previous scores** on the tenant.
 2. **Randomize players** / **Team draw (live)** — helpers for seeding the draw.

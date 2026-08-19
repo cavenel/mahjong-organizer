@@ -133,7 +133,7 @@
         {% for s in scores %}
           <td class="penalty-cell">
             <input type="number" step="1" class="penalty-input" id='pen_{{ forloop.counter }}'
-                   data-pos-id='{% if s %}{{ s.id }}{% endif %}'
+                   data-seat-id='{% if s %}{{ s.id }}{% endif %}'
                    value='{% if s and s.penalty %}{{ s.penalty }}{% endif %}'
                    placeholder="0"{% if not s %} disabled{% endif %}>
           </td>
@@ -438,10 +438,10 @@
       $("#by_" + i).prop("disabled", valid);
       $("#from_" + i).prop("disabled", valid);
     }
-    // Validated sheet is read-only; penalty inputs without a backing position stay
+    // Validated sheet is read-only; penalty inputs without a backing seat stay
     // disabled regardless (no row to save them to).
     $(".penalty-input").each(function() {
-      $(this).prop("disabled", valid || !$(this).attr("data-pos-id"));
+      $(this).prop("disabled", valid || !$(this).attr("data-seat-id"));
     });
   }
 
@@ -519,13 +519,13 @@
     ajax_timeouts[row] = setTimeout(function(){ delete ajax_timeouts[row]; send_ajax(row); }, 1000);
   });
 
-  // Penalties are saved per-position (not per-hand) and debounced like the hands.
+  // Penalties are saved per-seat (not per-hand) and debounced like the hands.
   var penalty_timeouts = {};
-  // Last server-confirmed penalty per position, so a failed save can roll the
+  // Last server-confirmed penalty per seat, so a failed save can roll the
   // input back instead of leaving an unsaved value on screen.
   var penalty_saved = {};
   $(".penalty-input").each(function() {
-    var pid = $(this).attr("data-pos-id");
+    var pid = $(this).attr("data-seat-id");
     if (pid) penalty_saved[pid] = $(this).val();
   });
 
@@ -533,15 +533,15 @@
   function flushPendingPenalties() {
     $(".penalty-input").each(function() {
       var $inp = $(this);
-      var posId = $inp.attr("data-pos-id");
-      if (!posId || !penalty_timeouts[posId]) return;
-      clearTimeout(penalty_timeouts[posId]);
-      delete penalty_timeouts[posId];
+      var seatId = $inp.attr("data-seat-id");
+      if (!seatId || !penalty_timeouts[seatId]) return;
+      clearTimeout(penalty_timeouts[seatId]);
+      delete penalty_timeouts[seatId];
       var val = parseInt($inp.val());
       if (isNaN(val)) val = 0;
       var fd = new FormData();
       fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
-      fd.append('id', posId);
+      fd.append('id', seatId);
       fd.append('penalty', val);
       navigator.sendBeacon("update_seat_penalty", fd);
     });
@@ -550,24 +550,24 @@
   $(".penalty-input").on("input change", function() {
     update_scores();
     var $inp = $(this);
-    var posId = $inp.attr("data-pos-id");
-    if (!posId) return;
-    if (penalty_timeouts[posId]) clearTimeout(penalty_timeouts[posId]);
-    penalty_timeouts[posId] = setTimeout(function() {
+    var seatId = $inp.attr("data-seat-id");
+    if (!seatId) return;
+    if (penalty_timeouts[seatId]) clearTimeout(penalty_timeouts[seatId]);
+    penalty_timeouts[seatId] = setTimeout(function() {
       var val = parseInt($inp.val());
       if (isNaN(val)) val = 0;
       $.ajax({
         type: "POST", url: "update_seat_penalty",
         data: {
           'csrfmiddlewaretoken': '{{ csrf_token }}',
-          'id': posId,
+          'id': seatId,
           'penalty': val,
         },
-        success: function() { penalty_saved[posId] = String(val); },
+        success: function() { penalty_saved[seatId] = String(val); },
         error: function() {
           // Revert to the last value the server confirmed, then say so — never
           // leave a penalty showing on screen that wasn't actually saved.
-          $inp.val(penalty_saved[posId] || "");
+          $inp.val(penalty_saved[seatId] || "");
           update_scores();
           alert("Could not save the penalty (connection or server error).\n\n" +
                 "It has been reverted to the last saved value — please try again.");
