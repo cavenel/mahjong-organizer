@@ -37,7 +37,7 @@ Items marked **✅ DONE** below have been fixed and verified (full suite still 4
 3. **Stop leaking scores through the scan API** and stop trusting client-authored score writes (F3, F13).
 4. **✅ DONE — Escape the five `json.dumps|safe` injections and the draw pages' `innerHTML`** — stored XSS via player/team names, one on a public page (F4, F5).
 5. **Make every mutating endpoint POST-only** — ceremony publish, screen/mode CRUD, `set_tournament`, logout (F6).
-6. **Fix the Riichi path** — score saves 500 and rounds can never be published (F7, F8).
+6. **✅ DONE — Fix the Riichi path** — score saves 500 and rounds can never be published (F7, F8). The round-trip test also turned up a third Riichi blocker the review missed — see the note under F8.
 7. **Close the two multi-tenant gaps** — login-link minting escalation and the shared import temp file (F9, F10).
 8. **Kill the standalone `admin/admin` default** on a 0.0.0.0 bind (F11) and remove `USE_X_FORWARDED_HOST` (F12).
 
@@ -169,19 +169,32 @@ Duplicate subdomains would silently merge/split tenant data; the `exists()` guar
 
 The repo ships a Riichi report template and a rules toggle, and the test fixtures include a Riichi variant — but the score-entry flow for non-MCR events has clearly never been exercised end-to-end.
 
-### F7 · HIGH · bug — Every Riichi score save returns 500 (`KeyError: 'tp'`)
+### ✅ DONE · F7 · HIGH · bug — Every Riichi score save returns 500 (`KeyError: 'tp'`)
 `mahj/views/score_entry.py:390` · grid JS in `admin_scores_per_table.html:196-199, 289-297`
 
 The TP input is only rendered when `rules == "MCR"`; for anything else the JS builds `tp: undefined`, which `JSON.stringify` drops, so the `tp` key is absent — and `float(entry['tp'])` raises `KeyError`, which the `except (TypeError, ValueError)` one line below does not catch. Every minipoint save in a Riichi event 500s; the UI pip just turns red. Tests always send `tp` explicitly, so this is untested.
 
 **Fix:** `entry.get('tp')` (and `entry.get('mp')`).
 
-### F8 · HIGH · bug — Riichi rounds can never be published
+### ✅ DONE · F8 · HIGH · bug — Riichi rounds can never be published
 `mahj/views/score_entry.py:457`
 
 Publishing requires `tablepoints` non-null on all seats, but nothing ever writes tablepoints outside MCR (the input isn't rendered), so `set_round_published` returns "round is incomplete" forever. Non-MCR standings rank on minipoints alone, so TP genuinely isn't needed there.
 
 **Fix:** Gate the `tablepoints=None` completeness check on `tournament.rules == "MCR"`. And add a Riichi round-trip test.
+
+> **Added 2026-08-19 during S4 — F8c · HIGH · bug — a published Riichi round still doesn't count.**
+> Fixing F8 makes a Riichi round publishable, but not visible: four places decided a
+> seat was "scored" by requiring non-NULL `tablepoints`, which Riichi never writes.
+> `player_standings` (`standings.py:29`) held `round_max` at 0, so every Riichi total
+> stayed zero; `_last_complete_round` (`visibility.py:25`) reported no complete rounds
+> whatever was entered; `player_extra_stats` (`stats.py:505`) and `team_extra_stats`
+> (`stats.py:614`) selected no seats, emptying the placement cards. The suite was green
+> because the `riichi_tournament` fixture inherits pre-filled `tablepoints` from the MCR
+> seed, so it never had the shape a real Riichi tournament has.
+> **Fixed** with one shared rule — `seat_is_scored()` / `unscored_seats_q()` in
+> `scoring/_common.py`: minipoints always required, table points only under MCR
+> (matching how `stats.py` already picks its rank field).
 
 ---
 
@@ -189,28 +202,29 @@ Publishing requires `tablepoints` non-null on all seats, but nothing ever writes
 
 The optimistic-locking core (version + F()+1, 409 recovery in the JS) is correctly built — these are the seams around it.
 
-### Medium · bug/race — Publish/edit TOCTOU, no lock spans check and write
+
+### ✅ DONE · Medium · bug/race — Publish/edit TOCTOU, no lock spans check and write
 `mahj/views/score_entry.py:406-414, 454-477`
 
 `update_seats_bulk` checks `_round_is_published` then writes in a separate transaction; `set_round_published` checks completeness then creates the `PublishedRound`. Interleaved, a scorer's edit can land *after* the publish — the published round then differs from what was exported, with no 409 and no cache bust.
 
 **Fix:** Wrap check + write in one transaction with `select_for_update()` on the `PublishedRound` row.
 
-### F8b (Medium) · security/bug — Publish lock checked only against the first seat in the payload
+### ✅ DONE · F8b (Medium) · security/bug — Publish lock checked only against the first seat in the payload
 `mahj/views/score_entry.py:398-417`
 
 `round_nb`/`table_nb` come from `to_update[0]`, so a payload mixing one unpublished-round seat with published-round seats bypasses the lock and silently edits published scores — the exact thing the lock exists to stop a plain scorer from doing.
 
 **Fix:** Reject payloads whose seats don't all share one `(round_nb, table_nb)`, then check the lock on that pair.
 
-### Medium · bug/race — `_prune_to_played_hands` skips the version bump
+### ✅ DONE · Medium · bug/race — `_prune_to_played_hands` skips the version bump
 `mahj/views/score_entry.py:282-285`
 
 Coercing blank rows to draws via `.update(win_by=0, …)` doesn't bump `version`, unlike every other write path. A second device holding the old version can then overwrite the coerced draw on a *validated* sheet with no 409 — silently un-drawing the hand.
 
 **Fix:** Add `version=F('version') + 1` to the coerce update; consider running prune + validate in one transaction.
 
-### Medium · bug/data quality — Invalid hand entries silently coerced instead of rejected
+### ✅ DONE · Medium · bug/data quality — Invalid hand entries silently coerced instead of rejected
 `mahj/views/score_entry.py:50-78` (`_parse_hand`)
 
 An out-of-range discarder (`From = 5`, the classic typo for 4) is coerced to `win_from=None` — recorded as a *self-draw*, which pays out differently than the discard win the scorer meant. Impossible MCR values (`Value < 8`) are accepted; decimal input zeroes the hand into "unplayed". The client tints these cells red but still saves them, and the sheet can be validated with the coerced values. Related: a non-integer minipoint (`12.5`) is saved as `NULL` while the client-side check reports success (`score_entry.py:385-388`) — publish later fails "incomplete" with no visible culprit.
@@ -335,7 +349,7 @@ The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A"
 - **✅ DONE · Low · CSV** — `admin_player_draw.html:536`, `admin_team_draw.html:633, 787`: names are quoted without doubling embedded `"`; such a name corrupts the exported row meant to be re-imported.
 - **✅ DONE · Low · cosmetics** — `models.py:415`: `Schedule.__str__` prints `time` twice (meant `name`) and crashes on NULL; same NULL-concat in `Screen.__str__` (`models.py:273`).
 - **✅ DONE · Low · WS routing** — `routing.py:8-11`: the URL regex admits Unicode and unbounded length, but Channels group names must match `[a-zA-Z0-9_.-]{1,100}`; a crafted URL raises in `group_add`. Tighten to `[a-zA-Z0-9_.-]{1,80}`.
-- **Low · stats suppression** — `score_entry.py:136-138`: visiting `scores_per_hand_3_999` (scorer-gated GET) creates a phantom unvalidated sheet that marks round 3 "open" in the stats, with no UI listing it. 404 when no Seats exist for the pair.
+- **✅ DONE · Low · stats suppression** — `score_entry.py:136-138`: visiting `scores_per_hand_3_999` (scorer-gated GET) creates a phantom unvalidated sheet that marks round 3 "open" in the stats, with no UI listing it. 404 when no Seats exist for the pair.
 - **Low · cache spam** — `public_modals.py:147-160`: `detailed_scores` caches a placeholder per arbitrary (round, table) pair; bound it to the known seating range.
 
 ---
@@ -345,9 +359,9 @@ The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A"
 A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with no guard. Each is a one-line fix; listed together as one cleanup batch.
 
 - `public_modals.py:35-37` — `details_player`: unknown id → `DoesNotExist` 500 on a public, enumerable endpoint (the team modal correctly 404s); also `[…][0]` IndexError for a player absent from standings. Use `get_object_or_404` + a guard.
-- `score_entry.py:377, 385-390` — `int(e['id'])`, `entry['mp']`/`entry['tp']`: KeyError/ValueError uncaught; a grid cell with a missing Seat renders `data-id=""` so a legitimate save 500s.
-- `score_entry.py:217` — `int(round_nb)` runs *after* the transaction commits: a malformed `create_hand_points` request writes 16 hands, then 500s.
-- `score_entry.py:227, 296-297, 327-328` — raw `int(POST[...])` on version/params → 500 instead of 400.
+- ✅ DONE (S4) — `score_entry.py:377, 385-390` — `int(e['id'])`, `entry['mp']`/`entry['tp']`: KeyError/ValueError uncaught; a grid cell with a missing Seat renders `data-id=""` so a legitimate save 500s.
+- ✅ DONE (S4) — `score_entry.py:217` — `int(round_nb)` runs *after* the transaction commits: a malformed `create_hand_points` request writes 16 hands, then 500s.
+- ✅ DONE (S4) — `score_entry.py:227, 296-297, 327-328` — raw `int(POST[...])` on version/params → 500 instead of 400.
 - `scan.py:321-332, 405` — `int()` on raw GET params and client body keys → 500.
 - ✅ DONE (S2) — `admin_views.py` bare `json.loads(request.body)` in `admin_player_draw_assign`/`player_editor_save` now returns 400 on malformed input.
 - ✅ DONE (S2) — `remove_screen` guards an empty queryset; `rm_mode`/`set_mode` use `_screen_mode_or_404` (stale/non-numeric id → 404, not 500).
@@ -362,7 +376,7 @@ A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with
 - **Dead JS** — `admin_display.html:291-293, 373`: `getTotalTime()` and its change handler target an input that only exists on the settings page fragment; the fallback always wins.
 - **Dead parameter** — `views/display.py:200-202`: `_score_columns`'s `columns` argument is unused and threaded through `_paginate`.
 - **Duplication (server)** — the hand-tally classification loop exists four times in `stats.py` (194-225, 331-352, 538-559, 643-663) with subtly different keying — a divergence bug waiting to happen; placement counting exists twice (227-237 vs 686-716); `player_extra_stats`/`team_extra_stats` share ~35 verbatim lines. Extract `classify_hand(hand, wind)` + one placement helper.
-- **Duplication (server)** — `views/scoring.py`: six functions repeat the identical cache-or-compute wrapper; one `_cached(prefix, request, full_view, compute)` collapses ~80 lines to ~20. Also duplicated: `WINDS` lists in `score_entry.py:22` / `scan.py:309` / `scoring/_common.py:14`; the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`); the reauth-gate fragment pasted three times (`1689, 1732, 1756`).
+- **Duplication (server)** — `views/scoring.py`: six functions repeat the identical cache-or-compute wrapper; one `_cached(prefix, request, full_view, compute)` collapses ~80 lines to ~20. Also duplicated: ✅ DONE (S4) `WINDS` lists in `score_entry.py:22` / `scan.py:309` / `scoring/_common.py:14`; the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`); the reauth-gate fragment pasted three times (`1689, 1732, 1756`).
 - **✅ DONE · Duplication (client)** — MCR table-point ranking (`get_tp` + `sortWithIndeces`) implemented three times with divergent styles (`admin_scores_per_table.html:236`, `admin_scores_per_hand.html:196` — this copy leaks globals — and `modal_detailed_scores.html:137`). This is scoring logic that must agree with the server; extract to one static JS file. Smaller repeats: `getCookie('csrftoken')` ×3, the preview-grid + enlarge-modal block duplicated verbatim between `admin_display.html` and `admin_ceremony.html`.
 - **Structural** — `admin_views.py:1322-1806`: `options()` is a ~480-line page dispatcher with 13 hand-rolled role gates; a `{page: (required_role, renderer)}` table makes missing gates impossible to overlook, and splitting the tunneled mutations into POST-only URLs fixes F6 structurally.
 - **Consistency** — native `alert()` inside admin-shell fragments where `window.alertAction` exists (the shell's own comment explains blocking dialogs stall WS timers): `admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2.
@@ -385,4 +399,4 @@ Things the reviewers explicitly checked and cleared — listed so they don't get
 - **Score-entry core** — optimistic locking with 409 recovery correctly implemented on all three hand-write paths; CSRF present on every POST including beacon flushes.
 - **Frontend** — no dead templates or JS files; every `fetch()` URL resolves; no Position→Seat rename leftovers in any payload contract; no multi-line `{# #}` comments; the WebSocket client layer (heartbeat watchdog, jittered backoff, reconnect-resync) is well engineered.
 - **Cache invalidation** — all six leaderboard key families match their setters exactly; the counter hot path's signal-skip is deliberate and correct.
-- **Tests** — full suite passes (481); the security suite covers role gating, CSRF, and GET-vs-POST per endpoint. Main gap: nothing exercises the Riichi score-entry round trip (see F7/F8) or omits `tp` from save payloads.
+- **Tests** — full suite passes (481); the security suite covers role gating, CSRF, and GET-vs-POST per endpoint. Main gap: nothing exercises the Riichi score-entry round trip (see F7/F8) or omits `tp` from save payloads. ✅ DONE (S4) — `TestRiichiRoundTrip` closes this, and immediately found the extra finding recorded under F8.

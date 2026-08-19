@@ -84,21 +84,24 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 **Theme:** all in `score_entry.py` and the score grid; one mental model (the save/validate/publish loop). The Riichi path has clearly never been run — add the missing test coverage as the centrepiece.
 
-**Findings:** F7, F8, publish/edit TOCTOU, first-seat-only lock, `_prune_to_played_hands` version bump, invalid-entry coercion + NULL-MP, score-entry 500-guards, `WINDS` dedup, `scores_per_hand` phantom sheet.
+**Findings:** F7, F8, publish/edit TOCTOU, first-seat-only lock, `_prune_to_played_hands` version bump, invalid-entry coercion + NULL-MP, score-entry 500-guards, `WINDS` dedup, `scores_per_hand` phantom sheet. **✅ SESSION COMPLETE** — full suite 528 passing (+17 tests).
 
-- [ ] **F7 — Riichi save `KeyError: 'tp'`** (`score_entry.py:390`) → `entry.get('tp')` and `entry.get('mp')`.
-- [ ] **F8 — Riichi rounds unpublishable** (`score_entry.py:457`) → gate the `tablepoints`-non-null completeness check on `tournament.rules == "MCR"`.
-- [ ] **Publish/edit TOCTOU** (`score_entry.py:406-414,454-477`) — wrap check+write in one `transaction.atomic()` with `select_for_update()` on the `PublishedRound` row.
-- [ ] **First-seat-only lock** (`score_entry.py:398-417`) — reject payloads whose seats don't all share one `(round_nb, table_nb)`, then check the publish lock on that pair.
-- [ ] **Prune version bump** (`score_entry.py:282-285`) — add `version=F('version')+1` to the blank→draw coerce update so a stale second device gets a 409.
-- [ ] **Invalid-entry handling** (`score_entry.py:50-78`) — reject (400 with the offending field) instead of silently coercing when `by`/`from` is outside 0-4 or points fail to parse on a non-blank cell; echo stored values in the save response. Same for non-integer MP silently saved as NULL (`score_entry.py:385-388`).
-- [ ] **Score-entry 500-guards** — guard `int(e['id'])` / `entry['mp']` / `entry['tp']` (`:377,385-390`); move `int(round_nb)` before the transaction in `create_hand_points` (`:217`); guard `int(POST[...])` on version/params (`:227,296-297,327-328`).
-- [ ] **`scores_per_hand` phantom sheet** (`score_entry.py:136-138`) — 404 when no Seats exist for the requested `(round,table)` so a crafted URL can't mark a round "open" in the stats.
-- [ ] **`WINDS` dedup** — single source for `['E','S','W','N']` (currently `score_entry.py:22`, `scan.py:309`, and a long-name variant in `scoring/_common.py:14`).
+- [x] **F7 — Riichi save `KeyError: 'tp'`** — the Riichi grid sends no `tp` key at all, so `number_or_none(entry, 'tp')` reads a missing cell as NULL rather than raising.
+- [x] **F8 — Riichi rounds unpublishable** — the `tablepoints`-non-null half of the completeness check is now MCR-only.
+- [x] **F8c (NEW, found by the round-trip test) — a published Riichi round still didn't count.** Four places called a seat "scored" only with non-NULL `tablepoints`, so Riichi standings sat at zero, `_last_complete_round` reported nothing complete, and the placement cards were empty. One shared rule now: `seat_is_scored()` / `unscored_seats_q()` in `scoring/_common.py`. See the note under F8 in the review. The `riichi_tournament` fixture had hidden all of it by inheriting pre-filled `tablepoints` from the MCR seed.
+- [x] **Publish/edit TOCTOU** — check and write are one transaction with the row's seats under `select_for_update()`, and `set_round_published` takes the same locks around its completeness check, so the two paths serialize. **Deviation from the plan:** locking the `PublishedRound` row as written would not have closed the race — an unpublished round has no row to lock, and a row lock cannot block the insert that publishing performs. Locking the seats both paths already touch does.
+- [x] **First-seat-only lock** — one payload is one `(round_nb, table_nb)` or a 400.
+- [x] **Prune version bump** — `version=F('version')+1` on the blank→draw coerce.
+- [x] **Invalid-entry handling** — `_parse_typed_hand` validates the cells a scorer typed (points parse, `by`/`from` within 0-4) and rejects rather than coercing; `update_hand_points` echoes what was stored, since the encoding is lossy. `_parse_hand` stays tolerant for the OCR prefill, where a bad model guess should leave a blank cell rather than fail the sheet. Blank cells remain legitimate everywhere — that's how an unplayed row and a self-draw are entered. **Left alone:** the penalty field's coerce-to-0 (`update_seat_penalty`), which the review didn't flag and an existing test pins; it's a display-only sheet-balance figure.
+- [x] **Score-entry 500-guards** — `int_param` on the id/version/round/table params, `number_or_none` on the score cells; `create_hand_points` coerces and validates all 16 cells *before* the transaction, so a bad request can't write a sheet and then 500.
+- [x] **`scores_per_hand` phantom sheet** — 404 when the `(round, table)` has no seats.
+- [x] **`WINDS` dedup** — `WIND_LETTERS` joins `WINDS` in `scoring/_common.py`; the `score_entry.py` and `scan.py` copies are gone.
 
-**Files:** `score_entry.py`, score-grid templates (`admin_scores_per_table.html`, `admin_scores_per_hand.html`), `scoring/_common.py`.
+**Files:** `score_entry.py`, `views/helpers.py` (the two coercion helpers), `scoring/_common.py`, `scoring/standings.py`, `scoring/visibility.py`, `scoring/stats.py`, `scoring/__init__.py`. The score-grid templates needed no change — the guards are all server-side.
 
-**Tests:** **a full Riichi round-trip** (enter minipoints with no `tp`, complete, publish, verify standings) using the `riichi_tournament` fixture — this is the gap that let F7/F8 ship; malformed-cell rejection; a mixed-round payload is rejected; a concurrent stale-version save after prune gets 409.
+**Tests:** `TestRiichiRoundTrip` (save with no `tp`, publish, scores reach the standings, final round still withheld, MCR still requires table points, Riichi round counts as complete), `TestBulkPayloadIntegrity` (mixed round/table rejected, unparseable cell rejected, blank cell still clears), `TestPruneBumpsVersion` (stale post-prune save gets 409), `TestPhantomScoreSheet`, plus malformed-cell/id guards on `update_hand_points`.
+
+**Note on the 400 body:** the coercion helpers raise `BadRequest`, so the offending field name reaches the server log rather than the response body — Django renders a plain 400, and the score grid only shows an error pip. Matching `json_body`'s contract was worth more than a per-endpoint JSON error, which would have meant scattering try/except back through the views. A `handler400` that renders JSON for XHR would put the field in the body for every endpoint at once, if that's ever wanted.
 
 **Risk:** moderate; well-covered area, but the atomic/lock change needs care under the existing optimistic-locking tests.
 
@@ -221,15 +224,16 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | ✅ CSV export escaping | S3 |
 | ✅ team-draw resume overlay | S3 |
 | ✅ client tp-ranking / getCookie / preview-grid dup | S3 |
-| F7 Riichi save 500 | S4 |
-| F8 Riichi unpublishable | S4 |
-| publish/edit TOCTOU | S4 |
-| first-seat-only lock | S4 |
-| prune version bump | S4 |
-| invalid-entry coercion / NULL MP | S4 |
-| score-entry 500-guards | S4 |
-| `scores_per_hand` phantom sheet | S4 |
-| `WINDS` dedup | S4 |
+| ✅ F7 Riichi save 500 | S4 |
+| ✅ F8 Riichi unpublishable | S4 |
+| ✅ publish/edit TOCTOU | S4 |
+| ✅ first-seat-only lock | S4 |
+| ✅ prune version bump | S4 |
+| ✅ invalid-entry coercion / NULL MP | S4 |
+| ✅ score-entry 500-guards | S4 |
+| ✅ `scores_per_hand` phantom sheet | S4 |
+| ✅ `WINDS` dedup | S4 |
+| ✅ F8c Riichi standings/completeness (found in S4) | S4 |
 | F13 `scan_prefill` client scores | S5 |
 | anonymous upload metering | S5 |
 | scan/restore worker resilience + TTL | S5 |
