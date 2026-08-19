@@ -97,7 +97,7 @@ there are no NULL rows and **hands played at a table = its `Hand` row count**.
   end-of-tournament case: the final round is published to prepare the ceremony
   but held back from the public until the podium reveal.
 
-## Ranking (unchanged)
+## Ranking
 
 Standings rank only on `Seat.minipoints` / `tablepoints` (MCR ranks on table
 points, minipoints break ties; other rules rank on minipoints). `penalty` is a

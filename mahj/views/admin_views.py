@@ -336,10 +336,10 @@ def admin_upload_from_template(request):
             all_have_team = True
             for row in player_rows:
                 last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
-                # Skip fully-blank spacer / trailing rows. Ending the player list at the
-                # first empty last-name cell used to drop a competitor who has a
-                # first name but no surname (and everyone listed below them); a row
-                # is a real competitor as long as it carries any name.
+                # Skip fully-blank spacer / trailing rows and keep scanning: a row is
+                # a real competitor as long as it carries any name, so a mononym (only
+                # a first name, or only a surname) imports like everyone else and an
+                # interior blank doesn't truncate the list.
                 has_name = any(
                     isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw)
                 )

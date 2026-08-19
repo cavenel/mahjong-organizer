@@ -47,9 +47,9 @@ def role_flags(request):
     """Expose the current user's tenant-scoped role to every template, so the
     admin shell's nav/menus gate on tenant membership rather than the global
     Django ``is_staff`` flag. ``is_tenant_admin`` is the tier-2 "full admin over
-    this tenant" token that replaces the old ``user.is_staff`` checks; the
-    per-role flags already fold admin/superuser in (via has_role). ``is_superuser``
-    (platform ops) stays the Django flag and templates keep using ``user.is_superuser``.
+    this tenant" token; the per-role flags already fold admin/superuser in (via
+    has_role). ``is_superuser`` (platform ops) stays the Django flag, and
+    templates keep using ``user.is_superuser``.
     """
     try:
         return {

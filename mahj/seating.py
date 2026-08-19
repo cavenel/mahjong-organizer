@@ -3,7 +3,7 @@
 A seating chart in this app is a set of seats keyed by ``draw_number`` (1..N):
 each seat is ``(round_nb, table_nb, wind, draw_number)`` and is independent of the
 people (a Player attaches to a draw number later). This module builds such charts
-so the app no longer depends on an Excel seating sheet existing for the field size.
+for any field size, so importing one from a workbook is optional.
 
 Two engines, picked automatically by :func:`generate`:
 

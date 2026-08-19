@@ -29,10 +29,10 @@ class Membership(models.Model):
     Tiers (see docs/dev/access-control.md):
       - platform superuser — Django ``is_superuser``; cross-tenant, needs no row.
       - tenant admin — ``is_tenant_admin`` for a tenant; implies every app role
-        there (mirrors the old "staff implies scorer/display/publisher").
+        there.
       - tenant role — ``is_scorer`` / ``is_display_op`` / ``is_publisher``, scoped
-        to this one tenant. The boolean flags mirror the retired Django Groups
-        exactly, so a role check is one indexed row read, no extra join table.
+        to this one tenant. Plain booleans on the membership row, so a role check
+        is one indexed row read, no extra join table.
     """
     user   = models.ForeignKey(User, on_delete=models.CASCADE, related_name='memberships')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')
@@ -406,9 +406,10 @@ class Schedule(TenantAwareModel):
     day          = models.CharField(default="",max_length=70)
     time         = models.CharField(default="",null=True,max_length=70)
     name         = models.CharField(default="",null=True,max_length=70)
-    # Explicit "this row is a playing round" flag. Replaces the old heuristic of
-    # sniffing for "Round"/"Session" in the name, which was applied inconsistently
-    # across the display, print and scoring code.
+    # Explicit "this row is a playing round" flag, and the single authority for it:
+    # the display, print and scoring code all read this, never ``name``. Import
+    # seeds it from the name only when the template omits the "Is round" column
+    # (see _name_is_round), and staff can correct it in Tournament settings.
     is_round     = models.BooleanField(default=False)
 
     def __str__(self):

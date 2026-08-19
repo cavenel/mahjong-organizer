@@ -7,21 +7,6 @@ should shrink to nothing.
 Everything here is **behaviour-preserving cleanup**, not bug-fixing — verify with
 the golden snapshots (byte-identical except intended field changes) + full suite.
 
-## Comments AND docs describing history, not current state
-
-The same "describe what it is now, not the diff" principle applies to prose docs
-written during the refactor — a public reader has no "before" to compare against.
-Reword:
-- `mahj/seating.py:6` — "so the app *no longer depends* on an Excel seating
-  sheet…" → state current behaviour.
-- `views/admin_views.py:340` — "first empty last-name cell *used to drop*…" →
-  trim the historical-bug note.
-- `docs/data-model.md:100` — heading "## Ranking **(unchanged)**" → just
-  "## Ranking" (unchanged relative to the pre-refactor schema — meaningless once
-  merged). Re-scan the dev docs for similar refactor-relative asides.
-- Leave genuine back-compat justifications (`routing.py:9` legacy WS alias) and
-  migration data-history comments.
-
 ## Migration reset (do LAST, right before the public merge)
 
 Goal: a pristine single-migration baseline for fresh public installs without
@@ -40,11 +25,6 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
   reset, but needs a coordinated `migrate --fake` on prod — only if maximum
   cleanliness is wanted and the prod step is done deliberately (not via blind
   auto-migrate).
-
-## Suggested order
-
-1. History-comment rewording (trivial).
-2. **Last, pre-publish:** squash migrations.
 
 ## Deliberately NOT doing
 
