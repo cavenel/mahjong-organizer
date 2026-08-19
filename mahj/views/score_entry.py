@@ -17,7 +17,7 @@ from ..signals import (
     invalidate_leaderboard,
 )
 from .helpers import (
-    get_tenant, get_tournament, int_param, json_body, number_or_none,
+    FieldError, get_tenant, get_tournament, int_param, json_body, number_or_none,
     tenant_role_required,
 )
 
@@ -91,7 +91,7 @@ def _seat_cell(data, field):
     can't quietly store an unplayed row over a hand that was played."""
     wind = number_or_none(data, field)
     if wind is not None and not 0 <= wind <= 4:
-        raise BadRequest(f"'{field}' must be a seat 1-4, or 0 for none, got {wind}")
+        raise FieldError(field, f'must be a seat 1-4, or 0 for none, got {wind}')
     return wind
 
 

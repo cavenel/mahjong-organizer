@@ -41,6 +41,9 @@ MIDDLEWARE = [
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'apps.middleware.AuthCookieMiddleware',
+    # Turns a FieldError from the coercion helpers into a JSON 400 naming the
+    # field. Last, so it sees exceptions from every view.
+    'apps.middleware.FieldErrorMiddleware',
 ]
 
 # Two Redis roles, deliberately split:

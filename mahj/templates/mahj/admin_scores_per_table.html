@@ -284,6 +284,17 @@
       success: function() { setPip(row, expectedState); },
       error:   function(xhr) {
         setPip(row, "err");
+        if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.error) {
+          // A cell the server refused to store. Say which one — a bare red pip
+          // leaves the scorer guessing, and the value they typed is still on
+          // screen looking saved.
+          window.alertAction({
+            title: 'That score wasn\u2019t saved',
+            body: xhr.responseJSON.error + '. The cell still shows what you typed — '
+                  + 'correct it and it will save.',
+          });
+          return;
+        }
         if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.status === "locked") {
           // The round is published (perhaps just now, by another scorer), so the
           // edit was rejected. Revert the row to the server's values, lock it,

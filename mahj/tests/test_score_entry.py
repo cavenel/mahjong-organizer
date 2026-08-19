@@ -589,3 +589,59 @@ class TestPhantomScoreSheet:
         assert authed_client.get('/scores_per_hand_3_1').status_code == 200
         assert ScoreSheet.objects.filter(
             tenant=tournament['tenant'], round_nb=3, table_nb=1).exists()
+
+
+class TestFieldErrorsNameTheField:
+    """The coercion helpers raise FieldError, not BadRequest, and middleware renders
+    it as a JSON 400 naming the field.
+
+    Two reasons it isn't a BadRequest: Django logs those with a full traceback, so an
+    ordinary mistyped cell wrote a stack trace to the production log; and its generic
+    400 page drops the message, so the score grid showed a red pip and could not tell
+    the scorer which cell was wrong.
+    """
+
+    def _bulk(self, client, seats):
+        return client.post('/update_seats_bulk', data=json.dumps({'seats': seats}),
+                           content_type='application/json')
+
+    def test_unparseable_minipoints_names_the_cell(self, authed_client, tournament):
+        seat = Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).first()
+        resp = self._bulk(authed_client, [{'id': seat.id, 'mp': '12.5', 'tp': 0}])
+        assert resp.status_code == 400
+        body = json.loads(resp.content)
+        assert body['status'] == 'bad_request'
+        assert body['field'] == 'mp'
+        assert 'must be a number' in body['error']
+
+    def test_out_of_range_seat_names_the_cell(self, authed_client, hand):
+        resp = authed_client.post('/update_hand_points', {
+            'id': hand.id, 'version': hand.version, 'points': 25, 'by': 7, 'from': 2,
+        })
+        assert resp.status_code == 400
+        body = json.loads(resp.content)
+        assert body['field'] == 'by'
+        assert 'seat 1-4' in body['error']
+
+    def test_a_missing_required_param_names_it(self, authed_client, tournament):
+        resp = authed_client.post('/validate_score_sheet', {'table_nb': 1})
+        assert resp.status_code == 400
+        assert json.loads(resp.content)['field'] == 'round_nb'
+
+    def test_a_malformed_body_is_still_a_plain_bad_request(self, authed_client):
+        """json_body keeps BadRequest: a body that isn't a JSON object is a malformed
+        request, not a field the user can fix, and owes no friendlier answer."""
+        resp = authed_client.post('/update_seats_bulk', data='["not", "an", "object"]',
+                                  content_type='application/json')
+        assert resp.status_code == 400
+        # Django's generic 400, not our JSON shape.
+        assert resp['Content-Type'].startswith('text/html')
+
+    def test_a_valid_save_is_unaffected(self, authed_client, tournament):
+        seats = list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).order_by('wind'))
+        resp = self._bulk(authed_client, [
+            {'id': s.id, 'mp': mp, 'tp': tp}
+            for s, mp, tp in zip(seats, [40, 10, -10, -40], [4, 2, 1, 0])])
+        assert resp.status_code == 200

@@ -40,31 +40,48 @@ def json_body(request):
 _REQUIRED = object()
 
 
+class FieldError(Exception):
+    """One request field that didn't parse, named.
+
+    Deliberately not ``BadRequest``: that is for a request that is malformed as a
+    request (see :func:`json_body`), and Django logs those with a full traceback and
+    renders a generic 400 that drops the message. A scorer mistyping a cell is an
+    expected outcome of a human typing, not an exceptional condition — it deserves a
+    400 that says *which* cell, and no stack trace in the log.
+
+    ``apps.middleware.FieldErrorMiddleware`` turns this into that JSON 400, so no
+    view needs a try/except around its field reads.
+    """
+
+    def __init__(self, field, message):
+        super().__init__(f"'{field}': {message}")
+        self.field = field
+        self.message = message
+
+
 def int_param(data, field, default=_REQUIRED):
     """One integer field out of ``request.POST`` or a :func:`json_body` dict.
 
-    Absent or blank yields ``default``; with no default that is a ``BadRequest``.
-    Present but not an integer is always a ``BadRequest``. Both name the field, so
-    a crafted or buggy request gets a 400 saying what was wrong instead of a 500
-    out of a bare ``int()``. As with :func:`json_body` the message reaches the
-    server log rather than the response body — Django renders a plain 400.
+    Absent or blank yields ``default``; with no default that is a ``FieldError``.
+    Present but not an integer is always a ``FieldError``. Either way the client
+    gets a 400 naming the field, rather than a 500 out of a bare ``int()``.
     """
     raw = data.get(field)
     if raw is None or raw == '':
         if default is _REQUIRED:
-            raise BadRequest(f"'{field}' is required")
+            raise FieldError(field, 'is required')
         return default
     try:
         return int(raw)
     except (TypeError, ValueError):
-        raise BadRequest(f"'{field}' must be a whole number, got {raw!r}")
+        raise FieldError(field, f'must be a whole number, got {raw!r}')
 
 
 def number_or_none(data, field, cast=int):
     """One numeric score cell that may legitimately be empty.
 
     Absent or blank yields ``None`` — the cell is cleared, stored NULL. Anything
-    else must parse as ``cast`` or it is a ``BadRequest`` naming the field: a cell
+    else must parse as ``cast`` or it is a ``FieldError`` naming the field: a cell
     the scorer can see a value in must never be quietly stored as NULL, which
     reads downstream as "not played yet".
     """
@@ -74,7 +91,7 @@ def number_or_none(data, field, cast=int):
     try:
         return cast(raw)
     except (TypeError, ValueError):
-        raise BadRequest(f"'{field}' must be a number, got {raw!r}")
+        raise FieldError(field, f'must be a number, got {raw!r}')
 
 
 def get_counter(tenant):

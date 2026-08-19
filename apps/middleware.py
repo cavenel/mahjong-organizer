@@ -1,3 +1,39 @@
+from django.http import JsonResponse
+
+from mahj.views.helpers import FieldError
+
+
+class FieldErrorMiddleware:
+    """Render a :class:`mahj.views.helpers.FieldError` as a JSON 400 naming the field.
+
+    Field validation is not an exceptional condition — a scorer mistyping a cell is
+    an expected outcome of a human typing — so the coercion helpers raise this
+    instead of ``BadRequest``. That matters twice over: Django logs a ``BadRequest``
+    with a full traceback (a stack trace per typo) and renders a generic 400 page
+    that drops the message, leaving the score grid with a red pip and nothing to
+    tell the scorer which cell is wrong.
+
+    Middleware rather than a view decorator so there is nothing to forget: a view
+    using the helpers without the decorator would 500. ``BadRequest`` is left alone
+    — a body that isn't a JSON object really is a malformed request and owes no
+    friendlier answer.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        return self.get_response(request)
+
+    def process_exception(self, request, exception):
+        if isinstance(exception, FieldError):
+            return JsonResponse(
+                {'status': 'bad_request', 'field': exception.field,
+                 'error': f'{exception.field} {exception.message}'},
+                status=400)
+        return None
+
+
 class AuthCookieMiddleware:
     """Sets a non-HttpOnly `auth=1` cookie when the session is authenticated.
 
