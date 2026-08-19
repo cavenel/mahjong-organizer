@@ -9,6 +9,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 
+from mahj.models import Seat
 from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
@@ -70,3 +71,63 @@ def test_player_cards_render_seat_wind_per_round(staff_client, tournament):
     assert 'seat-cell' in body           # the "Tbl · Seat" badge row
     # player_wind is sliced to its initial, so a missing key would leave it blank
     assert any(f'class="wind {w}"' in body for w in 'ESWN'), body[:400]
+
+
+# --------------------------------------------------------------------------
+# S8: setup states must not 500 a public page
+# --------------------------------------------------------------------------
+
+@pytest.fixture
+def client_():
+    c = Client()
+    c.defaults['HTTP_HOST'] = HOST
+    return c
+
+
+class TestPartialChartDoesNotCrash:
+    """Both the grid builder and cross_positions assumed a complete, rectangular
+    chart sized to `players // 4`. Real setup states break both assumptions."""
+
+    def test_grid_holds_a_chart_wider_than_players_over_four(self, tournament):
+        """A field that isn't a multiple of four leaves more tables than players//4,
+        and writing a seat outside the grid raised IndexError."""
+        from mahj.scoring.stats import scores_per_table
+        tenant = tournament['tenant']
+        # 16 players -> the old grid was 4 tables wide. Seat a fifth table.
+        Seat.objects.create(tenant=tenant, round_nb=1, table_nb=5, wind=1, draw_number=1)
+        grid = scores_per_table(tenant, tournament['settings'])
+        assert len(grid[0]) >= 5
+        assert grid[0][4][0]['seat'].table_nb == 5
+
+    def test_grid_holds_a_chart_longer_than_nb_rounds(self, tournament):
+        from mahj.scoring.stats import scores_per_table
+        tenant = tournament['tenant']
+        Seat.objects.create(tenant=tenant, round_nb=9, table_nb=1, wind=1, draw_number=1)
+        grid = scores_per_table(tenant, tournament['settings'])
+        assert len(grid) >= 9
+        assert grid[8][0][0]['seat'].round_nb == 9
+
+    def test_grid_still_renders_blank_tables_with_no_chart(self, tournament):
+        """The player-count floor is kept, so an empty chart shows its blank tables."""
+        from mahj.scoring.stats import scores_per_table
+        tenant = tournament['tenant']
+        Seat.objects.filter(tenant=tenant).delete()
+        grid = scores_per_table(tenant, tournament['settings'])
+        assert len(grid) == tournament['settings'].nb_rounds
+        assert len(grid[0]) == 4          # 16 players // 4
+        assert grid[0][0][0] == {}
+
+    def test_cross_positions_survives_a_half_seated_table(self, client_, tournament):
+        """An incomplete table leaves {} cells, and cell["seat"] on one of those
+        raised KeyError."""
+        tenant = tournament['tenant']
+        Seat.objects.filter(tenant=tenant, round_nb=3, table_nb=4, wind__in=(3, 4)).delete()
+        assert client_.get('/cross_positions').status_code == 200
+
+    def test_cross_positions_per_team_survives_it_too(self, client_, tournament):
+        tenant = tournament['tenant']
+        for i, p in enumerate(tournament['players']):
+            p.team = f'Team {chr(ord("A") + i % 4)}'
+            p.save()
+        Seat.objects.filter(tenant=tenant, round_nb=3, table_nb=4, wind__in=(3, 4)).delete()
+        assert client_.get('/cross_positions?per_team=1').status_code == 200

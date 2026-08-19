@@ -21,14 +21,24 @@ from .standings import player_standings
 
 
 def scores_per_table(tenant, tournament):
-    """Nested list [round][table][seat] = {} or {'seat': Seat}."""
-    nb_tables = Player.objects.filter(tenant=tenant).count() // 4
-    grid = [
-        [[{} for _ in range(4)] for _ in range(nb_tables)]
-        for _ in range(tournament.nb_rounds)
-    ]
+    """Nested list [round][table][seat] = {} or {'seat': Seat}.
+
+    Sized to hold every seat in the chart, not to the player count: a chart can
+    legitimately run wider or longer than `players // 4` rounds of `nb_rounds` — a
+    field that isn't a multiple of four, a partly-imported setup, a chart imported
+    for more rounds than the settings name — and writing a seat outside a grid built
+    to the smaller size raised IndexError, a 500 on a public page. The player-count
+    and nb_rounds floors are kept so an empty chart still renders its blank tables.
+    """
     seats = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('id')))
+    nb_rounds = max([tournament.nb_rounds] + [p.round_nb for p in seats])
+    nb_tables = max([Player.objects.filter(tenant=tenant).count() // 4]
+                    + [p.table_nb for p in seats])
+    grid = [
+        [[{} for _ in range(4)] for _ in range(nb_tables)]
+        for _ in range(nb_rounds)
+    ]
     for p in seats:
         grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = {'seat': p}
     return grid

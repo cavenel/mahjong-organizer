@@ -32,14 +32,19 @@ def cross_positions(request):
         cross = [{"player": t, "east": 0, "cross": [0] * len(teams)} for t in teams]
         for round_ in scores:
             for table in round_:
-                for i, cell_a in enumerate(table):
+                # Skip cells with no seat: the grid is rectangular, so a partly-built
+                # chart (or a table seating fewer than four) leaves {} behind, and
+                # cell["seat"] on one of those raised KeyError — a 500 on a public
+                # page whenever the chart wasn't complete.
+                filled = [c for c in table if "seat" in c]
+                for i, cell_a in enumerate(filled):
                     player_a = cell_a["seat"].player
                     if player_a is None or player_a.team not in team_idx:
                         continue
                     ta = team_idx[player_a.team]
                     if cell_a["seat"].wind == 1:
                         cross[ta]["east"] += 1
-                    for j, cell_b in enumerate(table):
+                    for j, cell_b in enumerate(filled):
                         if i == j:
                             continue
                         player_b = cell_b["seat"].player
@@ -51,6 +56,7 @@ def cross_positions(request):
         draws = sorted({
             cell["seat"].draw_number
             for round_ in scores for table in round_ for cell in table
+            if "seat" in cell
         })
         idx = {d: i for i, d in enumerate(draws)}
 
@@ -61,7 +67,7 @@ def cross_positions(request):
         cross = [{"player": label(d), "east": 0, "cross": [0] * len(draws)} for d in draws]
         for round_ in scores:
             for table in round_:
-                seats = [cell["seat"] for cell in table]
+                seats = [cell["seat"] for cell in table if "seat" in cell]
                 for seat in seats:
                     si = idx[seat.draw_number]
                     if seat.wind == 1:
