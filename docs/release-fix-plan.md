@@ -10,7 +10,7 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - Mark the covered findings **✅ DONE** in `code-review-2026-08-19.md` as you finish them, and tick the checklist boxes here.
 - Keep each session's diff self-contained so it's independently reviewable/revertable.
 
-**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S5 was deferred at the user's request after S4; S6 done, S7/S8 next, S5 still open (see the note in its section). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
+**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S1-S4, then S6, S7, S8 — S5 was deferred at the user's request after S4 and is **still open** (see the note in its section). All other sessions complete; the only other open item is the `options()` decomposition (S8's notes explain why it was left). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
 
 **Already done** (safe mechanical batch, 2026-08-19): dead imports, dead `_last_published_round`, `Schedule`/`Screen` `__str__`, Turkey in `EUROPE`, WS regex, two docstrings.
 
@@ -177,39 +177,50 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 ## Session 8 — Correctness one-offs & code-quality cleanup
 
-**Theme:** independent correctness bugs plus the remaining dead-code/duplication. Lowest risk; can be split across sittings. Fix each correctness item with a regression test; do the extractions last.
+**Theme:** independent correctness bugs plus the remaining dead-code/duplication. Lowest risk; can be split across sittings. Fix each correctness item with a regression test; do the extractions last. **✅ SESSION COMPLETE** — full suite 600 passing (+39 tests). One item deliberately not done: see `options()` at the end.
 
 **Correctness:**
-- [ ] **`desktop` positional round rebuild** (`views/public.py:108-116,226-228`) — use `sc['round_nb']` (and `player_table.get((pid, sc['round_nb']))`) instead of the positional index so a player who missed a round doesn't shift every later score/column; read xlsx per-round columns by round. Resolve the `standings.py:26` "seats always filled" assertion vs the `team_standings` bye-handling contradiction one way.
-- [ ] **cross-table grid sizing** (`scoring/stats.py:22-30`, `print_views.py:37,53`) — size from `max(seat.table_nb)`/`max(seat.round_nb)` like `tournament_seating`; skip empty cells in `cross_positions` so public setup states don't 500.
-- [ ] **team modal `None` kills script** (`modal_details_team.html:149`, `public_modals.py:111-113`) — pass `team_history_pos` (and the player variant) through `json_script` so a missing-round `None` renders as JSON `null`.
-- [ ] **`details_player` 500s** (`public_modals.py:35-37`) — `get_object_or_404` and guard the `[…][0]` standings lookup.
-- [ ] **draw-assign race → 409 not 500** (`admin_views.py:898-912`) — catch `IntegrityError` and return the designed 409 payload.
-- [ ] **`algebraic_feasible` false-negative badge** (`seating.py:404-424`) — implement as `len(find_shifts(T, R, seed=0)) >= R`, or document the badge as conservative.
-- [ ] **`measure()` crash swallowed** (`seating.py:472-481`) — derive player/round sets from the chart rows (defaultdicts) and drop the caller's blanket `except` (`admin_views.py:1588-1596`).
-- [ ] **`detailed_scores` cache spam** (`public_modals.py:147-160`) — skip caching / 404 when `(round,table)` is outside the known seating range.
+- [x] **`desktop` positional round rebuild** (`views/public.py:108-116,226-228`) — use `sc['round_nb']` (and `player_table.get((pid, sc['round_nb']))`) instead of the positional index so a player who missed a round doesn't shift every later score/column; read xlsx per-round columns by round. Resolve the `standings.py:26` "seats always filled" assertion vs the `team_standings` bye-handling contradiction one way.
+- [x] **cross-table grid sizing** (`scoring/stats.py:22-30`, `print_views.py:37,53`) — size from `max(seat.table_nb)`/`max(seat.round_nb)` like `tournament_seating`; skip empty cells in `cross_positions` so public setup states don't 500.
+- [x] **team modal `None` kills script** (`modal_details_team.html:149`, `public_modals.py:111-113`) — pass `team_history_pos` (and the player variant) through `json_script` so a missing-round `None` renders as JSON `null`.
+- [x] **`details_player` 500s** (`public_modals.py:35-37`) — `get_object_or_404` and guard the `[…][0]` standings lookup.
+- [x] **draw-assign race → 409 not 500** (`admin_views.py:898-912`) — catch `IntegrityError` and return the designed 409 payload.
+- [x] **`algebraic_feasible` false-negative badge** (`seating.py:404-424`) — implement as `len(find_shifts(T, R, seed=0)) >= R`, or document the badge as conservative.
+- [x] **`measure()` crash swallowed** (`seating.py:472-481`) — derive player/round sets from the chart rows (defaultdicts) and drop the caller's blanket `except` (`admin_views.py:1588-1596`).
+- [x] **`detailed_scores` cache spam** (`public_modals.py:147-160`) — skip caching / 404 when `(round,table)` is outside the known seating range.
 
 **Cleanup (dead code / duplication / readability):**
-- [ ] Delete or mark test-only: `all_player_rounds` (`stats.py:450-472`).
-- [ ] Remove dead `getTotalTime()` + handler (`admin_display.html:291-293,373`) and the unused `columns` param on `_score_columns`/`_paginate` (`display.py:200-202`).
-- [ ] Extract `classify_hand(hand, wind)` + one placement helper to collapse the tally loop duplicated ×4 and placement ×2 in `stats.py` (194-225, 331-352, 538-559, 643-663; 227-237, 686-716) — this is the divergence-bug risk, worth doing carefully with the golden tests as guard.
-- [ ] Extract one `_cached(prefix, request, full_view, compute)` wrapper for the six repeated cache-or-compute functions in `views/scoring.py`.
-- [ ] Extract the reauth-gate fragment pasted ×3 (`admin_views.py:1689,1732,1756`) and unify the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`).
-- [ ] Replace native `alert()` with `window.alertAction` inside admin-shell fragments (`admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2). (Standalone pages keep native dialogs — per convention.)
-- [ ] **Field errors shouldn't be exceptions** (added 2026-08-19, from running the app after S4 — polish, not correctness; the right requests are already rejected with the right status). S4's `int_param` / `number_or_none` / `_seat_cell` (`views/helpers.py`) raise `BadRequest`, which has two costs: Django logs every one with a **full traceback**, so a scorer mistyping a cell writes a stack trace to the production log; and its generic 400 page drops the message, so the score grid shows a mute red pip and the scorer never learns which cell is wrong. Both come from using an exception for an expected outcome of a human typing. Fix in three steps, ~30 lines plus a JS branch:
+- [x] Delete or mark test-only: `all_player_rounds` (`stats.py:450-472`).
+- [x] Remove dead `getTotalTime()` + handler (`admin_display.html:291-293,373`) and the unused `columns` param on `_score_columns`/`_paginate` (`display.py:200-202`).
+- [x] Extract `classify_hand(hand, wind)` + one placement helper to collapse the tally loop duplicated ×4 and placement ×2 in `stats.py` (194-225, 331-352, 538-559, 643-663; 227-237, 686-716) — this is the divergence-bug risk, worth doing carefully with the golden tests as guard.
+- [x] Extract one `_cached(prefix, request, full_view, compute)` wrapper for the six repeated cache-or-compute functions in `views/scoring.py`.
+- [x] Extract the reauth-gate fragment pasted ×3 (`admin_views.py:1689,1732,1756`) and unify the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`).
+- [x] Replace native `alert()` with `window.alertAction` inside admin-shell fragments (`admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2). (Standalone pages keep native dialogs — per convention.)
+- [x] **Field errors shouldn't be exceptions** (added 2026-08-19, from running the app after S4 — polish, not correctness; the right requests are already rejected with the right status). S4's `int_param` / `number_or_none` / `_seat_cell` (`views/helpers.py`) raise `BadRequest`, which has two costs: Django logs every one with a **full traceback**, so a scorer mistyping a cell writes a stack trace to the production log; and its generic 400 page drops the message, so the score grid shows a mute red pip and the scorer never learns which cell is wrong. Both come from using an exception for an expected outcome of a human typing. Fix in three steps, ~30 lines plus a JS branch:
   1. A distinct `FieldError(field, message)` in `views/helpers.py`, raised by those three helpers. **`json_body` keeps `BadRequest`** — "this body isn't a JSON object" really is exceptional and owes no nice message; "this cell has a typo" isn't. Making the codebase state that distinction is most of the value.
   2. Convert it in `apps/middleware.py` via `process_exception` → `JsonResponse({'status': 'bad_request', 'field': …, 'error': …}, status=400)`. Middleware rather than a decorator on purpose: a decorator is forgettable, and an undecorated view using the helpers would 500. Middleware needs no per-view lines and can't be missed. Catching it also stops Django logging it with `exc_info`, which is the log-noise half. Every existing call site stays exactly as it reads.
   3. **Then actually surface it** — this is the half that matters. `admin_scores_per_table.html`'s ajax `error` handler reads `xhr.responseJSON` only for the 409 `locked` case; add a 400 branch that shows `responseJSON.error`. Without this the field name reaches the browser and dies there. Same ground as the `alert()` item above, so do them together.
 
   Considered and rejected: a `handler400` that renders JSON for XHR. It fixes only the response body, leaves the traceback noise untouched, and changes error rendering globally for every view to solve a problem in six.
-- [ ] Back off the every-second `new Audio()` sound-unlock probe on unattended projectors (`display_counter.html:389-404`) — retry on `pointerdown`/`keydown` or after N tries.
-- [ ] Readability: align `history_pos` shapes (drop the magic client-side `.slice(2)`; `standings.py:53-74` + `modal_details_player.html:317`, update golden files) and correct the `views/scoring.py:9-11` cache comment to state the real invalidation contract.
+- [x] Back off the every-second `new Audio()` sound-unlock probe on unattended projectors (`display_counter.html:389-404`) — retry on `pointerdown`/`keydown` or after N tries.
+- [x] Readability: align `history_pos` shapes (drop the magic client-side `.slice(2)`; `standings.py:53-74` + `modal_details_player.html:317`, update golden files) and correct the `views/scoring.py:9-11` cache comment to state the real invalidation contract.
 
 **Files:** `public.py`, `stats.py`, `standings.py`, `seating.py`, `public_modals.py`, `scoring.py`, `admin_views.py`, `display.py`, several templates, golden snapshots.
 
 **Tests:** regression test per correctness item (sparse-score standings, oversized-table grid, team with a missing round, unknown player id, concurrent draw assign). The `stats.py` and `history_pos` refactors are guarded by the existing golden tests — expect to regenerate snapshots and eyeball the diff.
 
 **Risk:** low individually; the `stats.py` extraction and golden-snapshot regen need attention so a refactor doesn't silently change a number.
+
+---
+
+**Notes on how these landed**
+
+- **Two review claims didn't survive checking.** `getTotalTime()` in `admin_display.html` is *not* dead — every function in that file is referenced, it twice. And the `views/scoring.py` cache comment was wrong in a way the review only half-caught: there is no `post_save` receiver on Seat or Hand at all, so score entry (which writes with `.update()`/`bulk_update`) invalidates nothing, and a standings read can lag live entry by up to `SUB_CACHE_TTL` for an admin as much as the public. The corrected comment says so. (I got this wrong on the first pass and had to fix my own comment — worth knowing the trap is real.)
+- **`algebraic_feasible`** is now `find_shifts`' first pass (`trials=1`) rather than a second copy of the acceptance rule. That first pass *is* the ascending order `find_shifts` runs as its own trial 0, which makes the badge **provably** conservative — `True` means the full search must find at least as many shifts. The plan's suggested fix (the full 300-ordering search) gives identical answers across N=8..200 / R=1..20 and costs up to 364 ms on a page-render badge, so it was not used; a test locks the two together instead.
+- **`measure()`** derives its slot and round sets from the rows, and "everyone seated once per round" is now checked against the chart's own slot set — holding an imported chart to `range(1, N+1)` called good charts broken. The caller keeps its guard (a mid-tournament operator needs the rest of the page more than the quality panel) but logs, so the panel can't vanish silently again.
+- **The `stats.py` extraction was verified, not assumed.** `stats_export` had no golden coverage, so a snapshot went in first; after the refactor both it and `table_stats.json` are byte-identical. Same technique for `history_pos`: every new list is exactly the old one minus its two lead-in entries, with no other field changed.
+- **`cross_positions` needed three guards, not the two the review listed** — the third turned up because the test was written before the fix.
+- **`options()` mega-view decomposition — NOT DONE, deliberately.** S2 deferred it to avoid a large, browser-untestable template rewrite, and that reasoning is stronger now, not weaker: every `?action=` branch would move to its own URL, so every template that posts to `admin?page=X&action=Y` changes, and **the S2/S3 browser click-through is still outstanding**. Stacking an untested rewrite on top of unverified UI changes would make any regression impossible to attribute. Recommended sequencing: do the click-through first, then decompose in its own session. A safe subset — extracting each page's context-building into a named function without touching a single URL or template — captures most of the readability win at no UI risk, if a smaller step is wanted.
 
 ---
 
@@ -263,21 +274,21 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | ✅ gunicorn umask comment | S7 |
 | ✅ auth cookie secure flag | S7 |
 | ✅ ipify call | S7 |
-| desktop positional rebuild | S8 |
-| cross-table grid sizing | S8 |
-| team modal `None` | S8 |
-| `details_player` 500s | S8 |
-| draw-assign 409 race | S8 |
-| `algebraic_feasible` badge | S8 |
-| `measure()` crash | S8 |
-| `detailed_scores` cache spam | S8 |
-| `all_player_rounds` dead | S8 |
-| `getTotalTime` / `_score_columns` dead | S8 |
-| `stats.py` tally/placement dup | S8 |
-| `views/scoring.py` cache-wrapper dup | S8 |
-| reauth fragment / table-key dup | S8 |
-| native `alert()` consistency | S8 |
-| field errors raised as `BadRequest` (found in S4) | S8 |
-| audio-probe backoff | S8 |
-| `history_pos` shape / cache comment | S8 |
-| `options()` mega-view decomposition | S2 (partial) / S8 |
+| ✅ desktop positional rebuild | S8 |
+| ✅ cross-table grid sizing | S8 |
+| ✅ team modal `None` | S8 |
+| ✅ `details_player` 500s | S8 |
+| ✅ draw-assign 409 race | S8 |
+| ✅ `algebraic_feasible` badge | S8 |
+| ✅ `measure()` crash | S8 |
+| ✅ `detailed_scores` cache spam | S8 |
+| ✅ `all_player_rounds` dead | S8 |
+| ✅ `getTotalTime` / `_score_columns` dead | S8 |
+| ✅ `stats.py` tally/placement dup | S8 |
+| ✅ `views/scoring.py` cache-wrapper dup | S8 |
+| ✅ reauth fragment / table-key dup | S8 |
+| ✅ native `alert()` consistency | S8 |
+| ✅ field errors raised as `BadRequest` (found in S4) | S8 |
+| ✅ audio-probe backoff | S8 |
+| ✅ `history_pos` shape / cache comment | S8 |
+| `options()` mega-view decomposition | S2 (partial) / **STILL OPEN** — see S8's notes |

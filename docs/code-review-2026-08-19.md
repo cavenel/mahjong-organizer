@@ -313,14 +313,14 @@ Without a pinned `host_key`, `_connect` uses `AutoAddPolicy()` and never persist
 
 ## Correctness — assorted verified bugs
 
-### Medium · bug — `desktop` rebuilds score rows positionally, defeating round-keyed team folding
+### ✅ DONE · Medium · bug — `desktop` rebuilds score rows positionally, defeating round-keyed team folding
 `mahj/views/public.py:108-116, 226-228` vs `scoring/standings.py:109-120, 232`
 
 `team_standings` deliberately folds by `sc['round_nb']` because a player who missed a round has a shorter score list — but `desktop` rebuilds each row with `'round_nb': r_idx + 1` (positional index) before passing it in, and `stats_xlsx` indexes per-round columns the same way. Any sparse score list shifts every later score into the wrong round column and mis-folds the team totals — exactly the case the standings comment guards against. (Latent today if seats are always filled, but it silently disarms a documented guard; note `standings.py:26` asserts the opposite invariant — resolve that contradiction one way.)
 
 **Fix:** Use `sc['round_nb']` when rebuilding, and read scores by round in the xlsx accessors.
 
-### Medium · robustness — Cross-table grid sized from `player_count // 4`, public 500s on mismatch
+### ✅ DONE · Medium · robustness — Cross-table grid sized from `player_count // 4`, public 500s on mismatch
 `mahj/scoring/stats.py:22-30` · `views/print_views.py:37, 53`
 
 `grid[p.table_nb - 1]` raises `IndexError` whenever a seat's table number exceeds players÷4 (10-table seating uploaded while 39 players registered); conversely extra empty cells make `cross_positions` — publicly routed — do `cell["seat"]` → `KeyError`. Ordinary setup states produce public 500s.
@@ -334,10 +334,10 @@ The `'turkey': 'tr'` flag alias exists (per its comment) precisely so Turkish pl
 
 **Fix:** Add `'tr'` (and decide on `ge`/`am`/`az`/`fo`/`gi` while there).
 
-### Medium · bug — Team modal: a Python `None` in the chart data kills the script block
+### ✅ DONE · Medium · bug — Team modal: a Python `None` in the chart data kills the script block
 `modal_details_team.html:149` · `views/public_modals.py:111-113`
 
-`const historyData = {{ team_history_pos }};` injects a Python list repr; when a team is missing from a round's ranking the list contains `None`, which is a JS `ReferenceError` — the chart *and* `goBack()` below it die, so the Back button stops working. The player modal uses the same fragile pattern (ints-only today).
+**✅ DONE (S8).** `const historyData = {{ team_history_pos }};` injects a Python list repr; when a team is missing from a round's ranking the list contains `None`, which is a JS `ReferenceError` — the chart *and* `goBack()` below it die, so the Back button stops working. The player modal uses the same fragile pattern (ints-only today).
 
 **Fix:** Pass both through `json_script` — JSON renders `null`, which Chart.js handles.
 
@@ -348,15 +348,15 @@ The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A"
 
 **Fix:** Validate/normalize in `player_editor_save` the same way the importer does.
 
-- **Low · race** — `admin_views.py:898-912`: when a drawn number has no current holder, `select_for_update` locks nothing; two desks assigning simultaneously → the second gets an unhandled `IntegrityError` 500 instead of the designed 409. Catch it and return the 409 payload.
-- **Low · UI badge** — `seating.py:404-424`: `algebraic_feasible` is first-fit while `find_shifts` tries 300 random orderings, so the seating page can claim "rematch-free impossible" when `generate()` would succeed. Implement it as `len(find_shifts(T, R, seed=0)) >= R`. (The seating algebra itself was verified correct — forbidden shifts, distinct residues, teammate guarantee all check out.)
-- **Low · crash-swallow** — `seating.py:472-481`: `measure()` assumes contiguous draw numbers/rounds from 1; a hand-edited imported chart makes it raise, and the caller's blanket `except` silently hides the quality panel. Derive the sets from the rows; drop the blanket except.
+- **✅ DONE · Low · race** — `admin_views.py:898-912`: when a drawn number has no current holder, `select_for_update` locks nothing; two desks assigning simultaneously → the second gets an unhandled `IntegrityError` 500 instead of the designed 409. Catch it and return the 409 payload.
+- **✅ DONE · Low · UI badge** — `seating.py:404-424`: `algebraic_feasible` is first-fit while `find_shifts` tries 300 random orderings, so the seating page can claim "rematch-free impossible" when `generate()` would succeed. Implement it as `len(find_shifts(T, R, seed=0)) >= R`. (The seating algebra itself was verified correct — forbidden shifts, distinct residues, teammate guarantee all check out.)
+- **✅ DONE · Low · crash-swallow** — `seating.py:472-481`: `measure()` assumes contiguous draw numbers/rounds from 1; a hand-edited imported chart makes it raise, and the caller's blanket `except` silently hides the quality panel. Derive the sets from the rows; drop the blanket except.
 - **✅ DONE · Low · UI state** — `admin_team_draw.html:186-197`: resuming a saved draw restores `paused` but never shows the pause overlay (the player-draw page does) — the page looks frozen, keys swallowed.
 - **✅ DONE · Low · CSV** — `admin_player_draw.html:536`, `admin_team_draw.html:633, 787`: names are quoted without doubling embedded `"`; such a name corrupts the exported row meant to be re-imported.
 - **✅ DONE · Low · cosmetics** — `models.py:415`: `Schedule.__str__` prints `time` twice (meant `name`) and crashes on NULL; same NULL-concat in `Screen.__str__` (`models.py:273`).
 - **✅ DONE · Low · WS routing** — `routing.py:8-11`: the URL regex admits Unicode and unbounded length, but Channels group names must match `[a-zA-Z0-9_.-]{1,100}`; a crafted URL raises in `group_add`. Tighten to `[a-zA-Z0-9_.-]{1,80}`.
 - **✅ DONE · Low · stats suppression** — `score_entry.py:136-138`: visiting `scores_per_hand_3_999` (scorer-gated GET) creates a phantom unvalidated sheet that marks round 3 "open" in the stats, with no UI listing it. 404 when no Seats exist for the pair.
-- **Low · cache spam** — `public_modals.py:147-160`: `detailed_scores` caches a placeholder per arbitrary (round, table) pair; bound it to the known seating range.
+- **✅ DONE · Low · cache spam** — `public_modals.py:147-160`: `detailed_scores` caches a placeholder per arbitrary (round, table) pair; bound it to the known seating range.
 
 ---
 
@@ -364,7 +364,7 @@ The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A"
 
 A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with no guard. Each is a one-line fix; listed together as one cleanup batch.
 
-- `public_modals.py:35-37` — `details_player`: unknown id → `DoesNotExist` 500 on a public, enumerable endpoint (the team modal correctly 404s); also `[…][0]` IndexError for a player absent from standings. Use `get_object_or_404` + a guard.
+- ✅ DONE (S8) — `public_modals.py:35-37` — `details_player`: unknown id → `DoesNotExist` 500 on a public, enumerable endpoint (the team modal correctly 404s); also `[…][0]` IndexError for a player absent from standings. Use `get_object_or_404` + a guard.
 - ✅ DONE (S4) — `score_entry.py:377, 385-390` — `int(e['id'])`, `entry['mp']`/`entry['tp']`: KeyError/ValueError uncaught; a grid cell with a missing Seat renders `data-id=""` so a legitimate save 500s.
 - ✅ DONE (S4) — `score_entry.py:217` — `int(round_nb)` runs *after* the transaction commits: a malformed `create_hand_points` request writes 16 hands, then 500s.
 - ✅ DONE (S4) — `score_entry.py:227, 296-297, 327-328` — raw `int(POST[...])` on version/params → 500 instead of 400.
@@ -377,17 +377,17 @@ A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with
 ## Dead code & duplication
 
 - **✅ DONE · Dead** — `scoring/visibility.py:33-36`: `_last_published_round` exported but has zero callers (`publish_state` superseded it).
-- **Test-only** — `scoring/stats.py:450-472`: `all_player_rounds` is called only by its own golden test; production uses `all_slot_rounds`. Delete or mark test-only.
+- **✅ DONE (deleted) · Test-only** — `scoring/stats.py:450-472`: `all_player_rounds` is called only by its own golden test; production uses `all_slot_rounds`. Delete or mark test-only.
 - **✅ DONE · Dead imports** — `admin_views.py:16` (`User`), `:40-41` (`stat_all_rounds`, `stat_rounds`); `:503` re-imports `invalidate_leaderboard` already imported at line 25.
-- **Dead JS** — `admin_display.html:291-293, 373`: `getTotalTime()` and its change handler target an input that only exists on the settings page fragment; the fallback always wins.
-- **Dead parameter** — `views/display.py:200-202`: `_score_columns`'s `columns` argument is unused and threaded through `_paginate`.
-- **Duplication (server)** — the hand-tally classification loop exists four times in `stats.py` (194-225, 331-352, 538-559, 643-663) with subtly different keying — a divergence bug waiting to happen; placement counting exists twice (227-237 vs 686-716); `player_extra_stats`/`team_extra_stats` share ~35 verbatim lines. Extract `classify_hand(hand, wind)` + one placement helper.
-- **Duplication (server)** — `views/scoring.py`: six functions repeat the identical cache-or-compute wrapper; one `_cached(prefix, request, full_view, compute)` collapses ~80 lines to ~20. Also duplicated: ✅ DONE (S4) `WINDS` lists in `score_entry.py:22` / `scan.py:309` / `scoring/_common.py:14`; the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`); the reauth-gate fragment pasted three times (`1689, 1732, 1756`).
+- **❌ NOT A FINDING · Dead JS** — `admin_display.html:291-293, 373`: `getTotalTime()` and its change handler target an input that only exists on the settings page fragment; the fallback always wins. **Checked in S8:** every function in that file is referenced, `getTotalTime` twice (from `updateDisplay` and `updateButtons`). The fallback winning makes it *degrade*, not dead — nothing removed.
+- **✅ DONE · Dead parameter** — `views/display.py:200-202`: `_score_columns`'s `columns` argument is unused and threaded through `_paginate`.
+- **✅ DONE · Duplication (server)** — the hand-tally classification loop exists four times in `stats.py` (194-225, 331-352, 538-559, 643-663) with subtly different keying — a divergence bug waiting to happen; placement counting exists twice (227-237 vs 686-716); `player_extra_stats`/`team_extra_stats` share ~35 verbatim lines. Extract `classify_hand(hand, wind)` + one placement helper.
+- **✅ DONE · Duplication (server)** — `views/scoring.py`: six functions repeat the identical cache-or-compute wrapper; one `_cached(prefix, request, full_view, compute)` collapses ~80 lines to ~20. Also duplicated: ✅ DONE (S4) `WINDS` lists in `score_entry.py:22` / `scan.py:309` / `scoring/_common.py:14`; the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`); the reauth-gate fragment pasted three times (`1689, 1732, 1756`).
 - **✅ DONE · Duplication (client)** — MCR table-point ranking (`get_tp` + `sortWithIndeces`) implemented three times with divergent styles (`admin_scores_per_table.html:236`, `admin_scores_per_hand.html:196` — this copy leaks globals — and `modal_detailed_scores.html:137`). This is scoring logic that must agree with the server; extract to one static JS file. Smaller repeats: `getCookie('csrftoken')` ×3, the preview-grid + enlarge-modal block duplicated verbatim between `admin_display.html` and `admin_ceremony.html`.
 - **Structural** — `admin_views.py:1322-1806`: `options()` is a ~480-line page dispatcher with 13 hand-rolled role gates; a `{page: (required_role, renderer)}` table makes missing gates impossible to overlook, and splitting the tunneled mutations into POST-only URLs fixes F6 structurally.
-- **Consistency** — native `alert()` inside admin-shell fragments where `window.alertAction` exists (the shell's own comment explains blocking dialogs stall WS timers): `admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2.
+- **✅ DONE · Consistency** — native `alert()` inside admin-shell fragments where `window.alertAction` exists (the shell's own comment explains blocking dialogs stall WS timers): `admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2.
 - **✅ DONE · Readability (docstrings)** — two docstrings described absent code: `seating.py:273` promised "local-search passes" (greedy-only), `signals.py:23` named cache keys that are now `modal_*`. Both corrected.
-- **Readability (remaining)** — `standings.py:53-74`: `history_pos` carries two junk leading entries stripped by a magic `.slice(2)` client-side while the team variant has none — align the shapes. `views/scoring.py:9-11`: the cache comment says signals invalidate on real writes, but Seat/Hand writes use `.update()`/`bulk_update` (no signals) — admin full-view caches can lag live entry by up to 300 s; make the comment state the actual contract.
+- **✅ DONE · Readability (remaining)** — `standings.py:53-74`: `history_pos` carries two junk leading entries stripped by a magic `.slice(2)` client-side while the team variant has none — align the shapes. `views/scoring.py:9-11`: the cache comment says signals invalidate on real writes, but Seat/Hand writes use `.update()`/`bulk_update` (no signals) — admin full-view caches can lag live entry by up to 300 s; make the comment state the actual contract.
 - **Battery drain** — `display_counter.html:389-404`: the sound-unlock probe constructs a `new Audio()` every second forever on unattended projectors; back off or retry on `pointerdown`.
 - **Missing atomic** — `admin_views.py:513-527`: the ~10-step template import handles Python errors with a manual wipe but not a mid-import process kill; wrapping the body in `transaction.atomic()` costs one line.
 
