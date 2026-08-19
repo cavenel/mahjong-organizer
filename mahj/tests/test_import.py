@@ -552,3 +552,69 @@ def test_generate_seating_team_best_effort_when_infeasible(staff_client, imp_ten
     assert resp.status_code == 200
     assert resp.json()['ok'] is True
     assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4
+
+
+# --------------------------------------------------------------------------
+# Tenancy and atomicity of the import itself (F10 + import atomicity)
+# --------------------------------------------------------------------------
+
+def test_import_reads_the_upload_not_a_shared_path(staff_client, imp_tenant, tmp_path):
+    """F10: every import used to be staged at one fixed path, BASE_DIR/tmp/template.xlsx.
+    Two tenants importing at once raced over it, and the loser could load the other's
+    workbook — after deleting its own players. The upload is now read directly, so no
+    shared file is written at all."""
+    from mahj.views.helpers import BASE_DIR
+    staged = BASE_DIR / 'tmp' / 'template.xlsx'
+    before = staged.stat().st_mtime if staged.exists() else None
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    assert resp.status_code == 200
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+
+    after = staged.stat().st_mtime if staged.exists() else None
+    assert after == before, 'the import still writes a shared staging file'
+
+
+def test_two_tenants_importing_do_not_cross(staff_client, imp_tenant, db):
+    """The other half of F10: each tenant ends up with exactly its own player list.
+    Sequential here — the shared-path race is what the test above rules out — but this
+    pins the tenant scoping of the import itself."""
+    other = Tenant.objects.create(name='Other import', subdomain='imp2')
+    other_client = Client()
+    other_client.defaults['HTTP_HOST'] = 'imp2.example.com'
+    u = User.objects.create_superuser('imp2_staff', password='pw')
+    other_client.force_login(u)
+
+    assert staff_client.post(
+        '/admin_upload_from_template', {'myfile': _filled_workbook(16)}).status_code == 200
+    assert other_client.post(
+        '/admin_upload_from_template', {'myfile': _filled_workbook(20)}).status_code == 200
+
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+    assert Player.objects.filter(tenant=other).count() == 20
+    # And no seat from one tenant leaked into the other's chart.
+    assert Seat.objects.filter(tenant=imp_tenant).exclude(draw_number__lte=16).count() == 0
+
+
+def test_a_failure_mid_import_leaves_nothing_behind(staff_client, imp_tenant):
+    """The import is one transaction, and a validation failure additionally wipes to
+    empty by design — never a half-loaded tournament, and never the old one
+    silently restored."""
+    assert staff_client.post(
+        '/admin_upload_from_template', {'myfile': _filled_workbook(16)}).status_code == 200
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+
+    # A workbook whose Options sheet has no round count: rejected after the players
+    # have already been parsed, so it exercises the wipe.
+    wb = load_workbook(TEMPLATE)
+    wb['Options'].cell(row=3, column=2).value = 0
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    buf.name = 'broken.xlsx'
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    assert resp.status_code == 200          # the page renders with an error banner
+    assert Player.objects.filter(tenant=imp_tenant).count() == 0
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 0
+    assert Schedule.objects.filter(tenant=imp_tenant).count() == 0

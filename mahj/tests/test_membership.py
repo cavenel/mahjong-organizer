@@ -5,7 +5,7 @@ import json
 
 import pytest
 from django.contrib.auth.models import Group, User
-from django.test import Client
+from django.test import Client, override_settings
 
 from mahj.models import Membership, Tenant
 from mahj.tests.conftest import grant
@@ -159,6 +159,31 @@ class TestContainmentRule:
         assert resp.status_code == 200
         shared_scorer.refresh_from_db()
         assert not shared_scorer.has_usable_password()
+
+    def test_cannot_mint_a_link_for_a_shared_account(self, tournament, shared_scorer, admin_a):
+        """F9: the minted link is a full credential for the account and it comes
+        back to the *minter*. Opened on tenant B's subdomain it carries the roles the
+        account holds there, so admin A minting one is an escalation into B."""
+        c = client_for(HOST_A); c.force_login(admin_a); _reauth(c)
+        resp = _json_post(c, '/user_generate_link', {'user_id': shared_scorer.id})
+        assert resp.status_code == 403
+        assert 'url' not in resp.json()
+
+    def test_can_mint_a_link_for_a_contained_account(self, tournament, admin_a):
+        """The ordinary case still works — a user who belongs only here."""
+        u = User.objects.create_user('onlyA2', password='pw')
+        grant(u, tournament['tenant'], scorer=True)
+        c = client_for(HOST_A); c.force_login(admin_a); _reauth(c)
+        resp = _json_post(c, '/user_generate_link', {'user_id': u.id})
+        assert resp.status_code == 200
+        assert 'sesame=' in resp.json()['url']
+
+    def test_superuser_can_mint_for_a_shared_account(self, tournament, tenant_b, shared_scorer):
+        su = User.objects.create_superuser('root2', '', 'pw')
+        c = client_for(HOST_A); c.force_login(su); _reauth(c)
+        resp = _json_post(c, '/user_generate_link', {'user_id': shared_scorer.id})
+        assert resp.status_code == 200
+        assert 'sesame=' in resp.json()['url']
 
 
 # --------------------------------------------------------------------------
@@ -327,3 +352,85 @@ class TestSeedMembershipsMigration:
         User.objects.create_user('legacy_staff', is_staff=True)
         self._seed()
         assert Membership.objects.count() == 0      # can't attribute to one tenant
+
+
+# --------------------------------------------------------------------------
+# Tenancy carried into the storage and HTTP layers
+# --------------------------------------------------------------------------
+
+class TestSubdomainUniqueness:
+    """The subdomain is the tenant key — every request resolves its tenant from
+    the host, and Tenant.get_default_pk does a get_or_create on it. Two rows
+    sharing one would make which tenant a request lands on depend on row order."""
+
+    def test_duplicate_subdomain_rejected_by_the_database(self, tenant):
+        from django.db import IntegrityError, transaction
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                Tenant.objects.create(name='Impostor', subdomain=tenant.subdomain)
+
+    def test_distinct_subdomains_are_fine(self, tenant):
+        Tenant.objects.create(name='Second', subdomain='second')
+        assert Tenant.objects.count() == 2
+
+    def test_superuser_console_still_refuses_a_duplicate(self, tournament):
+        """The app-level guard must answer before the database does, so the
+        operator gets a message rather than a 500."""
+        su = User.objects.create_superuser('root3', '', 'pw')
+        c = client_for(HOST_A); c.force_login(su); _reauth(c)
+        resp = _json_post(c, '/tenant_create', {'name': 'Dup', 'subdomain': 'test'})
+        assert resp.status_code == 400
+        assert Tenant.objects.filter(subdomain='test').count() == 1
+
+
+class TestForwardedHostSpoofing:
+    """F12: the subdomain in the host picks the tenant, so the host Django trusts
+    must be the one nginx sets — never a header the client can supply."""
+
+    def _scorer_of_b_on_host_a(self, tenant_b):
+        scorer = User.objects.create_user('scorerHdr', password='pw')
+        grant(scorer, tenant_b, scorer=True)
+        c = client_for(HOST_A)
+        c.force_login(scorer)
+        return c
+
+    def test_x_forwarded_host_does_not_change_the_tenant(self, tournament, tenant_b):
+        """A scorer of B is forbidden on A, and claiming to be B via the header
+        must not move them onto B."""
+        c = self._scorer_of_b_on_host_a(tenant_b)
+        resp = c.get('/admin', HTTP_X_FORWARDED_HOST=HOST_B)
+        assert resp.status_code == 403
+
+    @override_settings(USE_X_FORWARDED_HOST=True)
+    def test_the_vector_is_real_which_is_why_the_setting_is_off(self, tournament, tenant_b):
+        """Characterises what the setting buys. Turn it on and the same request
+        succeeds: Django prefers X-Forwarded-Host, nginx never sets it, so the
+        client's own header picks the tenant. Nothing in the code can defend
+        against that — keeping the setting off is the fix."""
+        c = self._scorer_of_b_on_host_a(tenant_b)
+        resp = c.get('/admin', HTTP_X_FORWARDED_HOST=HOST_B)
+        assert resp.status_code == 200
+
+    def test_setting_is_not_enabled_in_prod(self):
+        """Config, not code: assert the prod settings module leaves it off, since
+        nginx passes the real Host and never sets X-Forwarded-Host."""
+        import pathlib
+        prod = pathlib.Path('apps/settings/prod.py').read_text()
+        assert 'USE_X_FORWARDED_HOST = True' not in prod
+
+
+class TestPlayerRoundsTenantScope:
+    def test_another_tenants_player_is_not_readable(self, tournament, tenant_b):
+        """player_rounds_rows looked players up by bare id, so a crafted id read
+        another tenant's competitor and rendered their rounds on this subdomain."""
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+        from mahj.models import Player
+        from mahj.views.scoring import player_rounds_rows
+
+        other = Player.objects.create(
+            tenant=tenant_b, draw_number=1, full_name='Outsider', first_name='Out')
+        req = RequestFactory().get('/', HTTP_HOST=HOST_A)
+        req.user = AnonymousUser()
+        with pytest.raises(Player.DoesNotExist):
+            player_rounds_rows(req, other.id)

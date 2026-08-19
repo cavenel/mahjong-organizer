@@ -563,7 +563,7 @@ def test_player_editor_save_persists_metadata(client_, staff, tournament):
         '/player_editor_save',
         data=json.dumps({'players': [{
             'id': p.id, 'first_name': 'Corrected', 'last_name': 'Name',
-            'country': 'Norway', 'EMA_ID': 'E99999', 'team': 'Reds',
+            'country': 'Norway', 'EMA_ID': '99999', 'team': 'Reds',
         }]}),
         content_type='application/json')
     assert resp.status_code == 200
@@ -573,6 +573,49 @@ def test_player_editor_save_persists_metadata(client_, staff, tournament):
     assert (p.first_name, p.last_name) == ('Corrected', 'Name')
     assert p.full_name == 'Corrected Name'
     assert p.short_name == 'Corrected'
+    # Stored in the importer's canonical zero-padded form, so an edited id matches
+    # the same competitor imported from a template.
+    assert p.EMA_ID == '00099999'
+
+
+def test_player_editor_save_rejects_a_non_numeric_ema_id(client_, staff, tournament):
+    """The editor used to accept any string, and the template export then died on
+    int() over it."""
+    from mahj.models import Player
+    p = Player.objects.filter(tenant=tournament['tenant']).first()
+    before = p.EMA_ID
+    client_.force_login(staff)
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': [{'id': p.id, 'EMA_ID': 'N/A'}]}),
+        content_type='application/json')
+    assert resp.status_code == 400
+    p.refresh_from_db()
+    assert p.EMA_ID == before
+
+
+def test_player_editor_save_accepts_a_blank_ema_id(client_, staff, tournament):
+    """Most competitors have no EMA number, so blank has to stay allowed."""
+    from mahj.models import Player
+    p = Player.objects.filter(tenant=tournament['tenant']).first()
+    client_.force_login(staff)
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': [{'id': p.id, 'EMA_ID': ''}]}),
+        content_type='application/json')
+    assert resp.status_code == 200
+    p.refresh_from_db()
+    assert p.EMA_ID == ''
+
+
+def test_template_export_survives_a_legacy_non_numeric_ema_id(client_, staff, tournament):
+    """Rows predating the digits-only rule still exist (the shared fixture seeds
+    them), and the export used to 500 on int() over one."""
+    from mahj.models import Player
+    Player.objects.filter(tenant=tournament['tenant']).update(EMA_ID='E00001')
+    client_.force_login(staff)
+    resp = client_.get('/admin_export_to_template')
+    assert resp.status_code == 200
 
 
 def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):
