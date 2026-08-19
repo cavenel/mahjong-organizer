@@ -344,9 +344,10 @@ class PublishTarget(TenantAwareModel):
 
     ``password_enc`` / ``private_key_enc`` hold Fernet ciphertext (see
     ``publish.secrets``), never plaintext, and are never rendered back to the
-    client — the editor is write-only. ``host_key`` is an optional known_hosts
-    line pinning the target's host key (public data, not a secret); empty falls
-    back to auto-adding the key on first connect.
+    client — the editor is write-only. ``host_key`` is a known_hosts line pinning
+    the target's host key (public data, not a secret). The operator can paste one;
+    otherwise the first successful connect records what it saw and every connect
+    after that is verified against it, so a changed key is refused.
     """
     enabled         = models.BooleanField(default=False)
     host            = models.CharField(default="", max_length=255, blank=True)

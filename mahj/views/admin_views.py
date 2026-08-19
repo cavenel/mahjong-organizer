@@ -1,5 +1,6 @@
 import hashlib
 import io
+import logging
 import os
 import re
 import time
@@ -29,6 +30,8 @@ from .helpers import (
 )
 from .print_views import _country_flag
 from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
+
+logger = logging.getLogger(__name__)
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
@@ -1204,7 +1207,12 @@ def publish_target_test(request):
     """Open + close an SFTP connection using the values currently in the form —
     not the saved target — so staff can verify before saving. A blank password/
     key field falls back to the stored secret, so you can test an unchanged
-    credential without re-typing it."""
+    credential without re-typing it.
+
+    This does let a tenant admin make the server open a TCP connection to any
+    host:port they type. That is inherent to a "test this target" button and the
+    role is trusted, so it stays — but each attempt is logged with the user and
+    target, so the probing is at least attributable after the fact."""
     if request.method != 'POST':
         return HttpResponseForbidden('POST required')
     tenant = get_tenant(request)
@@ -1232,6 +1240,9 @@ def publish_target_test(request):
     if not key.strip() and stored and request.POST.get('clear_key') != '1':
         key = publish_secrets.decrypt(stored.private_key_enc)
 
+    # No `subdomain`: these are unsaved form values, so _connect must not learn
+    # and pin a host key from them onto the stored target. PublishConfig.subdomain
+    # defaults to '' and _remember_host_key skips on that — keep it that way.
     cfg = PublishConfig(
         host=host, port=port,
         username=request.POST.get('username', '').strip(),
@@ -1240,6 +1251,8 @@ def publish_target_test(request):
         key_data=key,
         host_key=request.POST.get('host_key', '').strip(),
     )
+    logger.info("publish target test by %s (tenant %s) -> %s:%s",
+                request.user, tenant.subdomain if tenant else '-', cfg.host, cfg.port)
     try:
         client = _connect(cfg)
         client.open_sftp().close()

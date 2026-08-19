@@ -38,6 +38,7 @@ class PublishConfig:
     password: str = ''
     key_data: str = ''      # inline private key PEM
     host_key: str = ''      # a single known_hosts line to pin the host (optional)
+    subdomain: str = ''     # so a learned host key can be written back to the row
 
 
 def resolve_config(subdomain):
@@ -59,6 +60,7 @@ def resolve_config(subdomain):
         password=secrets.decrypt(target.password_enc),
         key_data=secrets.decrypt(target.private_key_enc),
         host_key=target.host_key or '',
+        subdomain=subdomain,
     )
 
 
@@ -87,15 +89,47 @@ def _pin_host_key(client, line):
         client.get_host_keys().add(name, entry.key.get_name(), entry.key)
 
 
+def _known_hosts_name(cfg):
+    """How a known_hosts line names this target — bracketed for a non-22 port,
+    matching both paramiko and OpenSSH."""
+    return cfg.host if cfg.port == 22 else f'[{cfg.host}]:{cfg.port}'
+
+
+def _remember_host_key(cfg, client):
+    """Trust on first use: store the key we just saw so every later connect to this
+    target is checked against it.
+
+    Only fills an empty ``host_key``, and only via a filtered UPDATE, so it can
+    never overwrite a key the operator pinned by hand or one a concurrent publish
+    learned first. A changed key from then on is a RejectPolicy failure, which is
+    the point — accepting a new key on every connect is what makes an unpinned
+    target MITM-able for its whole life, not just its first second.
+    """
+    transport = client.get_transport()
+    if transport is None or not cfg.subdomain:
+        return
+    key = transport.get_remote_server_key()
+    line = f'{_known_hosts_name(cfg)} {key.get_name()} {key.get_base64()}'
+    from ..models import PublishTarget
+    written = (PublishTarget.objects
+               .filter(tenant__subdomain=cfg.subdomain, host=cfg.host, host_key='')
+               .update(host_key=line))
+    if written:
+        logger.info("Pinned the host key for %s on first connect (%s). Later connects "
+                 "are verified against it; a change will be refused.",
+                 cfg.host, key.get_name())
+
+
 def _connect(cfg):
     client = paramiko.SSHClient()
-    if cfg.host_key:
+    pinned = bool(cfg.host_key)
+    if pinned:
         _pin_host_key(client, cfg.host_key)
-        client.set_missing_host_key_policy(paramiko.RejectPolicy())
-    else:
-        # No host key pinned: accept it on first connect. Acceptable for a
-        # staff-configured target; set a host_key line to pin it instead.
-        client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    client.set_missing_host_key_policy(
+        # Pinned: anything else is refused. Unpinned: learn it on this one connect
+        # and write it back below, so the trust-on-first-use window is a single
+        # connection rather than every connection.
+        paramiko.RejectPolicy() if pinned else paramiko.AutoAddPolicy())
     client.connect(
         hostname=cfg.host,
         port=cfg.port,
@@ -104,6 +138,13 @@ def _connect(cfg):
         pkey=_load_private_key(cfg.key_data) if cfg.key_data else None,
         timeout=15,
     )
+    if not pinned:
+        try:
+            _remember_host_key(cfg, client)
+        except Exception:
+            # Never fail a publish because we couldn't record the key; the next
+            # connect just learns it again.
+            logger.warning("Could not store the host key for %s", cfg.host, exc_info=True)
     return client
 
 
