@@ -222,6 +222,8 @@ class Hand(TenantAwareModel):
     def win_by_player(self):
         return self._seat_player(self.win_by)
 
+    # Only __str__ reads this one; it stays as the counterpart of win_by_player()
+    # so the winner/discarder pair is symmetric.
     def win_from_player(self):
         return self._seat_player(self.win_from)
 
@@ -238,10 +240,9 @@ class ScoreSheet(TenantAwareModel):
     it human-checked. "Sheet started" is the row's existence; "sheet validated"
     is the flag.
     """
-    round_nb   = models.IntegerField()
-    table_nb   = models.IntegerField()
-    validated  = models.BooleanField(default=False)
-    updated_at = models.DateTimeField(auto_now=True)
+    round_nb  = models.IntegerField()
+    table_nb  = models.IntegerField()
+    validated = models.BooleanField(default=False)
 
     class Meta:
         constraints = [
@@ -255,10 +256,9 @@ class ScoreSheet(TenantAwareModel):
 
 
 class Screen(TenantAwareModel):
-    name         = models.CharField(default="Unknown",max_length=70)
-    view         = models.CharField(default="",null=True,max_length=70)
-    time         = models.DateTimeField(auto_now_add=True, blank=False)
-    last_refresh = models.DateTimeField(auto_now_add=True, blank=False)
+    name = models.CharField(default="Unknown",max_length=70)
+    view = models.CharField(default="",null=True,max_length=70)
+    time = models.DateTimeField(auto_now_add=True, blank=False)
 
     # Legacy auto-assigned placeholders that should read as "no custom name" in the
     # UI, so an un-renamed screen falls back to its bare positional label (/1, /2…).
@@ -353,14 +353,13 @@ class PublishTarget(TenantAwareModel):
 
 
 class PublishedRound(TenantAwareModel):
-    round_nb     = models.IntegerField()
+    round_nb = models.IntegerField()
     # A published round is normally visible to everyone. ``withheld`` marks the
     # final round as published-but-held-back during the podium-reveal suspense:
     # the results are prepared for the ceremony but hidden from the public until
     # the reveal. The reveal animation itself is driven client-side by the
     # ceremony page, not by mutating this field.
-    withheld     = models.BooleanField(default=False)
-    published_at = models.DateTimeField(auto_now=True)
+    withheld = models.BooleanField(default=False)
 
     class Meta:
         unique_together = [('tenant', 'round_nb')]
@@ -382,10 +381,9 @@ class CeremonyState(TenantAwareModel):
       'stat'    — showing one overall_winners category (stat_key).
       'blank'   — holding/title slide on all screens.
     """
-    phase      = models.CharField(max_length=20, default='idle')
-    step       = models.IntegerField(default=0)
-    stat_key   = models.CharField(max_length=40, default='', blank=True)
-    updated_at = models.DateTimeField(auto_now=True)
+    phase    = models.CharField(max_length=20, default='idle')
+    step     = models.IntegerField(default=0)
+    stat_key = models.CharField(max_length=40, default='', blank=True)
 
     class Meta:
         constraints = [

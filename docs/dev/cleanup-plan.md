@@ -7,17 +7,6 @@ should shrink to nothing.
 Everything here is **behaviour-preserving cleanup**, not bug-fixing — verify with
 the golden snapshots (byte-identical except intended field changes) + full suite.
 
-## Dead code (safe deletes)
-
-- **Four write-only timestamp fields, never read anywhere** (each needs a schema
-  migration — batch them, then fold into the pre-publish squash):
-  - `ScoreSheet.updated_at`, `CeremonyState.updated_at`, `PublishedRound.published_at`
-    (all `auto_now`) and `Screen.last_refresh` (`auto_now_add`, orphaned
-    screen-heartbeat scaffolding). Confirmed: each field name's only occurrence is
-    its own definition; none of these models is serialised wholesale.
-- Note: `Hand.win_from_player()` is only used by `Hand.__str__` — **keep** it (not
-  truly dead; mirrors `win_by_player()`).
-
 ## Comments AND docs describing history, not current state
 
 The same "describe what it is now, not the diff" principle applies to prose docs
@@ -42,8 +31,9 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
 - **Use `python manage.py squashmigrations mahj 0001 00NN`**, not a manual wipe.
   The squash carries `replaces=[…]`, so prod recognises the originals as applied
   and skips re-running; fresh installs run only the squashed migration.
-- Sequence: land all remaining schema changes first (the dead timestamp fields),
-  **then** squash once. Don't squash mid-stream.
+- Sequence: land all remaining schema changes first, **then** squash once.
+  Don't squash mid-stream. (`0013` dropping the dead timestamp columns is in;
+  nothing else schema-touching is outstanding.)
 - After the next prod deploy applies the squash, delete the replaced migration
   files (follow-up) → single clean `0001`.
 - A truly pristine `0001` with no `replaces` metadata is possible via a manual
@@ -53,9 +43,8 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
 
 ## Suggested order
 
-1. Dead timestamp fields (one migration).
-2. History-comment rewording (trivial).
-3. **Last, pre-publish:** squash migrations.
+1. History-comment rewording (trivial).
+2. **Last, pre-publish:** squash migrations.
 
 ## Deliberately NOT doing
 
