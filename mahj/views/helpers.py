@@ -37,6 +37,46 @@ def json_body(request):
     return data
 
 
+_REQUIRED = object()
+
+
+def int_param(data, field, default=_REQUIRED):
+    """One integer field out of ``request.POST`` or a :func:`json_body` dict.
+
+    Absent or blank yields ``default``; with no default that is a ``BadRequest``.
+    Present but not an integer is always a ``BadRequest``. Both name the field, so
+    a crafted or buggy request gets a 400 saying what was wrong instead of a 500
+    out of a bare ``int()``. As with :func:`json_body` the message reaches the
+    server log rather than the response body — Django renders a plain 400.
+    """
+    raw = data.get(field)
+    if raw is None or raw == '':
+        if default is _REQUIRED:
+            raise BadRequest(f"'{field}' is required")
+        return default
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise BadRequest(f"'{field}' must be a whole number, got {raw!r}")
+
+
+def number_or_none(data, field, cast=int):
+    """One numeric score cell that may legitimately be empty.
+
+    Absent or blank yields ``None`` — the cell is cleared, stored NULL. Anything
+    else must parse as ``cast`` or it is a ``BadRequest`` naming the field: a cell
+    the scorer can see a value in must never be quietly stored as NULL, which
+    reads downstream as "not played yet".
+    """
+    raw = data.get(field)
+    if raw is None or raw == '':
+        return None
+    try:
+        return cast(raw)
+    except (TypeError, ValueError):
+        raise BadRequest(f"'{field}' must be a number, got {raw!r}")
+
+
 def get_counter(tenant):
     v = TournamentSettings.objects.filter(tenant=tenant).first()
     return v.counter if v else -1

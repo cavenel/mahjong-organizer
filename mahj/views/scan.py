@@ -17,7 +17,7 @@ from ..models import Hand, ScoreSheet, Seat
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
 from .helpers import BASE_DIR, get_tenant, has_role, json_body
 from .score_entry import _parse_hand, _prune_to_played_hands
-from ..scoring import _attach_players
+from ..scoring import WIND_LETTERS, _attach_players
 
 
 def _require_scan_enabled():
@@ -306,9 +306,6 @@ def run_scan(image_bgr):
     return {'status': 'done', 'scores': data.get("Scores", [])}
 
 
-WINDS = ['E', 'S', 'W', 'N']
-
-
 def scan_seats(request):
     """Return the table's seats for a given round/table: the seat labels (draw
     number + short name) and whether the sheet is already filled/validated.
@@ -343,7 +340,7 @@ def scan_seats(request):
     for p in seats:
         first = p.player.short_name if p.player else ''
         data.append({
-            'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
+            'wind': WIND_LETTERS[p.wind - 1] if 1 <= p.wind <= 4 else '',
             'player': f"{p.draw_number}. {first}",
         })
 

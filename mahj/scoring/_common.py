@@ -11,7 +11,12 @@ import pycountry
 from ..models import Player, ScoreSheet, Schedule
 
 
+# Seat winds in seat order, so `WINDS[seat.wind - 1]` names a seat. Two
+# spellings for two audiences: the long one for prose and the public modals, the
+# letters for the score sheets and the scorer-sync payloads, where a cell is one
+# character wide.
 WINDS = ('East', 'South', 'West', 'North')
+WIND_LETTERS = ('E', 'S', 'W', 'N')
 
 
 def _group_by(iterable, key):

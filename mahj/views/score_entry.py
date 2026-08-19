@@ -7,7 +7,7 @@ from django.template import loader
 from django.urls import reverse
 
 from ..models import Hand, ScoreSheet, Seat, PublishedRound
-from ..scoring import _attach_players
+from ..scoring import WIND_LETTERS, _attach_players
 from ..signals import (
     broadcast_publish_state,
     broadcast_scorer_filled,
@@ -16,9 +16,6 @@ from ..signals import (
     invalidate_leaderboard,
 )
 from .helpers import get_tenant, get_tournament, json_body, tenant_role_required
-
-
-WINDS = ['E', 'S', 'W', 'N']
 
 
 def _published_rounds(tenant):
@@ -88,7 +85,7 @@ def _row_payload(tenant, round_nb, table_nb):
         'seats': [
             {
                 'id': p.id,
-                'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
+                'wind': WIND_LETTERS[p.wind - 1] if 1 <= p.wind <= 4 else '',
                 'mp': p.minipoints,
                 'tp': float(p.tablepoints) if p.tablepoints is not None else None,
             }

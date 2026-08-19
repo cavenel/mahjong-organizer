@@ -13,6 +13,7 @@ tests/test_scoring_golden.py lock the output shapes.
 """
 from ._common import (
     WINDS,
+    WIND_LETTERS,
     _FLAG_ALIASES,
     _attach_players,
     _country_flag,
