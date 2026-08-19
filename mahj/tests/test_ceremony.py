@@ -8,7 +8,7 @@ from django.test import Client, RequestFactory
 
 from mahj.models import CeremonyState, PublishedRound, Screen, Seat
 from mahj.views import ceremony
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import grant, json_script_payload
 
 
 @pytest.fixture
@@ -292,3 +292,20 @@ class TestScreenTakeover:
         assert '<title>Prize-giving</title>' in html
         assert '"phase": "teams"' in html
         assert '"done": false' in html  # step 2 of 4 — reveal still in progress
+
+    def test_hostile_name_cannot_close_the_slide_script_block(self, teamed):
+        """This screen is public and the slide carries every revealed name, so an
+        operator-entered `</script>` in one must not terminate the script block
+        and inject live script on the projector (F4)."""
+        hostile = '</script><script>alert(1)</script>'
+        player = teamed['players'][0]
+        player.full_name = hostile
+        player.save()
+        Screen.objects.create(tenant=teamed['tenant'], name='S1', view='black')
+        CeremonyState.objects.create(tenant=teamed['tenant'], phase='players', step=16)
+
+        html = Client().get('/1', HTTP_HOST='test.example.com').content.decode()
+        assert hostile not in html
+        assert '\\u003C/script\\u003E' in html   # escaped, so inert
+        payload = json_script_payload(html, 'ceremony-payload')
+        assert hostile in [e['name'] for e in payload['entries']]

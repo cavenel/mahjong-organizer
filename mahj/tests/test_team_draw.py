@@ -7,7 +7,7 @@ from django.db import IntegrityError
 from django.test import Client
 
 from mahj.models import Player, Seat
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import grant, json_script_payload
 
 HOST = 'test.example.com'
 
@@ -140,3 +140,40 @@ def test_page_shown_when_seating_exists(client_, staff, tournament):
     resp = client_.get('/admin_team_draw')
     assert resp.status_code == 200
     assert b'No seating chart yet' not in resp.content
+
+
+# ─── Escaping (F4 / F5) ────────────────────────────────────────────────────
+# Team and player names are operator-entered, and the page both embeds them as
+# JSON and rebuilds HTML from them client-side.
+
+HOSTILE_TEAM = 'Team "</script><img src=x onerror=alert(1)>'
+
+
+def _rename_all_teams(tenant, name):
+    for p in Player.objects.filter(tenant=tenant):
+        p.team = name
+        p.save()
+
+
+def test_hostile_team_name_cannot_close_the_script_block(client_, staff, tournament):
+    """json.dumps escapes the payload's quotes but leaves `<` and `/` alone, so
+    this name used to terminate the <script> and inject a live element."""
+    client_.force_login(staff)
+    _rename_all_teams(tournament['tenant'], HOSTILE_TEAM)
+
+    body = client_.get('/admin_team_draw').content.decode()
+    assert '<img src=x' not in body
+    assert '\\u003C/script\\u003E' in body      # escaped, so inert
+    # The page still receives the real name to display.
+    assert [t['name'] for t in json_script_payload(body, 'teams-data')] == [HOSTILE_TEAM]
+
+
+def test_team_rows_carry_an_index_not_a_name(client_, staff, tournament):
+    """The search row used to call confirmTeam('${t.name}') from an inline
+    onclick, escaping only single quotes — a name holding a double quote broke
+    straight out of the attribute. It now carries the team's index in TEAMS."""
+    client_.force_login(staff)
+    body = client_.get('/admin_team_draw').content.decode()
+    assert 'onclick="confirmTeam(' not in body
+    assert 'data-team-index=' in body
+    assert 'js/browser_utils.js' in body

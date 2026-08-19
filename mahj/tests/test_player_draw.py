@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Player, Seat
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import grant, json_script_payload
 
 HOST = 'test.example.com'
 
@@ -123,3 +123,34 @@ def test_assign_get_not_allowed(client_, staff, undrawn):
     client_.force_login(staff)
     resp = client_.get('/admin_player_draw_assign')
     assert resp.status_code == 405
+
+
+# ─── Escaping (F4 / F5) ────────────────────────────────────────────────────
+# Player names are operator-entered (Excel import, player editor), and the page
+# both embeds them as JSON and rebuilds HTML from them client-side.
+
+HOSTILE_NAME = '</script><script>alert(1)</script>'
+
+
+def test_hostile_player_name_cannot_close_the_script_block(client_, staff, undrawn):
+    """json.dumps escapes neither `<` nor `/`, so this name used to terminate the
+    surrounding <script> and inject live script. json_script escapes it."""
+    client_.force_login(staff)
+    player = Player.objects.filter(tenant=undrawn['tenant']).first()
+    player.full_name = HOSTILE_NAME
+    player.save()
+
+    body = client_.get('/admin_player_draw').content.decode()
+    assert HOSTILE_NAME not in body
+    assert '\\u003C/script\\u003E' in body      # escaped, so inert
+    # The page still receives the real name to display.
+    assert HOSTILE_NAME in [p['full_name'] for p in json_script_payload(body, 'players-data')]
+
+
+def test_page_escapes_names_before_they_reach_innerhtml(client_, staff, undrawn):
+    """The page builds its search results, banner, reveal card and progress grid
+    as HTML strings from the name, so it must load the escaping helper."""
+    client_.force_login(staff)
+    body = client_.get('/admin_player_draw').content.decode()
+    assert 'js/browser_utils.js' in body
+    assert 'escapeHtml(p.full_name)' in body

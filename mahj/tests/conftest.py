@@ -1,4 +1,7 @@
+import json
+import re
 import types
+
 import pytest
 from django.contrib.auth.models import AnonymousUser
 from django.db.models import ForeignKey, Model
@@ -21,6 +24,19 @@ def grant(user, tenant, admin=False, scorer=False, display_op=False, publisher=F
     return Membership.objects.create(
         user=user, tenant=tenant, is_tenant_admin=admin,
         is_scorer=scorer, is_display_op=display_op, is_publisher=publisher)
+
+
+def json_script_payload(body, element_id):
+    """The value Django's ``|json_script`` wrote into ``element_id``, parsed back.
+
+    Lets a test assert both halves of the escaping contract at once: that no name
+    appears verbatim in the HTML, and that the page still receives the real one.
+    """
+    m = re.search(
+        r'<script id="%s" type="application/json">(.*?)</script>' % element_id,
+        body, re.DOTALL)
+    assert m, f'no json_script block {element_id!r} in the response'
+    return json.loads(m.group(1))
 
 
 @pytest.fixture
