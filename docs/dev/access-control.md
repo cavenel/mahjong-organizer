@@ -39,13 +39,18 @@ access (public / 403). That 403-for-the-wrong-tenant is the isolation, not a bug
   and grants **no** app access. App-level "tenant admin" is the `is_tenant_admin`
   membership flag — never the Django staff flag. Don't reintroduce an `is_staff`
   predicate in a view path.
-- **Destructive-credential containment.** A tenant admin may add/remove a user's
-  membership *in their own tenant* freely, but may only rotate credentials (revoke
-  sesame links) or delete the account when the target's memberships are entirely
-  within that tenant. A user shared across tenants is credential-managed only by a
-  superuser — this bounds the blast radius of a shared account. The console
-  otherwise offers only "remove from this tenant" (drop the membership, keep the
-  account).
+- **Credential containment.** A tenant admin may add/remove a user's membership
+  *in their own tenant* freely, but may only **mint** a login link, rotate
+  credentials (revoke sesame links) or delete the account when the target's
+  memberships are entirely within that tenant. A user shared across tenants is
+  credential-managed only by a superuser — this bounds the blast radius of a shared
+  account. The console otherwise offers only "remove from this tenant" (drop the
+  membership, keep the account).
+
+  Minting counts as credential management even though it looks read-only: the link
+  is a full credential for the *account* and it is returned to the admin who asked
+  for it. Opened on another tenant's subdomain it carries whatever roles the
+  account holds there, so membership gating alone doesn't contain it.
 - **Last-admin / self guards.** You can't drop your own admin role, delete
   yourself, or delete the last admin *of a tenant*. Superusers are exempt (they
   can always recover a tenant).

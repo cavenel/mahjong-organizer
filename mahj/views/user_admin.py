@@ -203,9 +203,17 @@ def user_update_roles(request):
 
 @tenant_admin_and_reauthed
 def user_generate_link(request):
-    """Mint a passwordless login link for a user in this tenant. Minting is not
-    containment-restricted: the link is gated by membership, so it only ever grants
-    the access the user already has on the subdomain it's opened on."""
+    """Mint a passwordless login link for a user in this tenant.
+
+    Containment-restricted, like ``user_revoke_links`` and ``user_delete``: the
+    minted link is a full credential for the *account* and it is handed to the
+    admin who asked for it, not to the user. So for an account shared with another
+    tenant, minting would let an admin here open that link on the other tenant's
+    subdomain and act with whatever roles the account holds there. Membership
+    gating doesn't help — it is the account's own membership that grants the
+    access. Only a superuser, who already spans tenants, may mint for a shared
+    account.
+    """
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     data = json_body(request)
@@ -213,7 +221,13 @@ def user_generate_link(request):
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
         return resolved
-    user, _tenant, _membership = resolved
+    user, tenant, _membership = resolved
+
+    if not request.user.is_superuser and not _memberships_contained(user, tenant):
+        return JsonResponse(
+            {'status': 'error',
+             'error': 'shared account — only a superuser can mint its login links'},
+            status=403)
 
     # Land the kiosk straight on the scoring page; the sesame middleware logs the
     # user in from the token on the way through. token chars are URL-safe.
