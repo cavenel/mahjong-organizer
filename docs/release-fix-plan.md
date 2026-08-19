@@ -10,7 +10,7 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - Mark the covered findings **✅ DONE** in `code-review-2026-08-19.md` as you finish them, and tick the checklist boxes here.
 - Keep each session's diff self-contained so it's independently reviewable/revertable.
 
-**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
+**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S5 was deferred at the user's request after S4; S6 done, S7/S8 next, S5 still open (see the note in its section). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
 
 **Already done** (safe mechanical batch, 2026-08-19): dead imports, dead `_last_published_round`, `Schedule`/`Screen` `__str__`, Turkey in `EUROPE`, WS regex, two docstrings.
 
@@ -109,6 +109,8 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 ## Session 5 — Scan pipeline hardening
 
+**⏭️ DEFERRED** (2026-08-19, at the user's request) — taken out of order, still open. Nothing in S6–S8 depends on it. **Release note:** F13 below is the most severe item left in this plan — an anonymous caller can write scores to any empty table and mark its sheet validated, on a build where `SCAN_ENABLED` defaults to `True` (`apps/settings/base.py`; standalone sets it `False`). Setting `SCAN_ENABLED = False` neutralises this whole session's surface in one line, if the OCR scan feature isn't needed for the release. The `int_param` / `number_or_none` helpers added in S4 (`views/helpers.py`) now cover this session's `scan.py` 500-guards.
+
 **Theme:** the anonymous OCR flow currently trusts callers with far more than a photo. All in `scan.py` + the queue/worker modules.
 
 **Findings:** F13, anonymous-upload metering, worker resilience (scan + restore), `scan.py` 500-guards.
@@ -130,21 +132,21 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 **Theme:** tenancy wasn't carried into the filesystem, credential, and HTTP layers. Includes one migration (auto-applies on deploy — never ask the operator to migrate).
 
-**Findings:** F9, F10, F12, `Tenant.subdomain` uniqueness, `player_rounds_rows` tenant filter, free-text `EMA_ID`, import atomicity.
+**Findings:** F9, F10, F12, `Tenant.subdomain` uniqueness, `player_rounds_rows` tenant filter, free-text `EMA_ID`, import atomicity. **✅ SESSION COMPLETE** — full suite 544 passing (+16 tests).
 
-- [ ] **F9 — login-link minting escalation** (`user_admin.py:218-237`) — apply the same containment guard `revoke`/`delete` already use: `if not request.user.is_superuser and not _memberships_contained(user, tenant): 403`.
-- [ ] **F10 — shared import temp file race** (`admin_views.py:277-290`) — pass the uploaded file object straight to `load_workbook(attached_file)` (no disk hop), or use a per-request `tempfile.NamedTemporaryFile`.
-- [ ] **Import atomicity** (`admin_views.py:513-527`) — wrap the multi-step wipe+import body in `transaction.atomic()` so a mid-import crash can't leave a half-imported tournament (same code as F10).
-- [ ] **F12 — `USE_X_FORWARDED_HOST` host spoofing** (`apps/settings/prod.py:23` + `nginx/mahjong.conf.template`) — remove `USE_X_FORWARDED_HOST` (nginx already passes the correct `Host`), or add `proxy_set_header X-Forwarded-Host $host;` to every proxy block. Verify tenant resolution + microcache key stay consistent.
-- [ ] **`Tenant.subdomain` DB uniqueness** (`models.py:4-6`) — add `UniqueConstraint(fields=['subdomain'])` + migration.
-- [ ] **`player_rounds_rows` tenant filter** (`views/scoring.py:38-40`) — add `tenant=tenant` to the `Player` lookup (latent cross-tenant hole).
-- [ ] **Free-text `EMA_ID`** (`admin_views.py:940-948`) — validate/normalize in `player_editor_save` exactly as the importer does (digits → `f"{int(v):08d}"`, else 400) so it can't crash the template export at `:589`.
+- [x] **F9 — login-link minting escalation** — the containment guard `revoke`/`delete` use now covers minting too. The old docstring argued minting was safe because the link is membership-gated; that misses that the link is a credential for the account and is handed to the *minter*.
+- [x] **F10 — shared import temp file race** — `load_workbook(attached_file)` reads the upload directly; no file is written to disk at all, so there is no shared path left to race over.
+- [x] **Import atomicity** — the wipe-and-load is one `transaction.atomic()`. The existing `except` still wipes to empty for a failure it can catch (that's deliberate — a half-import is worse than none, and silently restoring the old tournament would hide the failure); the transaction covers what it can't catch, a killed worker or a lost DB connection mid-import. The broadcasts moved outside the block so nothing is announced before the commit.
+- [x] **F12 — `USE_X_FORWARDED_HOST`** — removed. **Worse than the review recorded:** it's a working cross-tenant *authorization* bypass, not just content confusion — a scorer of tenant B gets a 200 on tenant A purely from the header. A characterisation test flips the setting on to pin that, so the reason it stays off is executable rather than a comment. The nginx template needed no change (it already sets `Host $host` on every block and never sets `X-Forwarded-Host`).
+- [x] **`Tenant.subdomain` DB uniqueness** — `UniqueConstraint` + migration `0014`. The migration checks for existing duplicates first and stops with a message naming them: migrations auto-apply on deploy, so a bare `IntegrityError` would fail a deploy with nothing to act on, and auto-renaming would silently re-key a live subdomain.
+- [x] **`player_rounds_rows` tenant filter** — scoped to the tenant.
+- [x] **Free-text `EMA_ID`** — one `_normalize_ema_id` shared by the importer and the editor, so an edited id can't diverge from an imported one. **Also needed, not in the plan:** the export had to stop calling `int()` on the stored value unguarded — rows predating the rule still hold free text (the shared test fixture seeds exactly that), so guarding only the save path left the export 500ing on existing data. Such a value is now passed through rather than dropped, so a re-import names the offending competitor instead of silently losing their id.
 
-**Files:** `user_admin.py`, `admin_views.py`, `apps/settings/prod.py`, `nginx/mahjong.conf.template`, `models.py` (+ migration), `views/scoring.py`.
+**Files:** `user_admin.py`, `admin_views.py`, `apps/settings/prod.py`, `models.py` (+ migration `0014`), `views/scoring.py`, `docs/dev/access-control.md`. `nginx/mahjong.conf.template` unchanged — see F12 above.
 
-**Tests:** tenant-A admin cannot mint a link for a user whose memberships aren't contained in A (`test_membership.py`/`test_security.py`); two imports don't cross tenants (harder — at least assert the file object is read directly, no shared path); duplicate subdomain rejected; non-numeric `EMA_ID` rejected at save and export survives. F12 is config — verify by test that a spoofed `X-Forwarded-Host` no longer changes `get_host()` (or document the nginx change if not unit-testable).
+**Tests:** in `test_membership.py` (F9 minting ×3, F12 ×2 incl. the characterisation test, subdomain uniqueness ×3, `player_rounds_rows` scope), `test_import.py` (no shared staging file, two tenants don't cross, failure leaves nothing), `test_display_admin.py` (EMA rejected / blank / padded / export survives a legacy row).
 
-**Risk:** moderate. F12 is a settings change — confirm it doesn't break the legitimate dotted-subdomain routing (`test_dotted_subdomain.py`).
+**Risk:** moderate. F12 is a settings change — confirm it doesn't break the legitimate dotted-subdomain routing (`test_dotted_subdomain.py`). ✅ verified, both its tests pass.
 
 ---
 
@@ -238,13 +240,13 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | anonymous upload metering | S5 |
 | scan/restore worker resilience + TTL | S5 |
 | `scan.py` 500-guards | S5 |
-| F9 link-minting escalation | S6 |
-| F10 import temp-file race | S6 |
-| import atomicity | S6 |
-| F12 `USE_X_FORWARDED_HOST` | S6 |
-| `Tenant.subdomain` uniqueness | S6 |
-| `player_rounds_rows` tenant filter | S6 |
-| free-text `EMA_ID` | S6 |
+| ✅ F9 link-minting escalation | S6 |
+| ✅ F10 import temp-file race | S6 |
+| ✅ import atomicity | S6 |
+| ✅ F12 `USE_X_FORWARDED_HOST` | S6 |
+| ✅ `Tenant.subdomain` uniqueness | S6 |
+| ✅ `player_rounds_rows` tenant filter | S6 |
+| ✅ free-text `EMA_ID` | S6 |
 | F11 standalone `admin/admin` | S7 |
 | sqlite 0-byte snapshot | S7 |
 | restore WAL ordering | S7 |

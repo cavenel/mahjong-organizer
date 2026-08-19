@@ -38,8 +38,8 @@ Items marked **✅ DONE** below have been fixed and verified (full suite still 4
 4. **✅ DONE — Escape the five `json.dumps|safe` injections and the draw pages' `innerHTML`** — stored XSS via player/team names, one on a public page (F4, F5).
 5. **Make every mutating endpoint POST-only** — ceremony publish, screen/mode CRUD, `set_tournament`, logout (F6).
 6. **✅ DONE — Fix the Riichi path** — score saves 500 and rounds can never be published (F7, F8). The round-trip test also turned up a third Riichi blocker the review missed — see the note under F8.
-7. **Close the two multi-tenant gaps** — login-link minting escalation and the shared import temp file (F9, F10).
-8. **Kill the standalone `admin/admin` default** on a 0.0.0.0 bind (F11) and remove `USE_X_FORWARDED_HOST` (F12).
+7. **✅ DONE — Close the two multi-tenant gaps** — login-link minting escalation and the shared import temp file (F9, F10).
+8. **Kill the standalone `admin/admin` default** on a 0.0.0.0 bind (F11) — S7. **✅ DONE** — removed `USE_X_FORWARDED_HOST` (F12).
 
 ---
 
@@ -128,35 +128,41 @@ Only `counter` (and `total_time` for non-admins) are protected; any other `Tourn
 
 Tenant scoping on ORM queries is disciplined throughout — these are the places where tenancy wasn't carried into the filesystem, credential, or HTTP layer.
 
-### F9 · HIGH · security/escalation — Login-link minting lets a tenant admin escalate into another tenant
+### ✅ DONE · F9 · HIGH · security/escalation — Login-link minting lets a tenant admin escalate into another tenant
 `mahj/views/user_admin.py:218-237`
 
 A sesame login link is a full credential for the *account*, and it's handed to the *minter* in the JSON response. An admin of tenant A can mint a link for a user shared with tenant B, then log in as them on B's subdomain with whatever roles they hold there. `user_revoke_links` (line 257) and `user_delete` (line 286) already enforce `_memberships_contained` for exactly this reason; minting skips it.
 
 **Fix:** Apply the same containment check: `if not request.user.is_superuser and not _memberships_contained(user, tenant): 403`.
 
-### F10 · HIGH · bug/data corruption — Template import uses one shared temp file, cross-tenant race
+### ✅ DONE · F10 · HIGH · bug/data corruption — Template import uses one shared temp file, cross-tenant race
 `mahj/views/admin_views.py:277-290`
 
 Every import from every tenant writes to the fixed path `BASE_DIR/tmp/template.xlsx`. Two concurrent imports race on remove/save/load: tenant A can end up importing tenant B's player list — silent cross-tenant data leakage — and A's own players are already deleted (line 284) before the wrong file loads.
 
 **Fix:** Skip the disk hop: `load_workbook(attached_file)` accepts the uploaded file object directly. (Or `tempfile.NamedTemporaryFile` per request.)
 
-### F12 · HIGH · security/host spoofing — `USE_X_FORWARDED_HOST` with nginx not stripping the header
+### ✅ DONE · F12 · HIGH · security/host spoofing — `USE_X_FORWARDED_HOST` with nginx not stripping the header
 `apps/settings/prod.py:23` · `nginx/mahjong.conf.template`
 
 nginx forwards client-supplied `X-Forwarded-Host` untouched, so a request to `a.domain` carrying `X-Forwarded-Host: b.domain` makes `get_host()` — the input to tenant resolution in `helpers.py:186` — resolve tenant **b** while nginx's microcache keys on `$host` = a. That enables cross-tenant content confusion and cache poisoning (both hosts pass `ALLOWED_HOSTS` under the shared base domain), and Django-built absolute URLs follow the spoofed host.
 
 **Fix:** Remove `USE_X_FORWARDED_HOST` (nginx already passes the correct `Host`), or add `proxy_set_header X-Forwarded-Host $host;` to every proxy block.
 
-### Low · security/hardening — `Tenant.subdomain` has no database uniqueness
+> **Confirmed during S6:** this is a working cross-tenant *authorization* bypass, not
+> only a host-spoof. `test_the_vector_is_real_which_is_why_the_setting_is_off`
+> (`test_membership.py`) flips the setting back on and a scorer of tenant B gets a
+> 200 on tenant A's host purely from the header. **Fixed** by dropping the setting;
+> no code change can defend it while Django prefers a client-supplied header.
+
+### ✅ DONE · Low · security/hardening — `Tenant.subdomain` has no database uniqueness
 `mahj/models.py:4-6` · resolution via `filter(…).first()` at `views/helpers.py:204`
 
 Duplicate subdomains would silently merge/split tenant data; the `exists()` guards in `user_admin.py` are racy and cover only one writer. All authorization keys off the tenant row, so this is an isolation backstop worth having.
 
 **Fix:** `UniqueConstraint(fields=['subdomain'])` — the migration auto-applies on deploy.
 
-### Low · security/latent — `player_rounds_rows` fetches a Player with no tenant filter
+### ✅ DONE · Low · security/latent — `player_rounds_rows` fetches a Player with no tenant filter
 `mahj/views/scoring.py:38-40`
 
 `Player.objects.get(id=player_id)` — currently shielded because its only caller fetches the tenant-scoped player first, but it's a cross-tenant hole waiting for a second caller.
@@ -335,8 +341,8 @@ The `'turkey': 'tr'` flag alias exists (per its comment) precisely so Turkish pl
 
 **Fix:** Pass both through `json_script` — JSON renders `null`, which Chart.js handles.
 
-### Medium · bug — Free-text `EMA_ID` from the player editor crashes the template export
-`admin_views.py:940-948` (no validation) → `:589` (crash)
+### ✅ DONE · Medium · bug — Free-text `EMA_ID` from the player editor crashes the template export
+`admin_views.py:940-948` (no validation) → `:589` (crash) — **✅ DONE**
 
 The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A". The importer already enforces digits-or-blank with zero-padding — the editor path bypasses it, so editor-entered "1234" also won't match the canonical "00001234".
 
