@@ -20,7 +20,7 @@ from ..models import CeremonyState, PublishedRound
 from ..scoring import _country_flag, _final_round_withheld, team_standings
 from ..signals import broadcast_display, invalidate_leaderboard
 from .helpers import get_tenant, get_tournament, tenant_role_required
-from .scoring import scores_per_player_json, stat_all_rounds
+from .scoring import scores_per_player_rows, stat_all_rounds
 
 
 TOP_N = 16        # players revealed
@@ -95,7 +95,7 @@ def _ceremony_master(request):
     for rendering individual slides. Uses true final standings (full_view)."""
     tournament = get_tournament(request)
     rules = tournament.rules
-    rows = scores_per_player_json(request, full_view=True)
+    rows = scores_per_player_rows(request, full_view=True)
     id_to_name = {r['player_id']: r['name'] for r in rows}
 
     players = [

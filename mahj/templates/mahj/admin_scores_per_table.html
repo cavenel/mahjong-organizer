@@ -115,7 +115,7 @@
   <!-- Round tabs -->
   <div class="border-b border-gray-200 mb-4">
     <nav class="-mb-px flex gap-2 overflow-x-auto" role="tablist">
-      {% for round_json in scores_json %}
+      {% for round_tables in grid %}
         <button type="button" role="tab" tabindex="-1"
                 @click="activeRound = {{ forloop.counter }}"
                 :class="activeRound === {{ forloop.counter }}
@@ -129,7 +129,7 @@
   </div>
 
   <!-- Round panes -->
-  {% for round_json in scores_json %}
+  {% for round_tables in grid %}
     <div class="tab-pane" data-round-nb="{{ forloop.counter }}"
          x-show="activeRound === {{ forloop.counter }}"
          :class="activeRound === {{ forloop.counter }} ? 'active' : ''">
@@ -179,14 +179,14 @@
             </tr>
           </thead>
           <tbody>
-            {% for table_json in round_json %}
+            {% for table in round_tables %}
               <tr id="table_row_r{{ forloop.parentloop.counter }}_t{{ forloop.counter }}"
                   class="table_row"
                   data-round-nb="{{ forloop.parentloop.counter }}"
                   data-table-nb="{{ forloop.counter }}">
                 <td class="col-status"><span class="status-pip"></span></td>
                 <td class="col-table">Table {{ forloop.counter }}</td>
-                {% for s in table_json %}
+                {% for s in table %}
                   <td class="col-wind">
                     <div class="position_div" data-id="{{ s.seat.id }}">
                       <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>

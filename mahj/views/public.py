@@ -14,7 +14,7 @@ from ..models import Hand, ScoreSheet, Schedule, Seat
 from ..scoring import _attach_players, team_standings
 from .helpers import can_access_admin, get_tenant, get_tournament, is_tenant_admin
 from .scoring import (
-    LEADERBOARD_TTL, scores_per_player_json, stat_all_rounds, stat_rounds,
+    LEADERBOARD_TTL, scores_per_player_rows, stat_all_rounds, stat_rounds,
     stats_export, table_stats, table_stats_rounds, tournament_seating,
 )
 
@@ -72,7 +72,7 @@ def desktop(request):
         ScoreSheet.objects.filter(tenant=tenant, validated=True)
         .values_list('round_nb', 'table_nb')
     )
-    scores_json = scores_per_player_json(request, full_view=is_admin, seats=seats)
+    standings = scores_per_player_rows(request, full_view=is_admin, seats=seats)
     seating, player_table = tournament_seating(
         request, full_view=full_view, valid_pairs=valid_pairs, seats=seats,
     )
@@ -104,7 +104,7 @@ def desktop(request):
     ]
 
     rows = []
-    for s in scores_json:
+    for s in standings:
         tables = [player_table.get((s['player_id'], r)) for r in range(1, nb_rounds + 1)]
         scores_with_table = []
         for r_idx, sc in enumerate(s.get('scores', [])):

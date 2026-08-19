@@ -14,9 +14,9 @@ from .helpers import (
     tenant_role_required,
 )
 from .scoring import (
-    player_rounds_json,
-    scores_per_player_json,
-    scores_per_table_json,
+    player_rounds_rows,
+    scores_per_player_rows,
+    scores_per_table_grid,
     stat_all_rounds,
     stat_rounds,
     table_stats,

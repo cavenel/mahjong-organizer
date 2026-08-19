@@ -54,24 +54,24 @@ def completed_tournament(tournament):
 
 class TestPlayerStandings:
     def test_returns_one_row_per_player(self, request_, tournament):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         assert len(rows) == len(tournament['players'])
 
     def test_sorted_by_tp_then_mp_for_mcr(self, request_):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         totals = [(r['total']['tp'], r['total']['mp']) for r in rows]
         # MCR: descending by tp, tiebreak descending by mp
         assert totals == sorted(totals, key=lambda t: (-t[0], -t[1]))
 
     def test_sorted_by_mp_only_for_riichi(self, request_riichi):
-        rows = views.scores_per_player_json(request_riichi, full_view=True)
+        rows = views.scores_per_player_rows(request_riichi, full_view=True)
         mps = [r['total']['mp'] for r in rows]
         # Riichi ranks on minipoints alone — strictly non-increasing, regardless
         # of table points (which must not influence the order).
         assert mps == sorted(mps, reverse=True)
 
     def test_ranks_are_dense_with_ties_sharing(self, request_):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         # pos values must be 1..n, with ties sharing (1,2,2,4 pattern).
         ranks = [r['pos'] for r in rows]
         assert ranks[0] == 1
@@ -81,7 +81,7 @@ class TestPlayerStandings:
             assert a <= b
 
     def test_pos_se_only_assigned_to_swedish_players(self, request_):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         for r in rows:
             if r['country'].strip() == 'Sweden':
                 assert isinstance(r['pos_se'], int) and r['pos_se'] >= 1
@@ -89,7 +89,7 @@ class TestPlayerStandings:
                 assert r['pos_se'] == ''
 
     def test_pos_se_is_dense_1_to_count(self, request_):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         swedes = [r for r in rows if r['country'].strip() == 'Sweden']
         pos_se = sorted(r['pos_se'] for r in swedes)
         assert pos_se[0] == 1
@@ -101,11 +101,11 @@ class TestPlayerStandings:
         v = tournament['settings']
         v.home_country = ''
         v.save()  # post_save signal busts the cached settings
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         assert all(r['pos_se'] == '' for r in rows)
 
     def test_history_pos_length_matches_rounds_plus_initial(self, request_, tournament):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         # history_pos starts at 1 (initial) then appends one entry per round in the schedule.
         # Fixture has 3 rounds total, so length == 1 + 3 = 4.
         expected = 1 + tournament['settings'].nb_rounds
@@ -113,7 +113,7 @@ class TestPlayerStandings:
             assert len(r['history_pos']) == expected
 
     def test_scores_length_matches_scored_rounds(self, request_):
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         # Round 3 is partial (no minipoints), so only 2 rounds appear in scores.
         for r in rows:
             assert len(r['scores']) == 2
@@ -330,7 +330,7 @@ class TestEndOfTournamentHideLastRound:
 
     def test_public_viewer_sees_standings_through_previous_round(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, full_view=False)
+        rows = views.scores_per_player_rows(request_, full_view=False)
         assert len(rows) == len(completed_tournament['players'])
         # history_pos length == round_max + 2; hide-last-round drops round_max to nb_rounds - 1.
         for r in rows:
@@ -341,7 +341,7 @@ class TestEndOfTournamentHideLastRound:
         """A full view (admin / ceremony / print) bypasses the public cutoff and
         sees every scored round even while the final round is withheld."""
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         assert len(rows) == len(completed_tournament['players'])
         for r in rows:
             assert len(r['scores']) == nb_rounds
@@ -349,7 +349,7 @@ class TestEndOfTournamentHideLastRound:
 
     def test_full_view_bypasses_hide(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds
-        rows = views.scores_per_player_json(request_, full_view=True)
+        rows = views.scores_per_player_rows(request_, full_view=True)
         for r in rows:
             assert len(r['scores']) == nb_rounds
 
@@ -360,7 +360,7 @@ class TestEndOfTournamentHideLastRound:
         )
         last_pub.withheld = False  # final round revealed to everyone
         last_pub.save()
-        rows = views.scores_per_player_json(request_, full_view=False)
+        rows = views.scores_per_player_rows(request_, full_view=False)
         for r in rows:
             assert len(r['scores']) == nb_rounds
 

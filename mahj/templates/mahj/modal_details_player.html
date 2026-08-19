@@ -2,7 +2,7 @@
 {% load static %}
 {% block title %}{{ player.full_name }}{% endblock %}
 {% block head_extra %}
-  <meta name="player-flag" content="{{ scores_json.flag }}">
+  <meta name="player-flag" content="{{ standings_row.flag }}">
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
   <script src="{% static 'js/chart-3.9.1.min.js' %}"></script>
   <script defer src="{% static 'js/alpine-3.14.8.min.js' %}"></script>
@@ -20,19 +20,19 @@
     <!-- Summary -->
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm divide-y divide-gray-100">
       <div class="flex items-center px-4 py-3 gap-2.5">
-        {% if scores_json.flag %}
-          <span class="flag flag-{{ scores_json.flag }} shrink-0"></span>
+        {% if standings_row.flag %}
+          <span class="flag flag-{{ standings_row.flag }} shrink-0"></span>
         {% endif %}
         <div class="min-w-0 flex-1">
           <div class="text-base font-bold text-gray-900 truncate">{{ player.full_name }}</div>
           <div class="flex items-center gap-1.5 text-xs text-gray-500">
-            {% if scores_json.country %}
-              <span>{{ scores_json.country }}</span>
+            {% if standings_row.country %}
+              <span>{{ standings_row.country }}</span>
             {% endif %}
-            {% if scores_json.team %}
-              {% if scores_json.country %}<span class="text-gray-300">·</span>{% endif %}
-              <a href="details_team_{{ scores_json.team|urlencode }}"
-                class="text-amber-600 hover:text-amber-700 font-medium truncate">{{ scores_json.team }}</a>
+            {% if standings_row.team %}
+              {% if standings_row.country %}<span class="text-gray-300">·</span>{% endif %}
+              <a href="details_team_{{ standings_row.team|urlencode }}"
+                class="text-amber-600 hover:text-amber-700 font-medium truncate">{{ standings_row.team }}</a>
             {% endif %}
           </div>
         </div>
@@ -40,18 +40,18 @@
       <div class="flex items-center px-4 py-3 gap-4">
         <div class="flex-1">
           <div class="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Rank</div>
-          <div class="text-2xl font-bold text-amber-600">{{ scores_json.pos }}</div>
-          {% if scores_json.pos_se %}
-            <div class="text-xs text-gray-400 mt-0.5">{{ tournament.home_country|default:"National" }} rank: {{ scores_json.pos_se }}</div>
+          <div class="text-2xl font-bold text-amber-600">{{ standings_row.pos }}</div>
+          {% if standings_row.pos_se %}
+            <div class="text-xs text-gray-400 mt-0.5">{{ tournament.home_country|default:"National" }} rank: {{ standings_row.pos_se }}</div>
           {% endif %}
         </div>
         <div class="text-right">
           <div class="text-xs text-gray-400 uppercase tracking-wider mb-0.5">Total</div>
           {% if tournament.rules == "MCR" %}
-            <div class="text-2xl font-bold text-gray-800">{{ scores_json.total.tp|floatformat:-2 }}</div>
-            <div class="text-xs text-gray-500">{{ scores_json.total.mp }} MP</div>
+            <div class="text-2xl font-bold text-gray-800">{{ standings_row.total.tp|floatformat:-2 }}</div>
+            <div class="text-xs text-gray-500">{{ standings_row.total.mp }} MP</div>
           {% else %}
-            <div class="text-2xl font-bold text-gray-800">{{ scores_json.total.mp }}</div>
+            <div class="text-2xl font-bold text-gray-800">{{ standings_row.total.mp }}</div>
           {% endif %}
         </div>
       </div>
@@ -68,7 +68,7 @@
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
       <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100">
         <span class="text-xs font-semibold uppercase tracking-wider text-gray-500">
-          Rounds ({{ scores_json.scores|length }} played)
+          Rounds ({{ standings_row.scores|length }} played)
         </span>
       </div>
       <div class="divide-y divide-gray-100">
@@ -81,7 +81,7 @@
               <span class="text-sm font-medium text-gray-700 w-20 shrink-0">Round {{ forloop.counter }}</span>
               {% for seat in round.table_seats %}
                 {% if seat.player == player %}
-                  {% if seat.round_nb <= scores_json.scores|length %}
+                  {% if seat.round_nb <= standings_row.scores|length %}
                     {% if tournament.rules == "MCR" %}
                       <span class="flex-1 text-sm">
                         TP: <span class="font-bold text-amber-600">{{ seat.tablepoints|floatformat:-2 }}</span>
@@ -120,7 +120,7 @@
                     <span class="flex-1 truncate {% if seat.player == player %}font-medium text-gray-900{% else %}text-gray-700{% endif %}">
                       {{ seat.player_name }}
                     </span>
-                    {% if seat.round_nb <= scores_json.scores|length %}
+                    {% if seat.round_nb <= standings_row.scores|length %}
                       {% if tournament.rules == "MCR" %}
                         <div class="text-right shrink-0">
                           <span class="font-bold {% if seat.player == player %}text-amber-600{% endif %}">
@@ -138,7 +138,7 @@
                 {% endfor %}
               </div>
               {% for seat in round.table_seats %}
-                {% if tournament.rules == "MCR" and seat.player == player and round.detailed_hands and seat.round_nb <= scores_json.scores|length %}
+                {% if tournament.rules == "MCR" and seat.player == player and round.detailed_hands and seat.round_nb <= standings_row.scores|length %}
                   <a href="detailed_scores_{{ seat.round_nb }}_{{ seat.table_nb }}"
                      class="block mx-4 mt-3 text-center py-2 rounded-lg border border-amber-200 bg-white
                             text-sm font-medium text-amber-700 hover:bg-amber-50 transition-colors">
@@ -155,11 +155,11 @@
           <span class="text-sm font-bold text-gray-700 w-20 shrink-0">Total</span>
           {% if tournament.rules == "MCR" %}
             <span class="flex-1 text-sm">
-              TP: <span class="font-bold text-amber-600">{{ scores_json.total.tp|floatformat:-2 }}</span>
-              <span class="text-gray-400 text-xs ml-2">MP: {{ scores_json.total.mp }}</span>
+              TP: <span class="font-bold text-amber-600">{{ standings_row.total.tp|floatformat:-2 }}</span>
+              <span class="text-gray-400 text-xs ml-2">MP: {{ standings_row.total.mp }}</span>
             </span>
           {% else %}
-            <span class="flex-1 text-sm font-bold text-amber-600">{{ scores_json.total.mp }} pts</span>
+            <span class="flex-1 text-sm font-bold text-amber-600">{{ standings_row.total.mp }} pts</span>
           {% endif %}
         </div>
 
@@ -314,7 +314,7 @@
 
 {% block scripts %}
   <script>
-    const historyData = {{ scores_json.history_pos }}.slice(2);
+    const historyData = {{ standings_row.history_pos }}.slice(2);
     const ctx = document.getElementById('rankChart');
     if (ctx && historyData.length >= 2) {
       new Chart(ctx, {

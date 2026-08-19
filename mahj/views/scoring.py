@@ -11,11 +11,11 @@ SUB_CACHE_TTL = 300    # underlying data pieces: signals invalidate them on real
                        # 20s HTML rebuild stay cheap (it just composes warm sub-caches).
 
 
-def scores_per_table_json(request):
+def scores_per_table_grid(request):
     return _scoring.scores_per_table(get_tenant(request), get_tournament(request))
 
 
-def scores_per_player_json(request, full_view=False, seats=None):
+def scores_per_player_rows(request, full_view=False, seats=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     if seats is not None:
@@ -35,7 +35,7 @@ def scores_per_player_json(request, full_view=False, seats=None):
     return scores
 
 
-def player_rounds_json(request, player_id):
+def player_rounds_rows(request, player_id):
     tenant = get_tenant(request)
     return _scoring.player_rounds(tenant, Player.objects.get(id=player_id))
 

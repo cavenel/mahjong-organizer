@@ -71,11 +71,11 @@ def test_scoring_subcaches_busted_on_invalidate(tournament):
     `full_view` key the wrappers write, so the leaderboard/seating caches went
     stale for up to the sub-cache TTL after every score."""
     from django.core.cache import cache
-    from mahj.views import scores_per_player_json, tournament_seating
+    from mahj.views import scores_per_player_rows, tournament_seating
     cache.clear()
     # Prime the sub-caches exactly as the views do (both full_view variants).
-    scores_per_player_json(_req())
-    scores_per_player_json(_req(), full_view=True)
+    scores_per_player_rows(_req())
+    scores_per_player_rows(_req(), full_view=True)
     tournament_seating(_req())
     assert cache.get('leaderboard:test:False') is not None
     assert cache.get('leaderboard:test:True') is not None
@@ -90,7 +90,7 @@ def test_scoring_subcaches_busted_on_invalidate(tournament):
 
 def test_scores_per_player_page_with_under_12_players(tournament):
     """E8: standings render with < 12 players instead of raising IndexError."""
-    # Trim to 10 players (and their seats) so scores_json[11] is out of range.
+    # Trim to 10 players (and their seats) so the standings row for player 11 is out of range.
     keep_players = tournament['players'][:10]
     keep_ids = {p.id for p in keep_players}
     keep_draws = {p.draw_number for p in keep_players}

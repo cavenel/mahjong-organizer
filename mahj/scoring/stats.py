@@ -241,7 +241,7 @@ def stats_export(tenant, tournament, full_view=False, seats=None, hands=None):
                     opp_count[p.player_id] += 1
 
     # Standings drive rank, totals and per-round scores, masked exactly like the
-    # public leaderboard (mirrors desktop's scores_per_player_json call).
+    # public leaderboard (mirrors desktop's scores_per_player_rows call).
     standings = player_standings(
         tenant, tournament, full_view=full_view, seats=seats,
     )

@@ -7,12 +7,12 @@ from ..models import Player, Seat, Schedule
 from ..scoring import _attach_players, _country_flag
 from .helpers import get_tenant, get_tournament, tenant_admin_required
 from .. import scoring as _scoring
-from .scoring import scores_per_player_json, scores_per_table_json
+from .scoring import scores_per_player_rows, scores_per_table_grid
 
 
 def cross_positions(request):
     tenant = get_tenant(request)
-    scores = scores_per_table_json(request)
+    scores = scores_per_table_grid(request)
     # A seat carries its draw slot; the competitor holding it (via draw_number) may
     # not exist yet (draw not made), so guard against a missing .player throughout —
     # an unclaimed slot is shown as "Player N".
@@ -77,10 +77,10 @@ def cross_positions(request):
 def print_scores(request):
     tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
-    scores_json = scores_per_player_json(request, full_view=True)
+    standings = scores_per_player_rows(request, full_view=True)
     template = loader.get_template('mahj/print_scores.html')
     context = {
-        'scores_json': scores_json,
+        'standings': standings,
         'rounds': range(1, 1 + nb_rounds),
         'max_round': nb_rounds,
         'tournament': tournament,

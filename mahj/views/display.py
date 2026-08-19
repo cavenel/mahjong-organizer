@@ -16,7 +16,7 @@ from ..scoring import _final_round_withheld, player_schedule, team_standings
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_tournament, has_role, tenant_role_required
-from .scoring import scores_per_player_json
+from .scoring import scores_per_player_rows
 
 
 def _spectator_qr_svg(subdomain, public_url=''):
@@ -236,9 +236,9 @@ def render_scores(request, density, page_nb=None):
     # The projector standings screen is a public view (masked to published rounds).
     # During the withheld-final ceremony window it shows a holding message instead
     # of the table (see `awaiting_ceremony` below), so no reveal masking is needed.
-    scores_json = scores_per_player_json(request)
+    standings = scores_per_player_rows(request)
     try:
-        nb_rounds = len(scores_json[0]["scores"])
+        nb_rounds = len(standings[0]["scores"])
     except (IndexError, KeyError):
         nb_rounds = 0
 
@@ -252,8 +252,8 @@ def render_scores(request, density, page_nb=None):
     # Section headings ("Individuals"/"Teams") only appear when both sections are
     # present, so a no-team tournament shows an unlabelled totals view. All pages
     # share one rotation loop in the template.
-    team_rows = team_standings(scores_json, tournament, nb_rounds) if density == TEAMS else []
-    all_pages = _paginate(scores_json, columns, score_lines,
+    team_rows = team_standings(standings, tournament, nb_rounds) if density == TEAMS else []
+    all_pages = _paginate(standings, columns, score_lines,
                           'players', 'Individuals' if team_rows else '')
     if team_rows:
         all_pages += _paginate(team_rows, columns, score_lines, 'teams', 'Teams')

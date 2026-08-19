@@ -35,8 +35,8 @@ from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
 from .restore_admin import list_backups
 from .scoring import (
-    scores_per_player_json,
-    scores_per_table_json,
+    scores_per_player_rows,
+    scores_per_table_grid,
     stat_all_rounds,
     stat_rounds,
 )
@@ -224,11 +224,11 @@ def admin_print_EMA(request):
     else:
         wb = load_workbook(filename=str(BASE_DIR / "files/report_template_Riichi.xlsx"), data_only=True)
         sheet_ranges = wb['Riichi template']
-    scores_json = scores_per_player_json(request, True)
-    for row, player in enumerate(scores_json):
+    standings = scores_per_player_rows(request, True)
+    for row, player in enumerate(standings):
         items = [
             tournament.fullname,
-            len(scores_json),
+            len(standings),
             player["pos"],
             player["first_name"],
             player["last_name"],
@@ -1617,10 +1617,10 @@ def options(request, error=None):
         page_content = "None"
     elif page == "scoring":
         tournament = get_tournament(request)
-        scores_json = scores_per_table_json(request)
+        grid = scores_per_table_grid(request)
         all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
         try:
-            nb_rounds = len(scores_per_player_json(request, True)[0]["scores"])
+            nb_rounds = len(scores_per_player_rows(request, True)[0]["scores"])
         except Exception:
             nb_rounds = 6
         template2 = loader.get_template('mahj/admin_scores_per_table.html')
@@ -1640,7 +1640,7 @@ def options(request, error=None):
                                        .distinct()
         } - validated_keys
         context = {
-            'scores_json': scores_json,
+            'grid': grid,
             "players": all_players,
             "tournament": tournament,
             "active_round": nb_rounds + 1,

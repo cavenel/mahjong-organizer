@@ -12,7 +12,7 @@ from ..scoring import (
     player_extra_stats, public_round_max, team_extra_stats, team_standings,
 )
 from ..signals import leaderboard_gen
-from .scoring import player_rounds_json, scores_per_player_json
+from .scoring import player_rounds_rows, scores_per_player_rows
 
 
 # These modals run uncached, heavy per-open queries (especially details_team,
@@ -33,9 +33,9 @@ def details_player(request, id):
 
     tournament = get_tournament(request)
     player = Player.objects.get(tenant=tenant, id=id)
-    scores_json = scores_per_player_json(request, full_view=is_admin)
-    scores_json = [s for s in scores_json if s["player_id"] == id][0]
-    rounds = player_rounds_json(request, id)
+    standings = scores_per_player_rows(request, full_view=is_admin)
+    standings_row = [s for s in standings if s["player_id"] == id][0]
+    rounds = player_rounds_rows(request, id)
     # Cap the placement/hand cards to the same rounds the score grid shows, so a
     # withheld final round can't leak into them ahead of the ceremony.
     extra_stats = player_extra_stats(
@@ -47,9 +47,9 @@ def details_player(request, id):
         'player': player,
         'player_rounds': rounds,
         'winds': ["East", "South", "West", "North"],
-        'scores_json': scores_json,
-        'rounds': range(1, 1 + len(scores_json["scores"])),
-        'max_round': len(scores_json["scores"]),
+        'standings_row': standings_row,
+        'rounds': range(1, 1 + len(standings_row["scores"])),
+        'max_round': len(standings_row["scores"]),
         'tournament': tournament,
         'extra_stats': extra_stats,
     }
@@ -79,7 +79,7 @@ def details_team(request, team_name):
         from django.http import Http404
         raise Http404
 
-    leaderboard = scores_per_player_json(request, full_view=is_admin)
+    leaderboard = scores_per_player_rows(request, full_view=is_admin)
     member_ids = {p['id'] for p in extra_stats['players']}
     members = sorted(
         [s for s in leaderboard if s['player_id'] in member_ids],

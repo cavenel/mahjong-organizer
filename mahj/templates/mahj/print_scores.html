@@ -80,7 +80,7 @@
     </style>
     </head>
     <body>
-        {% for score_chunk in scores_json|chunked:65 %}
+        {% for score_chunk in standings|chunked:65 %}
             <page size="A3" class='page_front'>
                 <div style="padding-top: 35px;" class="page_table">
                     <h1>{{tournament.fullname}}</h1>
