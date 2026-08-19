@@ -25,7 +25,7 @@ from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, 
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
     BASE_DIR, get_counter, get_tenant, get_tournament, has_role,
-    is_tenant_admin, set_counter, tenant_admin_required,
+    is_tenant_admin, json_body, set_counter, tenant_admin_required,
     tenant_role_required,
 )
 from .print_views import _country_flag
@@ -671,10 +671,7 @@ def admin_generate_seating(request):
 
     # Body carries the chosen method, a variation seed, and whether to apply (vs
     # just preview the measures). Absent body -> auto method, apply immediately.
-    try:
-        body = json.loads(request.body) if request.body else {}
-    except ValueError:
-        body = {}
+    body = json_body(request)
     method = body.get('method', 'auto')
     try:
         seed = int(body.get('seed', 0))
@@ -811,10 +808,10 @@ def admin_team_draw_save(request):
 
     tenant = get_tenant(request)
     try:
-        assignments = json.loads(request.body)['assignments']  # [{player_id, rand_id}]
+        assignments = json_body(request)['assignments']  # [{player_id, rand_id}]
         player_ids = [a['player_id'] for a in assignments]
         draw_numbers = [a['rand_id'] for a in assignments]  # rand_id = the drawn number
-    except (ValueError, TypeError, KeyError):
+    except (TypeError, KeyError):
         return HttpResponse('Malformed request', status=400)
 
     if len(set(player_ids)) != len(player_ids) or len(set(draw_numbers)) != len(draw_numbers):
@@ -896,10 +893,7 @@ def admin_player_draw_assign(request):
         return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
 
     tenant = get_tenant(request)
-    try:
-        data = json.loads(request.body)
-    except (ValueError, json.JSONDecodeError):
-        return JsonResponse({'ok': False, 'error': 'Malformed request body'}, status=400)
+    data = json_body(request)
     player_id = data.get('player_id')
     draw_number = data.get('draw_number')  # int to assign, None to clear
 
@@ -952,9 +946,8 @@ def player_editor_save(request):
         return HttpResponse('POST required', status=405)
 
     tenant = get_tenant(request)
-    try:
-        rows = json.loads(request.body).get('players', [])
-    except (AttributeError, ValueError, json.JSONDecodeError):
+    rows = json_body(request).get('players', [])
+    if not isinstance(rows, list):
         return HttpResponse('Malformed request body', status=400)
     rows = [r for r in rows if isinstance(r, dict)]
     by_id = {p.id: p for p in Player.objects.filter(

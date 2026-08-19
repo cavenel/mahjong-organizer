@@ -18,6 +18,7 @@ from django.conf import settings
 from django.http import JsonResponse
 
 from .. import restore_queue
+from .helpers import json_body
 from .user_admin import superuser_and_reauthed
 
 # Newest N dumps shown per source before the "show older" expander — a box holds
@@ -153,11 +154,7 @@ def restore_run(request):
     """
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    import json
-    try:
-        data = json.loads(request.body) if request.body else {}
-    except ValueError:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     if settings.STANDALONE:
         from .. import standalone_backup

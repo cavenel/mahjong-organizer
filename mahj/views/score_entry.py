@@ -1,4 +1,3 @@
-import json
 
 from django.conf import settings
 from django.db import transaction
@@ -16,7 +15,7 @@ from ..signals import (
     broadcast_scorer_validation,
     invalidate_leaderboard,
 )
-from .helpers import get_tenant, get_tournament, tenant_role_required
+from .helpers import get_tenant, get_tournament, json_body, tenant_role_required
 
 
 WINDS = ['E', 'S', 'W', 'N']
@@ -368,10 +367,7 @@ def update_seat_penalty(request):
 def update_seats_bulk(request):
     """Update all 4 seats of a table row in a single request and transaction."""
     tenant = get_tenant(request)
-    try:
-        data = json.loads(request.body)
-    except (ValueError, KeyError):
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     entries = data.get('seats', [])
     ids = [int(e['id']) for e in entries]
@@ -432,10 +428,7 @@ def set_round_published(request):
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
 
     tenant = get_tenant(request)
-    try:
-        data = json.loads(request.body) if request.body else {}
-    except ValueError:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     try:
         round_nb = int(data.get('round_nb', request.POST.get('round_nb')))

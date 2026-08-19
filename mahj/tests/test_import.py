@@ -399,7 +399,9 @@ def test_generate_seating_builds_chart_and_keeps_players(staff_client, imp_tenan
     draws_before = sorted(Player.objects.filter(tenant=imp_tenant)
                           .values_list('draw_number', flat=True))
 
-    resp = staff_client.post('/admin_generate_seating')
+    # No body -> auto method, apply immediately (an empty test-client post would
+    # otherwise encode a non-empty multipart body, which the JSON contract 400s).
+    resp = staff_client.post('/admin_generate_seating', content_type='application/json')
     assert resp.status_code == 200
     data = resp.json()
     assert data['ok'] is True
@@ -460,7 +462,7 @@ def test_import_without_seating_sheet_keeps_players_seatless(staff_client, imp_t
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0         # no chart yet
 
     # ...and a chart can then be generated for it.
-    resp = staff_client.post('/admin_generate_seating')
+    resp = staff_client.post('/admin_generate_seating', content_type='application/json')
     assert resp.status_code == 200
     assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4
 

@@ -15,7 +15,7 @@ from django.shortcuts import render
 
 from ..models import Hand, ScoreSheet, Seat
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
-from .helpers import BASE_DIR, get_tenant, has_role
+from .helpers import BASE_DIR, get_tenant, has_role, json_body
 from .score_entry import _parse_hand, _prune_to_played_hands
 from ..scoring import _attach_players
 
@@ -379,10 +379,7 @@ def scan_prefill(request):
     if request.method != 'POST':
         return JsonResponse({"ok": False, "error": "POST required"}, status=405)
 
-    try:
-        body = json.loads(request.body)
-    except (ValueError, KeyError):
-        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+    body = json_body(request)
 
     tenant = get_tenant(request)
     try:

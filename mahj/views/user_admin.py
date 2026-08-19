@@ -21,7 +21,6 @@ Links are stateless sesame tokens, so two constraints shape this module:
     yields no access — no per-tenant handling is needed at mint time.
 """
 
-import json
 import time
 from functools import wraps
 
@@ -32,7 +31,7 @@ from django.http import JsonResponse
 from sesame.utils import get_token
 
 from ..models import Membership, Tenant
-from .helpers import get_tenant, is_tenant_admin, superuser_required, tenant_admin_required
+from .helpers import get_tenant, is_tenant_admin, json_body, superuser_required, tenant_admin_required
 
 # Tier-3 role flags the console toggles (tenant_admin is handled as its own flag).
 TENANT_ROLES = ['scorer', 'display_op', 'publisher']
@@ -91,20 +90,11 @@ def user_reauth(request):
     """Confirm the current user's password and stamp the session."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
     if not request.user.check_password(data.get('password') or ''):
         return JsonResponse({'status': 'error', 'error': 'incorrect password'}, status=403)
     request.session[REAUTH_SESSION_KEY] = time.time()
     return JsonResponse({'status': 'ok'})
-
-
-def _body(request):
-    try:
-        return json.loads(request.body) if request.body else {}
-    except ValueError:
-        return None
 
 
 def _set_membership(user, tenant, roles, is_admin):
@@ -155,9 +145,7 @@ def user_create(request):
     """Create an account and its Membership in the current tenant."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:
         return JsonResponse({'status': 'error', 'error': 'no tenant'}, status=400)
@@ -192,9 +180,7 @@ def user_update_roles(request):
     """Set the target's roles within the current tenant."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
@@ -222,9 +208,7 @@ def user_generate_link(request):
     the access the user already has on the subdomain it's opened on."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
@@ -245,9 +229,7 @@ def user_revoke_links(request):
     another tenant (a superuser can still do it)."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
@@ -272,9 +254,7 @@ def user_delete(request):
     deleted from one tenant (use *remove from tenant* instead)."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
@@ -303,9 +283,7 @@ def user_remove_from_tenant(request):
     containment-safe alternative to delete for shared accounts)."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
@@ -348,9 +326,7 @@ def tenant_create(request):
         return blocked
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
     name = (data.get('name') or '').strip()
     subdomain = _clean_subdomain(data.get('subdomain'))
     if not name or not subdomain:
@@ -368,9 +344,7 @@ def tenant_rename(request):
         return blocked
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
-    data = _body(request)
-    if data is None:
-        return JsonResponse({'status': 'bad_request'}, status=400)
+    data = json_body(request)
     try:
         tenant = Tenant.objects.get(pk=data.get('tenant_id'))
     except (Tenant.DoesNotExist, ValueError, TypeError):

@@ -1,3 +1,4 @@
+import json
 import os
 import pathlib
 from functools import wraps
@@ -5,6 +6,7 @@ from functools import wraps
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.core.cache import cache
+from django.core.exceptions import BadRequest
 from django.http import HttpResponseForbidden
 
 from ..models import Membership, Tenant, TournamentSettings
@@ -14,6 +16,25 @@ BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
 
 TOURNAMENT_TTL = 300  # 5 minutes; invalidated on TournamentSettings writes via signals.
 TENANT_TTL = 600     # 10 minutes; invalidated on Tenant writes via signals.
+
+
+def json_body(request):
+    """The request body parsed as a JSON object (dict). An empty body is ``{}``.
+
+    Malformed JSON or a non-object payload raises ``BadRequest``, which Django
+    turns into a plain 400 — every JSON endpoint's real client sends an object,
+    so only crafted or buggy requests hit that path and none owes it a prettier
+    answer. Endpoint-specific validation (missing/invalid fields) stays in the
+    view, on the dict this returns."""
+    if not request.body:
+        return {}
+    try:
+        data = json.loads(request.body)
+    except ValueError:
+        raise BadRequest('Malformed JSON body')
+    if not isinstance(data, dict):
+        raise BadRequest('JSON body must be an object')
+    return data
 
 
 def get_counter(tenant):
