@@ -125,7 +125,7 @@ def _scan_qr_svg(request, round_nb, table_nb):
 @tenant_role_required('scorer')
 def admin_scores_per_hand(request, round_nb, table_nb):
     tenant = get_tenant(request)
-    position_vals = _attach_players(tenant, list(
+    seat_rows = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')))
     hand_vals = {h.hand_nb: h for h in Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb)}
@@ -164,8 +164,8 @@ def admin_scores_per_hand(request, round_nb, table_nb):
         })
 
     scores = [None, None, None, None]
-    for position_val in position_vals:
-        scores[position_val.wind - 1] = position_val
+    for seat in seat_rows:
+        scores[seat.wind - 1] = seat
 
     template = loader.get_template('mahj/admin_scores_per_hand.html')
     context = {
@@ -375,22 +375,22 @@ def update_positions_bulk(request):
 
     entries = data.get('positions', [])
     ids = [int(e['id']) for e in entries]
-    positions_map = {p.id: p for p in Seat.objects.filter(tenant=tenant, id__in=ids)}
+    seats_by_id = {s.id: s for s in Seat.objects.filter(tenant=tenant, id__in=ids)}
 
     to_update = []
     for entry in entries:
-        pos = positions_map.get(int(entry['id']))
-        if pos is None:
+        seat = seats_by_id.get(int(entry['id']))
+        if seat is None:
             continue
         try:
-            pos.minipoints = int(entry['mp'])
+            seat.minipoints = int(entry['mp'])
         except (TypeError, ValueError):
-            pos.minipoints = None
+            seat.minipoints = None
         try:
-            pos.tablepoints = float(entry['tp'])
+            seat.tablepoints = float(entry['tp'])
         except (TypeError, ValueError):
-            pos.tablepoints = None
-        to_update.append(pos)
+            seat.tablepoints = None
+        to_update.append(seat)
 
     if not to_update:
         return HttpResponse("")

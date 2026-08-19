@@ -36,7 +36,7 @@ class TestScanPrefill:
     def test_persists_confidence_and_leaves_not_valid(self, client_, tournament, scorer):
         client_.force_login(scorer)
         tenant = tournament['tenant']
-        # Round 3 has positions but no hands seeded — an "empty" table, no conflict.
+        # Round 3 has seats but no hands seeded — an "empty" table, no conflict.
         body = {
             'round_nb': 3, 'table_nb': 1, 'validate': False,
             'scores': [

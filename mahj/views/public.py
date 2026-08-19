@@ -63,8 +63,8 @@ def desktop(request):
     tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
 
-    # Fetch positions and hands once; share between standings, seating, and stats.
-    positions = _attach_players(tenant, list(
+    # Fetch seats and hands once; share between standings, seating, and stats.
+    seats = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('round_nb')
     ))
     hands = list(Hand.objects.filter(tenant=tenant))
@@ -72,9 +72,9 @@ def desktop(request):
         ScoreSheet.objects.filter(tenant=tenant, validated=True)
         .values_list('round_nb', 'table_nb')
     )
-    scores_json = scores_per_player_json(request, full_view=is_admin, positions=positions)
+    scores_json = scores_per_player_json(request, full_view=is_admin, seats=seats)
     seating, player_table = tournament_seating(
-        request, full_view=full_view, valid_pairs=valid_pairs, positions=positions,
+        request, full_view=full_view, valid_pairs=valid_pairs, seats=seats,
     )
     seating_json = [
         {
@@ -134,10 +134,10 @@ def desktop(request):
     if schedule is None:
         schedule = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
         cache.set(schedule_key, schedule, 300)
-    stat_rounds_data = stat_rounds(request, full_view=full_view, positions=positions, hands=hands)
-    stat_all_data = stat_all_rounds(request, full_view=full_view, positions=positions, hands=hands)
-    stat_tables_data = table_stats(request, full_view=full_view, positions=positions, hands=hands)
-    stat_tables_rounds_data = table_stats_rounds(request, full_view=full_view, positions=positions, hands=hands)
+    stat_rounds_data = stat_rounds(request, full_view=full_view, seats=seats, hands=hands)
+    stat_all_data = stat_all_rounds(request, full_view=full_view, seats=seats, hands=hands)
+    stat_tables_data = table_stats(request, full_view=full_view, seats=seats, hands=hands)
+    stat_tables_rounds_data = table_stats_rounds(request, full_view=full_view, seats=seats, hands=hands)
     # Pair each round's winner stats with its table stats so one per-round loop in the
     # template can render both panels (both lists are round-aligned, length round_max).
     stat_rounds_combined = [
@@ -200,11 +200,11 @@ def stats_xlsx(request):
     is_admin = is_tenant_admin(request)
     full_view = is_admin
 
-    positions = _attach_players(tenant, list(
+    seats = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('round_nb')
     ))
     hands = list(Hand.objects.filter(tenant=tenant))
-    data = stats_export(request, full_view=full_view, positions=positions, hands=hands)
+    data = stats_export(request, full_view=full_view, seats=seats, hands=hands)
 
     is_mcr = data['rules'] == 'MCR'
     uses_teams = data['uses_teams']

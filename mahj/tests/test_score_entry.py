@@ -144,55 +144,55 @@ class TestUpdatePositionPenalty:
     sheet. It is a score-sheet-only figure (the leaderboard never reads it), so
     unlike the MP/TP edits it stays editable after the round is published."""
 
-    def _pos(self, tournament, round_nb=3, table_nb=1):
+    def _seat(self, tournament, round_nb=3, table_nb=1):
         # Round 3 is not published in the fixture, so it stays editable.
         return Seat.objects.filter(
             tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
         ).order_by('wind').first()
 
     def test_sets_penalty(self, authed_client, tournament):
-        pos = self._pos(tournament)
-        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -10})
+        seat = self._seat(tournament)
+        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -10})
         assert resp.status_code == 200
         assert json.loads(resp.content)['status'] == 'ok'
-        pos.refresh_from_db()
-        assert pos.penalty == -10
+        seat.refresh_from_db()
+        assert seat.penalty == -10
 
     def test_invalid_penalty_defaults_to_zero(self, authed_client, tournament):
-        pos = self._pos(tournament)
-        pos.penalty = 5
-        pos.save(update_fields=['penalty'])
-        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': 'abc'})
+        seat = self._seat(tournament)
+        seat.penalty = 5
+        seat.save(update_fields=['penalty'])
+        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': 'abc'})
         assert resp.status_code == 200
-        pos.refresh_from_db()
-        assert pos.penalty == 0
+        seat.refresh_from_db()
+        assert seat.penalty == 0
 
     def test_penalty_does_not_touch_minipoints(self, authed_client, tournament):
-        pos = self._pos(tournament)
-        before_mp, before_tp = pos.minipoints, pos.tablepoints
-        authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -20})
-        pos.refresh_from_db()
-        assert pos.minipoints == before_mp
-        assert pos.tablepoints == before_tp
+        seat = self._seat(tournament)
+        before_mp, before_tp = seat.minipoints, seat.tablepoints
+        authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -20})
+        seat.refresh_from_db()
+        assert seat.minipoints == before_mp
+        assert seat.tablepoints == before_tp
 
     def test_allowed_on_published_round(self, authed_client, tournament):
         # The penalty is a sheet-balance figure the standings never read, so it
         # can still be reconciled after the round is published — unlike MP/TP.
-        pos = self._pos(tournament, round_nb=1)  # published in fixture
-        resp = authed_client.post('/update_position_penalty', {'id': pos.id, 'penalty': -10})
+        seat = self._seat(tournament, round_nb=1)  # published in fixture
+        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -10})
         assert resp.status_code == 200
         assert json.loads(resp.content)['status'] == 'ok'
-        pos.refresh_from_db()
-        assert pos.penalty == -10
+        seat.refresh_from_db()
+        assert seat.penalty == -10
 
-    def test_nonexistent_position_returns_404(self, authed_client):
+    def test_nonexistent_seat_returns_404(self, authed_client):
         resp = authed_client.post('/update_position_penalty', {'id': 999999, 'penalty': -10})
         assert resp.status_code == 404
 
     def test_score_sheet_renders_penalty_inputs(self, authed_client, tournament):
-        pos = self._pos(tournament, round_nb=1, table_nb=1)
-        pos.penalty = -10
-        pos.save(update_fields=['penalty'])
+        seat = self._seat(tournament, round_nb=1, table_nb=1)
+        seat.penalty = -10
+        seat.save(update_fields=['penalty'])
         body = authed_client.get('/scores_per_hand_1_1').content.decode()
         # One editable penalty box per seat, pre-filled with the saved value.
         assert 'class="penalty-input"' in body
@@ -213,32 +213,32 @@ class TestPublishedRoundLock:
             ).order_by('wind')
         )
 
-    def _bulk_edit(self, client, positions, mp):
+    def _bulk_edit(self, client, seats, mp):
         return client.post(
             '/update_positions_bulk',
             data=json.dumps({'positions': [
-                {'id': p.id, 'mp': mp, 'tp': p.tablepoints} for p in positions
+                {'id': s.id, 'mp': mp, 'tp': s.tablepoints} for s in seats
             ]}),
             content_type='application/json',
         )
 
     def test_bulk_edit_rejected_on_published_round(self, authed_client, tournament):
-        positions = self._row(tournament, round_nb=1)
-        original = positions[0].minipoints
+        seats = self._row(tournament, round_nb=1)
+        original = seats[0].minipoints
 
-        resp = self._bulk_edit(authed_client, positions, mp=original + 7)
+        resp = self._bulk_edit(authed_client, seats, mp=original + 7)
         assert resp.status_code == 409
         assert json.loads(resp.content)['status'] == 'locked'
 
-        positions[0].refresh_from_db()
-        assert positions[0].minipoints == original  # write must not have landed
+        seats[0].refresh_from_db()
+        assert seats[0].minipoints == original  # write must not have landed
 
     def test_locked_response_echoes_server_row(self, authed_client, tournament):
         # The 409 carries the current server values so the client can revert the
         # row it tried to change instead of leaving an unsaved score on screen.
-        positions = self._row(tournament, round_nb=1)
-        original = positions[0].minipoints
-        resp = self._bulk_edit(authed_client, positions, mp=original + 7)
+        seats = self._row(tournament, round_nb=1)
+        original = seats[0].minipoints
+        resp = self._bulk_edit(authed_client, seats, mp=original + 7)
         body = json.loads(resp.content)
         assert body['row']['round_nb'] == 1
         assert body['row']['table_nb'] == 1
@@ -253,19 +253,19 @@ class TestPublishedRoundLock:
         assert before == after  # no silent unpublish
 
     def test_bulk_edit_allowed_on_unpublished_round(self, authed_client, tournament):
-        positions = self._row(tournament, round_nb=3)  # not published in fixture
-        resp = self._bulk_edit(authed_client, positions, mp=42)
+        seats = self._row(tournament, round_nb=3)  # not published in fixture
+        resp = self._bulk_edit(authed_client, seats, mp=42)
         assert resp.status_code == 200
-        positions[0].refresh_from_db()
-        assert positions[0].minipoints == 42
+        seats[0].refresh_from_db()
+        assert seats[0].minipoints == 42
 
     def test_edit_allowed_after_unpublishing(self, authed_client, tournament):
         tenant = tournament['tenant']
-        positions = self._row(tournament, round_nb=2, table_nb=1)
-        original = positions[0].minipoints
+        seats = self._row(tournament, round_nb=2, table_nb=1)
+        original = seats[0].minipoints
 
         # Locked while published.
-        assert self._bulk_edit(authed_client, positions, mp=original + 3).status_code == 409
+        assert self._bulk_edit(authed_client, seats, mp=original + 3).status_code == 409
 
         # Unpublish round 2, then the edit is accepted.
         unpub = authed_client.post(
@@ -274,8 +274,8 @@ class TestPublishedRoundLock:
             content_type='application/json',
         )
         assert unpub.status_code == 200
-        resp = self._bulk_edit(authed_client, positions, mp=original + 3)
+        resp = self._bulk_edit(authed_client, seats, mp=original + 3)
         assert resp.status_code == 200
-        positions[0].refresh_from_db()
-        assert positions[0].minipoints == original + 3
+        seats[0].refresh_from_db()
+        assert seats[0].minipoints == original + 3
 

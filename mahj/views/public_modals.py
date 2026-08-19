@@ -159,7 +159,7 @@ def detailed_scores(request, round_nb, table_nb):
         cache.set(cache_key, html, MODAL_CACHE_TTL)
         return HttpResponse(html)
 
-    position_vals = _attach_players(tenant, list(
+    seat_rows = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')
     ))
     hand_vals = Hand.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).order_by('id')
@@ -183,9 +183,9 @@ def detailed_scores(request, round_nb, table_nb):
             hands_per_wind[-1][1].append(h)
 
     scores = [None, None, None, None]
-    for position_val in position_vals:
-        if 1 <= position_val.wind <= 4:
-            scores[position_val.wind - 1] = position_val
+    for seat in seat_rows:
+        if 1 <= seat.wind <= 4:
+            scores[seat.wind - 1] = seat
 
     # Per-player penalties only surface here when at least one is non-zero, so a
     # clean table stays clean.

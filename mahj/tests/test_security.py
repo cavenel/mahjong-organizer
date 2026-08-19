@@ -213,7 +213,7 @@ class TestScanEndpointsPublic:
 
     def test_scan_prefill_empty_table_anonymous_writes(self, client_, tournament):
         tenant = tournament['tenant']
-        # Round 3 has positions but no hands seeded — an empty table, no conflict.
+        # Round 3 has seats but no hands seeded — an empty table, no conflict.
         body = {'round_nb': 3, 'table_nb': 1, 'validate': False,
                 'scores': [{'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 0.5}]}
         resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')

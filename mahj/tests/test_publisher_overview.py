@@ -83,7 +83,7 @@ class TestOverviewRows:
         assert 1 not in r1['validated_tables']
         assert sorted(r1['validated_tables']) == [2, 3, 4]
 
-    def test_scored_requires_all_four_positions(self, tournament):
+    def test_scored_requires_all_four_seats(self, tournament):
         # Blank one seat's minipoints in round 1 / table 1 → no longer scored.
         tenant = tournament['tenant']
         seat = Seat.objects.filter(tenant=tenant, round_nb=1, table_nb=1).first()

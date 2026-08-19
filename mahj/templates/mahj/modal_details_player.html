@@ -79,7 +79,7 @@
             <button @click="open[{{ forloop.counter0 }}] = !open[{{ forloop.counter0 }}]"
                     class="w-full flex items-center px-4 py-3 text-left hover:bg-gray-50 transition-colors gap-3">
               <span class="text-sm font-medium text-gray-700 w-20 shrink-0">Round {{ forloop.counter }}</span>
-              {% for seat in round.other_pos %}
+              {% for seat in round.table_seats %}
                 {% if seat.player == player %}
                   {% if seat.round_nb <= scores_json.scores|length %}
                     {% if tournament.rules == "MCR" %}
@@ -105,10 +105,10 @@
             <!-- Expanded: seats at table -->
             <div x-show="open[{{ forloop.counter0 }}]" class="border-t border-gray-100 bg-gray-50 pb-3">
               <div class="px-4 pt-2 pb-2 text-xs text-gray-400">
-                Table {{ round.other_pos.0.table_nb }}
+                Table {{ round.table_seats.0.table_nb }}
               </div>
               <div class="mx-4 rounded-lg overflow-hidden border border-gray-200 divide-y divide-gray-100">
-                {% for seat in round.other_pos %}
+                {% for seat in round.table_seats %}
                   <div class="flex items-center px-3 py-2 text-sm gap-2
                                {% if seat.player == player %}bg-amber-50{% else %}bg-white{% endif %}">
                     <span class="w-14 text-xs text-gray-400 shrink-0">
@@ -137,7 +137,7 @@
                   </div>
                 {% endfor %}
               </div>
-              {% for seat in round.other_pos %}
+              {% for seat in round.table_seats %}
                 {% if tournament.rules == "MCR" and seat.player == player and round.detailed_hands and seat.round_nb <= scores_json.scores|length %}
                   <a href="detailed_scores_{{ seat.round_nb }}_{{ seat.table_nb }}"
                      class="block mx-4 mt-3 text-center py-2 rounded-lg border border-amber-200 bg-white

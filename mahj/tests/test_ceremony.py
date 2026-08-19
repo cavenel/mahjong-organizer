@@ -106,10 +106,10 @@ class TestTieHandling:
         assert a.id in by_id and b.id in by_id
         assert by_id[a.id]['pos'] == by_id[b.id]['pos']
 
-        positions = [p['pos'] for p in master['players']]
+        ranks = [p['pos'] for p in master['players']]
         ids = [p['player_id'] for p in master['players']]
         # ...so `pos` collides (unsafe as an Alpine :key), but player_id stays unique.
-        assert len(set(positions)) < len(positions)
+        assert len(set(ranks)) < len(ranks)
         assert len(set(ids)) == len(ids)
 
     def test_reveal_advances_one_entry_at_a_time_across_a_tie(self, tied_players):

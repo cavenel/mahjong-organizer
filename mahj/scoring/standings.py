@@ -7,33 +7,33 @@ from ._common import WINDS, _attach_players, _country_flag
 from .visibility import publish_state, final_withheld_now, _last_complete_round
 
 
-def player_standings(tenant, tournament, full_view=False, positions=None):
+def player_standings(tenant, tournament, full_view=False, seats=None):
     """Cumulative player totals with rank evolution across rounds."""
     players = list(Player.objects.filter(tenant=tenant).order_by('id'))
     # Resolve each seat's competitor from the players we already have (the draw
     # lives on Player.draw_number), so no extra query is needed to group seats.
     id_by_draw = {p.draw_number: p.id for p in players if p.draw_number is not None}
 
-    if positions is None:
-        positions = list(Seat.objects.filter(tenant=tenant).order_by('round_nb'))
+    if seats is None:
+        seats = list(Seat.objects.filter(tenant=tenant).order_by('round_nb'))
 
-    positions_by_player = defaultdict(list)
+    seats_by_player = defaultdict(list)
     round_max = tournament.nb_rounds
-    for pos in positions:
+    for seat in seats:
         # "Last fully scored round": the same rule as _last_complete_round and the
         # publish gate (every seat scored), so these surfaces can't drift apart.
         # A running tournament always has every seat filled — a withdrawal is
         # handled by swapping the name and keeping the draw number — so a seat that
         # no player holds only exists in the pre-draw setup window, where nothing is
         # scored yet.
-        if pos.minipoints is None or pos.tablepoints is None:
-            round_max = min(round_max, pos.round_nb - 1)
-        pid = getattr(pos, 'player_id', None)
+        if seat.minipoints is None or seat.tablepoints is None:
+            round_max = min(round_max, seat.round_nb - 1)
+        pid = getattr(seat, 'player_id', None)
         if pid is None:
-            pid = id_by_draw.get(pos.draw_number)
+            pid = id_by_draw.get(seat.draw_number)
         if pid is None:
             continue  # skip so a stray draw number can't fold scores into a player
-        positions_by_player[pid].append(pos)
+        seats_by_player[pid].append(seat)
 
     last_published, final_withheld = publish_state(tenant, tournament)
 
@@ -58,7 +58,7 @@ def player_standings(tenant, tournament, full_view=False, positions=None):
     ranked = []
     for current_round in range(round_max + 1):
         ranked = [
-            _cumulative_row(p, positions_by_player[p.id], current_round, flags[p.id])
+            _cumulative_row(p, seats_by_player[p.id], current_round, flags[p.id])
             for p in players
         ]
         ranked.sort(key=sort_key)
@@ -126,56 +126,56 @@ def team_standings(rows, tournament, nb_rounds):
     return team_rows
 
 
-def tournament_seating(tenant, tournament, full_view=False, valid_pairs=None, positions=None):
+def tournament_seating(tenant, tournament, full_view=False, valid_pairs=None, seats=None):
     """seating grid + player→table lookup. Applies the same end-of-tournament
     masking as player_standings: when the last round is published but withheld for
     the ceremony, public viewers see the final round's seats without MP/TP.
     Public viewers also see MP/TP masked for any unpublished round.
     """
-    if positions is None:
-        position_vals = _attach_players(tenant, list(
+    if seats is None:
+        seat_rows = _attach_players(tenant, list(
             Seat.objects.filter(tenant=tenant).order_by('id')
         ))
     else:
-        position_vals = positions
-    round_max = max((p.round_nb for p in position_vals), default=0)
-    table_max = max((p.table_nb for p in position_vals), default=0)
+        seat_rows = seats
+    round_max = max((p.round_nb for p in seat_rows), default=0)
+    table_max = max((p.table_nb for p in seat_rows), default=0)
 
     last_published, final_withheld = publish_state(tenant, tournament)
     last_complete = _last_complete_round(tenant, tournament)
     end_of_tournament = final_withheld_now(last_complete, tournament, final_withheld) and not full_view
     hide_scores_round = last_complete if end_of_tournament else None
 
-    player_table = {(p.player_id, p.round_nb): p.table_nb for p in position_vals}
+    player_table = {(p.player_id, p.round_nb): p.table_nb for p in seat_rows}
 
     grid = [[[None] * 4 for _ in range(table_max)] for _ in range(round_max)]
-    for p in position_vals:
+    for p in seat_rows:
         grid[p.round_nb - 1][p.table_nb - 1][p.wind - 1] = p
 
     seating = []
-    for r_idx, round_positions in enumerate(grid):
+    for r_idx, round_tables in enumerate(grid):
         round_nb = r_idx + 1
         hide_scores = hide_scores_round == round_nb
         # Public viewers see scores only from published rounds.
         if not full_view and round_nb > last_published:
             hide_scores = True
         tables = []
-        for t_idx, table in enumerate(round_positions):
-            if all(pos is None for pos in table):
+        for t_idx, table in enumerate(round_tables):
+            if all(seat is None for seat in table):
                 continue
-            seats = []
+            table_seats = []
             for i in range(4):
-                pos = table[i]
-                mp = None if hide_scores or pos is None else pos.minipoints
-                tp = None if hide_scores or pos is None or pos.tablepoints is None \
-                    else float(pos.tablepoints)
-                seats.append({
+                seat = table[i]
+                mp = None if hide_scores or seat is None else seat.minipoints
+                tp = None if hide_scores or seat is None or seat.tablepoints is None \
+                    else float(seat.tablepoints)
+                table_seats.append({
                     'wind': WINDS[i],
-                    'player': pos.player if pos else None,
+                    'player': seat.player if seat else None,
                     # Display label for the seat: the real name, or "Player <n>"
                     # for a drawn slot no one holds yet. None only when the seat
                     # itself is absent (an empty slot in a partial table).
-                    'name': pos.player_name() if pos else None,
+                    'name': seat.player_name() if seat else None,
                     'mp': mp,
                     'tp': tp,
                 })
@@ -183,7 +183,7 @@ def tournament_seating(tenant, tournament, full_view=False, valid_pairs=None, po
             has_scores = (not hide_scores) and (
                 valid_pairs is not None and (round_nb, table_nb) in valid_pairs
             )
-            tables.append({'table_nb': table_nb, 'seats': seats, 'has_scores': has_scores})
+            tables.append({'table_nb': table_nb, 'seats': table_seats, 'has_scores': has_scores})
         seating.append({'round_nb': round_nb, 'tables': tables})
 
     return seating, player_table
@@ -221,8 +221,8 @@ def _assign_ranks(rows, key, field):
         index += len(members)
 
 
-def _cumulative_row(player, all_positions, up_to_round, flag):
-    played = [p for p in all_positions if p.round_nb <= up_to_round]
+def _cumulative_row(player, all_seats, up_to_round, flag):
+    played = [p for p in all_seats if p.round_nb <= up_to_round]
     return {
         'history_pos': [1], 'pos': 0, 'pos_se': '',
         'player_id': player.id, 'EMA_ID': player.EMA_ID,

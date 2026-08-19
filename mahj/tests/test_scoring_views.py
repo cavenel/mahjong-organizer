@@ -73,11 +73,11 @@ class TestPlayerStandings:
     def test_ranks_are_dense_with_ties_sharing(self, request_):
         rows = views.scores_per_player_json(request_, full_view=True)
         # pos values must be 1..n, with ties sharing (1,2,2,4 pattern).
-        positions = [r['pos'] for r in rows]
-        assert positions[0] == 1
-        assert all(p <= len(positions) for p in positions)
+        ranks = [r['pos'] for r in rows]
+        assert ranks[0] == 1
+        assert all(p <= len(ranks) for p in ranks)
         # Strictly non-decreasing as we walk down the sorted list.
-        for a, b in zip(positions, positions[1:]):
+        for a, b in zip(ranks, ranks[1:]):
             assert a <= b
 
     def test_pos_se_only_assigned_to_swedish_players(self, request_):
@@ -466,7 +466,7 @@ class TestNoRoundsFallback:
 
     @pytest.fixture
     def unscored_tournament(self, tournament):
-        # Wipe every scored round: no hands, and Positions carry no points.
+        # Wipe every scored round: no hands, and Seats carry no points.
         Hand.objects.filter(tenant=tournament['tenant']).delete()
         Seat.objects.filter(tenant=tournament['tenant']).update(
             minipoints=None, tablepoints=None,

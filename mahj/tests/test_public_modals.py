@@ -38,7 +38,7 @@ def _hand_count(tournament, round_nb, table_nb):
 
 class TestDetailedScoresReadOnly:
     def test_unplayed_table_creates_no_rows(self, client_, tournament):
-        # Round 3 has positions but no hands in the fixture; opening the modal
+        # Round 3 has seats but no hands in the fixture; opening the modal
         # must not INSERT the 17 placeholder rows (regression guard).
         assert _hand_count(tournament, 3, 1) == 0
         resp = client_.get('/detailed_scores_3_1')

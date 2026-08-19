@@ -3,7 +3,8 @@
     "day": "Sat",
     "detailed_hands": true,
     "name": "Round 1",
-    "other_pos": [
+    "player_pos": "East",
+    "table_seats": [
       {
         "__model__": "Seat",
         "draw_number": 1,
@@ -57,14 +58,14 @@
         "wind": 4
       }
     ],
-    "player_pos": "East",
     "time": "10:00"
   },
   {
     "day": "Sat",
     "detailed_hands": true,
     "name": "Round 2",
-    "other_pos": [
+    "player_pos": "East",
+    "table_seats": [
       {
         "__model__": "Seat",
         "draw_number": 1,
@@ -118,14 +119,14 @@
         "wind": 4
       }
     ],
-    "player_pos": "East",
     "time": "11:00"
   },
   {
     "day": "Sat",
     "detailed_hands": false,
     "name": "Round 3",
-    "other_pos": [
+    "player_pos": "East",
+    "table_seats": [
       {
         "__model__": "Seat",
         "draw_number": 1,
@@ -179,7 +180,6 @@
         "wind": 4
       }
     ],
-    "player_pos": "East",
     "time": "12:00"
   }
 ]

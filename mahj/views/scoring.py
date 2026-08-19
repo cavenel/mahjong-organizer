@@ -15,13 +15,13 @@ def scores_per_table_json(request):
     return _scoring.scores_per_table(get_tenant(request), get_tournament(request))
 
 
-def scores_per_player_json(request, full_view=False, positions=None):
+def scores_per_player_json(request, full_view=False, seats=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None:
+    if seats is not None:
         return _scoring.player_standings(
             tenant, get_tournament(request),
-            full_view=full_view, positions=positions,
+            full_view=full_view, seats=seats,
         )
     cache_key = f'leaderboard:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
@@ -40,13 +40,13 @@ def player_rounds_json(request, player_id):
     return _scoring.player_rounds(tenant, Player.objects.get(id=player_id))
 
 
-def stat_rounds(request, full_view=False, positions=None, hands=None):
+def stat_rounds(request, full_view=False, seats=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None or hands is not None:
+    if seats is not None or hands is not None:
         return _scoring.round_winners(
             tenant, get_tournament(request), full_view,
-            positions=positions, hands=hands,
+            seats=seats, hands=hands,
         )
     cache_key = f'stat_rounds:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
@@ -57,13 +57,13 @@ def stat_rounds(request, full_view=False, positions=None, hands=None):
     return result
 
 
-def stat_all_rounds(request, full_view=False, positions=None, hands=None):
+def stat_all_rounds(request, full_view=False, seats=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None or hands is not None:
+    if seats is not None or hands is not None:
         return _scoring.overall_winners(
             tenant, get_tournament(request), full_view,
-            positions=positions, hands=hands,
+            seats=seats, hands=hands,
         )
     cache_key = f'stat_all:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
@@ -74,13 +74,13 @@ def stat_all_rounds(request, full_view=False, positions=None, hands=None):
     return result
 
 
-def table_stats(request, full_view=False, positions=None, hands=None):
+def table_stats(request, full_view=False, seats=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None or hands is not None:
+    if seats is not None or hands is not None:
         return _scoring.table_stats(
             tenant, get_tournament(request), full_view,
-            positions=positions, hands=hands,
+            seats=seats, hands=hands,
         )
     cache_key = f'table_stats:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
@@ -91,13 +91,13 @@ def table_stats(request, full_view=False, positions=None, hands=None):
     return result
 
 
-def table_stats_rounds(request, full_view=False, positions=None, hands=None):
+def table_stats_rounds(request, full_view=False, seats=None, hands=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None or hands is not None:
+    if seats is not None or hands is not None:
         return _scoring.table_stats_rounds(
             tenant, get_tournament(request), full_view,
-            positions=positions, hands=hands,
+            seats=seats, hands=hands,
         )
     cache_key = f'table_stats_rounds:{subdomain}:{full_view}'
     cached = cache.get(cache_key)
@@ -108,21 +108,21 @@ def table_stats_rounds(request, full_view=False, positions=None, hands=None):
     return result
 
 
-def stats_export(request, full_view=False, positions=None, hands=None):
+def stats_export(request, full_view=False, seats=None, hands=None):
     return _scoring.stats_export(
         get_tenant(request), get_tournament(request), full_view,
-        positions=positions, hands=hands,
+        seats=seats, hands=hands,
     )
 
 
-def tournament_seating(request, full_view=False, valid_pairs=None, positions=None):
+def tournament_seating(request, full_view=False, valid_pairs=None, seats=None):
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
-    if positions is not None:
+    if seats is not None:
         return _scoring.tournament_seating(
             tenant, get_tournament(request),
             full_view=full_view,
-            valid_pairs=valid_pairs, positions=positions,
+            valid_pairs=valid_pairs, seats=seats,
         )
     cache_key = f'seating_v2:{subdomain}:{full_view}'
     cached = cache.get(cache_key)

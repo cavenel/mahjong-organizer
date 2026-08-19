@@ -310,7 +310,7 @@ WINDS = ['E', 'S', 'W', 'N']
 
 
 def scan_positions(request):
-    """Return positions (players, MP, TP) for a given round/table."""
+    """Return the table's seats (players, MP, TP) for a given round/table."""
     _require_scan_enabled()
     tenant = get_tenant(request)
     round_nb = request.GET.get('round_nb')
@@ -318,7 +318,7 @@ def scan_positions(request):
     if not round_nb or not table_nb:
         return JsonResponse({"ok": False, "error": "round_nb and table_nb required"}, status=400)
 
-    positions = _attach_players(tenant, list(Seat.objects.filter(
+    seats = _attach_players(tenant, list(Seat.objects.filter(
         tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
     ).order_by('wind')))
 
@@ -333,7 +333,7 @@ def scan_positions(request):
     ).exists()
 
     data = []
-    for p in positions:
+    for p in seats:
         first = p.player.short_name if p.player else ''
         data.append({
             'position': p.wind,

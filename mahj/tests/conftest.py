@@ -31,7 +31,7 @@ def grant_membership():
 
 @pytest.fixture
 def tournament(tenant):
-    """Seed: 16 players, 3 rounds (2 complete with hands, 1 partial — Positions but no points)."""
+    """Seed: 16 players, 3 rounds (2 complete with hands, 1 partial — Seats but no points)."""
     settings = TournamentSettings.objects.create(
         tenant=tenant, welcome='Welcome', title='T', fullname='FT',
         nb_rounds=3, rules='MCR', total_time=60 * 60, zoom=1.0, score_lines=20,

@@ -133,8 +133,8 @@ def player_cards(request):
             c for c in cards
             if c["draw_number"] in wanted
             or (not main_only
-                and any(pos.draw_number in wanted
-                        for rnd in c["rounds"] for pos in rnd["other_pos"]))
+                and any(seat.draw_number in wanted
+                        for rnd in c["rounds"] for seat in rnd["table_seats"]))
         ]
 
     def grouper(n, iterable, fillvalue=None):
@@ -170,21 +170,21 @@ def team_names(request):
 def table_posters(request):
     tenant = get_tenant(request)
     tournament = get_tournament(request)
-    position_vals = _attach_players(tenant, list(
+    seat_rows = _attach_players(tenant, list(
         Seat.objects.filter(tenant=tenant).order_by('id')))
 
     round_max = 0
     table_max = 0
-    for position_val in position_vals:
-        round_max = max(round_max, position_val.round_nb)
-        table_max = max(table_max, position_val.table_nb)
+    for seat in seat_rows:
+        round_max = max(round_max, seat.round_nb)
+        table_max = max(table_max, seat.table_nb)
     # Store the Seat itself (not just its player) so the poster can label an
     # unclaimed draw slot "Player <n>" via Seat.player_short_name.
-    positions = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
-    for position_val in position_vals:
-        positions[position_val.round_nb - 1][position_val.table_nb - 1][position_val.wind - 1] = position_val
+    grid = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
+    for seat in seat_rows:
+        grid[seat.round_nb - 1][seat.table_nb - 1][seat.wind - 1] = seat
 
     schedule = list(Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id'))
     template = loader.get_template('mahj/print_table_posters.html')
-    context = {"rounds": zip(positions, schedule), "tournament": tournament}
+    context = {"rounds": zip(grid, schedule), "tournament": tournament}
     return HttpResponse(template.render(context, request))

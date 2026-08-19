@@ -71,7 +71,7 @@
         <div class="mono" style="font-size:6pt; color:var(--muted);">{{ forloop.counter }}</div>
         <div class="mono" style="font-size:6.2pt;">{{ r.time }}</div>
         <div class="pos-cell">
-          <span class="tbl">{{ r.other_pos.0.table_nb }}</span>
+          <span class="tbl">{{ r.table_seats.0.table_nb }}</span>
           <span class="wind {{ r.player_pos|slice:':1' }}">{{ r.player_pos|slice:':1' }}</span>
         </div>
         <div class="write-cell"></div>
