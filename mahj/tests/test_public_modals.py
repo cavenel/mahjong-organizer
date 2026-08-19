@@ -72,7 +72,7 @@ class TestDetailedScoresPenalties:
     """Penalties surface on the public per-table detail only when at least one is
     non-zero; they are score-sheet figures, never the official MP."""
 
-    def _first_pos(self, tournament, round_nb, table_nb):
+    def _first_seat(self, tournament, round_nb, table_nb):
         from mahj.models import Seat
         return Seat.objects.filter(
             tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
@@ -80,9 +80,9 @@ class TestDetailedScoresPenalties:
 
     def test_penalty_row_shown_when_set(self, client_, tournament):
         from django.core.cache import cache
-        pos = self._first_pos(tournament, 1, 1)
-        pos.penalty = -10
-        pos.save(update_fields=['penalty'])
+        seat = self._first_seat(tournament, 1, 1)
+        seat.penalty = -10
+        seat.save(update_fields=['penalty'])
         cache.clear()  # the modal caches rendered HTML; render fresh
         body = client_.get('/detailed_scores_1_1').content.decode()
         assert 'id="pen_1"' in body

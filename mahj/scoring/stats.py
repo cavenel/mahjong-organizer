@@ -438,7 +438,7 @@ def _rounds_for(my_seats, seats_by_rt, schedule, completed):
         entry = _sched(p.round_nb)
         rows.append({
             'table_seats': seats_by_rt[(p.round_nb, p.table_nb)],
-            'player_pos': WINDS[p.wind - 1],
+            'player_wind': WINDS[p.wind - 1],
             'time': entry.time if entry else '',
             'day': entry.day if entry else '',
             'name': entry.name if entry else '',

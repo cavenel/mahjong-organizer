@@ -63,14 +63,14 @@ def tournament(tenant):
     ]
     for rn in range(3):
         for tn in range(4):
-            for pos in range(4):
-                p_idx = rotations[rn][tn][pos]
+            for wind_idx in range(4):
+                p_idx = rotations[rn][tn][wind_idx]
                 complete = rn < 2
                 Seat.objects.create(
                     tenant=tenant, round_nb=rn + 1, table_nb=tn + 1,
-                    wind=pos + 1, draw_number=players[p_idx].draw_number,
+                    wind=wind_idx + 1, draw_number=players[p_idx].draw_number,
                     minipoints=(p_idx * 10 + rn * 5) % 200 if complete else None,
-                    tablepoints=float([4, 2, 1, 0][pos]) if complete else None,
+                    tablepoints=float([4, 2, 1, 0][wind_idx]) if complete else None,
                 )
 
     # 16 played hands per table on the two complete rounds. A hand worth >0 is a

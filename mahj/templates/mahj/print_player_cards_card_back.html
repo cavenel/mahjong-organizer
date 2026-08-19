@@ -49,7 +49,7 @@
   <div style="padding: 0.8mm 5mm 0; flex-shrink:0;">
     <div class="opp-grid">
       <div></div>
-      <div class="pos-head">Tbl · Seat</div>
+      <div class="seat-head">Tbl · Seat</div>
       <div class="wind-head"><span class="wind sm E">E</span><span>EAST</span></div>
       <div class="wind-head"><span class="wind sm S">S</span><span>SOUTH</span></div>
       <div class="wind-head"><span class="wind sm W">W</span><span>WEST</span></div>
@@ -66,9 +66,9 @@
       {% endifchanged %}
       <div class="opp-grid">
         <div class="mono" style="font-size:6.2pt; padding-left:0.4mm; color:var(--muted); align-self:center;">{{ forloop.counter }}</div>
-        <div class="pos-back">
+        <div class="seat-back">
           <span class="tbl">{{ r.table_seats.0.table_nb }}</span>
-          <span class="wind sm {{ r.player_pos|slice:':1' }}">{{ r.player_pos|slice:':1' }}</span>
+          <span class="wind sm {{ r.player_wind|slice:':1' }}">{{ r.player_wind|slice:':1' }}</span>
         </div>
         {% for seat in r.table_seats %}
           <div class="opp-cell{% if seat.draw_number == card.draw_number %} me{% endif %}">{{ seat.player_short_name }}</div>

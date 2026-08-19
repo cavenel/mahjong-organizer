@@ -211,6 +211,21 @@ class TestListBackups:
         assert group['has_more'] is True
 
 
+def test_confirm_dialog_renders_seat_counts(client_, super_user, tournament):
+    """The "what you're about to overwrite" counts come from `db_counts`, whose
+    Seat tally is keyed `seats` — a mismatch would silently render blanks."""
+    import re
+    client_.force_login(super_user)
+    _reauth(client_)
+    body = client_.get('/admin?page=database_restore').content.decode()
+    m = re.search(r'<strong>(\d+)</strong> players, <strong>(\d+)</strong> seats,\s*'
+                  r'<strong>(\d+)</strong> hands', body)
+    assert m, [l.strip() for l in body.splitlines() if 'players,' in l][:5]
+    assert (int(m.group(1)), int(m.group(2))) == (16, 48)
+    # The worker reports the same three keys back for the post-restore line.
+    assert 'c.seats + " seats, "' in body
+
+
 def test_parse_name_handles_underscored_source():
     assert restore_admin._parse_name('mahj_venue_lan_20260630T184242Z.dump')[0] == 'venue_lan'
 

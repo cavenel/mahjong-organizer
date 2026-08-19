@@ -462,17 +462,17 @@ def admin_upload_from_template(request):
             # present it is read (and validated) here.
             sheet_name = '{0} players'.format(nb_players)
             if sheet_name in wb.sheetnames:
-                pos_sheet = wb[sheet_name]
+                seating_sheet = wb[sheet_name]
                 # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
                 # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated.
-                pos_rows = list(pos_sheet.iter_rows(
+                seating_rows = list(seating_sheet.iter_rows(
                     min_row=3, max_row=2 + tournament.nb_rounds,
                     min_col=2, max_col=1 + 5 * nb_tables,
                     values_only=True,
                 ))
                 seats_to_create = []
                 expected = set(range(1, nb_players + 1))
-                for round_idx, row in enumerate(pos_rows):
+                for round_idx, row in enumerate(seating_rows):
                     round_draws = []
                     for table_nb in range(nb_tables):
                         for wind in range(4):
@@ -607,18 +607,18 @@ def admin_export_to_template(request):
     nb_tables = nb_players // 4
     seats = list(Seat.objects.filter(tenant=tenant))
     if seats and nb_tables:
-        pos_sheet = wb.create_sheet('{0} players'.format(nb_players))
+        seating_sheet = wb.create_sheet('{0} players'.format(nb_players))
         for table_nb in range(1, nb_tables + 1):
             base = 2 + 5 * (table_nb - 1)
-            pos_sheet.cell(row=1, column=base, value='Table {0}'.format(table_nb))
+            seating_sheet.cell(row=1, column=base, value='Table {0}'.format(table_nb))
             for wind, label in enumerate(['East', 'South', 'West', 'North']):
-                pos_sheet.cell(row=2, column=base + wind, value=label)
+                seating_sheet.cell(row=2, column=base + wind, value=label)
         nb_rounds = max(tournament.nb_rounds, max(s.round_nb for s in seats))
         for round_nb in range(1, nb_rounds + 1):
-            pos_sheet.cell(row=round_nb + 2, column=1, value='R{0}'.format(round_nb))
+            seating_sheet.cell(row=round_nb + 2, column=1, value='R{0}'.format(round_nb))
         for seat in seats:
             col = 2 + (seat.wind - 1) + 5 * (seat.table_nb - 1)
-            pos_sheet.cell(row=seat.round_nb + 2, column=col, value=seat.draw_number)
+            seating_sheet.cell(row=seat.round_nb + 2, column=col, value=seat.draw_number)
 
     buf = io.BytesIO()
     wb.save(buf)

@@ -18,10 +18,10 @@ def completed_tournament(tournament):
     All non-last rounds are published fully; the last round is published
     withheld — i.e. podium ceremony ready but not yet started.
     """
-    for pos in Seat.objects.filter(tenant=tournament['tenant'], round_nb=3):
-        pos.minipoints = (pos.draw_number * 7 + 11) % 200
-        pos.tablepoints = float([4, 2, 1, 0][pos.wind - 1])
-        pos.save()
+    for seat in Seat.objects.filter(tenant=tournament['tenant'], round_nb=3):
+        seat.minipoints = (seat.draw_number * 7 + 11) % 200
+        seat.tablepoints = float([4, 2, 1, 0][seat.wind - 1])
+        seat.save()
     for tn in range(1, 5):
         for hn in range(1, 17):
             pts = (300 + tn * 10 + hn) % 50
@@ -396,9 +396,9 @@ class TestOverallWinnersMaskFinalRound:
         nb_rounds = completed_tournament['settings'].nb_rounds
         tenant = completed_tournament['tenant']
         PublishedRound.objects.filter(tenant=tenant, round_nb=nb_rounds).delete()
-        pos = Seat.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
-        pos.minipoints = 100000
-        pos.save()
+        seat = Seat.objects.filter(tenant=tenant, round_nb=nb_rounds).first()
+        seat.minipoints = 100000
+        seat.save()
         h = Hand.objects.filter(tenant=tenant, round_nb=nb_rounds, hand_nb=1).first()
         h.points, h.win_by, h.win_from = 100000, 1, None  # self-draw (no discarder)
         h.save()
