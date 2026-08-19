@@ -1,5 +1,24 @@
 {% load static %}
 
+<script>
+  // Submit a state-changing admin action as a POST (these used to be GET links,
+  // which sidestepped CSRF). Builds a throwaway form with the CSRF token and
+  // submits it, so the browser follows the view's redirect just like the old
+  // anchor did.
+  function postAdmin(url) {
+    var f = document.createElement('form');
+    f.method = 'POST';
+    f.action = url;
+    var t = document.createElement('input');
+    t.type = 'hidden';
+    t.name = 'csrfmiddlewaretoken';
+    t.value = '{{ csrf_token }}';
+    f.appendChild(t);
+    document.body.appendChild(f);
+    f.submit();
+  }
+</script>
+
 <style>
   /* Active-mode card: the mode whose views match every screen's current view.
      Initial state is server-rendered (.mode-card--active); JS keeps it current
@@ -46,8 +65,8 @@
                data-mode-id="{{ mode.id }}" data-views="{{ mode.views_json }}">
             <div class="px-4 py-2.5 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-2">
               <h3 class="text-sm font-bold text-gray-800 capitalize truncate">{{ mode.name }}</h3>
-              <a href="admin?page=display&rm_mode={{ mode.id }}" title="Delete this mode"
-                 onclick="var h=this.href; confirmAction({title:'Delete display mode', body:'Delete the display mode “{{ mode.name|escapejs }}”? This cannot be undone.', confirmLabel:'Delete mode', onConfirm:function(){ window.location.href=h; }}); return false;"
+              <a href="#" title="Delete this mode" data-rm-mode="{{ mode.id }}"
+                 onclick="var id=this.getAttribute('data-rm-mode'); confirmAction({title:'Delete display mode', body:'Delete the display mode “{{ mode.name|escapejs }}”? This cannot be undone.', confirmLabel:'Delete mode', onConfirm:function(){ postAdmin('admin?page=display&rm_mode='+id); }}); return false;"
                  class="shrink-0 p-1 rounded-md text-gray-400 hover:text-rose-600 hover:bg-rose-50 transition-colors">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </a>
@@ -435,14 +454,14 @@
 
     <div class="px-5 pb-5 pt-1 border-t border-gray-100 space-y-4">
       <div class="flex flex-wrap gap-2">
-        <a href="admin?page=display&action=add_screen"
+        <a href="#" onclick="postAdmin('admin?page=display&action=add_screen'); return false;"
            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg
                   bg-amber-500 text-white hover:bg-amber-600 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
           Add screen
         </a>
-        <a href="/admin?page=display&action=remove_screen"
-           onclick="var h=this.href; confirmAction({title:'Remove screen', body:'Remove the last screen? Any view it was showing will be lost.', confirmLabel:'Remove screen', onConfirm:function(){ window.location.href=h; }}); return false;"
+        <a href="#"
+           onclick="confirmAction({title:'Remove screen', body:'Remove the last screen? Any view it was showing will be lost.', confirmLabel:'Remove screen', onConfirm:function(){ postAdmin('admin?page=display&action=remove_screen'); }}); return false;"
            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg
                   bg-rose-500 text-white hover:bg-rose-600 transition-colors">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>

@@ -13,7 +13,7 @@ Nothing here changes the existing players-only withheld-podium logic; the final
 """
 import json
 
-from django.http import HttpResponse, JsonResponse
+from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.template.defaultfilters import floatformat
 
 from ..models import CeremonyState, PublishedRound
@@ -208,14 +208,21 @@ def ceremony_data(request):
     return JsonResponse(master)
 
 
+# The phases the console can drive the ceremony into. Anything else is rejected
+# so a crafted request can't strand every screen on an unknown/empty slide.
+VALID_PHASES = frozenset({'idle', 'blank', 'teams', 'players', 'stat'})
+
+
 @tenant_role_required('display_op')
 def ceremony_control(request):
     """Mutate ceremony state and broadcast the new slide to all screens.
 
-    Query params:
+    POST only (it mutates state and publishes results). Params (query string):
       action=publish              -> reveal all results publicly and end ceremony
-      phase=blank|teams|players|stat [&step=N] [&stat_key=KEY]
+      phase=idle|blank|teams|players|stat [&step=N] [&stat_key=KEY]
     """
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
     tenant = get_tenant(request)
     tournament = get_tournament(request)
     subdomain = tenant.subdomain if tenant else ''
@@ -242,6 +249,8 @@ def ceremony_control(request):
 
     phase = request.GET.get('phase')
     if phase is not None:
+        if phase not in VALID_PHASES:
+            return HttpResponse(f"Unknown phase: {phase}", status=400)
         state.phase = phase
         if phase in ('teams', 'players', 'stat'):
             # stat reveals in two steps: 0 = title only, 1 = value + winners.

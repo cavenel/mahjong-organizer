@@ -303,7 +303,10 @@ def test_update_screen_name_persists_and_clears(client_, display_op, tournament)
     screen = Screen.objects.create(tenant=tenant, view='counter')
     client_.force_login(display_op)
 
-    resp = client_.get(f'/update_screen_name?id={screen.id}&name=Main+hall')
+    # A GET can't mutate — the rename is POST-only.
+    assert client_.get(f'/update_screen_name?id={screen.id}&name=X').status_code == 405
+
+    resp = client_.post(f'/update_screen_name?id={screen.id}&name=Main+hall')
     assert resp.status_code == 200
     screen.refresh_from_db()
     assert screen.name == 'Main hall'
@@ -313,9 +316,76 @@ def test_update_screen_name_persists_and_clears(client_, display_op, tournament)
     assert 'Main hall' in html
 
     # An empty name clears it back to the bare positional label.
-    client_.get(f'/update_screen_name?id={screen.id}&name=')
+    client_.post(f'/update_screen_name?id={screen.id}&name=')
     screen.refresh_from_db()
     assert screen.friendly_name == ''
+
+
+# ── Mutations are POST-only (no state change via a GET link) ──────────────────
+
+def test_display_actions_reject_get(client_, display_op, tournament):
+    """The screen/mode actions mutate state, so a GET must be refused (405) —
+    a GET link would be a working CSRF vector against a logged-in operator."""
+    client_.force_login(display_op)
+    for url in ('/admin?page=display&action=add_screen',
+                '/admin?page=display&action=remove_screen',
+                '/admin?page=display&action=set_all_views&view=black'):
+        assert client_.get(url).status_code == 405, url
+
+
+def test_add_and_remove_screen_via_post(client_, display_op, tournament):
+    tenant = tournament['tenant']
+    client_.force_login(display_op)
+    before = Screen.objects.filter(tenant=tenant).count()
+
+    assert client_.post('/admin?page=display&action=add_screen').status_code in (200, 302)
+    assert Screen.objects.filter(tenant=tenant).count() == before + 1
+
+    assert client_.post('/admin?page=display&action=remove_screen').status_code in (200, 302)
+    assert Screen.objects.filter(tenant=tenant).count() == before
+
+
+def test_remove_screen_with_none_present_does_not_500(client_, display_op, tournament):
+    """Removing when there are no screens is a no-op, not a 500."""
+    tenant = tournament['tenant']
+    Screen.objects.filter(tenant=tenant).delete()
+    client_.force_login(display_op)
+    assert client_.post('/admin?page=display&action=remove_screen').status_code in (200, 302)
+
+
+def test_rm_mode_bad_id_is_404(client_, display_op, tournament):
+    client_.force_login(display_op)
+    assert client_.post('/admin?page=display&rm_mode=999999').status_code == 404
+    assert client_.post('/admin?page=display&rm_mode=abc').status_code == 404
+
+
+def test_display_op_cannot_set_structural_fields(client_, display_op, tournament):
+    """The display page's set_tournament is allowlisted to layout fields, so a
+    display operator can't reach structural settings (nb_rounds/rules/has_teams)."""
+    tenant = tournament['tenant']
+    before = TournamentSettings.objects.get(tenant=tenant).nb_rounds
+    client_.force_login(display_op)
+
+    resp = client_.post(
+        f'/admin?page=display&action=set_tournament&tournament-nb_rounds={before + 5}')
+    assert resp.status_code == 200
+    assert TournamentSettings.objects.get(tenant=tenant).nb_rounds == before
+
+
+def test_admin_logout_requires_post(client_, display_op, tournament):
+    client_.force_login(display_op)
+    # A GET link must not log the operator out (CSRF-able navigation).
+    assert client_.get('/admin?logout=1').status_code == 405
+    assert client_.get('/admin?page=display').status_code == 200  # still logged in
+    # POST logs out; a subsequent admin hit redirects to login.
+    assert client_.post('/admin?logout=1').status_code == 302
+    assert client_.get('/admin').status_code == 302
+
+
+def test_public_logout_requires_post(client_, display_op, tournament):
+    client_.force_login(display_op)
+    assert client_.get('/?logout=1').status_code == 405
+    assert client_.post('/?logout=1').status_code == 302  # logged out, back to /
 
 
 # ── set_tournament error surfacing ────────────────────────────────────────────

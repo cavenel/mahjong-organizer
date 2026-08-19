@@ -80,7 +80,11 @@
             {% if user_can_access_admin %}
               <a href="/admin" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-100">Admin</a>
             {% endif %}
-            <a href="/?logout=1" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Log out</a>
+            <form method="post" action="/?logout=1"
+                  @submit="$el.csrfmiddlewaretoken.value = (document.cookie.match(/(?:^|; )csrftoken=([^;]*)/) || [])[1] || ''">
+              <input type="hidden" name="csrfmiddlewaretoken" value="">
+              <button type="submit" class="block w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Log out</button>
+            </form>
           {% else %}
             <a href="/accounts/login/?next=/" class="block px-4 py-3 text-sm text-gray-700 hover:bg-gray-50">Login</a>
           {% endif %}

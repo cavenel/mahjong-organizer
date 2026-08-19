@@ -193,11 +193,11 @@ class TestControlEndpoint:
         master = ceremony._ceremony_master(_request())
         key = master['stats'][0]['key'] if master['stats'] else 'mp_max'
 
-        op_client.get(f'/ceremony_control?phase=stat&stat_key={key}&step=0')
+        op_client.post(f'/ceremony_control?phase=stat&stat_key={key}&step=0')
         state = CeremonyState.objects.get(tenant=tenant)
         assert (state.phase, state.stat_key, state.step) == ('stat', key, 0)
 
-        op_client.get(f'/ceremony_control?phase=stat&stat_key={key}&step=1')
+        op_client.post(f'/ceremony_control?phase=stat&stat_key={key}&step=1')
         state.refresh_from_db()
         assert state.step == 1  # second click reveals the value
 
@@ -208,19 +208,19 @@ class TestControlEndpoint:
 
     def test_start_and_reveal(self, op_client, teamed):
         tenant = teamed['tenant']
-        op_client.get('/ceremony_control?phase=teams&step=0')
-        op_client.get('/ceremony_control?phase=teams&step=1')
+        op_client.post('/ceremony_control?phase=teams&step=0')
+        op_client.post('/ceremony_control?phase=teams&step=1')
         state = CeremonyState.objects.get(tenant=tenant)
         assert state.phase == 'teams'
         assert state.step == 1
 
     def test_stop_returns_to_idle_without_publishing(self, op_client, teamed):
         tenant = teamed['tenant']
-        op_client.get('/ceremony_control?phase=teams&step=3')
+        op_client.post('/ceremony_control?phase=teams&step=3')
         # round 3 is partial and was never published by the fixture
         assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
 
-        op_client.get('/ceremony_control?phase=idle')
+        op_client.post('/ceremony_control?phase=idle')
         assert CeremonyState.objects.get(tenant=tenant).phase == 'idle'
         # exiting the ceremony must not publish anything
         assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
@@ -228,9 +228,9 @@ class TestControlEndpoint:
     def test_publish_reveals_all_rounds_and_ends(self, op_client, teamed):
         tenant = teamed['tenant']
         nb_rounds = teamed['settings'].nb_rounds
-        op_client.get('/ceremony_control?phase=teams&step=2')
+        op_client.post('/ceremony_control?phase=teams&step=2')
 
-        resp = op_client.get('/ceremony_control?action=publish')
+        resp = op_client.post('/ceremony_control?action=publish')
         body = json.loads(resp.content)
         assert body['published'] is True
         assert body['phase'] == 'idle'
@@ -239,6 +239,19 @@ class TestControlEndpoint:
         assert state.phase == 'idle'
         for rn in range(1, nb_rounds + 1):
             assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).withheld is False
+
+    def test_control_rejects_get(self, op_client, teamed):
+        """ceremony_control mutates (and can publish results), so GET is 405 —
+        otherwise a crafted link could reveal results mid-ceremony."""
+        assert op_client.get('/ceremony_control?phase=teams').status_code == 405
+        assert op_client.get('/ceremony_control?action=publish').status_code == 405
+
+    def test_unknown_phase_is_rejected(self, op_client, teamed):
+        """An unknown phase must 400, not be stored — a stored junk phase would
+        strand every screen on an empty slide."""
+        assert op_client.post('/ceremony_control?phase=bogus').status_code == 400
+        assert not CeremonyState.objects.filter(
+            tenant=teamed['tenant'], phase='bogus').exists()
 
 
 class TestCeremonyData:

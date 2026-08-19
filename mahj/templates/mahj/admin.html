@@ -199,10 +199,13 @@
         <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
         <div class="border-t border-gray-100 my-1"></div>
         {% endif %}
-        <a href="admin?logout=1" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
-          <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-          Log out
-        </a>
+        <form method="post" action="admin?logout=1">
+          {% csrf_token %}
+          <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+            <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+            Log out
+          </button>
+        </form>
       </div>
       <button type="button" @click="userMenuOpen=!userMenuOpen" :title="railCollapsed ? '{{ username }}' : ''"
               class="nav-item w-full flex items-center gap-3 px-2 py-2 rounded-lg hover:bg-gray-100">

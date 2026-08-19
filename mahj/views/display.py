@@ -5,7 +5,7 @@ import json
 
 from django.conf import settings
 from django.forms.models import model_to_dict
-from django.http import Http404, HttpResponse, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
 from django.shortcuts import get_object_or_404, render
 from django.template import loader
 from django.utils import timezone
@@ -314,6 +314,8 @@ def _screen_or_404(tenant, raw_id):
 def update_screen_view(request):
     """Point a screen at a view string (see index() for the grammar). An unknown
     string is stored as-is and renders as a blank screen."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
     tenant = get_tenant(request)
     screen = _screen_or_404(tenant, request.GET.get('id'))
     screen.view = request.GET.get('view') or "black"
@@ -327,6 +329,8 @@ def update_screen_name(request):
     """Rename a screen. The name is a friendly label only — screens are still
     addressed positionally (/1, /2, …), so renaming never changes a URL. An empty
     name clears it, falling back to the bare positional label in the UI."""
+    if request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
     tenant = get_tenant(request)
     screen = _screen_or_404(tenant, request.GET.get('id'))
     screen.name = (request.GET.get('name') or '').strip()[:70]

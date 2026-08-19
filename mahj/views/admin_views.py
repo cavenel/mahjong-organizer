@@ -16,7 +16,8 @@ from django.contrib.auth import logout
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction
 from django.db.models import F
-from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseRedirect, JsonResponse
+from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.template import loader
 from django.utils.html import escape
 
@@ -52,6 +53,30 @@ _TOURNAMENT_LABELS = {
     "home_country": "Home nation",
     "countrycourt": "Federation code",
 }
+
+# Which TournamentSettings fields each page's set_tournament may write. An
+# explicit allowlist (not a denylist): a display operator tuning layout must not
+# be able to reach structural fields (nb_rounds, rules, has_teams, …), and no
+# page may write the server-authoritative `counter`. The sets mirror the fields
+# each page's form actually submits (the `tournament-input` controls).
+DISPLAY_SETTINGS_FIELDS = frozenset({
+    "rotation_time", "score_lines", "total_columns", "welcome", "zoom",
+})
+TOURNAMENT_SETTINGS_FIELDS = frozenset({
+    "city", "countrycourt", "fullname", "has_teams", "home_country",
+    "nb_rounds", "period", "rules", "title", "total_time",
+})
+
+
+def _screen_mode_or_404(tenant, raw_id):
+    """Resolve a ScreenMode by id within ``tenant``, 404ing on a missing or
+    non-numeric id (a stale button in a second tab, or a crafted request) rather
+    than raising DoesNotExist/ValueError as a 500."""
+    try:
+        mode_id = int(raw_id)
+    except (TypeError, ValueError):
+        raise Http404("No such mode")
+    return get_object_or_404(ScreenMode, tenant=tenant, id=mode_id)
 
 
 def _name_is_round(name):
@@ -871,7 +896,10 @@ def admin_player_draw_assign(request):
         return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
 
     tenant = get_tenant(request)
-    data = json.loads(request.body)
+    try:
+        data = json.loads(request.body)
+    except (ValueError, json.JSONDecodeError):
+        return JsonResponse({'ok': False, 'error': 'Malformed request body'}, status=400)
     player_id = data.get('player_id')
     draw_number = data.get('draw_number')  # int to assign, None to clear
 
@@ -924,7 +952,11 @@ def player_editor_save(request):
         return HttpResponse('POST required', status=405)
 
     tenant = get_tenant(request)
-    rows = json.loads(request.body).get('players', [])
+    try:
+        rows = json.loads(request.body).get('players', [])
+    except (AttributeError, ValueError, json.JSONDecodeError):
+        return HttpResponse('Malformed request body', status=400)
+    rows = [r for r in rows if isinstance(r, dict)]
     by_id = {p.id: p for p in Player.objects.filter(
         tenant=tenant, id__in=[r.get('id') for r in rows])}
 
@@ -1219,24 +1251,18 @@ def counter_start(request):
     })
 
 
-def _apply_set_tournament(request, tournament):
+def _apply_set_tournament(request, tournament, allowed_fields):
     """Persist ``?tournament-<field>=<value>`` params onto the tenant settings and
     return the response to send back. Shared by the Display page (screen-layout
-    tuning) and the Tournament settings page (identity + round length)."""
-    # Admin-only fields: display operators may tune the layout, but not the
-    # round length (changing it mid-round would desync every screen's timer).
-    admin_only_fields = {"total_time"}
-    # The round timer is written only by counter_start (server-authoritative);
-    # it must never be settable through this generic field loop, or a stray
-    # `tournament-counter=...` would stop/reset a running clock.
-    protected_fields = {"counter"}
+    tuning) and the Tournament settings page (identity + round length), each of
+    which passes its own ``allowed_fields`` set — anything not in it is ignored,
+    so a display operator can't reach structural or identity fields and no page
+    can touch the server-authoritative `counter`."""
     touched_fields = []
     for var in request.GET.keys():
-        if "tournament-" in var:
-            field = var.replace("tournament-", "")
-            if field in protected_fields:
-                continue
-            if field in admin_only_fields and not is_tenant_admin(request):
+        if var.startswith("tournament-"):
+            field = var[len("tournament-"):]
+            if field not in allowed_fields:
                 continue
             if hasattr(tournament, field):
                 value = request.GET.get(var)
@@ -1319,6 +1345,10 @@ def _save_schedule(request, tenant):
 def options(request, error=None):
     tenant = get_tenant(request)
     if request.GET.get('logout') == "1":
+        # Logout is a state change, so it must be POST (a GET link would let a
+        # crafted cross-site navigation log the operator out mid-tournament).
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
         logout(request)
         return HttpResponseRedirect('admin')
 
@@ -1389,20 +1419,34 @@ def options(request, error=None):
         page_content = "None"
     elif page == "display":
         tournament = get_tournament(request)
-        if request.GET.get('action') == "set_tournament":
-            return _apply_set_tournament(request, tournament)
-        elif request.GET.get('action') == "add_screen":
+        action = request.GET.get('action')
+        # Every branch below mutates state (or fires a broadcast), so it must be
+        # POST: a GET link would let a crafted cross-site navigation drive these
+        # (delete a screen, blank every projector, rewrite settings) while a
+        # display operator is logged in. Requiring POST also hands CSRF
+        # protection back to Django's middleware, which never checks GET.
+        is_mutation = (
+            action in {"set_tournament", "add_screen", "remove_screen",
+                       "identify_screens", "add_mode", "set_all_views"}
+            or request.GET.get('rm_mode') or request.GET.get('set_mode'))
+        if is_mutation and request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        if action == "set_tournament":
+            return _apply_set_tournament(request, tournament, DISPLAY_SETTINGS_FIELDS)
+        elif action == "add_screen":
             Screen(tenant=tenant, name="", view="black").save()
             # 'screens_changed' (not plain 'screen_update') so the overview grid
             # redraws for the new screen count. Existing per-screen displays are
             # unaffected: only the last position is ever added or removed.
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
             return HttpResponseRedirect('admin?page=display#configure-screens')
-        elif request.GET.get('action') == "remove_screen":
-            Screen.objects.filter(tenant=tenant).last().delete()
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+        elif action == "remove_screen":
+            last = Screen.objects.filter(tenant=tenant).order_by('id').last()
+            if last is not None:
+                last.delete()
+                broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
             return HttpResponseRedirect('admin?page=display#configure-screens')
-        elif request.GET.get('action') == "identify_screens":
+        elif action == "identify_screens":
             # Flash each screen's positional number (/1, /2, …) as a corner badge
             # for a few seconds so an operator can match physical projectors to
             # their URLs. Reuses the existing 'screen.update' channel with a
@@ -1410,17 +1454,17 @@ def options(request, error=None):
             # see mahj/static/js/display_socket.js.
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_identify'})
             return HttpResponse("")
-        elif request.GET.get('action') == "add_mode":
+        elif action == "add_mode":
             mode_name = request.POST.get('mode_name')
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             views_list = [str(screen.view) for screen in screens]
             ScreenMode(tenant=tenant, name=mode_name, views=views_list).save()
             return HttpResponseRedirect('admin?page=display#configure-screens')
         elif request.GET.get('rm_mode'):
-            mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('rm_mode'))
+            mode = _screen_mode_or_404(tenant, request.GET.get('rm_mode'))
             mode.delete()
             return HttpResponseRedirect('admin?page=display')
-        elif request.GET.get('action') == "set_all_views":
+        elif action == "set_all_views":
             # Bulk "All screens" control: point every screen at one view in a
             # single write + one broadcast (rather than N per-screen posts).
             # Mirrors set_mode's shape so the admin page can sync each card's
@@ -1435,7 +1479,7 @@ def options(request, error=None):
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
             return JsonResponse({'screens': applied})
         elif request.GET.get('set_mode'):
-            mode = ScreenMode.objects.get(tenant=tenant, id=request.GET.get('set_mode'))
+            mode = _screen_mode_or_404(tenant, request.GET.get('set_mode'))
             views_list = mode.views if isinstance(mode.views, list) else []
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             applied = []
@@ -1497,9 +1541,12 @@ def options(request, error=None):
             page_content = "None"
         else:
             tournament = get_tournament(request)
-            if request.GET.get('action') == "set_tournament":
-                return _apply_set_tournament(request, tournament)
-            if request.GET.get('action') == "save_schedule":
+            action = request.GET.get('action')
+            if action in ("set_tournament", "save_schedule") and request.method != 'POST':
+                return HttpResponseNotAllowed(['POST'])
+            if action == "set_tournament":
+                return _apply_set_tournament(request, tournament, TOURNAMENT_SETTINGS_FIELDS)
+            if action == "save_schedule":
                 return _save_schedule(request, tenant)
             template2 = loader.get_template('mahj/admin_settings.html')
             schedule_rows = [

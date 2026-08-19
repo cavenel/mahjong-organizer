@@ -286,8 +286,13 @@
           return idx >= l.length - k;
         },
         send(params) {
+          // POST (this mutates ceremony state and can publish results); the
+          // params stay in the query string, the CSRF token rides the header.
           const qs = new URLSearchParams(params).toString();
-          return fetch('ceremony_control?' + qs).then(r => r.json()).then(s => {
+          return fetch('ceremony_control?' + qs, {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          }).then(r => r.json()).then(s => {
             this.phase = s.phase; this.step = s.step || 0; this.statKey = s.stat_key || '';
             return s;
           });

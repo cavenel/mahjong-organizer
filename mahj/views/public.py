@@ -3,7 +3,8 @@ import io
 
 from django.contrib.auth import logout
 from django.core.cache import cache
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseNotAllowed, HttpResponseRedirect
+from django.middleware.csrf import get_token
 from django.template import loader
 from openpyxl import Workbook
 from openpyxl.formatting.rule import ColorScaleRule
@@ -27,7 +28,13 @@ def desktop(request):
         return HttpResponseRedirect('admin')
 
     if request.GET.get('logout') == "1":
+        # Logout is a state change, so it must be POST — a GET link would let a
+        # crafted cross-site navigation log a viewer out. Redirect back to a clean
+        # anonymous GET afterwards (so a refresh doesn't re-POST).
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
         logout(request)
+        return HttpResponseRedirect('/')
 
     subdomain = tenant.subdomain if tenant else ''
     # "admin" here = full view of this tenant (reveals withheld/unpublished scores):
@@ -46,6 +53,16 @@ def desktop(request):
     user_can_access_admin = can_access_admin(request)
     view = ('staff' if is_admin else 'admin' if user_can_access_admin
             else 'user' if authenticated else 'anon')
+
+    # Only authenticated viewers see the "Log out" control, which POSTs with a
+    # CSRF token read from the cookie at click time (the page HTML is shared-
+    # cached per role bucket, so an embedded {% csrf_token %} would leak one
+    # user's token to the whole bucket). Mint that cookie here — but only for
+    # authenticated requests, so anonymous `/` carries no Set-Cookie and stays
+    # nginx-microcacheable. Done before the cache-hit return so it also fires on
+    # cached responses.
+    if authenticated:
+        get_token(request)
 
     # A static-export render has no auth on the target host, so it drops the
     # login/admin menu — and must neither read nor write the live anon HTML cache
