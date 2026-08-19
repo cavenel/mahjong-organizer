@@ -74,20 +74,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 4,
-          "pk": 4,
-          "points": 4,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 1
       },
@@ -106,20 +92,6 @@
           "short_name": "Player2",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 1,
-          "pk": 1,
-          "points": 1,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 1
@@ -140,20 +112,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 2,
-          "pk": 2,
-          "points": 2,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 1
       },
@@ -172,20 +130,6 @@
           "short_name": "Player4",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 3,
-          "pk": 3,
-          "points": 3,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 1
@@ -206,20 +150,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 19,
-          "pk": 19,
-          "points": 13,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 2
       },
@@ -238,20 +168,6 @@
           "short_name": "Player6",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 20,
-          "pk": 20,
-          "points": 14,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 2
@@ -272,20 +188,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 17,
-          "pk": 17,
-          "points": 11,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 2
       },
@@ -304,20 +206,6 @@
           "short_name": "Player8",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 18,
-          "pk": 18,
-          "points": 12,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 2
@@ -338,20 +226,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 34,
-          "pk": 34,
-          "points": 22,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 3
       },
@@ -370,20 +244,6 @@
           "short_name": "Player10",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 35,
-          "pk": 35,
-          "points": 23,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 3
@@ -404,20 +264,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 36,
-          "pk": 36,
-          "points": 24,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 3
       },
@@ -436,20 +282,6 @@
           "short_name": "Player12",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 33,
-          "pk": 33,
-          "points": 21,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 3
@@ -470,20 +302,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 49,
-          "pk": 49,
-          "points": 31,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 4
       },
@@ -502,20 +320,6 @@
           "short_name": "Player14",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 50,
-          "pk": 50,
-          "points": 32,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 4
@@ -536,20 +340,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 51,
-          "pk": 51,
-          "points": 33,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 4
       },
@@ -568,20 +358,6 @@
           "short_name": "Player16",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 52,
-          "pk": 52,
-          "points": 34,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 4
@@ -606,20 +382,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 4,
-          "pk": 4,
-          "points": 4,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 1
       },
@@ -638,20 +400,6 @@
           "short_name": "Player2",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 1,
-          "pk": 1,
-          "points": 1,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 1
@@ -672,20 +420,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 2,
-          "pk": 2,
-          "points": 2,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 1
       },
@@ -704,20 +438,6 @@
           "short_name": "Player4",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 3,
-          "pk": 3,
-          "points": 3,
-          "round_nb": 1,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 1
@@ -738,20 +458,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 19,
-          "pk": 19,
-          "points": 13,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 2
       },
@@ -770,20 +476,6 @@
           "short_name": "Player6",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 20,
-          "pk": 20,
-          "points": 14,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 2
@@ -804,20 +496,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 17,
-          "pk": 17,
-          "points": 11,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 2
       },
@@ -836,20 +514,6 @@
           "short_name": "Player8",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 18,
-          "pk": 18,
-          "points": 12,
-          "round_nb": 1,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 2
@@ -870,20 +534,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 34,
-          "pk": 34,
-          "points": 22,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 3
       },
@@ -902,20 +552,6 @@
           "short_name": "Player10",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 35,
-          "pk": 35,
-          "points": 23,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 3
@@ -936,20 +572,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 36,
-          "pk": 36,
-          "points": 24,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 3
       },
@@ -968,20 +590,6 @@
           "short_name": "Player12",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 33,
-          "pk": 33,
-          "points": 21,
-          "round_nb": 1,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 3
@@ -1002,20 +610,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 49,
-          "pk": 49,
-          "points": 31,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 1,
         "table_nb": 4
       },
@@ -1034,20 +628,6 @@
           "short_name": "Player14",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 50,
-          "pk": 50,
-          "points": 32,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 1,
         "table_nb": 4
@@ -1068,20 +648,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 51,
-          "pk": 51,
-          "points": 33,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 1,
         "table_nb": 4
       },
@@ -1100,20 +666,6 @@
           "short_name": "Player16",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 52,
-          "pk": 52,
-          "points": 34,
-          "round_nb": 1,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 1,
         "table_nb": 4
@@ -1195,20 +747,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 67,
-          "pk": 67,
-          "points": 3,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 1
       },
@@ -1227,20 +765,6 @@
           "short_name": "Player6",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 68,
-          "pk": 68,
-          "points": 4,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 1
@@ -1261,20 +785,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 65,
-          "pk": 65,
-          "points": 1,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 1
       },
@@ -1293,20 +803,6 @@
           "short_name": "Player16",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 66,
-          "pk": 66,
-          "points": 2,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 1
@@ -1327,20 +823,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 82,
-          "pk": 82,
-          "points": 12,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 2
       },
@@ -1359,20 +841,6 @@
           "short_name": "Player10",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 83,
-          "pk": 83,
-          "points": 13,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 2
@@ -1393,20 +861,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 84,
-          "pk": 84,
-          "points": 14,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 2
       },
@@ -1425,20 +879,6 @@
           "short_name": "Player4",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 81,
-          "pk": 81,
-          "points": 11,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 2
@@ -1459,20 +899,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 97,
-          "pk": 97,
-          "points": 21,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 3
       },
@@ -1491,20 +917,6 @@
           "short_name": "Player14",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 98,
-          "pk": 98,
-          "points": 22,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 3
@@ -1525,20 +937,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 99,
-          "pk": 99,
-          "points": 23,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 3
       },
@@ -1557,20 +955,6 @@
           "short_name": "Player8",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 100,
-          "pk": 100,
-          "points": 24,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 3
@@ -1591,20 +975,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 116,
-          "pk": 116,
-          "points": 34,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 4
       },
@@ -1623,20 +993,6 @@
           "short_name": "Player2",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 113,
-          "pk": 113,
-          "points": 31,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 4
@@ -1657,20 +1013,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 114,
-          "pk": 114,
-          "points": 32,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 4
       },
@@ -1689,20 +1031,6 @@
           "short_name": "Player12",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 115,
-          "pk": 115,
-          "points": 33,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 4
@@ -1727,20 +1055,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 67,
-          "pk": 67,
-          "points": 3,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 1
       },
@@ -1759,20 +1073,6 @@
           "short_name": "Player6",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 68,
-          "pk": 68,
-          "points": 4,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 1
@@ -1793,20 +1093,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 65,
-          "pk": 65,
-          "points": 1,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 1
       },
@@ -1825,20 +1111,6 @@
           "short_name": "Player16",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 66,
-          "pk": 66,
-          "points": 2,
-          "round_nb": 2,
-          "table_nb": 1,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 1
@@ -1859,20 +1131,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 82,
-          "pk": 82,
-          "points": 12,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 2
       },
@@ -1891,20 +1149,6 @@
           "short_name": "Player10",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 83,
-          "pk": 83,
-          "points": 13,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 2
@@ -1925,20 +1169,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 84,
-          "pk": 84,
-          "points": 14,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 2
       },
@@ -1957,20 +1187,6 @@
           "short_name": "Player4",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 81,
-          "pk": 81,
-          "points": 11,
-          "round_nb": 2,
-          "table_nb": 2,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 2
@@ -1991,20 +1207,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 97,
-          "pk": 97,
-          "points": 21,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 3
       },
@@ -2023,20 +1225,6 @@
           "short_name": "Player14",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 98,
-          "pk": 98,
-          "points": 22,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 3
@@ -2057,20 +1245,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 99,
-          "pk": 99,
-          "points": 23,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 3
       },
@@ -2089,20 +1263,6 @@
           "short_name": "Player8",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 100,
-          "pk": 100,
-          "points": 24,
-          "round_nb": 2,
-          "table_nb": 3,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 3
@@ -2123,20 +1283,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 4,
-          "id": 116,
-          "pk": 116,
-          "points": 34,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 1,
-          "win_from": 2
-        },
         "round_nb": 2,
         "table_nb": 4
       },
@@ -2155,20 +1301,6 @@
           "short_name": "Player2",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 1,
-          "id": 113,
-          "pk": 113,
-          "points": 31,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 2,
-          "win_from": 3
         },
         "round_nb": 2,
         "table_nb": 4
@@ -2189,20 +1321,6 @@
           "team": "",
           "tenant_id": 1
         },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 2,
-          "id": 114,
-          "pk": 114,
-          "points": 32,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 3,
-          "win_from": 4
-        },
         "round_nb": 2,
         "table_nb": 4
       },
@@ -2221,20 +1339,6 @@
           "short_name": "Player12",
           "team": "",
           "tenant_id": 1
-        },
-        "pos": {
-          "__model__": "Hand",
-          "confidence": 1.0,
-          "hand_nb": 3,
-          "id": 115,
-          "pk": 115,
-          "points": 33,
-          "round_nb": 2,
-          "table_nb": 4,
-          "tenant_id": 1,
-          "version": 0,
-          "win_by": 4,
-          "win_from": 1
         },
         "round_nb": 2,
         "table_nb": 4

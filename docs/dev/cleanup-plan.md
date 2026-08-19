@@ -18,16 +18,6 @@ the golden snapshots (byte-identical except intended field changes) + full suite
 - Note: `Hand.win_from_player()` is only used by `Hand.__str__` — **keep** it (not
   truly dead; mirrors `win_by_player()`).
 
-## Redundant `'pos'` key in the win-streak stat items
-
-`_top_win_streaks` (`scoring/stats.py`) puts `'pos': g[0]` — a **Hand**, not a
-rank and not a seat — into each `*_win_max` item, alongside the `'round_nb'` /
-`'table_nb'` keys taken from that very same Hand. Its only reader is
-`views/ceremony.py:71` (`it['pos'].round_nb` / `.table_nb`), which can read the
-sibling keys instead; that also collapses the branch into the `*_hand_max` shape.
-Dropping the key changes `stat_rounds` / `stat_all_rounds` snapshots (an intended
-field removal), so it's a small deliberate change rather than a pure rename.
-
 ## Comments AND docs describing history, not current state
 
 The same "describe what it is now, not the diff" principle applies to prose docs
@@ -64,9 +54,8 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
 ## Suggested order
 
 1. Dead timestamp fields (one migration).
-2. Redundant `'pos'` key in the win-streak items.
-3. History-comment rewording (trivial).
-4. **Last, pre-publish:** squash migrations.
+2. History-comment rewording (trivial).
+3. **Last, pre-publish:** squash migrations.
 
 ## Deliberately NOT doing
 

@@ -57,18 +57,21 @@ def _total(entry, rules):
 
 
 def _stat_winners(key, items):
-    """Normalise an overall_winners category into [{value, name, flag, round_nb, table_nb}]."""
+    """Normalise an overall_winners category into [{value, name, flag, round_nb, table_nb}].
+
+    `mp_max` holds Seat rows; every other category holds dicts that carry
+    round_nb/table_nb plus a single value field — `nb_win` for the win-streak
+    categories, `points` for the biggest-hand ones.
+    """
     winners = []
     for it in items:
-        if key == 'mp_max':                       # Seat instances
+        if key == 'mp_max':
             player, value = it.player, it.minipoints
             round_nb, table_nb = it.round_nb, it.table_nb
-        elif key in ('sd_hand_max', 'ron_hand_max'):
-            player, value = it['player'], it['points']
+        else:
+            player = it['player']
+            value = it['nb_win'] if key.endswith('_win_max') else it['points']
             round_nb, table_nb = it['round_nb'], it['table_nb']
-        else:                                     # *_win_max dicts (it['pos'] is a Hand)
-            player, value = it['player'], it['nb_win']
-            round_nb, table_nb = it['pos'].round_nb, it['pos'].table_nb
         if player is None:
             continue
         winners.append({'value': value, 'name': player.full_name,
