@@ -130,3 +130,96 @@ def test_generation_is_deterministic():
     a, _ = S.generate(168, 11, has_teams=True)
     b, _ = S.generate(168, 11, has_teams=True)
     assert a == b
+
+
+class TestFeasibilityBadgeMatchesTheGenerator:
+    """`algebraic_feasible` drives a UI badge that tells the organizer a
+    rematch-free chart is impossible. It must never say that when `generate` would
+    in fact succeed."""
+
+    # A representative spread rather than every size: the full search runs 300
+    # orderings, so exhausting the grid costs the suite ~30s for no more signal.
+    FIELDS = (8, 12, 16, 20, 24, 32, 40, 48, 64)
+    ROUNDS = range(1, 11)
+
+    def test_badge_agrees_with_the_full_search(self):
+        """The badge runs find_shifts' first (ascending) pass only. The full search
+        runs that same pass as its first trial, so it can only do as well or better
+        — and across the plausible field sizes they come out identical."""
+        for nb_players in self.FIELDS:
+            tables = nb_players // 4
+            for nb_rounds in self.ROUNDS:
+                badge = S.algebraic_feasible(nb_players, nb_rounds)
+                full = len(S.find_shifts(tables, nb_rounds, seed=0)) >= nb_rounds
+                assert badge == full, (
+                    f'badge={badge} but the full search says {full} '
+                    f'for {nb_players} players over {nb_rounds} rounds')
+
+    def test_badge_is_never_optimistic(self):
+        """The direction that matters: a True must be backed by a real shift set."""
+        for nb_players in self.FIELDS:
+            for nb_rounds in self.ROUNDS:
+                if S.algebraic_feasible(nb_players, nb_rounds):
+                    shifts = S.find_shifts(nb_players // 4, nb_rounds, seed=0)
+                    assert len(shifts) >= nb_rounds
+
+    def test_impossible_shapes_are_refused(self):
+        assert not S.algebraic_feasible(4, 1)      # too small
+        assert not S.algebraic_feasible(18, 1)     # not a multiple of 4
+        assert not S.algebraic_feasible(16, 0)     # no rounds
+
+
+class TestMeasureHandlesAnImportedChart:
+    """measure() used to build fixed-size lists indexed by draw number and round, so
+    a chart that doesn't seat exactly slots 1..N over rounds 1..R raised
+    IndexError/KeyError — and the seating page's blanket except then hid the whole
+    quality panel with no clue why."""
+
+    def _rows(self, groups):
+        """groups: {round: [[draw x4], ...]} -> (round, table, wind, draw) rows."""
+        rows = []
+        for round_nb, tables in groups.items():
+            for table_nb, draws in enumerate(tables, start=1):
+                for wind, draw in enumerate(draws, start=1):
+                    rows.append((round_nb, table_nb, wind, draw))
+        return rows
+
+    def test_draw_numbers_above_n_do_not_raise(self):
+        """A chart seating slots 5..12 for an 8-player field: every number is beyond
+        the old list's length."""
+        rows = self._rows({1: [[5, 6, 7, 8], [9, 10, 11, 12]],
+                           2: [[5, 7, 9, 11], [6, 8, 10, 12]]})
+        m = S.measure(rows, 8, 2)
+        assert m['N'] == 8 and m['R'] == 2
+        assert m['east_min'] >= 0
+        assert m['table_spread_min'] >= 1
+
+    def test_sparse_draw_numbers_do_not_raise(self):
+        rows = self._rows({1: [[1, 2, 5, 9]], 2: [[1, 5, 2, 9]]})
+        m = S.measure(rows, 4, 2)
+        assert m['max_meetings'] >= 1
+
+    def test_more_rounds_than_asked_for_do_not_raise(self):
+        rows = self._rows({1: [[1, 2, 3, 4]], 2: [[1, 2, 3, 4]], 7: [[1, 2, 3, 4]]})
+        m = S.measure(rows, 4, 2)
+        # The chart covers more rounds than requested, so it isn't what was asked for.
+        assert m['all_seated'] is False
+
+    def test_a_complete_chart_still_reads_as_complete(self):
+        rows = self._rows({1: [[1, 2, 3, 4], [5, 6, 7, 8]],
+                           2: [[1, 3, 5, 7], [2, 4, 6, 8]]})
+        m = S.measure(rows, 8, 2)
+        assert m['all_seated'] is True
+
+    def test_a_missing_seat_reads_as_incomplete(self):
+        rows = self._rows({1: [[1, 2, 3, 4], [5, 6, 7, 8]],
+                           2: [[1, 3, 5, 7], [2, 4, 6, 8]]})
+        m = S.measure(rows[:-1], 8, 2)
+        assert m['all_seated'] is False
+
+    def test_generated_charts_are_unaffected(self):
+        """The normal path must give the same verdict as before."""
+        rows, _meta = S.generate(16, 3, seed=0)
+        m = S.measure(rows, 16, 3)
+        assert m['all_seated'] is True
+        assert m['max_meetings'] == 1

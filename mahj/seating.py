@@ -25,7 +25,7 @@ All winds use 1=East, 2=South, 3=West, 4=North to match ``Seat.wind``.
 """
 import random
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from itertools import combinations
 from math import gcd
 
@@ -402,26 +402,23 @@ def _grouping_defects(groups_by_round, use_teams):
 # --- public entry point ----------------------------------------------------
 
 def algebraic_feasible(N, R):
-    """Whether a rematch-free algebraic chart exists for this field/round count
-    (cheap greedy check — no optimisation pass)."""
+    """Whether a rematch-free algebraic chart exists for this field/round count.
+
+    Runs ``find_shifts``' first pass only, so there is one definition of "a valid
+    shift" rather than a second copy of the rule that could drift from it. That
+    first pass walks the candidates in ascending order (``trial == 0`` there), which
+    is a first-fit rather than the full search ``generate`` does.
+
+    So the badge can only ever be conservative, never wrong the dangerous way:
+    ``True`` means the ascending pass already found R shifts, and since
+    ``find_shifts`` runs that same pass as its first trial, ``generate`` is
+    guaranteed to find at least as many. ``False`` could in principle be a false
+    negative — some random ordering finding shifts ascending order misses — though
+    the two agree for every N=8..200, R=1..20 (locked by a test).
+    """
     if N < 8 or N % 4 != 0 or R < 1:
         return False
-    T = N // 4
-    forb = _forbidden_shifts(T)
-    moduli = _shift_moduli(T)
-    used = [set() for _ in moduli]
-    count = 0
-    for s in range(1, T):
-        if s in forb:
-            continue
-        res = [s % m for m in moduli]
-        if all(res[i] not in used[i] for i in range(len(moduli))):
-            for i, r in enumerate(res):
-                used[i].add(r)
-            count += 1
-            if count >= R:
-                return True
-    return False
+    return len(find_shifts(N // 4, R, seed=0, trials=1)) >= R
 
 
 def generate(N, R, has_teams=False, seed=0, method="auto", tries=50):
@@ -467,26 +464,42 @@ def generate(N, R, has_teams=False, seed=0, method="auto", tries=50):
 def measure(rows, N, R, has_teams=False):
     """Quality report for a chart. Reports worst-case / ranges (not averages), so
     an unfair chart can't hide behind a good mean."""
+    # Everything is keyed off what the rows actually contain, not off N and R.
+    # A generated chart seats slots 1..N over rounds 1..R, but an imported or
+    # hand-edited one need not: it can skip numbers, start above 1, or carry more
+    # rounds than the settings name. Fixed-size lists indexed by draw number raised
+    # IndexError/KeyError on those, and the caller's blanket except then hid the
+    # whole quality panel with no clue why.
     by_round_table = {}
     east = Counter()
-    wind_counts = [[0, 0, 0, 0] for _ in range(N + 1)]
-    tables_of = {d: set() for d in range(1, N + 1)}
-    wind_seq = {d: [None] * R for d in range(1, N + 1)}
+    wind_counts = defaultdict(lambda: [0, 0, 0, 0])
+    tables_of = defaultdict(set)
+    wind_seq = defaultdict(dict)        # draw -> {round: wind}
     for (r, t, w, d) in rows:
         by_round_table.setdefault((r, t), []).append(d)
-        wind_counts[d][w - 1] += 1
+        if 1 <= w <= 4:
+            wind_counts[d][w - 1] += 1
         if w == 1:
             east[d] += 1
         tables_of[d].add(t)
-        wind_seq[d][r - 1] = w
+        wind_seq[d][r] = w
 
-    # Everyone seated exactly once per round?
+    draws = sorted(tables_of)
+    rounds = sorted({r for (r, _t) in by_round_table})
+
+    # Every slot the chart uses seated exactly once in every round it covers?
+    # Compared against the chart's own slot set: a chart seating 1,2,5,9 is
+    # complete if each round seats exactly those, and holding it to range(1, N+1)
+    # would call a perfectly good imported chart broken.
     all_seated = True
-    for r in range(1, R + 1):
+    for r in rounds:
         seated = [d for (rr, t), ds in by_round_table.items() if rr == r for d in ds]
-        if sorted(seated) != list(range(1, N + 1)):
+        if sorted(seated) != draws:
             all_seated = False
             break
+    if len(rounds) != R or len(draws) != N:
+        # The chart doesn't cover what was asked for.
+        all_seated = False
 
     # Opponent meetings.
     meet = Counter()
@@ -502,21 +515,22 @@ def measure(rows, N, R, has_teams=False):
     for (a, b), c in meet.items():
         opp_count[a] += 1
         opp_count[b] += 1
-    min_distinct_opp = min((opp_count[d] for d in range(1, N + 1)), default=0)
+    min_distinct_opp = min((opp_count[d] for d in draws), default=0)
 
-    east_vals = [east.get(d, 0) for d in range(1, N + 1)]
+    east_vals = [east.get(d, 0) for d in draws]
     max_consec = 0
-    for d in range(1, N + 1):
+    for d in draws:
+        seq = [wind_seq[d].get(r) for r in rounds]
         run = 1
-        for i in range(1, R):
-            if wind_seq[d][i] is not None and wind_seq[d][i] == wind_seq[d][i - 1]:
+        for i in range(1, len(seq)):
+            if seq[i] is not None and seq[i] == seq[i - 1]:
                 run += 1
                 max_consec = max(max_consec, run)
             else:
                 run = 1
     max_consec = max(max_consec, 1 if R else 0)
 
-    table_spread = min((len(tables_of[d]) for d in range(1, N + 1)), default=0)
+    table_spread = min((len(tables_of[d]) for d in draws), default=0)
 
     result = {
         "N": N, "R": R, "tables": N // 4, "engine": None,
