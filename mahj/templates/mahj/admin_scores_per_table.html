@@ -188,7 +188,7 @@
                 <td class="col-table">Table {{ forloop.counter }}</td>
                 {% for s in table %}
                   <td class="col-wind">
-                    <div class="position_div" data-id="{{ s.seat.id }}">
+                    <div class="seat_cell" data-id="{{ s.seat.id }}">
                       <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
@@ -286,7 +286,7 @@
 
   function send_ajax(row) {
     var positions = [], vals = [];
-    row.find(".position_div").each(function() {
+    row.find(".seat_cell").each(function() {
       var mp = $(this).find("input[name='minipoints']").val();
       positions.push({
         id: $(this).attr("data-id"),
@@ -311,9 +311,9 @@
           var rn = parseInt(row.attr("data-round-nb"));
           var serverRow = xhr.responseJSON.row;
           if (serverRow && serverRow.positions) {
-            var posDivs = row.find(".position_div");
+            var seatCells = row.find(".seat_cell");
             serverRow.positions.forEach(function(p, idx) {
-              var cell = posDivs.eq(idx);
+              var cell = seatCells.eq(idx);
               if (!cell.length) return;
               cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
               cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");
@@ -345,7 +345,7 @@
       var row = $('#' + rid);
       if (!row.length) continue;
       var positions = [];
-      row.find(".position_div").each(function() {
+      row.find(".seat_cell").each(function() {
         positions.push({
           id: $(this).attr("data-id"),
           mp: $(this).find("input[name='minipoints']").val(),
@@ -560,10 +560,10 @@
       if (!row.length) return;
       var rid = row.attr("id");
       if (recentlyEdited[rid] && Date.now() - recentlyEdited[rid] < 3000) return;
-      var posDivs = row.find(".position_div");
+      var seatCells = row.find(".seat_cell");
       var syncVals = [], allFilled = true;
       msg.positions.forEach(function(p, idx) {
-        var cell = posDivs.eq(idx);
+        var cell = seatCells.eq(idx);
         if (!cell.length) return;
         cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
         cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");

@@ -1,7 +1,6 @@
 """Re-export every view function so ``from mahj import views`` + ``views.<name>`` continues to work."""
 
 from .helpers import (
-    PositionForm,
     can_access_admin,
     current_membership,
     get_domain,

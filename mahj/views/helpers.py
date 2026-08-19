@@ -5,10 +5,9 @@ from functools import wraps
 from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.core.cache import cache
-from django.forms import ModelForm
 from django.http import HttpResponseForbidden
 
-from ..models import Membership, Seat, Tenant, TournamentSettings, Hand
+from ..models import Membership, Tenant, TournamentSettings
 
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent.parent
@@ -136,12 +135,6 @@ def tenant_role_required(*roles):
             return _deny(request)
         return inner
     return decorator
-
-
-class PositionForm(ModelForm):
-    class Meta:
-        model = Seat
-        fields = ['id', 'minipoints', 'tablepoints']
 
 
 def lan_ip():
