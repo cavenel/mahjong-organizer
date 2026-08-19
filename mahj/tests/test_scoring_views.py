@@ -107,13 +107,17 @@ class TestPlayerStandings:
         rows = views.scores_per_player_rows(request_, full_view=True)
         assert all(r['pos_se'] == '' for r in rows)
 
-    def test_history_pos_length_matches_rounds_plus_initial(self, request_, tournament):
+    def test_history_pos_has_one_entry_per_counted_round(self, request_, tournament):
+        """history_pos[i] is the rank after round i+1, so the chart plots it directly
+        — no client-side slice to drop lead-in entries. It runs to the last fully
+        scored round, the same cutoff `scores` uses (the fixture's round 3 is
+        unscored, so both stop at 2)."""
         rows = views.scores_per_player_rows(request_, full_view=True)
-        # history_pos starts at 1 (initial) then appends one entry per round in the schedule.
-        # Fixture has 3 rounds total, so length == 1 + 3 = 4.
-        expected = 1 + tournament['settings'].nb_rounds
         for r in rows:
-            assert len(r['history_pos']) == expected
+            last_counted = max((sc['round_nb'] for sc in r['scores']), default=0)
+            assert len(r['history_pos']) == last_counted
+            # Every player here played every counted round, so the lists line up.
+            assert len(r['history_pos']) == len(r['scores'])
 
     def test_scores_length_matches_scored_rounds(self, request_):
         rows = views.scores_per_player_rows(request_, full_view=True)
@@ -335,9 +339,10 @@ class TestEndOfTournamentHideLastRound:
         nb_rounds = completed_tournament['settings'].nb_rounds
         rows = views.scores_per_player_rows(request_, full_view=False)
         assert len(rows) == len(completed_tournament['players'])
-        # history_pos length == round_max + 2; hide-last-round drops round_max to nb_rounds - 1.
+        # One rank per visible round: hide-last-round drops round_max by one, so the
+        # history stops where the scores do.
         for r in rows:
-            assert len(r['history_pos']) == nb_rounds + 1
+            assert len(r['history_pos']) == nb_rounds - 1
             assert len(r['scores']) == nb_rounds - 1
 
     def test_full_view_sees_all_rounds_in_suspense(self, request_, completed_tournament):
@@ -348,7 +353,7 @@ class TestEndOfTournamentHideLastRound:
         assert len(rows) == len(completed_tournament['players'])
         for r in rows:
             assert len(r['scores']) == nb_rounds
-            assert len(r['history_pos']) == nb_rounds + 2  # round_max stays at nb_rounds
+            assert len(r['history_pos']) == nb_rounds   # round_max stays at nb_rounds
 
     def test_full_view_bypasses_hide(self, request_, completed_tournament):
         nb_rounds = completed_tournament['settings'].nb_rounds

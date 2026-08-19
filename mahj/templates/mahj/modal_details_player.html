@@ -313,8 +313,9 @@
 {% endblock %}
 
 {% block scripts %}
+  {{ standings_row.history_pos|json_script:"player-history-pos" }}
   <script>
-    const historyData = {{ standings_row.history_pos }}.slice(2);
+    const historyData = JSON.parse(document.getElementById('player-history-pos').textContent);
     const ctx = document.getElementById('rankChart');
     if (ctx && historyData.length >= 2) {
       new Chart(ctx, {

@@ -55,7 +55,12 @@ def player_standings(tenant, tournament, full_view=False, seats=None):
         round_max = max(0, round_max - 1)
 
     flags = {p.id: _country_flag(p.country) for p in players}
-    history = {p.id: [1] for p in players}
+    # One entry per *played* round, so history_pos[i] is the rank after round i+1 and
+    # the chart can plot it directly. The round-0 ranking (everyone level at 1 before
+    # anything is scored) is computed below because `ranked` is the return value, but
+    # it isn't a data point and isn't recorded. team_history_pos in public_modals.py
+    # has the same shape.
+    history = {p.id: [] for p in players}
 
     sort_key = _standings_sort_key(tournament)
     rank_key = _standings_rank_key(tournament)
@@ -75,8 +80,9 @@ def player_standings(tenant, tournament, full_view=False, seats=None):
         if home_country:
             _assign_ranks([r for r in ranked if r['country'].strip().casefold() == home_country],
                           rank_key, field='pos_se')
-        for r in ranked:
-            history[r['player_id']].append(r['pos'])
+        if current_round:
+            for r in ranked:
+                history[r['player_id']].append(r['pos'])
 
     for r in ranked:
         r['history_pos'] = history[r['player_id']]
@@ -229,7 +235,9 @@ def _assign_ranks(rows, key, field):
 def _cumulative_row(player, all_seats, up_to_round, flag):
     played = [p for p in all_seats if p.round_nb <= up_to_round]
     return {
-        'history_pos': [1], 'pos': 0, 'pos_se': '',
+        # Overwritten by player_standings once every round is ranked; a row built
+        # outside it has no history to show.
+        'history_pos': [], 'pos': 0, 'pos_se': '',
         'player_id': player.id, 'EMA_ID': player.EMA_ID,
         'first_name': player.first_name, 'last_name': player.last_name.upper(),
         'name': player.full_name, 'country': player.country, 'flag': flag,
