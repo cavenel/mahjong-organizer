@@ -196,6 +196,12 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - [ ] Extract one `_cached(prefix, request, full_view, compute)` wrapper for the six repeated cache-or-compute functions in `views/scoring.py`.
 - [ ] Extract the reauth-gate fragment pasted ×3 (`admin_views.py:1689,1732,1756`) and unify the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`).
 - [ ] Replace native `alert()` with `window.alertAction` inside admin-shell fragments (`admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2). (Standalone pages keep native dialogs — per convention.)
+- [ ] **Field errors shouldn't be exceptions** (added 2026-08-19, from running the app after S4 — polish, not correctness; the right requests are already rejected with the right status). S4's `int_param` / `number_or_none` / `_seat_cell` (`views/helpers.py`) raise `BadRequest`, which has two costs: Django logs every one with a **full traceback**, so a scorer mistyping a cell writes a stack trace to the production log; and its generic 400 page drops the message, so the score grid shows a mute red pip and the scorer never learns which cell is wrong. Both come from using an exception for an expected outcome of a human typing. Fix in three steps, ~30 lines plus a JS branch:
+  1. A distinct `FieldError(field, message)` in `views/helpers.py`, raised by those three helpers. **`json_body` keeps `BadRequest`** — "this body isn't a JSON object" really is exceptional and owes no nice message; "this cell has a typo" isn't. Making the codebase state that distinction is most of the value.
+  2. Convert it in `apps/middleware.py` via `process_exception` → `JsonResponse({'status': 'bad_request', 'field': …, 'error': …}, status=400)`. Middleware rather than a decorator on purpose: a decorator is forgettable, and an undecorated view using the helpers would 500. Middleware needs no per-view lines and can't be missed. Catching it also stops Django logging it with `exc_info`, which is the log-noise half. Every existing call site stays exactly as it reads.
+  3. **Then actually surface it** — this is the half that matters. `admin_scores_per_table.html`'s ajax `error` handler reads `xhr.responseJSON` only for the 409 `locked` case; add a 400 branch that shows `responseJSON.error`. Without this the field name reaches the browser and dies there. Same ground as the `alert()` item above, so do them together.
+
+  Considered and rejected: a `handler400` that renders JSON for XHR. It fixes only the response body, leaves the traceback noise untouched, and changes error rendering globally for every view to solve a problem in six.
 - [ ] Back off the every-second `new Audio()` sound-unlock probe on unattended projectors (`display_counter.html:389-404`) — retry on `pointerdown`/`keydown` or after N tries.
 - [ ] Readability: align `history_pos` shapes (drop the magic client-side `.slice(2)`; `standings.py:53-74` + `modal_details_player.html:317`, update golden files) and correct the `views/scoring.py:9-11` cache comment to state the real invalidation contract.
 
@@ -271,6 +277,7 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | `views/scoring.py` cache-wrapper dup | S8 |
 | reauth fragment / table-key dup | S8 |
 | native `alert()` consistency | S8 |
+| field errors raised as `BadRequest` (found in S4) | S8 |
 | audio-probe backoff | S8 |
 | `history_pos` shape / cache comment | S8 |
 | `options()` mega-view decomposition | S2 (partial) / S8 |
