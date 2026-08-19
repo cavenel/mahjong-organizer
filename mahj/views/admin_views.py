@@ -786,10 +786,13 @@ def admin_team_draw(request):
             slot += 1
 
     template = loader.get_template('mahj/admin_team_draw.html')
+    # The page reads these through |json_script, which escapes the markup
+    # characters json.dumps leaves alone — team and player names are
+    # operator-entered, so a name containing `</script>` would inject script.
     context = {
-        "teams_json": json.dumps(teams_list),
+        "teams": teams_list,
         "nb_teams": nb_teams,
-        "saved_draw_json": json.dumps(saved_draw) if saved_draw else "null",
+        "saved_draw": saved_draw,
     }
     return HttpResponse(template.render(context, request))
 
@@ -873,9 +876,10 @@ def admin_player_draw(request):
     draw_numbers = sorted({s.draw_number for s in Seat.objects.filter(tenant=tenant)})
 
     template = loader.get_template('mahj/admin_player_draw.html')
+    # |json_script in the template, not json.dumps here — see admin_team_draw.
     context = {
-        "players_json": json.dumps(players),
-        "draw_numbers_json": json.dumps(draw_numbers),
+        "players": players,
+        "draw_numbers": draw_numbers,
     }
     return HttpResponse(template.render(context, request))
 

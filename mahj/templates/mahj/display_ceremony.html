@@ -29,6 +29,7 @@
   <img id="ceremony-logo" src="{{ site_logo_url }}" alt=""
        class="hidden fixed top-4 left-6 h-32 w-auto opacity-90 z-10">
   <div id="ceremony-root" class="h-full flex flex-col"></div>
+  {{ ceremony_payload|json_script:"ceremony-payload" }}
 {% endblock %}
 
 {% block scripts %}
@@ -41,7 +42,7 @@
     const LOGO_PNG  = "{{ site_logo_url }}";
     const TITLE     = "{{ tournament.title|default:tournament.fullname|default:'Prize-giving'|escapejs }}";
     const SUBDOMAIN = "{{ subdomain }}";
-    let slide = {{ payload_json|safe }};
+    let slide = JSON.parse(document.getElementById('ceremony-payload').textContent);
 
     function esc(s) {
       const d = document.createElement('div');

@@ -1,8 +1,6 @@
 import math
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-import json
-
 from django.conf import settings
 from django.forms.models import model_to_dict
 from django.http import Http404, HttpResponse, HttpResponseNotAllowed, JsonResponse
@@ -60,8 +58,11 @@ def index(request, screen_id=None):
     _state, ceremony_payload = ceremony_active_payload(request)
     if ceremony_payload is not None:
         template = loader.get_template('mahj/display_ceremony.html')
+        # The slide goes to the page through |json_script: this is a public
+        # screen and the payload carries player and team names, which json.dumps
+        # alone would leave able to close the <script> block.
         return HttpResponse(template.render({
-            'payload_json': json.dumps(ceremony_payload),
+            'ceremony_payload': ceremony_payload,
             'tournament': tournament,
             'subdomain': subdomain,
         }, request))

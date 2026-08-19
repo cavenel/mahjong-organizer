@@ -29,12 +29,8 @@
 </head>
 <body class="h-screen bg-white text-gray-900 overflow-hidden flex flex-col">
 
-  <script type="application/json" id="teams-data">
-    {{ teams_json|safe }}
-  </script>
-  <script type="application/json" id="saved-draw-data">
-    {{ saved_draw_json|safe }}
-  </script>
+  {{ teams|json_script:"teams-data" }}
+  {{ saved_draw|json_script:"saved-draw-data" }}
 
   <!-- LOGO -->
   <img src="{{ site_logo_url }}" alt="Tournament logo" class="fixed top-3 left-6 h-20 w-auto z-20">
