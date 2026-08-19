@@ -137,3 +137,117 @@ class TestPublicSiteUrl:
     def test_override_without_scheme_gets_https(self):
         from mahj.views.helpers import public_site_url
         assert public_site_url('local', 'scores.example.org') == 'https://scores.example.org'
+
+
+class TestFailedSnapshotLeavesNothing:
+    """A snapshot that fails must not leave a file the restore page will offer.
+
+    sqlite3.connect() creates its destination up front, so writing the backup
+    straight to the final name left a 0-byte file behind on failure — and an empty
+    file is a *valid empty database*: PRAGMA quick_check says 'ok', so it listed
+    and restored as a healthy snapshot, wiping the tournament.
+    """
+
+    def test_an_empty_file_really_does_pass_the_integrity_check(self, tmp_path):
+        """The premise, pinned: this is why a leftover file is dangerous rather
+        than merely untidy."""
+        empty = tmp_path / 'empty.sqlite3'
+        empty.touch()
+        assert empty.stat().st_size == 0
+        assert sb.integrity_ok(empty) is True
+
+    def test_failed_backup_leaves_no_listable_snapshot(self, db, monkeypatch):
+        real_connect = sqlite3.connect
+
+        class _BackupFails:
+            """The source connection, with backup() failing — sqlite3.Connection
+            attributes are read-only, so it has to be wrapped rather than patched.
+            Stands in for a full disk: connect() has already created the
+            destination file, but the backup never completes."""
+
+            def __init__(self, con):
+                self._con = con
+
+            def backup(self, *a, **kw):
+                raise sqlite3.OperationalError('disk I/O error')
+
+            def close(self):
+                self._con.close()
+
+            def __getattr__(self, name):
+                return getattr(self._con, name)
+
+        def explode(target, *a, **kw):
+            con = real_connect(target, *a, **kw)
+            # src.backup(dst) is called on the *source* connection.
+            return _BackupFails(con) if str(target) == str(db) else con
+
+        monkeypatch.setattr(sb.sqlite3, 'connect', explode)
+        with pytest.raises(sqlite3.OperationalError):
+            sb.take_snapshot()
+
+        assert list(sb.snapshots_dir().glob('mahj-*.sqlite3')) == []
+        assert list(sb.snapshots_dir().glob('*.tmp')) == []
+        assert sb.list_snapshot_groups() == []
+
+    def test_a_successful_snapshot_still_lands_under_its_final_name(self, db):
+        snap = sb.take_snapshot()
+        assert snap is not None
+        assert snap.suffix == '.sqlite3'
+        assert snap.exists() and snap.stat().st_size > 0
+        assert list(sb.snapshots_dir().glob('*.tmp')) == []
+        assert _value(snap) == 'original'
+
+
+class TestRestoreDoesNotDestroyTheLiveDb:
+    """The restore copies the snapshot aside before it touches the live DB's WAL
+    sidecars. Dropping them first destroyed un-checkpointed commits before the copy
+    that was meant to replace them — and a whole-DB copy failing on a full disk is
+    exactly when they are all the operator has left."""
+
+    def _sidecars(self, db):
+        wal = sb.Path(str(db) + '-wal')
+        shm = sb.Path(str(db) + '-shm')
+        wal.write_bytes(b'wal-content')
+        shm.write_bytes(b'shm-content')
+        return wal, shm
+
+    def test_copy_failure_leaves_the_live_db_and_its_wal_intact(self, db, monkeypatch):
+        snap = sb.take_snapshot()
+        _set_value(db, 'live')
+        assert sb.request_restore(snap.name) is True
+        # The safety snapshot opens and closes the live DB, and sqlite checkpoints
+        # away the sidecars on a clean close — which would remove the synthetic ones
+        # below before the code under test ever reaches them. Stub it out so this
+        # test is about the copy/unlink ordering and nothing else.
+        monkeypatch.setattr(sb, 'take_snapshot', lambda *a, **kw: None)
+        wal, shm = self._sidecars(db)
+
+        def boom(src, dst, *a, **kw):
+            raise OSError(28, 'No space left on device')
+
+        monkeypatch.setattr(sb.shutil, 'copyfile', boom)
+        with pytest.raises(OSError):
+            sb.apply_pending_restore()
+
+        # Nothing about the live database was touched. Check the sidecars *first*:
+        # reading the DB opens and closes it, and sqlite checkpoints them away on a
+        # clean close, which would destroy the evidence.
+        assert wal.exists() and wal.read_bytes() == b'wal-content'
+        assert shm.exists() and shm.read_bytes() == b'shm-content'
+        assert not sb.Path(str(db) + '.restore-tmp').exists()
+        assert _value(db) == 'live'
+
+    def test_successful_restore_still_drops_the_sidecars_and_swaps(self, db):
+        snap = sb.take_snapshot()          # holds 'original'
+        _set_value(db, 'live')
+        wal, shm = self._sidecars(db)
+        assert sb.request_restore(snap.name) is True
+
+        assert sb.apply_pending_restore() == snap.name
+        assert _value(db) == 'original'
+        # The sidecars must be gone — they would otherwise replay onto the
+        # restored file and undo it.
+        assert not wal.exists()
+        assert not shm.exists()
+        assert not sb.Path(str(db) + '.restore-tmp').exists()

@@ -75,13 +75,27 @@ def take_snapshot(prune=True):
     if not src_path.exists():
         return None
     dest = snapshots_dir() / f"mahj-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.sqlite3"
-    src = sqlite3.connect(str(src_path))
-    dst = sqlite3.connect(str(dest))
+    # Build the snapshot under a .tmp name and rename it into place only once the
+    # backup has finished. sqlite3.connect() creates the destination file up front,
+    # so writing straight to `dest` leaves a 0-byte file behind when backup() fails
+    # (a full disk, a corrupt source) — and a 0-byte file is a *valid empty*
+    # database: PRAGMA quick_check returns 'ok', so it would be offered on the
+    # restore page as a healthy snapshot and silently wipe the tournament. The .tmp
+    # suffix is also outside the 'mahj-*.sqlite3' glob that lists and prunes
+    # snapshots, so a leftover can never be listed either.
+    staging = dest.with_suffix('.tmp')
     try:
-        src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
+        src = sqlite3.connect(str(src_path))
+        dst = sqlite3.connect(str(staging))
+        try:
+            src.backup(dst)
+        finally:
+            dst.close()
+            src.close()
+        os.replace(staging, dest)
+    except BaseException:
+        staging.unlink(missing_ok=True)
+        raise
     if prune:
         snaps = sorted(snapshots_dir().glob('mahj-*.sqlite3'))
         for old in snaps[:-SNAPSHOT_KEEP]:
@@ -134,15 +148,23 @@ def apply_pending_restore():
             take_snapshot(prune=False)  # never prune the restore source
         except Exception:
             pass
+    # Order matters. Copy the snapshot aside first, and only once that has
+    # succeeded drop the live DB's WAL sidecars and swap. Dropping them first would
+    # destroy the live DB's un-checkpointed commits before the copy that replaces
+    # it — and a whole-DB copy failing on a full disk is exactly the case where
+    # they are all the operator has left, since the safety snapshot above is
+    # best-effort. os.replace is an atomic rename within the filesystem, so a crash
+    # mid-write can't leave a truncated live DB either.
+    tmp = Path(str(dbp) + '.restore-tmp')
+    try:
+        shutil.copyfile(snap, tmp)
+    except BaseException:
+        tmp.unlink(missing_ok=True)
+        raise
     for suffix in ('-wal', '-shm'):
         side = Path(str(dbp) + suffix)
         if side.exists():
             side.unlink()
-    # Atomic swap: copy to a temp file in the same dir, then os.replace (an atomic
-    # rename on the same filesystem), so a crash mid-write can't leave a truncated
-    # live DB.
-    tmp = Path(str(dbp) + '.restore-tmp')
-    shutil.copyfile(snap, tmp)
     os.replace(tmp, dbp)
     return name
 
