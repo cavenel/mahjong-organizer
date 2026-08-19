@@ -8,15 +8,25 @@ from .helpers import get_tenant, get_tournament
 LEADERBOARD_TTL = 20   # rendered HTML: how long the page can be served stale.
 SUB_CACHE_TTL = 300    # the data pieces below.
 
-# The invalidation contract, stated because it is easy to get wrong:
+# The invalidation contract, stated exactly because it is easy to assume more than
+# is true:
 #
 # Every cache below is keyed `<prefix>:<subdomain>:<full_view>`, and
-# signals.invalidate_leaderboard() deletes those keys **by that exact prefix** for
-# both full_view values on any real write. So the TTL is not how stale the data can
-# get — a write clears it immediately — it is only a backstop for a write that
-# somehow bypasses the signals. The prefixes are therefore fixed names shared with
-# signals.py, never derived from the function, and adding a surface here means
-# adding its prefix there too or it will serve stale data for up to SUB_CACHE_TTL.
+# signals.invalidate_leaderboard() deletes those keys by that exact prefix, for both
+# full_view values. But it is NOT a model signal — there is no post_save receiver on
+# Seat or Hand. It is called explicitly from the paths that change what the standings
+# should say: publish/unpublish, template import, tournament reset, the draw.
+#
+# Score entry does not call it, and cannot be caught by a signal either: it writes
+# with .update() / bulk_update(), which fire none. That is deliberate — scorers see
+# their own edits live through the scorer WebSocket row sync, not through these
+# caches — but it means a standings read can lag live entry by up to SUB_CACHE_TTL,
+# for an admin full_view as well as the public. That bound is the reason the TTL is
+# five minutes rather than an hour.
+#
+# So: the prefixes are fixed names shared with signals.py, never derived from the
+# function, and adding a surface here means adding its prefix there too or it will go
+# stale for a whole publish cycle rather than SUB_CACHE_TTL.
 #
 # `full_view` is in the key because staff and the public may see a different number
 # of rounds; a caller that passes its own `seats`/`hands` is not cached at all,
