@@ -154,22 +154,22 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 **Theme:** disaster-recovery and deployment surface. Two of these sit exactly in the data-loss path.
 
-**Findings:** F11, sqlite 0-byte snapshot, restore WAL ordering, standalone SECRET_KEY note, SFTP host key, `publish_target_test` probe, CI workflow, gunicorn umask comment, auth cookie, ipify call.
+**Findings:** F11, sqlite 0-byte snapshot, restore WAL ordering, standalone SECRET_KEY note, SFTP host key, `publish_target_test` probe, CI workflow, gunicorn umask comment, auth cookie, ipify call. **✅ SESSION COMPLETE** — full suite 561 passing (+17 tests).
 
-- [ ] **F11 — standalone `admin/admin` on 0.0.0.0** (`standalone/run.py:133,37`, `apps/settings/standalone.py:35`) — generate a random initial password and print it once (or force a change on first login); consider binding admin to loopback and exposing only display screens on the LAN.
-- [ ] **sqlite 0-byte snapshot passes integrity** (`standalone_backup.py:77-83`) — back up to `dest.with_suffix('.tmp')` and `os.replace` into place only after `backup()` succeeds; unlink temp on failure.
-- [ ] **restore deletes WAL before copy** (`standalone_backup.py:137-146`) — reorder: copy snapshot to tmp first, then delete `-wal`/`-shm`, then `os.replace`.
-- [ ] **standalone SECRET_KEY note** (`apps/settings/standalone.py:28`) — document (and ideally warn on) that an ephemeral key makes stored publish secrets undecryptable; the launcher should persist the key on first run.
-- [ ] **SFTP auto-accept host keys** (`publish/sftp_upload.py:98`) — default to `RejectPolicy`; require the operator to paste the `host_key` when configuring a target (the pin path already exists), or persist first-seen and reject changes.
-- [ ] **`publish_target_test` SSRF-ish probe** (`admin_views.py:1133`) — acceptable for trusted staff; if hardening, log/rate-limit the probes.
-- [ ] **CI workflow** (`.github/workflows/release.yml:14,105`) — scope `contents: write` to the release job only; pin `softprops/action-gh-release@v2` to a full commit SHA.
-- [ ] **gunicorn umask comment** (`gunicorn.conf.py:2`) — add a comment noting the world-writable socket relies on container isolation (no code change needed).
-- [ ] **auth cookie `secure` flag** (`apps/middleware.py:21`) — cosmetic; make `secure` conditional on the request scheme so the cache-bypass cookie works in dev/standalone (or document why it's prod-only).
-- [ ] **ipify call** (`admin_display.html:135`) — make the third-party IP lookup click-to-run instead of on every page view.
+- [x] **F11 — standalone `admin/admin` on 0.0.0.0** — `bootstrap()` generates the password, prints it beside the URL and writes it to `first-login.txt` (0600) in the data dir, because a console line scrolls away and the operator may only come back to log in later. An unwritable data dir still creates the account (the printout is then the only copy) rather than failing the launch. **Not done, deliberately:** binding admin to loopback. The app documents LAN access for scorers' phones and the scan flow, so that would break a supported workflow to solve a problem the generated password already solves.
+- [x] **sqlite 0-byte snapshot passes integrity** — the backup builds under a `.tmp` name (outside the `mahj-*.sqlite3` glob that lists *and* prunes) and is renamed into place only on success; the temp is unlinked on failure. A test pins the premise: a 0-byte file really does pass `quick_check` as `'ok'`, which is what made a leftover dangerous rather than untidy.
+- [x] **restore deletes WAL before copy** — copy, then drop the sidecars, then swap; the temp is cleaned up if the copy fails.
+- [x] **standalone SECRET_KEY note** — the launcher already persisted the key to `.env` on first run, so the fix was the missing half of the comment: an ephemeral key doesn't only invalidate sessions, it makes every stored publish credential undecryptable (`publish/secrets.py` derives its Fernet key from it). Now says so, and says to keep `.env` with the database when moving an install.
+- [x] **SFTP auto-accept host keys** — trust-on-first-use with a persisted pin: the first successful connect records the key onto the `PublishTarget` row and every connect after runs under `RejectPolicy` against it. **Chosen over the plan's "default to RejectPolicy"**, which would break publishing for every already-configured target whose operator never pasted a key — a regression at upgrade for exactly the people the feature works for. The write is a filtered `UPDATE` on `host_key=''`, so it can't clobber a hand-pinned or concurrently-learned key, and a failure to record only logs.
+- [x] **`publish_target_test` SSRF-ish probe** — logged with user, tenant and target. The capability is inherent to a "test this target" button and the role is trusted, so it stays; it's now attributable.
+- [x] **CI workflow** — default `contents: read`, `write` scoped to the release job, and `softprops/action-gh-release` pinned to `3bb1273…` (v2.6.2). It runs with the write token, so a retagged `v2` could push to the repo. GitHub-owned `actions/*` are left on tags deliberately.
+- [x] **gunicorn umask comment** — states the reliance (a directory shared with nginx alone, inside the container) and warns against carrying the setting to a host-mounted socket.
+- [x] **auth cookie `secure` flag** — follows `request.is_secure()`. This was more than cosmetic: hardcoded `secure=True` meant the cookie was silently dropped over plain HTTP, which is how standalone and dev always run, so nginx's cache-bypass signal never arrived and a logged-in operator could be served a cached anonymous page.
+- [x] **ipify call** — click-to-run, with a failure message when there's no internet.
 
-**Files:** `standalone/run.py`, `apps/settings/standalone.py`, `standalone_backup.py`, `publish/sftp_upload.py`, `admin_views.py`, `release.yml`, `gunicorn.conf.py`, `apps/middleware.py`, `admin_display.html`.
+**Files:** `standalone/run.py`, `apps/settings/standalone.py`, `standalone_backup.py`, `publish/sftp_upload.py`, `admin_views.py`, `models.py` (docstring), `release.yml`, `gunicorn.conf.py`, `apps/middleware.py`, `admin_display.html`, `docs/STANDALONE.md`.
 
-**Tests:** `test_standalone_backup.py` — a failed snapshot leaves no listable/restorable file; restore copy-fail path doesn't destroy the live DB. SFTP policy default is `Reject` without a pinned key (`test_static_export.py`/publish tests).
+**Tests:** `test_standalone_backup.py` +5 (a failed snapshot leaves nothing listable, a failed restore copy leaves the live DB and its WAL untouched, and the successful paths still work) — both new failure tests were checked against the pre-fix code and fail there. New `test_standalone_launcher.py` +5 (generated password, saved 0600, second run is a no-op, unwritable dir still boots) and `test_sftp_host_key.py` +7 (first connect pins, non-22 port bracketed, never overwrites a hand-pinned key, policy selection, the test button pins nothing, a recording failure doesn't fail the connect).
 
 **Risk:** low-moderate; backup tests already exist to build on.
 
@@ -253,16 +253,16 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | ✅ `Tenant.subdomain` uniqueness | S6 |
 | ✅ `player_rounds_rows` tenant filter | S6 |
 | ✅ free-text `EMA_ID` | S6 |
-| F11 standalone `admin/admin` | S7 |
-| sqlite 0-byte snapshot | S7 |
-| restore WAL ordering | S7 |
-| standalone SECRET_KEY note | S7 |
-| SFTP host-key policy | S7 |
-| `publish_target_test` probe | S7 |
-| CI workflow perms/pin | S7 |
-| gunicorn umask comment | S7 |
-| auth cookie secure flag | S7 |
-| ipify call | S7 |
+| ✅ F11 standalone `admin/admin` | S7 |
+| ✅ sqlite 0-byte snapshot | S7 |
+| ✅ restore WAL ordering | S7 |
+| ✅ standalone SECRET_KEY note | S7 |
+| ✅ SFTP host-key policy | S7 |
+| ✅ `publish_target_test` probe | S7 |
+| ✅ CI workflow perms/pin | S7 |
+| ✅ gunicorn umask comment | S7 |
+| ✅ auth cookie secure flag | S7 |
+| ✅ ipify call | S7 |
 | desktop positional rebuild | S8 |
 | cross-table grid sizing | S8 |
 | team modal `None` | S8 |

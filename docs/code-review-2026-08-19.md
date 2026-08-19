@@ -39,7 +39,7 @@ Items marked **✅ DONE** below have been fixed and verified (full suite still 4
 5. **Make every mutating endpoint POST-only** — ceremony publish, screen/mode CRUD, `set_tournament`, logout (F6).
 6. **✅ DONE — Fix the Riichi path** — score saves 500 and rounds can never be published (F7, F8). The round-trip test also turned up a third Riichi blocker the review missed — see the note under F8.
 7. **✅ DONE — Close the two multi-tenant gaps** — login-link minting escalation and the shared import temp file (F9, F10).
-8. **Kill the standalone `admin/admin` default** on a 0.0.0.0 bind (F11) — S7. **✅ DONE** — removed `USE_X_FORWARDED_HOST` (F12).
+8. **✅ DONE — Killed the standalone `admin/admin` default** on a 0.0.0.0 bind (F11). **✅ DONE** — removed `USE_X_FORWARDED_HOST` (F12).
 
 ---
 
@@ -270,21 +270,21 @@ Every anonymous POST stages up to 20 MB (nginx cap; `file.read()` loads it fully
 
 The Postgres restore pipeline is genuinely well-guarded (double validation, typed confirmation, identifier quoting). The sqlite standalone path has two ordering bugs sitting exactly where a latent bug hurts most.
 
-### F11 · HIGH · security — Standalone ships `admin/admin` on a 0.0.0.0 bind
+### ✅ DONE · F11 · HIGH · security — Standalone ships `admin/admin` on a 0.0.0.0 bind
 `standalone/run.py:133, 37` · `apps/settings/standalone.py:35`
 
 Bootstrap creates superuser `admin`/`admin`, binds `0.0.0.0`, and sets `ALLOWED_HOSTS=['*']` — anyone on the venue LAN can log into the full admin until the operator manually rotates a password the code only *prints a notice* about. For a non-technical operator that default will routinely survive the whole event.
 
 **Fix:** Generate a random initial password and print it once (or force a change on first login). Consider binding the admin surface to loopback and exposing only display screens on the LAN.
 
-### Medium · bug/data loss — A failed sqlite snapshot leaves a 0-byte file that passes the integrity check
+### ✅ DONE · Medium · bug/data loss — A failed sqlite snapshot leaves a 0-byte file that passes the integrity check
 `mahj/standalone_backup.py:77-83`
 
 `sqlite3.connect(dest)` creates the file immediately; if `src.backup(dst)` then fails, the empty file remains — and `PRAGMA quick_check` on a 0-byte file returns `ok` (verified empirically), so it's listed as the newest snapshot and accepted for restore. Restoring it erases the live database.
 
 **Fix:** Back up to `dest.with_suffix('.tmp')` and `os.replace` into place only after `backup()` succeeds; unlink the temp on failure.
 
-### Medium · bug/data loss — Restore deletes the live WAL before the snapshot copy
+### ✅ DONE · Medium · bug/data loss — Restore deletes the live WAL before the snapshot copy
 `mahj/standalone_backup.py:137-146`
 
 `apply_pending_restore` unlinks `-wal`/`-shm` *before* `shutil.copyfile(snap, tmp)`. If the copy fails — disk-full is realistic when duplicating the whole DB — the old DB stays live but its un-checkpointed commits are gone, and the safety snapshot is explicitly best-effort. The comment claims crash-safety via atomic `os.replace`, but the sidecar deletion happens outside that protection.
@@ -295,19 +295,19 @@ Bootstrap creates superuser `admin`/`admin`, binds `0.0.0.0`, and sets `ALLOWED_
 
 ## Deployment & publishing
 
-### Medium · security — SFTP publish auto-accepts unknown host keys
+### ✅ DONE · Medium · security — SFTP publish auto-accepts unknown host keys
 `mahj/publish/sftp_upload.py:98`
 
 Without a pinned `host_key`, `_connect` uses `AutoAddPolicy()` and never persists the accepted key — every publish is trust-on-first-use with no continuity, i.e. accept-any. An on-path attacker can MITM the session and capture the target's password or private key.
 
 **Fix:** Default to `RejectPolicy` and require the host-key line when configuring a target (the pin path already exists), or persist first-seen and reject changes.
 
-- **Low · SSRF-ish probe** — `publish_target_test` (`admin_views.py:1133`) lets a tenant admin open an SSH handshake to any host:port on the private network. Bounded by auth; log/rate-limit if hardening.
-- **Low · CI** — `release.yml:14,105`: `contents: write` granted workflow-wide (the build job doesn't need it) and `softprops/action-gh-release@v2` pinned to a moving tag. Scope the permission to the release job; pin the action to a SHA.
-- **Low · ops** — `gunicorn.conf.py:2`: `umask = 0` makes the unix socket world-writable; safe only because the socket volume is shared solely with nginx — worth a comment stating that reliance.
+- **✅ DONE (logged, not blocked) · Low · SSRF-ish probe** — `publish_target_test` (`admin_views.py:1133`) lets a tenant admin open an SSH handshake to any host:port on the private network. Bounded by auth; log/rate-limit if hardening. Each attempt now logs the user, tenant and target — the capability is inherent to a "test this target" button and the role is trusted, so it stays, but it's attributable.
+- **✅ DONE · Low · CI** — `release.yml:14,105`: `contents: write` granted workflow-wide (the build job doesn't need it) and `softprops/action-gh-release@v2` pinned to a moving tag. Scope the permission to the release job; pin the action to a SHA.
+- **✅ DONE · Low · ops** — `gunicorn.conf.py:2`: `umask = 0` makes the unix socket world-writable; safe only because the socket volume is shared solely with nginx — worth a comment stating that reliance.
 - **Low · dead cookie** — `apps/middleware.py:21`: the `auth` cache-bypass cookie is set `secure=True` unconditionally, so it silently never persists over plain HTTP (dev, standalone). Cosmetic today.
-- **Low · key loss** — `apps/settings/standalone.py:28`: an ephemeral `SECRET_KEY` fallback silently makes stored publish secrets undecryptable (Fernet key derives from it). Documented for sessions, not for publish secrets.
-- **Low · third-party call** — `admin_display.html:135`: every admin-display view fetches `api.ipify.org`; make it click-to-look-up.
+- **✅ DONE · Low · key loss** — `apps/settings/standalone.py:28`: an ephemeral `SECRET_KEY` fallback silently makes stored publish secrets undecryptable (Fernet key derives from it). Documented for sessions, not for publish secrets.
+- **✅ DONE · Low · third-party call** — `admin_display.html:135`: every admin-display view fetches `api.ipify.org`; make it click-to-look-up.
 
 ---
 
