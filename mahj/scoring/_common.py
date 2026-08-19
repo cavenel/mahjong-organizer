@@ -8,6 +8,8 @@ from functools import lru_cache
 
 import pycountry
 
+from django.db.models import Q
+
 from ..models import Player, ScoreSheet, Schedule
 
 
@@ -17,6 +19,32 @@ from ..models import Player, ScoreSheet, Schedule
 # character wide.
 WINDS = ('East', 'South', 'West', 'North')
 WIND_LETTERS = ('E', 'S', 'W', 'N')
+
+
+def seat_is_scored(seat, tournament):
+    """Has this seat been scored under the active rules?
+
+    Minipoints are always required. Table points only under MCR, which ranks on
+    them: every other rule (Riichi) ranks on minipoints alone and never fills
+    table points in at all, so demanding them would leave a Riichi round
+    permanently unscored — its standings stuck on zeroes and its rounds never
+    complete. ``stats.py`` picks its rank field the same way.
+    """
+    if seat.minipoints is None:
+        return False
+    return not (tournament.rules == 'MCR' and seat.tablepoints is None)
+
+
+def unscored_seats_q(tournament):
+    """``seat_is_scored`` as a ``Q()``, for filtering Seats in the database.
+
+    The ORM half of the same rule — keep the two in step. ``filter()`` with it
+    finds the unscored seats; ``exclude()`` keeps the scored ones.
+    """
+    q = Q(minipoints=None)
+    if tournament.rules == 'MCR':
+        q |= Q(tablepoints=None)
+    return q
 
 
 def _group_by(iterable, key):

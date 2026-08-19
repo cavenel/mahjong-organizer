@@ -3,7 +3,7 @@ from collections import defaultdict
 from itertools import groupby
 
 from ..models import Player, Seat
-from ._common import WINDS, _attach_players, _country_flag
+from ._common import WINDS, _attach_players, _country_flag, seat_is_scored
 from .visibility import publish_state, final_withheld_now, _last_complete_round
 
 
@@ -26,7 +26,7 @@ def player_standings(tenant, tournament, full_view=False, seats=None):
         # handled by swapping the name and keeping the draw number — so a seat that
         # no player holds only exists in the pre-draw setup window, where nothing is
         # scored yet.
-        if seat.minipoints is None or seat.tablepoints is None:
+        if not seat_is_scored(seat, tournament):
             round_max = min(round_max, seat.round_nb - 1)
         pid = getattr(seat, 'player_id', None)
         if pid is None:
@@ -233,6 +233,11 @@ def _cumulative_row(player, all_seats, up_to_round, flag):
                    for p in played],
         'total': {
             'mp': sum(p.minipoints for p in played),
-            'tp': sum(p.tablepoints for p in played),
+            # Riichi leaves table points NULL by design (it ranks on minipoints
+            # alone), and its rows still carry a tp total so every consumer sees one
+            # shape whatever the rules. Tested with `is None` rather than falsiness:
+            # 0.0 is a real MCR score — last place — and coercing it to int 0 would
+            # flip the total's type.
+            'tp': sum(0 if p.tablepoints is None else p.tablepoints for p in played),
         },
     }

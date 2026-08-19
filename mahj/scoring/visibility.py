@@ -14,15 +14,15 @@ A single ``full_view`` flag on the callers picks the mode:
   - full    (``full_view=True``, admin / ceremony / print): see every scored round,
     no masking.
 """
-from django.db.models import Q
 
 from ..models import Seat, PublishedRound
+from ._common import unscored_seats_q
 
 
 def _last_complete_round(tenant, tournament):
     first_incomplete = (
         Seat.objects.filter(tenant=tenant)
-        .filter(Q(tablepoints=None) | Q(minipoints=None))
+        .filter(unscored_seats_q(tournament))
         .order_by('round_nb')
         .values('round_nb')
         .first()

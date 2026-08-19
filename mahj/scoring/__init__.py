@@ -20,6 +20,8 @@ from ._common import (
     _group_by,
     completed_tables,
     player_schedule,
+    seat_is_scored,
+    unscored_seats_q,
 )
 from .visibility import (
     _final_round_withheld,

@@ -12,7 +12,10 @@ from collections import defaultdict
 from django.db.models import Sum
 
 from ..models import Hand, Player, ScoreSheet, Seat
-from ._common import WINDS, _attach_players, _group_by, completed_tables, player_schedule
+from ._common import (
+    WINDS, _attach_players, _group_by, completed_tables, player_schedule,
+    unscored_seats_q,
+)
 from .visibility import public_round_max, _last_complete_round
 from .standings import player_standings
 
@@ -502,7 +505,8 @@ def player_extra_stats(tenant, player, tournament, max_round=None):
     final round leak into these cards (the per-round score grid in the same modal
     already hides it). None = no cap, for admin/ceremony callers.
     """
-    qs = Seat.objects.filter(tenant=tenant, draw_number=player.draw_number, tablepoints__isnull=False)
+    qs = (Seat.objects.filter(tenant=tenant, draw_number=player.draw_number)
+          .exclude(unscored_seats_q(tournament)))
     if max_round is not None:
         qs = qs.filter(round_nb__lte=max_round)
     seats = list(qs.order_by('round_nb'))
@@ -611,7 +615,8 @@ def team_extra_stats(tenant, team_name, tournament, max_round=None):
         return None
 
     draw_numbers = [p.draw_number for p in players if p.draw_number is not None]
-    qs = Seat.objects.filter(tenant=tenant, draw_number__in=draw_numbers, tablepoints__isnull=False)
+    qs = (Seat.objects.filter(tenant=tenant, draw_number__in=draw_numbers)
+          .exclude(unscored_seats_q(tournament)))
     if max_round is not None:
         qs = qs.filter(round_nb__lte=max_round)
     seats = _attach_players(tenant, list(qs.order_by('round_nb')))
