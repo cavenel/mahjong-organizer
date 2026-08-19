@@ -167,6 +167,25 @@ class TestStatTwoStepReveal:
             assert payload['step'] == step
             assert payload['stat_key'] == key
 
+    def test_step_zero_slide_withholds_the_winner(self, teamed):
+        """The title-only (step 0) slide must not carry the winner or value: the
+        payload reaches public display screens, so a spectator could otherwise
+        read the result from the socket frame before the reveal."""
+        master = ceremony._ceremony_master(_request())
+        key = master['stats'][0]['key'] if master['stats'] else 'mp_max'
+
+        s0 = ceremony._slide_payload(
+            master, types.SimpleNamespace(phase='stat', step=0, stat_key=key))
+        # Title present so the suspense slide still renders...
+        assert s0['slide']['title']
+        # ...but nothing that reveals the outcome.
+        for leaked in ('winners', 'value', 'mp', 'round_label'):
+            assert leaked not in s0['slide'], leaked
+
+        s1 = ceremony._slide_payload(
+            master, types.SimpleNamespace(phase='stat', step=1, stat_key=key))
+        assert s1['slide']['winners'] and s1['slide']['value'] is not None
+
 
 class TestControlEndpoint:
     def test_stat_reveal_step_is_stored(self, op_client, teamed):

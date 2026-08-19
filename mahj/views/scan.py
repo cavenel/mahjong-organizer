@@ -310,7 +310,14 @@ WINDS = ['E', 'S', 'W', 'N']
 
 
 def scan_seats(request):
-    """Return the table's seats (players, MP, TP) for a given round/table."""
+    """Return the table's seats for a given round/table: the seat labels (draw
+    number + short name) and whether the sheet is already filled/validated.
+
+    This endpoint is anonymous (players prefill from a photo of their own
+    table), so it deliberately does NOT return minipoints/tablepoints — those
+    are withheld from the public until a round is published, and leaking them
+    here would bypass that masking. The scan UI only needs the names and the
+    filled/validated flags."""
     _require_scan_enabled()
     tenant = get_tenant(request)
     round_nb = request.GET.get('round_nb')
@@ -338,8 +345,6 @@ def scan_seats(request):
         data.append({
             'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
             'player': f"{p.draw_number}. {first}",
-            'mp': p.minipoints,
-            'tp': float(p.tablepoints) if p.tablepoints is not None else None,
         })
 
     return JsonResponse({

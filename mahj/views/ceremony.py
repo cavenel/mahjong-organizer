@@ -33,7 +33,7 @@ EUROPE = frozenset({
     'al', 'ad', 'at', 'by', 'be', 'ba', 'bg', 'hr', 'cy', 'cz', 'dk', 'ee',
     'fi', 'fr', 'de', 'gr', 'hu', 'is', 'ie', 'it', 'xk', 'lv', 'li', 'lt',
     'lu', 'mt', 'md', 'mc', 'me', 'nl', 'mk', 'no', 'pl', 'pt', 'ro', 'ru',
-    'sm', 'rs', 'sk', 'si', 'es', 'se', 'ch', 'ua', 'gb', 'va',
+    'sm', 'rs', 'sk', 'si', 'es', 'se', 'ch', 'tr', 'ua', 'gb', 'va',
 })
 
 # (overall_winners key, slide title, value unit) — order = order shown in the console.
@@ -163,8 +163,17 @@ def _slide_payload(master, state):
         payload['done'] = step >= top_count and top_count > 0
     elif phase == 'stat':
         payload['stat_key'] = state.stat_key
-        payload['slide'] = next(
+        slide = next(
             (s for s in master['stats'] if s['key'] == state.stat_key), None)
+        if slide is not None and state.step < 1:
+            # Step 0 is the suspense/title-only slide. The client hides the
+            # winner until step 1, but the *payload* would still carry it — a
+            # spectator could read the result from the socket frame or page
+            # source seconds early. Strip the reveal fields so the title-only
+            # slide contains only the title.
+            slide = {k: v for k, v in slide.items()
+                     if k not in ('winners', 'value', 'mp', 'round_label')}
+        payload['slide'] = slide
 
     return payload
 

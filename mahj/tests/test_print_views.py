@@ -35,6 +35,32 @@ def test_table_posters_render_one_per_table_and_round(staff_client, tournament):
     assert 'Player1' in body
 
 
+def test_print_scores_masks_rounds_for_the_public(monkeypatch, tournament):
+    """`/print_scores` renders whatever privilege the viewer has: an anonymous
+    request must compute standings with full_view=False (published/non-withheld
+    rounds only), an admin with full_view=True. Guards against the sheet leaking
+    the withheld final during the pre-ceremony suspense window."""
+    from mahj.views import print_views
+
+    captured = []
+    monkeypatch.setattr(
+        print_views, 'scores_per_player_rows',
+        lambda request, full_view=False, **kw: captured.append(full_view) or [])
+
+    anon = Client()
+    anon.defaults['HTTP_HOST'] = HOST
+    assert anon.get('/print_scores').status_code == 200
+    assert captured[-1] is False
+
+    admin = Client()
+    admin.defaults['HTTP_HOST'] = HOST
+    u = User.objects.create_user('printadmin', password='pw')
+    grant(u, tournament['tenant'], admin=True)
+    admin.force_login(u)
+    assert admin.get('/print_scores').status_code == 200
+    assert captured[-1] is True
+
+
 def test_player_cards_render_seat_wind_per_round(staff_client, tournament):
     """Each card lists the player's own wind per round (`player_wind`) plus the
     opponents at that table (`table_seats`)."""

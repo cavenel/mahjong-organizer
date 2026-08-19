@@ -5,7 +5,7 @@ from django.template import loader
 
 from ..models import Player, Seat, Schedule
 from ..scoring import _attach_players, _country_flag
-from .helpers import get_tenant, get_tournament, tenant_admin_required
+from .helpers import get_tenant, get_tournament, is_tenant_admin, tenant_admin_required
 from .. import scoring as _scoring
 from .scoring import scores_per_player_rows, scores_per_table_grid
 
@@ -77,7 +77,11 @@ def cross_positions(request):
 def print_scores(request):
     tournament = get_tournament(request)
     nb_rounds = tournament.nb_rounds
-    standings = scores_per_player_rows(request, full_view=True)
+    # Mask to the viewer's privilege, exactly like the public desktop: a tenant
+    # admin sees every round, the public sees only published/non-withheld ones.
+    # Without this the printable sheet leaked the withheld final during the
+    # pre-ceremony suspense window.
+    standings = scores_per_player_rows(request, full_view=is_tenant_admin(request))
     template = loader.get_template('mahj/print_scores.html')
     context = {
         'standings': standings,

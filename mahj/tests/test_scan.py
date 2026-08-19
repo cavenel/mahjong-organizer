@@ -110,6 +110,21 @@ class TestScanPrefillPage:
         # Not signed in as a scorer → pointed to the admin console instead.
         assert "canOpenSheet = false" in html
 
+    def test_scan_seats_does_not_leak_scores_to_anonymous(self, client_, tournament):
+        """scan_seats is anonymous, so it must return seat labels + filled/valid
+        flags only — never minipoints/tablepoints, which are withheld from the
+        public until a round is published."""
+        # Round 1 table 1 is complete and validated in the fixture (has scores).
+        resp = client_.get('/scan_seats?round_nb=1&table_nb=1')
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data['ok'] and data['seats']
+        assert data['has_hands'] and data['validated']
+        for seat in data['seats']:
+            assert 'mp' not in seat
+            assert 'tp' not in seat
+            assert seat['player']  # the label is still there
+
 
 class TestScanEnqueue:
     """POST /scan stages the image + enqueues a job and returns instantly;
