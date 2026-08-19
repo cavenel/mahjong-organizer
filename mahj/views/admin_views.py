@@ -14,7 +14,7 @@ from unidecode import unidecode
 
 from django.conf import settings
 from django.contrib.auth import logout
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.db.models import F
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -923,6 +923,17 @@ def admin_player_draw(request):
     return HttpResponse(template.render(context, request))
 
 
+def _draw_number_taken(draw_number, holder_name):
+    """The 409 the live-draw page expects when a number is already gone: it reverts
+    the row and reports who holds it."""
+    taken_by = holder_name or 'someone else'
+    return JsonResponse(
+        {'ok': False,
+         'error': f'#{draw_number} is already taken by {taken_by}',
+         'holder': holder_name},
+        status=409)
+
+
 @tenant_admin_required
 def admin_player_draw_assign(request):
     """Assign (or clear) one competitor's draw number for the live individual draw.
@@ -962,14 +973,23 @@ def admin_player_draw_assign(request):
                   .exclude(id=player.id)
                   .first())
         if holder is not None:
-            return JsonResponse(
-                {'ok': False,
-                 'error': f'#{draw_number} is already taken by {holder.full_name}',
-                 'holder': holder.full_name},
-                status=409)
+            return _draw_number_taken(draw_number, holder.full_name)
 
         player.draw_number = draw_number
-        player.save(update_fields=['draw_number'])
+        try:
+            player.save(update_fields=['draw_number'])
+        except IntegrityError:
+            # When the number has no holder yet, select_for_update above locks no
+            # row — there is nothing to lock — so two desks assigning the same
+            # number at once both get here and the per-tenant unique constraint
+            # rejects the loser. That's the same outcome as losing the check above,
+            # so give the same 409 the client already knows how to handle rather
+            # than a 500. Re-read to name whoever won.
+            winner = (Player.objects
+                      .filter(tenant=tenant, draw_number=draw_number)
+                      .exclude(id=player.id)
+                      .first())
+            return _draw_number_taken(draw_number, winner.full_name if winner else '')
         return JsonResponse({'ok': True, 'player_id': player.id, 'draw_number': draw_number})
 
 
@@ -1691,6 +1711,13 @@ def options(request, error=None):
                 current_headline = _seating.headline(current)
                 current['headline'] = current_headline
             except Exception:
+                # measure() derives its key sets from the rows, so it handles a
+                # hand-edited or imported chart; anything still raising here is a bug
+                # rather than odd data. Keep the page up — a mid-tournament operator
+                # needs the rest of it more than the quality panel — but log it, so
+                # the panel can't go missing silently the way it used to.
+                logger.exception("seating measure() failed for tenant %s",
+                                 tenant.subdomain if tenant else '-')
                 current = None
         can_generate = (nb_players >= 8 and nb_players % 4 == 0 and nb_rounds >= 1)
         seating_scores = (

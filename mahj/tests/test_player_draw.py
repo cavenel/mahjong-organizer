@@ -154,3 +154,56 @@ def test_page_escapes_names_before_they_reach_innerhtml(client_, staff, undrawn)
     body = client_.get('/admin_player_draw').content.decode()
     assert 'js/browser_utils.js' in body
     assert 'escapeHtml(p.full_name)' in body
+
+
+def test_concurrent_assign_of_the_same_number_is_409_not_500(client_, staff, undrawn):
+    """Two registration desks handing out the same number at the same moment.
+
+    When a number has no holder yet there is no row for select_for_update to lock,
+    so both requests pass the availability check and the per-tenant unique
+    constraint rejects the loser. That used to surface as an unhandled
+    IntegrityError (500); it must be the same 409 the page already handles.
+    """
+    from unittest import mock
+    from django.db import IntegrityError
+
+    client_.force_login(staff)
+    players = list(Player.objects.filter(tenant=undrawn['tenant'])[:2])
+    # The other desk got there first, between our check and our write.
+    real_save = Player.save
+
+    def save_once_then_conflict(self, *a, **kw):
+        Player.objects.filter(pk=players[1].pk).update(draw_number=4)
+        Player.save = real_save
+        raise IntegrityError('duplicate key value violates unique constraint')
+
+    with mock.patch.object(Player, 'save', save_once_then_conflict):
+        resp = _assign(client_, players[0].id, 4)
+
+    assert resp.status_code == 409
+    body = resp.json()
+    assert body['ok'] is False
+    assert '#4 is already taken by' in body['error']
+    # And it names whoever actually holds it, so the page can say so.
+    assert body['holder'] == players[1].full_name
+    players[0].refresh_from_db()
+    assert players[0].draw_number is None
+
+
+def test_race_409_still_names_someone_when_the_winner_vanished(client_, staff, undrawn):
+    """Defensive: if the conflicting row is gone by the time we re-read, the message
+    still has to make sense rather than crash on None."""
+    from unittest import mock
+    from django.db import IntegrityError
+
+    client_.force_login(staff)
+    player = Player.objects.filter(tenant=undrawn['tenant']).first()
+
+    def always_conflict(self, *a, **kw):
+        raise IntegrityError('duplicate key')
+
+    with mock.patch.object(Player, 'save', always_conflict):
+        resp = _assign(client_, player.id, 6)
+
+    assert resp.status_code == 409
+    assert resp.json()['error'] == '#6 is already taken by someone else'
