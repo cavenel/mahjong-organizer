@@ -23,7 +23,6 @@ from ._common import (
 from .visibility import (
     _final_round_withheld,
     _last_complete_round,
-    _last_published_round,
     final_withheld_now,
     public_round_max,
     publish_state,

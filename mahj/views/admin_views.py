@@ -13,7 +13,6 @@ from unidecode import unidecode
 
 from django.conf import settings
 from django.contrib.auth import logout
-from django.contrib.auth.models import User
 from django.core.files.storage import FileSystemStorage
 from django.db import transaction
 from django.db.models import F
@@ -37,8 +36,6 @@ from .restore_admin import list_backups
 from .scoring import (
     scores_per_player_rows,
     scores_per_table_grid,
-    stat_all_rounds,
-    stat_rounds,
 )
 
 
@@ -500,7 +497,6 @@ def admin_upload_from_template(request):
                         )
                 Seat.objects.bulk_create(seats_to_create, batch_size=500)
             wb.close()
-            from ..signals import invalidate_leaderboard
             invalidate_leaderboard(tenant.subdomain)
             broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
         except Exception as exc:

@@ -271,7 +271,7 @@ class Screen(TenantAwareModel):
         return "" if name in self._PLACEHOLDER_NAMES else name
 
     def __str__(self):
-        return str(self.time) + " / " + self.view
+        return f"{self.time} / {self.view or ''}"
 
 class ScreenMode(TenantAwareModel):
     name         = models.CharField(default="Unknown",max_length=70)
@@ -413,4 +413,4 @@ class Schedule(TenantAwareModel):
     is_round     = models.BooleanField(default=False)
 
     def __str__(self):
-        return str(self.day) + " - " + self.time + " : " + self.time
+        return f"{self.day} - {self.time or ''} : {self.name or ''}"

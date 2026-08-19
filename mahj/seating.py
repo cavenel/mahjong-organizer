@@ -270,8 +270,8 @@ def _build_round_relaxed(N, met, use_teams, rng):
 
 def _assign_winds(groups_by_round, N, R, rng):
     """Choose a wind for each seat so every player's wind counts stay close to the
-    balanced profile. Greedy per table against running per-player counts, with a
-    few local-search passes."""
+    balanced profile. Greedy per table: pick the wind permutation that minimises
+    the running per-player deviation from the balanced target."""
     wc = [[0, 0, 0, 0] for _ in range(N + 1)]
     target = R / 4.0
 

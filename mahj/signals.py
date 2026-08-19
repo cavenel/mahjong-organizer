@@ -20,9 +20,10 @@ logger = logging.getLogger(__name__)
 def leaderboard_gen(subdomain):
     """Monotonic counter, bumped on every leaderboard invalidation.
 
-    Used as a cache-key component for per-id modal caches (details_player /
-    details_team) so they bust on any real write without having to enumerate
-    every player/team id — the old key is simply orphaned and expires via TTL.
+    Used as a cache-key component for the per-id modal caches (modal_player /
+    modal_team / modal_detailed) so they bust on any real write without having to
+    enumerate every player/team id — the old key is simply orphaned and expires
+    via TTL.
     """
     return cache.get(f'leaderboard_gen:{subdomain}') or 0
 
