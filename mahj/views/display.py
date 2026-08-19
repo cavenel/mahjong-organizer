@@ -198,8 +198,12 @@ TOTALS = "totals"       # compact rows, several columns side by side
 TEAMS = "teams"         # individual totals pages, then team totals pages
 
 
-def _score_columns(rows, columns, score_lines):
-    """Split standings rows into `columns` columns of up to `score_lines` rows."""
+def _score_columns(rows, score_lines):
+    """Split standings rows into columns of up to `score_lines` rows each.
+
+    The column *count* is implied by how many chunks the rows fill, so it isn't a
+    parameter — `_paginate` has already limited `rows` to one page's worth.
+    """
     return [rows[j:j + score_lines] for j in range(0, len(rows), score_lines)] or [[]]
 
 
@@ -211,7 +215,7 @@ def _paginate(rows, columns, score_lines, kind, label=''):
     per_page = score_lines * columns
     chunks = [rows[i:i + per_page] for i in range(0, len(rows), per_page)] or [[]]
     return [
-        {'columns': _score_columns(chunk, columns, score_lines), 'kind': kind, 'label': label}
+        {'columns': _score_columns(chunk, score_lines), 'kind': kind, 'label': label}
         for chunk in chunks
     ]
 

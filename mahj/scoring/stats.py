@@ -460,31 +460,6 @@ def _rounds_for(my_seats, seats_by_rt, schedule, completed):
     return rows
 
 
-def all_player_rounds(tenant, players):
-    """player_rounds for many players in a constant number of queries.
-
-    player_rounds re-queries a large slice of the Seat table for every player;
-    over ~168 players that materializes hundreds of thousands of rows. Here every
-    player's seats come from one query, grouped once and sliced per player.
-    Returns {player_id: rounds_list}.
-    """
-    schedule = player_schedule(tenant)
-    completed = completed_tables(tenant)
-
-    all_seats = _attach_players(tenant, list(
-        Seat.objects.filter(tenant=tenant).order_by('round_nb', 'wind')
-    ))
-    seats_by_rt = _group_by(all_seats, key=lambda p: (p.round_nb, p.table_nb))
-    seats_by_player = _group_by(all_seats, key=lambda p: p.player_id)
-
-    return {
-        player.id: _rounds_for(
-            seats_by_player.get(player.id, []), seats_by_rt, schedule, completed,
-        )
-        for player in players
-    }
-
-
 def all_slot_rounds(tenant):
     """player_rounds for every draw slot in the seating chart, keyed by draw_number.
 

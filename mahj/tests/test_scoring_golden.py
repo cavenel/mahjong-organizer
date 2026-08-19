@@ -74,18 +74,3 @@ def test_scores_per_player_rows_query_count(request_, django_assert_max_num_quer
     with django_assert_max_num_queries(5):
         views.scores_per_player_rows(request_)
 
-
-def test_all_player_rounds_matches_player_rounds(tournament):
-    from mahj import scoring
-    tenant, players = tournament['tenant'], tournament['players']
-    bulk = scoring.all_player_rounds(tenant, players)
-    for p in players:
-        assert normalize(bulk[p.id]) == normalize(scoring.player_rounds(tenant, p))
-
-
-def test_all_player_rounds_query_count(tournament, django_assert_max_num_queries):
-    # The whole point of the bulk path: a small constant, not ~2 queries per player.
-    from mahj import scoring
-    tenant, players = tournament['tenant'], tournament['players']
-    with django_assert_max_num_queries(5):
-        scoring.all_player_rounds(tenant, players)
