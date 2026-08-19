@@ -16,6 +16,8 @@ quick_check on startup. Recovery = quit, replace the .sqlite with a snapshot,
 relaunch (see docs/STANDALONE.md).
 """
 import os
+import secrets
+import stat
 import sys
 import threading
 import time
@@ -122,16 +124,53 @@ def _snapshot_loop():
             print(f"Snapshot failed: {e}")
 
 
-def bootstrap():
-    """First-run data: a Tenant (from LOCAL_TENANT) and an admin user."""
+def bootstrap(data_dir):
+    """First-run data: a Tenant (from LOCAL_TENANT) and an admin user.
+
+    The admin password is generated, never fixed. The server binds 0.0.0.0 so
+    projectors and scorers' phones on the venue LAN can reach it, which means a
+    known default would hand full admin to anyone on that network — including a
+    guest wifi it happens to share. The generated one is shown here and written to
+    a file only readable on this laptop.
+
+    Returns the password when one was created, else None.
+    """
     from django.contrib.auth.models import User
     from mahj.models import Tenant
 
     subdomain = os.environ.get('LOCAL_TENANT', '').strip() or 'local'
     Tenant.objects.get_or_create(subdomain=subdomain, defaults={'name': subdomain})
-    if not User.objects.filter(is_superuser=True).exists():
-        User.objects.create_superuser('admin', '', 'admin')
-        print("Created admin user  (username: admin  password: admin)  — change it in the app.")
+    if User.objects.filter(is_superuser=True).exists():
+        return None
+
+    password = secrets.token_urlsafe(9)   # ~12 chars, typeable off a screen
+    User.objects.create_superuser('admin', '', password)
+
+    # Also on disk, because a console line scrolls away and the operator may only
+    # come back to log in later. 0600, and the file says to delete it.
+    note = data_dir / 'first-login.txt'
+    try:
+        note.write_text(
+            "Mahjong Tournament Organizer — first login\n"
+            "==========================================\n\n"
+            f"  username: admin\n"
+            f"  password: {password}\n\n"
+            "Change the password in the app (Administration -> Users), then delete\n"
+            "this file. Anyone who can read it can administer the tournament.\n",
+            encoding='utf-8')
+        os.chmod(note, stat.S_IRUSR | stat.S_IWUSR)
+    except OSError:
+        note = None   # the printout below is then the only copy
+
+    print("\n" + "=" * 62)
+    print("  Created the admin account")
+    print("    username: admin")
+    print(f"    password: {password}")
+    if note is not None:
+        print(f"\n  Also saved to: {note}")
+    print("  Change it in the app (Administration -> Users), then delete that file.")
+    print("=" * 62)
+    return password
 
 
 def main():
@@ -164,7 +203,7 @@ def main():
     django.setup()
     from django.core.management import call_command
     call_command('migrate', '--noinput', verbosity=0)
-    bootstrap()
+    bootstrap(data_dir)
 
     standalone_backup.take_snapshot()  # known-good snapshot at boot
     threading.Thread(target=_snapshot_loop, daemon=True).start()

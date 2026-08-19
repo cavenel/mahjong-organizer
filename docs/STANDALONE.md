@@ -20,7 +20,13 @@ python -m standalone.run
 ```
 
 It opens `http://127.0.0.1:8000/options` in your browser. First run creates an
-`admin`/`admin` user — **change the password in the app.**
+`admin` user with a **randomly generated password**, printed to the console and
+saved to `first-login.txt` in the app's data directory. Log in, change the
+password (Administration → Users), then delete that file.
+
+The password is generated rather than fixed because the app binds to all
+interfaces (see below): a known default would hand full admin to anyone on the
+venue network, including a guest wifi it happens to share.
 
 ## Opening screens on other devices (LAN)
 

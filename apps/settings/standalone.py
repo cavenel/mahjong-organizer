@@ -23,8 +23,14 @@ DEBUG = False
 
 # The launcher generates and persists a secret key into the external .env on first
 # run, so this is normally set. Fall back to an ephemeral key rather than refuse to
-# boot — a laptop app hard-failing on startup is worse than a fresh key (which only
-# invalidates existing sessions/sesame links).
+# boot — a laptop app hard-failing on startup is worse than a fresh key.
+#
+# What a fresh key costs, if the .env is lost or the app is started without the
+# launcher: sessions and sesame login links are invalidated (harmless, log in
+# again), and — less obviously — every stored publish-target password and private
+# key becomes undecryptable, because publish/secrets.py derives its Fernet key from
+# SECRET_KEY. The target has to be reconfigured. Keep the .env alongside the
+# database when moving an install between machines.
 SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY') or get_random_secret_key()
 
 # Bound to 0.0.0.0 so projector/scorer devices on the venue LAN can open screens
