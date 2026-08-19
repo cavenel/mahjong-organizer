@@ -1,77 +1,14 @@
 # Cleanup plan (post-refactor follow-ups)
 
-A living backlog of cleanups surfaced during the public-release refactor, after
-the `variables → tournament`, scoring-dict-key, and reveal-masking work landed.
-Prune items as they're done (like the deferred-cleanup notes before them); this
-file should shrink to nothing.
+A living backlog of cleanups surfaced during the public-release refactor. Prune
+items as they're done (like the deferred-cleanup notes before them); this file
+should shrink to nothing.
 
 Everything here is **behaviour-preserving cleanup**, not bug-fixing — verify with
 the golden snapshots (byte-identical except intended field changes) + full suite.
-The one genuine bug the sweep found (leaderboard/seating cache invalidation not
-matching the new `full_view` key) is already fixed.
-
-## The big one: `Position → Seat` naming
-
-The DB model was renamed `Position → Seat`, but "position" lingers ~280 places.
-Worth doing (it's the direct analog of `variables → tournament`) and it removes a
-real ambiguity: `positions` (a list of `Seat` rows) reads confusingly next to
-`pos` / `pos_se` / `history_pos` (which mean *rank*, and must stay). Do NOT touch
-the rank-meaning `pos*`, CSS `position:`, or wind-position wording.
-
-Split by risk — do the safe tier, hold the wire tier:
-
-### Safe / internal (do now, one commit each)
-- **`positions` / `position_vals` / `positions_map` locals + kwargs → `seats`.**
-  ~170 sites across `scoring/standings.py`, `scoring/stats.py`, `views/scoring.py`,
-  `views/public.py`, `views/print_views.py`, `views/public_modals.py`,
-  `views/score_entry.py` (+ ~30 in tests). Pure internal identifiers.
-- **`_json` functions that don't return JSON → drop the suffix.**
-  `scores_per_table_json` (returns a nested Python grid of `Seat`/dicts),
-  `scores_per_player_json` (returns `list[dict]`), `player_rounds_json` (plain
-  Python). ~27 call sites. Pick names that don't collide with the `mahj/scoring/`
-  originals (e.g. `_grid` / `_rows`). The template context key `scores_json` is
-  the same misnomer but a separate, optional cosmetic rename.
-- **`PositionForm`** (`views/helpers.py`) — dead *and* stale-named: never
-  instantiated (only its own def + the re-export). Delete it (see Dead code).
-- **`position_div`** CSS class in `admin_scores_per_table.html` → `seat_cell`
-  (self-contained: one file's class + its own JS).
-
-### Risky / wire (defer, or do as a clearly-flagged separate change after merge)
-Same rolling-deploy caveat as the WS/DOM renames, plus URLs may be bookmarked or
-printed. Rename path + `name=` + every hardcoded JS/href/test string in lockstep:
-- **Endpoint names**: `update_position_penalty`, `update_positions_bulk`,
-  `scan_positions`, `cross_positions` (weakest case — "cross positions" is an
-  established who-meets-whom chart term) → `*_seat*`.
-- **Wire/JSON payload key `positions`** (WS `_row_payload`, scan response,
-  `update_positions_bulk` body) → `seats`. Touches Python + `admin_scores_per_table.html`
-  + `admin_publisher_overview.html` + `scan.html` together.
-- **`scan.py:339` inner `'position': p.wind`** — redundant with the sibling
-  `'wind'` key and appears unused by the frontend (`scan.html` only reads
-  `data.positions.length`). Verify no consumer, then drop.
-- **`restore_worker.py` `AS positions` / `db_counts.positions`** — counts `Seat`
-  rows; surfaces in `admin_database_restore.html`. → `seats`.
-
-## First name / last name handling refactor — DONE
-
-The real first/last name are now stored from the import's two columns instead of
-re-deriving parts by splitting `full_name`, and the three concepts have honest
-names: `first_name` / `last_name` = real names, `short_name` = the disambiguated
-display token ("Chris D."), `full_name` = computed "First Last".
-
-Shipped (migration `0012` renames the old `first_name` token → `short_name` and
-adds the real `first_name`/`last_name`, backfilled by splitting `full_name`): the
-import parser preserves casing (no title-case) and builds `short_name` with a
-last-name-initial that grows only on collision; export writes the stored raw
-fields for a lossless round-trip; standings/EMA report use the real names
-(`last_name.upper()`); the token read sites (`Seat.player_short_name`, print,
-scan) use `short_name`; the player editor edits First/Last with `full_name`
-recomputed; tests cover mononym, multi-word surname, casing preserved, and
-short_name collision.
 
 ## Dead code (safe deletes)
 
-- **`PositionForm`** (`views/helpers.py`) — never instantiated. Delete + drop the
-  `views/__init__.py` re-export.
 - **Four write-only timestamp fields, never read anywhere** (each needs a schema
   migration — batch them, then fold into the pre-publish squash):
   - `ScoreSheet.updated_at`, `CeremonyState.updated_at`, `PublishedRound.published_at`
@@ -81,12 +18,22 @@ short_name collision.
 - Note: `Hand.win_from_player()` is only used by `Hand.__str__` — **keep** it (not
   truly dead; mirrors `win_by_player()`).
 
+## Redundant `'pos'` key in the win-streak stat items
+
+`_top_win_streaks` (`scoring/stats.py`) puts `'pos': g[0]` — a **Hand**, not a
+rank and not a seat — into each `*_win_max` item, alongside the `'round_nb'` /
+`'table_nb'` keys taken from that very same Hand. Its only reader is
+`views/ceremony.py:71` (`it['pos'].round_nb` / `.table_nb`), which can read the
+sibling keys instead; that also collapses the branch into the `*_hand_max` shape.
+Dropping the key changes `stat_rounds` / `stat_all_rounds` snapshots (an intended
+field removal), so it's a small deliberate change rather than a pure rename.
+
 ## Comments AND docs describing history, not current state
 
 The same "describe what it is now, not the diff" principle applies to prose docs
 written during the refactor — a public reader has no "before" to compare against.
 Reword:
-- `scoring/seating.py:6` — "so the app *no longer depends* on an Excel seating
+- `mahj/seating.py:6` — "so the app *no longer depends* on an Excel seating
   sheet…" → state current behaviour.
 - `views/admin_views.py:340` — "first empty last-name cell *used to drop*…" →
   trim the historical-bug note.
@@ -116,11 +63,16 @@ breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
 
 ## Suggested order
 
-1. Finish the first name / last name refactor (in progress — see its plan).
-2. `positions → seats` internal rename (safe, biggest, disambiguates rank).
-3. `_json` misnomer rename (safe).
-3. `PositionForm` removal + `position_div` (safe, small).
-4. Dead timestamp fields (one migration).
-5. History-comment rewording (trivial).
-6. *(optional, post-merge)* the wire tier: endpoints + WS/scan payload keys.
-7. **Last, pre-publish:** squash migrations.
+1. Dead timestamp fields (one migration).
+2. Redundant `'pos'` key in the win-streak items.
+3. History-comment rewording (trivial).
+4. **Last, pre-publish:** squash migrations.
+
+## Deliberately NOT doing
+
+- **`cross_positions`** (endpoint, template, `print_cross_positions.html`) keeps
+  its name: "cross positions" is the established who-meets-whom chart term, and
+  "cross seats" is not a thing. The rest of the `Position → Seat` rename is done.
+- User-facing wording that means a physical place at a table ("Table positions"
+  print menu, wind positions) stays "position"; so do the rank-meaning `pos` /
+  `pos_se` / `history_pos` keys and CSS `position:`.
