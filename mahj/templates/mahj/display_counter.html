@@ -383,24 +383,55 @@ connectDisplaySocket({
 decodeGong();
 
 // ── Sound-unlock probe ───────────────────────────────────────────────────
-// Browsers block audio until a user gesture. Keep probing: a silent HTML5 play
-// detects the moment sound is unlocked (hides the 🔇), and we resume the Web
-// Audio context at the same instant so every later gong uses the precise path.
-var tryToPlay = setInterval(function () {
+// Browsers block audio until a user gesture. A silent HTML5 play detects the moment
+// sound is unlocked (hides the 🔇), and we resume the Web Audio context at the same
+// instant so every later gong uses the precise path.
+//
+// Probed a few times, then only in response to a gesture. An unattended projector
+// never gets that gesture, so probing every second built a new Audio element per
+// second for the whole tournament — hours of pointless allocation and rejected play
+// promises on a Pi. A gesture is also the only thing that can change the answer, so
+// waiting for one loses nothing.
+var soundProbesLeft = 5;
+
+function probeSound() {
     var audio = new Audio(GONG_SRC);
     audio.volume = 0;
-    audio.play()
+    return audio.play()
         .then(function () {
-            clearInterval(tryToPlay);
+            stopProbing();
             el.noSound.style.display = 'none';
             if (audioCtx && audioCtx.state !== 'running') {
                 audioCtx.resume().then(scheduleGongs).catch(function () {});
             }
             decodeGong();
+            return true;
         })
         .catch(function () {
             el.noSound.style.display = 'block';
+            return false;
         });
+}
+
+var soundProbe = setInterval(function () {
+    if (soundProbesLeft-- <= 0) {
+        // Out of opening attempts: from here a gesture is the only thing that can
+        // unlock audio, so wait for one instead of spinning.
+        clearInterval(soundProbe);
+        soundProbe = null;
+        return;
+    }
+    probeSound();
 }, 1000);
+
+function stopProbing() {
+    if (soundProbe) { clearInterval(soundProbe); soundProbe = null; }
+    document.removeEventListener('pointerdown', probeSound);
+    document.removeEventListener('keydown', probeSound);
+}
+
+// A tap or key press on an attended screen is exactly the gesture that unlocks audio.
+document.addEventListener('pointerdown', probeSound);
+document.addEventListener('keydown', probeSound);
 </script>
 {% endblock %}
