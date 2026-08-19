@@ -39,21 +39,21 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 **Theme:** no mutation should be reachable by GET. This is the highest-UI-risk session — it touches views *and* their templates together — so change one endpoint at a time and click through the admin after each.
 
-**Findings:** F6, `_apply_set_tournament` allowlist, `phase` whitelist, `add_mode` GET crash, `?logout=1` (×2), plus the admin-side robustness 500s that live in the same code (`json.loads` guards, `ScreenMode.get`/`.last()` guards).
+**Findings:** F6, `_apply_set_tournament` allowlist, `phase` whitelist, `add_mode` GET crash, `?logout=1` (×2), plus the admin-side robustness 500s that live in the same code. **✅ SESSION COMPLETE** — full suite 502 passing (+9 tests).
 
-- [ ] **F6 — require POST on every mutating action** and move params into the body: `ceremony_control?action=publish` (`ceremony.py:203-248`), screen/mode CRUD + `set_all_views`/`set_mode`/`rm_mode` (`admin_views.py:1394-1459`), `set_tournament` (`admin_views.py:1226-1277`), `update_screen_view`/`update_screen_name` (`display.py:313-335`). Return 405 otherwise. Convert the template anchors/fetches: `admin_display.html:49,438,444`, `admin_ceremony.html:290`, `admin.html:202` (logout).
-- [ ] **Whitelist `phase`** against `('idle','blank','teams','players','stat')` (`ceremony.py:236`); reject others so an unknown value can't blank every display.
-- [ ] **`add_mode` GET crash** — folds out naturally once the action is POST-only with a validated body.
-- [ ] **`?logout=1` → POST** (`admin_views.py:1325`, `public.py:29`) using Django's POST logout.
-- [ ] **`_apply_set_tournament` allowlist** (`admin_views.py:1226-1253`). Replace the denylist with an explicit per-page field allowlist (display page: layout fields only; settings page: identity/format fields) so a display operator can't rewrite `nb_rounds`/`rules`/`has_teams`/`public_url`.
-- [ ] **Admin 500-guards in the same code** — wrap `json.loads(request.body)` (`admin_views.py:878,931`) in the try/except pattern already used by `admin_team_draw_save`; use `get_object_or_404`/`.filter().first()` for `ScreenMode`/`Screen` and guard `.last().delete()` on empty querysets (`admin_views.py:1406,1424,1442`).
-- [ ] **Optional structural payoff** — begin decomposing `options()` (`admin_views.py:1322-1806`) by lifting these mutations into their own POST-only URLs in `apps/urls.py`; a `{page: (required_role, renderer)}` dispatch table makes a missing role-gate impossible to overlook. Do only as much as safely fits.
+- [x] **F6 — require POST on every mutating action** — method guards (405 on GET) on: `ceremony_control`, the display screen/mode dispatch (`add_screen`/`remove_screen`/`identify_screens`/`add_mode`/`set_all_views`/`rm_mode`/`set_mode`/`set_tournament`), settings `set_tournament`/`save_schedule`, and `update_screen_view`/`update_screen_name`. Params stay in the query string; CSRF is enforced by method. Templates converted: `admin_display.html` (new `postAdmin()` form-submit helper for add/remove screen + rm_mode), `admin_ceremony.html` (`send()` → POST + `X-CSRFToken`), `admin.html` (logout → POST form), `desktop.html` (logout → cookie-token POST form).
+- [x] **Whitelist `phase`** — `VALID_PHASES` in `ceremony.py`; unknown phase → 400, not stored.
+- [x] **`add_mode` GET crash** — gone (POST-only).
+- [x] **`?logout=1` → POST** — admin (`options`) and public (`desktop`). The public page is role-bucket-cached, so its logout form reads the CSRF token from the cookie at click time; `desktop` mints that cookie for authenticated viewers only (via `get_token`), keeping anonymous `/` free of `Set-Cookie` so nginx still microcaches it.
+- [x] **`_apply_set_tournament` allowlist** — `DISPLAY_SETTINGS_FIELDS` / `TOURNAMENT_SETTINGS_FIELDS`; the denylist is gone, so a display operator can't reach structural/identity fields and no page can touch `counter`.
+- [x] **Admin 500-guards** — `json.loads` guarded in `admin_player_draw_assign`/`player_editor_save`; `remove_screen` guards an empty queryset; `rm_mode`/`set_mode` use `_screen_mode_or_404` (404 on stale/non-numeric id).
+- [~] **Structural payoff (deferred to S8)** — kept the surgical method-guards inside `options()` rather than extracting the mutations into their own URLs; the security outcome is identical and it avoids a large, browser-untestable template rewrite. The `options()` decomposition remains an S8 cleanup item.
 
-**Files:** `ceremony.py`, `admin_views.py`, `display.py`, `public.py`, `apps/urls.py`, templates (`admin_display.html`, `admin_ceremony.html`, `admin.html`).
+**Tests:** GET→405 on each converted endpoint; add/remove screen + logout (admin & public) via POST; display-op `set_tournament` can't change `nb_rounds` (allowlist); unknown `phase` → 400; `rm_mode` bad/non-numeric id → 404; remove-with-no-screens is a no-op. In `test_ceremony.py`, `test_display_admin.py`.
 
-**Tests:** each converted endpoint returns 405 on GET and works on POST with CSRF (extend `test_security.py`, which already tests GET-vs-POST per endpoint); a display operator POSTing `set_tournament` with a non-allowlisted field is rejected; unknown `phase` rejected; stale/garbage `ScreenMode` id returns 4xx not 500.
+**⚠️ Manual click-through still recommended** (not covered by tests — the browser JS/form paths): display page → add/remove screen, apply mode, set all views, identify screens, rename screen, edit a display setting; ceremony console → start/reveal/back, blank, publish & end; settings → save a field + save schedule; both logout links (admin sidebar + public `⋮` menu).
 
-**Risk:** HIGH for UI regressions — the templates drive these via `<a href>`/`$.post`. Manual click-through of the display/ceremony/settings admin pages required in addition to tests.
+**Risk:** HIGH for UI regressions — verify the click-through above against a running instance.
 
 ---
 

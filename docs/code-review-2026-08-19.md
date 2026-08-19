@@ -108,14 +108,14 @@ Template literals build HTML from `p.full_name` / `t.name` with no escaping. Wor
 
 Django's CSRF protection never applies to GET, and SameSite=Lax cookies still ride top-level navigations — so every one of these is a working CSRF vector against a logged-in operator. Four reviewers hit this pattern independently.
 
-### F6 · HIGH · security/CSRF — Mutations tunneled through GET across the admin surface
+### ✅ DONE · F6 · HIGH · security/CSRF — Mutations tunneled through GET across the admin surface
 `views/ceremony.py:203-248` · `views/admin_views.py:1226-1277, 1394-1459` · `views/display.py:313-335` · `admin_display.html:49, 438, 444` · `admin_ceremony.html:290`
 
 The worst single instance: `ceremony_control?action=publish` publishes **all rounds including the withheld final** and fires the static export on a plain GET — one crafted link clicked by a logged-in display op reveals the results mid-ceremony. The same pattern covers `add_screen`/`remove_screen`/`rm_mode`/`set_mode`/`set_all_views`, `action=set_tournament`, and `update_screen_view`/`update_screen_name`. Even the POSTed ones read every parameter from `request.GET` with no method check, so GET works identically. Bonus bug: `add_mode` via bare GET crashes with an IntegrityError. Related nuisances: `?logout=1` logs the operator out on GET in two places (`admin_views.py:1325`, `public.py:29`), and `ceremony_control` stores `phase` unvalidated — any unknown string hijacks every display screen with an empty slide (`ceremony.py:236`).
 
 **Fix:** Require POST (405 otherwise) on every mutating action and move parameters into the body; convert the template anchors to POST fetches/forms (the mode-apply calls already POST — the views just don't enforce it). Whitelist `phase` against `('idle','blank','teams','players','stat')`. Structurally, splitting these actions out of the `options()` mega-view into their own POST-only URLs (like the rest of `apps/urls.py`) fixes the whole class.
 
-### Medium · security/privilege — `_apply_set_tournament` is a denylist, not an allowlist
+### ✅ DONE · Medium · security/privilege — `_apply_set_tournament` is a denylist, not an allowlist
 `mahj/views/admin_views.py:1226-1253`
 
 Only `counter` (and `total_time` for non-admins) are protected; any other `TournamentSettings` field is settable via `?tournament-<field>=`. A *display operator* (the role admitted to `page=display`) can rewrite `nb_rounds`, `has_teams`, `rules`, `public_url` — structural fields far beyond screen-layout tuning. Combines badly with the GET-mutation finding above.
@@ -349,8 +349,8 @@ A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with
 - `score_entry.py:217` — `int(round_nb)` runs *after* the transaction commits: a malformed `create_hand_points` request writes 16 hands, then 500s.
 - `score_entry.py:227, 296-297, 327-328` — raw `int(POST[...])` on version/params → 500 instead of 400.
 - `scan.py:321-332, 405` — `int()` on raw GET params and client body keys → 500.
-- `admin_views.py:878, 931` — bare `json.loads(request.body)` (the try/except pattern exists next door in `admin_team_draw_save`).
-- `admin_views.py:1406, 1424, 1442` — `.last().delete()` on an empty queryset, `ScreenMode.objects.get` on stale/non-numeric ids: two admin tabs out of sync → 500.
+- ✅ DONE (S2) — `admin_views.py` bare `json.loads(request.body)` in `admin_player_draw_assign`/`player_editor_save` now returns 400 on malformed input.
+- ✅ DONE (S2) — `remove_screen` guards an empty queryset; `rm_mode`/`set_mode` use `_screen_mode_or_404` (stale/non-numeric id → 404, not 500).
 
 ---
 
