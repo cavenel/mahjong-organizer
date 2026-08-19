@@ -145,20 +145,42 @@
           {% for label, base in access_bases %}
           <li><span class="inline-block w-40 text-gray-500">{{ label }}:</span> <span class="font-mono">{{ base }}/<span class="text-gray-400">N</span></span></li>
           {% endfor %}
-          <li id="public-access-row" class="hidden"><span class="inline-block w-40 text-gray-500">Public (internet):</span> <span class="font-mono"><span id="public-access-url"></span>/<span class="text-gray-400">N</span></span> <span class="text-amber-600">— only works if you port-forward port {{ access_port }} on the router</span></li>
+          <li><span class="inline-block w-40 text-gray-500">Public (internet):</span>
+            <button type="button" id="public-access-btn"
+                    class="text-amber-600 hover:underline font-medium">Look up my public IP</button>
+            <span id="public-access-hint" class="text-gray-400">— asks api.ipify.org</span>
+            <span class="font-mono hidden" id="public-access-row"><span id="public-access-url"></span>/<span class="text-gray-400">N</span></span>
+            <span class="text-amber-600 hidden" id="public-access-note">— only works if you port-forward port {{ access_port }} on the router</span>
+          </li>
         </ul>
       </div>
       <script>
-        // The public IP needs an external lookup and only works with port
-        // forwarding, so fill it in client-side and flag the caveat.
-        fetch('https://api.ipify.org?format=json')
-          .then(function (r) { return r.json(); })
-          .then(function (d) {
-            if (d && d.ip) {
-              document.getElementById('public-access-url').textContent = 'http://' + d.ip + ':{{ access_port }}';
+        // Click-to-run, not on page load: the lookup leaves the venue network to a
+        // third party, and the address it returns is only useful to an operator who
+        // has deliberately port-forwarded the router. Opening the Display page
+        // shouldn't phone anyone.
+        document.getElementById('public-access-btn').addEventListener('click', function () {
+          var btn = this;
+          btn.textContent = 'Looking up…';
+          btn.disabled = true;
+          fetch('https://api.ipify.org?format=json')
+            .then(function (r) { return r.json(); })
+            .then(function (d) {
+              if (!d || !d.ip) throw new Error('no address returned');
+              document.getElementById('public-access-url').textContent =
+                'http://' + d.ip + ':{{ access_port }}';
               document.getElementById('public-access-row').classList.remove('hidden');
-            }
-          }).catch(function () {});
+              document.getElementById('public-access-note').classList.remove('hidden');
+              document.getElementById('public-access-hint').classList.add('hidden');
+              btn.classList.add('hidden');
+            })
+            .catch(function () {
+              btn.disabled = false;
+              btn.textContent = 'Look up my public IP';
+              document.getElementById('public-access-hint').textContent =
+                '— lookup failed (no internet, or the service is blocked)';
+            });
+        });
       </script>
       {% endif %}
       {% include "mahj/_screen_previews.html" %}

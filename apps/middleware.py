@@ -21,7 +21,13 @@ class AuthCookieMiddleware:
             response.set_cookie(
                 self.COOKIE, '1',
                 max_age=60 * 60 * 24 * 14,
-                secure=True, httponly=False, samesite='Lax',
+                # Secure follows the request's own scheme. Hardcoding it meant the
+                # cookie was silently dropped over plain HTTP — which is how the
+                # standalone build and dev always run — so nginx's cache-bypass
+                # signal never arrived and logged-in staff could be served a cached
+                # anonymous page. It carries no secret; the session cookie is what
+                # authenticates, and that has its own Secure flag in prod.
+                secure=request.is_secure(), httponly=False, samesite='Lax',
             )
         elif not is_auth and has_cookie:
             response.delete_cookie(self.COOKIE)

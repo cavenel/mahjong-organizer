@@ -1,5 +1,8 @@
 bind = "unix:/run/gunicorn/mahjong.sock"
-umask = 0            # socket 0o666 so the nginx user can connect
+# socket 0o666 so the nginx user can connect. Safe only because the socket lives
+# in a directory shared with nginx alone, inside the container network — nothing
+# else can reach the path. Don't carry this setting to a host-mounted socket.
+umask = 0
 workers = 8          # UvicornWorker (async) on a 6-core box: cores + headroom, since
                      # sync Django views run one-at-a-time per worker (asgiref thread-
                      # sensitive), so blocking work (OCR/Anthropic, DB) needs extra workers.
