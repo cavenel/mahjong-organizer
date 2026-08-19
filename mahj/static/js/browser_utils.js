@@ -1,5 +1,5 @@
-/* Small helpers for pages that build HTML strings client-side or POST to the
-   API. Loaded with a plain <script src>, so both live on `window`. */
+/* Small helpers for pages that build HTML or CSV client-side, or that POST to
+   the API. Loaded with a plain <script src>, so all three live on `window`. */
 
 /* Escape a value for interpolation into an HTML string — both text nodes and
    quoted attribute values. Player and team names are operator-entered (Excel
@@ -12,6 +12,13 @@ window.escapeHtml = function (value) {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+};
+
+/* One CSV field, always quoted with embedded quotes doubled — so a name holding
+   a `"`, a comma or a newline stays a single field when the export is pasted
+   back into the import template. */
+window.csvField = function (value) {
+  return '"' + String(value == null ? '' : value).replace(/"/g, '""') + '"';
 };
 
 /* The CSRF token from the cookie, for the `X-CSRFToken` header on fetch/ajax

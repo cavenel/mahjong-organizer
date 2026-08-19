@@ -210,7 +210,9 @@ function renderResult(div, round_nb, table_nb, ok, msg) {
       canOpenSheet ? openSheet(round_nb, table_nb) : window.open('admin', '_blank'));
   } else {
     div.className = 'flex items-center gap-3 rounded-lg px-4 py-3 bg-red-50 text-red-700';
-    div.innerHTML = `<span class="text-lg">❌</span><span class="text-xs truncate">R${round_nb} T${table_nb}: ${msg}</span>`;
+    // `msg` is server / OCR-pipeline text, so it goes in as text, not markup.
+    div.innerHTML = '<span class="text-lg">❌</span><span class="text-xs truncate error-text"></span>';
+    div.querySelector('.error-text').textContent = `R${round_nb} T${table_nb}: ${msg}`;
   }
 }
 

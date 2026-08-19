@@ -8,6 +8,7 @@
   <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <script src="{% static 'js/browser_utils.js' %}"></script>
   <style>
     [x-cloak] { display: none !important; }
     @keyframes flash-green {
@@ -133,9 +134,9 @@
 
   function playerLabel(p) {
     const flag = p.flag
-      ? `<span class="flag flag-${p.flag}" style="width:22px;height:22px;vertical-align:middle;margin-right:6px"></span>`
+      ? `<span class="flag flag-${escapeHtml(p.flag)}" style="width:22px;height:22px;vertical-align:middle;margin-right:6px"></span>`
       : '';
-    return `${flag}${p.full_name}`;
+    return `${flag}${escapeHtml(p.full_name)}`;
   }
 
   // ─── STATE PERSISTENCE ─────────────────────────────────
@@ -172,13 +173,6 @@
 
   // ─── SERVER ───────────────────────────────────────────
 
-  function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return '';
-  }
-
   // Assign (draw_number set) or clear (draw_number null) one competitor's number.
   // Returns the parsed JSON {ok, error, ...}; the server does the availability
   // check under a lock, so this is authoritative.
@@ -188,7 +182,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken'),
+          'X-CSRFToken': csrfCookie(),
         },
         body: JSON.stringify({ player_id: playerId, draw_number: drawNumber }),
       });
@@ -396,7 +390,7 @@
       }
       case 'REVEAL': {
         const p = PLAYER_BY_ID.get(reveal.player_id);
-        el.innerHTML = `<span class="text-emerald-600">${p ? p.full_name : ''}</span>`;
+        el.innerHTML = `<span class="text-emerald-600">${p ? escapeHtml(p.full_name) : ''}</span>`;
         el.className = 'text-6xl font-bold text-gray-800 text-center';
         break;
       }
@@ -446,7 +440,7 @@
               <button onclick="cancelSelection()"
                       class="px-6 py-4 text-2xl bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-lg">Cancel</button>
             </div>
-            <div class="h-8 text-2xl font-semibold text-red-600">${entryError}</div>
+            <div class="h-8 text-2xl font-semibold text-red-600">${escapeHtml(entryError)}</div>
           </div>`;
         setTimeout(() => {
           const input = document.getElementById('number-input');
@@ -468,12 +462,12 @@
     }
     const p = PLAYER_BY_ID.get(reveal.player_id);
     const flag = p && p.flag
-      ? `<span class="flag flag-${p.flag}" style="width:40px;height:40px;vertical-align:middle;margin-right:10px"></span>`
+      ? `<span class="flag flag-${escapeHtml(p.flag)}" style="width:40px;height:40px;vertical-align:middle;margin-right:10px"></span>`
       : '';
     container.innerHTML = `
       <div class="animate-pop-in bg-emerald-50 border-4 border-emerald-400 ring-4 ring-emerald-200
                   rounded-2xl px-16 py-8 flex flex-col items-center gap-2">
-        <div class="text-3xl font-semibold text-gray-800 text-center">${flag}${p ? p.full_name : ''}</div>
+        <div class="text-3xl font-semibold text-gray-800 text-center">${flag}${p ? escapeHtml(p.full_name) : ''}</div>
         <div class="text-9xl font-bold text-emerald-700">#${reveal.draw_number}</div>
       </div>`;
   }
@@ -507,7 +501,7 @@
       html += `
         <div class="border rounded px-1.5 py-1 ${cls}">
           <div class="text-[11px] font-bold">#${dn}</div>
-          <div class="text-[10px] leading-tight truncate">${name || '&nbsp;'}</div>
+          <div class="text-[10px] leading-tight truncate">${name ? escapeHtml(name) : '&nbsp;'}</div>
         </div>`;
     }
     html += '</div>';
@@ -529,7 +523,7 @@
     rows.sort((a, b) => a.original_index - b.original_index);
     let csv = 'original_index,player_name,draw_number\n';
     for (const r of rows) {
-      csv += `${r.original_index},"${r.full_name}",${r.draw_number}\n`;
+      csv += `${r.original_index},${csvField(r.full_name)},${r.draw_number}\n`;
     }
     const blob = new Blob([csv], { type: 'text/csv' });
     const a = document.createElement('a');

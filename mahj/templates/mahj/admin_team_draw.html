@@ -8,6 +8,7 @@
   <link rel="icon" type="image/x-icon" href="{% static 'images/mcr_logo.png' %}">
   <link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
   <link rel="stylesheet" href="{% static 'images/flags.css' %}">
+  <script src="{% static 'js/browser_utils.js' %}"></script>
   <style>
     [x-cloak] { display: none !important; }
     @keyframes flash-green {
@@ -186,6 +187,7 @@
         state.paused = parsed.paused || false;
         state.started_at = parsed.started_at;
         state.finished_at = parsed.finished_at;
+        document.getElementById('pause-overlay').classList.toggle('hidden', !state.paused);
       } else {
         localStorage.removeItem('team_draw_state');
       }
@@ -231,15 +233,14 @@
     const container = document.getElementById('search-results');
     if (!container) return;
     const matches = getSearchMatches();
-    if (matches.length > 0) {
-      container.innerHTML = matches.map((t, i) =>
-        `<div class="text-3xl px-6 py-3 cursor-pointer rounded-lg transition-colors
-                    ${i === searchHighlight ? 'bg-teal-100 text-teal-900' : 'hover:bg-gray-100'}"
-              onclick="confirmTeam('${t.name.replace(/'/g, "\\'")}')">${t.name}</div>`
-      ).join('');
-    } else {
-      container.innerHTML = '';
-    }
+    container.innerHTML = matches.map((t, i) =>
+      `<div class="text-3xl px-6 py-3 cursor-pointer rounded-lg transition-colors
+                  ${i === searchHighlight ? 'bg-teal-100 text-teal-900' : 'hover:bg-gray-100'}"
+            data-team-index="${TEAMS.indexOf(t)}">${escapeHtml(t.name)}</div>`
+    ).join('');
+    container.querySelectorAll('[data-team-index]').forEach(row => {
+      row.addEventListener('click', () => confirmTeam(TEAMS[row.dataset.teamIndex].name));
+    });
   }
 
   function searchArrow(dir) {
@@ -349,11 +350,11 @@
         el.className = 'text-6xl font-bold text-gray-800 text-center';
         break;
       case 'ROLE_ENTRY':
-        el.innerHTML = `<span class="text-teal-700">${team.name}</span> &mdash; Team ${slot}`;
+        el.innerHTML = `<span class="text-teal-700">${escapeHtml(team.name)}</span> &mdash; Team ${slot}`;
         el.className = 'text-6xl font-bold text-gray-800 text-center';
         break;
       case 'SLOT_COMPLETE':
-        el.innerHTML = `<span class="text-emerald-600">${team.name}</span> &mdash; Complete`;
+        el.innerHTML = `<span class="text-emerald-600">${escapeHtml(team.name)}</span> &mdash; Complete`;
         el.className = 'text-6xl font-bold text-gray-800 text-center';
         break;
       case 'DRAW_COMPLETE':
@@ -449,14 +450,14 @@
       }
 
       const flagHtml = player.flag
-        ? `<span class="flag flag-${player.flag}" style="width:24px;height:24px;vertical-align:middle"></span>`
+        ? `<span class="flag flag-${escapeHtml(player.flag)}" style="width:24px;height:24px;vertical-align:middle"></span>`
         : '';
 
       return `
         <div class="flex-1 rounded-lg px-4 py-2 flex flex-col items-center justify-center gap-1
                     transition-all duration-300 ${cardClass}
                     ${isVerifying ? 'animate-fade-in-up' : ''}">
-          <div class="text-lg font-semibold text-gray-800 text-center">${flagHtml} ${player.full_name}</div>
+          <div class="text-lg font-semibold text-gray-800 text-center">${flagHtml} ${escapeHtml(player.full_name)}</div>
           <div class="text-7xl font-bold ${numberClass}">
             ${hasRole ? roleDisplay : '&mdash;'}
           </div>
@@ -507,7 +508,7 @@
           const rid = randId(s, role);
           const p = byRole.get(role);
           if (p) {
-            return `<div class="truncate"><b>#${rid}.</b> ${p.full_name}</div>`;
+            return `<div class="truncate"><b>#${rid}.</b> ${escapeHtml(p.full_name)}</div>`;
           } else {
             return `<div class="truncate text-gray-400">#${rid}.</div>`;
           }
@@ -518,7 +519,7 @@
 
       html += `
         <div class="border rounded px-1.5 py-1 ${bgClass} ${ringClass}">
-          <div class="text-[11px] font-bold truncate">${s}. ${team ? team.name : ''}</div>
+          <div class="text-[11px] font-bold truncate">${s}. ${team ? escapeHtml(team.name) : ''}</div>
           <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
         </div>`;
     }
@@ -559,11 +560,11 @@
     let gridHtml = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
     for (const r of result) {
       const playerLines = r.players.map(p =>
-        `<div class="truncate"><b>#${p.rand_id}</b>. ${p.full_name}</div>`
+        `<div class="truncate"><b>#${p.rand_id}</b>. ${escapeHtml(p.full_name)}</div>`
       ).join('');
       gridHtml += `
         <div class="border rounded px-1.5 py-1 bg-emerald-100 text-emerald-900">
-          <div class="text-[11px] font-bold truncate">${r.slot}. ${r.team_name}</div>
+          <div class="text-[11px] font-bold truncate">${r.slot}. ${escapeHtml(r.team_name)}</div>
           <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
         </div>`;
     }
@@ -626,7 +627,7 @@
     rows.sort((a, b) => a.original_index - b.original_index);
     let csv = 'original_index,slot,team_name,player_name,role_display,rand_id\n';
     for (const r of rows) {
-      csv += `${r.original_index},${r.slot},"${r.team_name}","${r.full_name}",${r.role_display},${r.rand_id}\n`;
+      csv += `${r.original_index},${r.slot},${csvField(r.team_name)},${csvField(r.full_name)},${r.role_display},${r.rand_id}\n`;
     }
     downloadCSV(csv);
   }
@@ -662,7 +663,7 @@
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-CSRFToken': getCookie('csrftoken'),
+          'X-CSRFToken': csrfCookie(),
         },
         body: JSON.stringify({ assignments: result }),
       });
@@ -690,13 +691,6 @@
         banner.className = 'text-sm text-red-600 font-semibold mt-2';
       }
     }
-  }
-
-  function getCookie(name) {
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop().split(';').shift();
-    return '';
   }
 
   // ─── KEYBOARD HANDLER ─────────────────────────────────
@@ -780,7 +774,7 @@
     rows.sort((a, b) => a.original_index - b.original_index);
     let csv = 'original_index,slot,team_name,player_name,rand_id\n';
     for (const r of rows) {
-      csv += `${r.original_index},${r.slot},"${r.team_name}","${r.full_name}",${r.rand_id}\n`;
+      csv += `${r.original_index},${r.slot},${csvField(r.team_name)},${csvField(r.full_name)},${r.rand_id}\n`;
     }
     downloadCSV(csv);
   }
@@ -791,11 +785,11 @@
     let gridHtml = `<div class="grid gap-1.5" style="grid-template-columns: repeat(${cols}, minmax(0, 1fr))">`;
     for (const r of savedDraw) {
       const playerLines = r.players.map(p =>
-        `<div class="truncate"><b>#${p.rand_id}</b>. ${p.full_name}</div>`
+        `<div class="truncate"><b>#${p.rand_id}</b>. ${escapeHtml(p.full_name)}</div>`
       ).join('');
       gridHtml += `
         <div class="border rounded px-1.5 py-1 bg-emerald-100 text-emerald-900">
-          <div class="text-[11px] font-bold truncate">${r.slot}. ${r.team_name}</div>
+          <div class="text-[11px] font-bold truncate">${r.slot}. ${escapeHtml(r.team_name)}</div>
           <div class="text-[9px] leading-tight font-mono">${playerLines}</div>
         </div>`;
     }
