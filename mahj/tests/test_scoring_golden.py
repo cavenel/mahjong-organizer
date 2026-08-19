@@ -40,6 +40,14 @@ def test_stat_all_rounds(request_):
     assert_snapshot('stat_all_rounds', views.stat_all_rounds(request_))
 
 
+def test_stats_export(request_):
+    """Feeds the xlsx export, and carries the per-player win/luck tallies — the
+    surface with no other golden coverage, so a refactor of that loop had nothing
+    holding it."""
+    from mahj.views.scoring import stats_export
+    assert_snapshot('stats_export', stats_export(request_, full_view=True))
+
+
 def test_table_stats(request_):
     assert_snapshot('table_stats', views.table_stats(request_))
 

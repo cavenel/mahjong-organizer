@@ -1,0 +1,679 @@
+{
+  "players": [
+    {
+      "avg_hand_value": 38.5,
+      "biggest_hand": 46,
+      "country": "Japan",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player13 Lastname",
+      "opp_avg": 2.0,
+      "opp_count": 6,
+      "opp_total": 12.0,
+      "placement": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 1,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 120,
+          "round_nb": 1,
+          "tp": 4.0
+        },
+        {
+          "mp": 125,
+          "round_nb": 2,
+          "tp": 4.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 245,
+      "total_tp": 8.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 27.5,
+      "biggest_hand": 34,
+      "country": "Japan",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player9 Lastname",
+      "opp_avg": 2.0,
+      "opp_count": 6,
+      "opp_total": 12.0,
+      "placement": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 2,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 80,
+          "round_nb": 1,
+          "tp": 4.0
+        },
+        {
+          "mp": 85,
+          "round_nb": 2,
+          "tp": 4.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 165,
+      "total_tp": 8.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 18.5,
+      "biggest_hand": 25,
+      "country": "Japan",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player5 Lastname",
+      "opp_avg": 2.0,
+      "opp_count": 6,
+      "opp_total": 12.0,
+      "placement": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 3,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 40,
+          "round_nb": 1,
+          "tp": 4.0
+        },
+        {
+          "mp": 45,
+          "round_nb": 2,
+          "tp": 4.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 85,
+      "total_tp": 8.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 9.5,
+      "biggest_hand": 16,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player1 Lastname",
+      "opp_avg": 2.0,
+      "opp_count": 6,
+      "opp_total": 12.0,
+      "placement": {
+        "1": 2,
+        "2": 0,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 4,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 0,
+          "round_nb": 1,
+          "tp": 4.0
+        },
+        {
+          "mp": 5,
+          "round_nb": 2,
+          "tp": 4.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 5,
+      "total_tp": 8.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 33.0,
+      "biggest_hand": 44,
+      "country": "Germany",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player14 Lastname",
+      "opp_avg": 3.3,
+      "opp_count": 6,
+      "opp_total": 20.0,
+      "placement": {
+        "1": 0,
+        "2": 2,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 5,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 130,
+          "round_nb": 1,
+          "tp": 2.0
+        },
+        {
+          "mp": 135,
+          "round_nb": 2,
+          "tp": 2.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 265,
+      "total_tp": 4.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 24.0,
+      "biggest_hand": 35,
+      "country": "Germany",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player10 Lastname",
+      "opp_avg": 3.3,
+      "opp_count": 6,
+      "opp_total": 20.0,
+      "placement": {
+        "1": 0,
+        "2": 2,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 6,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 90,
+          "round_nb": 1,
+          "tp": 2.0
+        },
+        {
+          "mp": 95,
+          "round_nb": 2,
+          "tp": 2.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 185,
+      "total_tp": 4.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 15.0,
+      "biggest_hand": 26,
+      "country": "Germany",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player6 Lastname",
+      "opp_avg": 3.3,
+      "opp_count": 6,
+      "opp_total": 20.0,
+      "placement": {
+        "1": 0,
+        "2": 2,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 7,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 50,
+          "round_nb": 1,
+          "tp": 2.0
+        },
+        {
+          "mp": 55,
+          "round_nb": 2,
+          "tp": 2.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 105,
+      "total_tp": 4.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 22.0,
+      "biggest_hand": 43,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player2 Lastname",
+      "opp_avg": 3.3,
+      "opp_count": 6,
+      "opp_total": 20.0,
+      "placement": {
+        "1": 0,
+        "2": 2,
+        "3": 0,
+        "4": 0
+      },
+      "rank": 8,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 10,
+          "round_nb": 1,
+          "tp": 2.0
+        },
+        {
+          "mp": 15,
+          "round_nb": 2,
+          "tp": 2.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 25,
+      "total_tp": 4.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 29.5,
+      "biggest_hand": 45,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player15 Lastname",
+      "opp_avg": 4.0,
+      "opp_count": 6,
+      "opp_total": 24.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0
+      },
+      "rank": 9,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 140,
+          "round_nb": 1,
+          "tp": 1.0
+        },
+        {
+          "mp": 145,
+          "round_nb": 2,
+          "tp": 1.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 285,
+      "total_tp": 2.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 18.5,
+      "biggest_hand": 36,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player11 Lastname",
+      "opp_avg": 4.0,
+      "opp_count": 6,
+      "opp_total": 24.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0
+      },
+      "rank": 10,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 100,
+          "round_nb": 1,
+          "tp": 1.0
+        },
+        {
+          "mp": 105,
+          "round_nb": 2,
+          "tp": 1.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 205,
+      "total_tp": 2.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 27.5,
+      "biggest_hand": 44,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player7 Lastname",
+      "opp_avg": 4.0,
+      "opp_count": 6,
+      "opp_total": 24.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0
+      },
+      "rank": 11,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 60,
+          "round_nb": 1,
+          "tp": 1.0
+        },
+        {
+          "mp": 65,
+          "round_nb": 2,
+          "tp": 1.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 125,
+      "total_tp": 2.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 18.5,
+      "biggest_hand": 35,
+      "country": "Sweden",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player3 Lastname",
+      "opp_avg": 4.0,
+      "opp_count": 6,
+      "opp_total": 24.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 2,
+        "4": 0
+      },
+      "rank": 12,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 20,
+          "round_nb": 1,
+          "tp": 1.0
+        },
+        {
+          "mp": 25,
+          "round_nb": 2,
+          "tp": 1.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 45,
+      "total_tp": 2.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 24.0,
+      "biggest_hand": 46,
+      "country": "France",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player16 Lastname",
+      "opp_avg": 4.7,
+      "opp_count": 6,
+      "opp_total": 28.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 2
+      },
+      "rank": 13,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 150,
+          "round_nb": 1,
+          "tp": 0.0
+        },
+        {
+          "mp": 155,
+          "round_nb": 2,
+          "tp": 0.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 305,
+      "total_tp": 0.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 33.0,
+      "biggest_hand": 45,
+      "country": "France",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player12 Lastname",
+      "opp_avg": 4.7,
+      "opp_count": 6,
+      "opp_total": 28.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 2
+      },
+      "rank": 14,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 110,
+          "round_nb": 1,
+          "tp": 0.0
+        },
+        {
+          "mp": 115,
+          "round_nb": 2,
+          "tp": 0.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 225,
+      "total_tp": 0.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 24.0,
+      "biggest_hand": 36,
+      "country": "France",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player8 Lastname",
+      "opp_avg": 4.7,
+      "opp_count": 6,
+      "opp_total": 28.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 2
+      },
+      "rank": 15,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 70,
+          "round_nb": 1,
+          "tp": 0.0
+        },
+        {
+          "mp": 75,
+          "round_nb": 2,
+          "tp": 0.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 145,
+      "total_tp": 0.0,
+      "wins": 8
+    },
+    {
+      "avg_hand_value": 13.0,
+      "biggest_hand": 23,
+      "country": "France",
+      "deal_in": 8,
+      "deal_in_pct": 25.0,
+      "draws": 0,
+      "name": "Player4 Lastname",
+      "opp_avg": 4.7,
+      "opp_count": 6,
+      "opp_total": 28.0,
+      "placement": {
+        "1": 0,
+        "2": 0,
+        "3": 0,
+        "4": 2
+      },
+      "rank": 16,
+      "ron_win": 8,
+      "scores": [
+        {
+          "mp": 30,
+          "round_nb": 1,
+          "tp": 0.0
+        },
+        {
+          "mp": 35,
+          "round_nb": 2,
+          "tp": 0.0
+        }
+      ],
+      "sd_lose": 0,
+      "sd_lose_pct": 0.0,
+      "sd_rate_pct": 0.0,
+      "sd_win": 0,
+      "sd_win_share_pct": 0.0,
+      "team": "",
+      "total_hands": 32,
+      "total_mp": 65,
+      "total_tp": 0.0,
+      "wins": 8
+    }
+  ],
+  "round_max": 2,
+  "rules": "MCR",
+  "uses_teams": false
+}

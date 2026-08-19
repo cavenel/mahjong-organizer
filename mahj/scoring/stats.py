@@ -44,6 +44,45 @@ def scores_per_table(tenant, tournament):
     return grid
 
 
+# What one hand meant for the player sitting in one wind. Every hand/seat pair falls
+# into exactly one of these, or None when the seat wasn't involved (someone else's
+# discard win). Named once because four tallies ask the same question, and the rules
+# are easy to restate subtly differently — a lost `h.is_self_draw` turns a self-draw
+# into a deal-in for three seats at once.
+HAND_DRAW = 'draw'          # nobody won
+HAND_SELF_DRAW_WIN = 'sd_win'    # this seat won, off their own tile
+HAND_DISCARD_WIN = 'ron_win'     # this seat won, off someone's discard
+HAND_DEAL_IN = 'deal_in'         # this seat fed the winning tile
+HAND_SELF_DRAW_LOSS = 'sd_lose'  # this seat paid out someone else's self-draw
+
+
+def _place_within_table(value, peer_values):
+    """A seat's finishing place at its own table, on whatever field the rules rank on.
+
+    Standard competition ranking: count the peers who beat you and add one, so tied
+    seats share a place (1, 1, 3, 4) and a tie for first is never dropped from the
+    stats. Pass only scored peers — an unscored seat has no place at all.
+    """
+    return 1 + sum(1 for peer in peer_values if peer > value)
+
+
+def classify_hand(hand, wind):
+    """How ``hand`` counts for the player seated in ``wind`` (1-4).
+
+    Returns one of the HAND_* constants, or None when this seat took no part —
+    a discard win between two of the other three.
+    """
+    if hand.is_draw:
+        return HAND_DRAW
+    if hand.win_by == wind:
+        return HAND_SELF_DRAW_WIN if hand.is_self_draw else HAND_DISCARD_WIN
+    if hand.is_self_draw:
+        return HAND_SELF_DRAW_LOSS
+    if hand.win_from == wind:
+        return HAND_DEAL_IN
+    return None
+
+
 def round_winners(tenant, tournament, full_view=False, seats=None, hands=None):
     """Per-round top minipoints / single-hand score / same-seat-win streaks."""
     if not full_view:
@@ -211,25 +250,25 @@ def stats_export(tenant, tournament, full_view=False, seats=None, hands=None):
             if h.is_draw:
                 continue  # draw — credited to every seat via draw_table below
             decided += 1
-            winner = seat_lookup.get((r, t, h.win_by))
-            if winner is not None:
-                won_pts[winner.id] += h.points
-                biggest[winner.id] = max(biggest[winner.id], h.points)
-                if h.is_self_draw:
-                    sd_win[winner.id] += 1
-                else:
-                    ron_win[winner.id] += 1
-            if h.is_self_draw:
-                for wind in (1, 2, 3, 4):
-                    if wind == h.win_by:
-                        continue
-                    victim = seat_lookup.get((r, t, wind))
-                    if victim is not None:
-                        sd_lose[victim.id] += 1
-            else:
-                giver = seat_lookup.get((r, t, h.win_from))
-                if giver is not None:
-                    deal_in[giver.id] += 1
+            # Ask classify_hand once per seat rather than picking out the winner,
+            # the giver and the victims by hand: same attribution, one definition
+            # of the rules, shared with the player and team hand-stat panels.
+            for wind in (1, 2, 3, 4):
+                seated = seat_lookup.get((r, t, wind))
+                if seated is None:
+                    continue
+                kind = classify_hand(h, wind)
+                if kind in (HAND_SELF_DRAW_WIN, HAND_DISCARD_WIN):
+                    won_pts[seated.id] += h.points
+                    biggest[seated.id] = max(biggest[seated.id], h.points)
+                    if kind == HAND_SELF_DRAW_WIN:
+                        sd_win[seated.id] += 1
+                    else:
+                        ron_win[seated.id] += 1
+                elif kind == HAND_DEAL_IN:
+                    deal_in[seated.id] += 1
+                elif kind == HAND_SELF_DRAW_LOSS:
+                    sd_lose[seated.id] += 1
         draw_table = hp - decided
         for wind in (1, 2, 3, 4):
             seated = seat_lookup.get((r, t, wind))
@@ -245,7 +284,8 @@ def stats_export(tenant, tournament, full_view=False, seats=None, hands=None):
         for p in peers:
             mine = getattr(p, rank_field)
             if mine is not None:
-                place = 1 + sum(1 for q in scored_peers if getattr(q, rank_field) > mine)
+                place = _place_within_table(
+                    mine, [getattr(q, rank_field) for q in scored_peers])
                 if place <= 4:
                     placement[p.player_id][place] += 1
             for q in peers:
@@ -347,22 +387,19 @@ def _table_stats_for(seats, hands, valid):
                 continue
             won_pts += h.points
             won_count += 1
-            winner = seat_lookup.get((h.round_nb, h.table_nb, h.win_by))
-            if winner is not None:
-                wins[winner] += 1
-            if h.is_self_draw:
-                if winner is not None:
-                    self_draws[winner] += 1
-                for wind in (1, 2, 3, 4):
-                    if wind == h.win_by:
-                        continue
-                    victim = seat_lookup.get((h.round_nb, h.table_nb, wind))
-                    if victim is not None:
-                        sd_victims[victim] += 1
-            else:
-                giver = seat_lookup.get((h.round_nb, h.table_nb, h.win_from))
-                if giver is not None:
-                    deal_ins[giver] += 1
+            for wind in (1, 2, 3, 4):
+                who = seat_lookup.get((h.round_nb, h.table_nb, wind))
+                if who is None:
+                    continue
+                kind = classify_hand(h, wind)
+                if kind in (HAND_SELF_DRAW_WIN, HAND_DISCARD_WIN):
+                    wins[who] += 1
+                    if kind == HAND_SELF_DRAW_WIN:
+                        self_draws[who] += 1
+                elif kind == HAND_DEAL_IN:
+                    deal_ins[who] += 1
+                elif kind == HAND_SELF_DRAW_LOSS:
+                    sd_victims[who] += 1
 
     avg_hand_value = round(won_pts / won_count, 1) if won_count else 0
 
@@ -530,22 +567,21 @@ def player_extra_stats(tenant, player, tournament, max_round=None):
             continue
         if (h.round_nb, h.table_nb) not in completed:
             continue
-        wind = info[1]
         total_hands += 1
-        if h.is_draw:
+        kind = classify_hand(h, info[1])
+        if kind == HAND_DRAW:
             draw += 1
-            continue
-        if h.win_by == wind:
+        elif kind == HAND_SELF_DRAW_WIN:
+            sd_win += 1
+        elif kind == HAND_DISCARD_WIN:
+            ron_win += 1
+        elif kind == HAND_DEAL_IN:
+            deal_in += 1
+        elif kind == HAND_SELF_DRAW_LOSS:
+            sd_lose += 1
+        if kind in (HAND_SELF_DRAW_WIN, HAND_DISCARD_WIN):
             won_pts[h.round_nb] += h.points
             won_count[h.round_nb] += 1
-            if h.is_self_draw:
-                sd_win += 1
-            else:
-                ron_win += 1
-        elif not h.is_self_draw and h.win_from == wind:
-            deal_in += 1
-        elif h.win_by != wind and h.is_self_draw:
-            sd_lose += 1
 
     hand_value = [
         {
@@ -637,19 +673,17 @@ def team_extra_stats(tenant, team_name, tournament, max_round=None):
             info = rts_map.get(h.round_nb)
             if info is None or h.table_nb != info[0]:
                 continue
-            wind = info[1]
             total_hands += 1
-            if h.is_draw:
+            kind = classify_hand(h, info[1])
+            if kind == HAND_DRAW:
                 draw += 1
-                continue
-            if h.win_by == wind:
-                if h.is_self_draw:
-                    sd_win += 1
-                else:
-                    ron_win += 1
-            elif not h.is_self_draw and h.win_from == wind:
+            elif kind == HAND_SELF_DRAW_WIN:
+                sd_win += 1
+            elif kind == HAND_DISCARD_WIN:
+                ron_win += 1
+            elif kind == HAND_DEAL_IN:
                 deal_in += 1
-            elif h.win_by != wind and h.is_self_draw:
+            elif kind == HAND_SELF_DRAW_LOSS:
                 sd_lose += 1
 
     def _pct(n):
@@ -700,7 +734,8 @@ def _placement_counts(tenant, seats, tournament):
         if my_val is None:
             continue
         peers = table_seats[(seat.round_nb, seat.table_nb)]
-        place = 1 + sum(1 for p in peers if getattr(p, rank_field) > my_val)
+        place = _place_within_table(
+            my_val, [getattr(p, rank_field) for p in peers])
         if place <= 4:
             counts[place] += 1
     return counts
