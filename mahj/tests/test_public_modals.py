@@ -24,6 +24,29 @@ def client_():
 
 
 @pytest.fixture
+def tenant_b_player(db, tournament):
+    """A competitor belonging to a different tenant, for cross-tenant probes."""
+    from mahj.models import Player, Tenant
+    other = Tenant.objects.create(name='Other', subdomain='other')
+    return Player.objects.create(
+        tenant=other, draw_number=1, full_name='Outsider', first_name='Outsider')
+
+
+@pytest.fixture
+def teamed_tournament(tournament):
+    """The fixture's players split into teams. Returns the URL path for one team's
+    modal — details_team takes the team name itself (the md5 is only a cache key)."""
+    from urllib.parse import quote
+    for i, p in enumerate(tournament['players']):
+        p.team = f'Team {chr(ord("A") + i % 4)}'
+        p.save()
+    settings_row = tournament['settings']
+    settings_row.has_teams = True
+    settings_row.save()
+    return '/details_team_' + quote('Team A')
+
+
+@pytest.fixture
 def staff_user(tournament):
     u = User.objects.create_user('boss', password='pw')
     grant(u, tournament['tenant'], admin=True)
@@ -130,3 +153,69 @@ class TestDetailedScoresReveal:
         client_.force_login(staff_user)
         staff = client_.get('/detailed_scores_3_1').content.decode()
         assert 'Results not yet revealed' not in staff
+
+
+# --------------------------------------------------------------------------
+# S8 correctness: public endpoints must 404 rather than 500 or cache junk
+# --------------------------------------------------------------------------
+
+class TestDetailsPlayerUnknownId:
+    """Public and enumerable, so a crafted id is a routine event."""
+
+    def test_unknown_id_is_404_not_500(self, client_, tournament):
+        assert client_.get('/details_player_999999').status_code == 404
+
+    def test_another_tenants_player_is_404(self, client_, tournament, tenant_b_player):
+        assert client_.get(f'/details_player_{tenant_b_player.id}').status_code == 404
+
+    def test_a_real_player_still_renders(self, client_, tournament):
+        player = tournament['players'][0]
+        resp = client_.get(f'/details_player_{player.id}')
+        assert resp.status_code == 200
+        assert player.full_name.encode() in resp.content
+
+
+class TestDetailedScoresBoundedToTheChart:
+    """The cache key is built from URL coordinates, so an unbounded endpoint let a
+    crawler fill the cache with one placeholder per pair it invented."""
+
+    def test_table_outside_the_chart_is_404(self, client_, tournament):
+        assert client_.get('/detailed_scores_1_999').status_code == 404
+
+    def test_round_outside_the_chart_is_404(self, client_, tournament):
+        assert client_.get('/detailed_scores_99_1').status_code == 404
+
+    def test_nothing_is_cached_for_a_bogus_pair(self, client_, tournament):
+        cache.clear()
+        client_.get('/detailed_scores_1_999')
+        keys = [f'modal_detailed:test:1:999:{a}:0' for a in (True, False)]
+        assert all(cache.get(k) is None for k in keys)
+
+    def test_a_real_table_still_renders(self, client_, tournament):
+        assert client_.get('/detailed_scores_1_1').status_code == 200
+
+
+class TestTeamModalRankHistory:
+    """team_history_pos holds None for a round the team isn't ranked in yet. Rendered
+    with Django's default repr that became the JS literal `None` — a syntax error
+    that killed the whole modal script, chart and all."""
+
+    def test_history_reaches_the_page_as_json(self, client_, teamed_tournament):
+        resp = client_.get(teamed_tournament)
+        assert resp.status_code == 200
+        body = resp.content.decode()
+        assert '<script id="team-history-pos" type="application/json">' in body
+        assert "getElementById('team-history-pos')" in body
+
+    def test_an_unranked_round_is_json_null_not_python_none(self, client_, teamed_tournament):
+        import json
+        import re
+        body = client_.get(teamed_tournament).content.decode()
+        block = re.search(
+            r'<script id="team-history-pos" type="application/json">(.*?)</script>',
+            body, re.DOTALL)
+        assert block, 'no history payload on the page'
+        # Parses as JSON — which `None` never would.
+        history = json.loads(block.group(1))
+        assert isinstance(history, list)
+        assert 'None' not in block.group(1)

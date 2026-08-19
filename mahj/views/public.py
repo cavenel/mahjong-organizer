@@ -120,28 +120,7 @@ def desktop(request):
         for r in seating
     ]
 
-    rows = []
-    for s in standings:
-        tables = [player_table.get((s['player_id'], r)) for r in range(1, nb_rounds + 1)]
-        scores_with_table = []
-        for r_idx, sc in enumerate(s.get('scores', [])):
-            scores_with_table.append({
-                'tp': sc.get('tp'),
-                'mp': sc.get('mp'),
-                'table_nb': tables[r_idx] if r_idx < len(tables) else None,
-                'round_nb': r_idx + 1,
-            })
-        rows.append({
-            'player_id': s['player_id'],
-            'name': s['name'],
-            'flag': s['flag'],
-            'country': s.get('country', ''),
-            'pos': s['pos'],
-            'pos_se': s.get('pos_se'),
-            'total': s['total'],
-            'team': s.get('team', ''),
-            'scores': scores_with_table,
-        })
+    rows = _desktop_rows(standings, player_table)
 
     uses_teams = tournament.has_teams
     team_rows = team_standings(rows, tournament, nb_rounds) if uses_teams else []
@@ -203,6 +182,57 @@ def _color_scale(good='up'):
     )
 
 
+def _desktop_rows(standings, player_table):
+    """Standing rows for the desktop page, each score tagged with the round it was
+    played in and the table it was played at.
+
+    Keyed on ``round_nb``, never on position in the score list: a player the seating
+    chart doesn't seat in every round (a bye, or a substitute given a fresh draw
+    number mid-tournament) has a shorter list, and reading it positionally shifts
+    every later score into the wrong round and pairs it with the wrong table.
+    ``team_standings`` already folds scores in by ``round_nb`` for that reason, so it
+    was being handed labels that could disagree with the seat the score came from.
+    """
+    return [
+        {
+            'player_id': s['player_id'],
+            'name': s['name'],
+            'flag': s['flag'],
+            'country': s.get('country', ''),
+            'pos': s['pos'],
+            'pos_se': s.get('pos_se'),
+            'total': s['total'],
+            'team': s.get('team', ''),
+            'scores': [
+                {
+                    'tp': sc.get('tp'),
+                    'mp': sc.get('mp'),
+                    'table_nb': player_table.get((s['player_id'], sc['round_nb'])),
+                    'round_nb': sc['round_nb'],
+                }
+                for sc in s.get('scores', [])
+            ],
+        }
+        for s in standings
+    ]
+
+
+def _round_score(round_nb, field):
+    """Accessor for one round's score in the xlsx export, found by round number.
+
+    Positional lookup put every later round in the wrong column for any player the
+    seating chart doesn't seat in every round (a bye, or a substitute given a fresh
+    draw number mid-tournament) — their score list is shorter, so R3's value landed
+    under R2. A round the player didn't play is blank.
+    """
+    def get(row):
+        for score in row.get('scores', []):
+            if score.get('round_nb') == round_nb:
+                return score.get(field)
+        return None
+    return get
+
+
 def stats_xlsx(request):
     """Download every displayed per-player stat as one colour-scaled Excel sheet.
 
@@ -239,10 +269,10 @@ def stats_xlsx(request):
     if is_mcr:
         cols.append(('Total TP', lambda r: r['total_tp'], 'up'))
     cols.append(('Total MP', lambda r: r['total_mp'], 'up'))
-    for i in range(nb_rounds):
-        cols.append((f'R{i + 1} MP', (lambda i: lambda r: (r['scores'][i]['mp'] if i < len(r['scores']) else None))(i), 'up'))
+    for round_nb in range(1, nb_rounds + 1):
+        cols.append((f'R{round_nb} MP', _round_score(round_nb, 'mp'), 'up'))
         if is_mcr:
-            cols.append((f'R{i + 1} TP', (lambda i: lambda r: (r['scores'][i]['tp'] if i < len(r['scores']) else None))(i), 'up'))
+            cols.append((f'R{round_nb} TP', _round_score(round_nb, 'tp'), 'up'))
     cols += [
         ('1st', lambda r: r['placement'][1], 'up'),
         ('2nd', lambda r: r['placement'][2], 'up'),

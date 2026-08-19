@@ -5,10 +5,13 @@ UI and tournament rules depend on — rank ordering, tie-sharing, per-country
 Swedish ranking, hidden final cut-off, etc.
 """
 import pytest
+from django.contrib.auth.models import User
 
 from mahj import views
 from mahj.models import Hand, Player, Seat, ScoreSheet, PublishedRound, TournamentSettings
 from mahj.scoring import player_extra_stats, public_round_max, team_extra_stats
+from mahj.tests.conftest import grant
+from mahj.views.scoring import scores_per_player_rows
 
 
 @pytest.fixture
@@ -703,3 +706,91 @@ class TestPublisherOverviewRiichiColumns:
         # The columns that drive the Riichi workflow are still present.
         assert '<th>Tables scored</th>' in html
         assert '<th>Published</th>' in html
+
+
+# --------------------------------------------------------------------------
+# S8: per-round data keyed by round, never by list position
+# --------------------------------------------------------------------------
+
+class TestSparseScoresKeepTheirRound:
+    """A player the seating chart doesn't seat in every round has a shorter score
+    list. The desktop page and the xlsx export both walked that list positionally,
+    so every score after the gap was labelled with the wrong round — and paired with
+    the wrong table.
+    """
+
+    @pytest.fixture
+    def missing_round_two(self, tournament):
+        """Take one competitor out of round 2 entirely, as a bye or a mid-tournament
+        substitute with a fresh draw number would be."""
+        tenant = tournament['tenant']
+        player = tournament['players'][0]
+        Seat.objects.filter(
+            tenant=tenant, round_nb=2, draw_number=player.draw_number).delete()
+        return tournament, player
+
+    def test_standings_row_skips_the_missed_round(self, missing_round_two, request_):
+        tournament, player = missing_round_two
+        rows = scores_per_player_rows(request_, full_view=True)
+        row = next(r for r in rows if r['player_id'] == player.id)
+        played = [sc['round_nb'] for sc in row['scores']]
+        # Rounds 1 and 3 are scored in the fixture; 2 no longer seats this player.
+        # The point is that the list carries the *real* round numbers, with a gap.
+        assert 2 not in played
+        assert played == sorted(played)
+
+    def test_desktop_rows_pair_each_score_with_its_own_round_and_table(self):
+        """The direct unit. Positional lookup would put round 3's score under round 2
+        and hand it round 2's table."""
+        from mahj.views.public import _desktop_rows
+        standings = [{
+            'player_id': 7, 'name': 'P', 'flag': '', 'pos': 1,
+            'total': {'mp': 44, 'tp': 5.0},
+            'scores': [
+                {'round_nb': 1, 'mp': 11, 'tp': 4.0},
+                {'round_nb': 3, 'mp': 33, 'tp': 1.0},
+            ],
+        }]
+        player_table = {(7, 1): 2, (7, 2): 5, (7, 3): 9}
+
+        scores = _desktop_rows(standings, player_table)[0]['scores']
+        assert [sc['round_nb'] for sc in scores] == [1, 3]
+        assert [sc['mp'] for sc in scores] == [11, 33]
+        # Round 3's score sits at round 3's table (9), not round 2's (5).
+        assert [sc['table_nb'] for sc in scores] == [2, 9]
+
+    def test_desktop_page_renders_with_a_gap(self, missing_round_two):
+        from django.test import Client
+        tournament, player = missing_round_two
+        # Staff view, so no publish masking hides the later rounds.
+        u = User.objects.create_user('deskadmin', password='pw')
+        grant(u, tournament['tenant'], admin=True)
+        c = Client()
+        c.force_login(u)
+        assert c.get('/', HTTP_HOST='test.example.com').status_code == 200
+
+    def test_xlsx_round_columns_are_found_by_round_number(self, missing_round_two):
+        """The direct unit: the export's accessor must read round N's score, not the
+        Nth item in a list that may be missing earlier rounds."""
+        from mahj.views.public import _round_score
+        row = {'scores': [
+            {'round_nb': 1, 'mp': 11, 'tp': 4.0},
+            {'round_nb': 3, 'mp': 33, 'tp': 1.0},
+        ]}
+        assert _round_score(1, 'mp')(row) == 11
+        # Positional indexing would return 33 here — round 3's score under R2.
+        assert _round_score(2, 'mp')(row) is None
+        assert _round_score(3, 'mp')(row) == 33
+        assert _round_score(3, 'tp')(row) == 1.0
+        assert _round_score(9, 'mp')(row) is None
+
+    def test_xlsx_export_still_builds_with_a_gap(self, missing_round_two):
+        from django.test import Client
+        tournament, player = missing_round_two
+        u = User.objects.create_user('xlsxadmin', password='pw')
+        grant(u, tournament['tenant'], admin=True)
+        c = Client()
+        c.force_login(u)
+        resp = c.get('/stats.xlsx', HTTP_HOST='test.example.com')
+        assert resp.status_code == 200
+        assert len(resp.content) > 0

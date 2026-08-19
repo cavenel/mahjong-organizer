@@ -145,8 +145,9 @@
 {% endblock %}
 
 {% block scripts %}
+  {{ team_history_pos|json_script:"team-history-pos" }}
   <script>
-    const historyData = {{ team_history_pos }};
+    const historyData = JSON.parse(document.getElementById('team-history-pos').textContent);
     const ctx = document.getElementById('rankChart');
     if (ctx && historyData.length >= 2) {
       new Chart(ctx, {

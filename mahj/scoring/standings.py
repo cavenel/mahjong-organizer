@@ -22,10 +22,15 @@ def player_standings(tenant, tournament, full_view=False, seats=None):
     for seat in seats:
         # "Last fully scored round": the same rule as _last_complete_round and the
         # publish gate (every seat scored), so these surfaces can't drift apart.
-        # A running tournament always has every seat filled — a withdrawal is
-        # handled by swapping the name and keeping the draw number — so a seat that
-        # no player holds only exists in the pre-draw setup window, where nothing is
-        # scored yet.
+        #
+        # Once the draw is made every *seat* has a holder — a withdrawal swaps the
+        # name and keeps the draw number — so an unheld seat only exists in the
+        # pre-draw setup window, where nothing is scored yet. That is not the same
+        # as every *player* appearing in every round: a chart needn't seat a given
+        # draw number in all of them (a bye in an odd field, a substitute given a
+        # fresh number mid-tournament), so a player's score list can have gaps.
+        # Anything reading these rows must key on `round_nb`, not on list position —
+        # see team_standings below and _desktop_rows in views/public.py.
         if not seat_is_scored(seat, tournament):
             round_max = min(round_max, seat.round_nb - 1)
         pid = getattr(seat, 'player_id', None)

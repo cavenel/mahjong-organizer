@@ -2,7 +2,8 @@
 import hashlib
 
 from django.core.cache import cache
-from django.http import HttpResponse
+from django.http import Http404, HttpResponse
+from django.shortcuts import get_object_or_404
 from django.template import loader
 
 from ..models import Hand, Player, Seat
@@ -32,9 +33,15 @@ def details_player(request, id):
         return HttpResponse(cached)
 
     tournament = get_tournament(request)
-    player = Player.objects.get(tenant=tenant, id=id)
+    # Public and enumerable, so an unknown or other-tenant id is a 404 — the team
+    # modal already answers that way. It used to raise DoesNotExist (a 500).
+    player = get_object_or_404(Player, tenant=tenant, id=id)
     standings = scores_per_player_rows(request, full_view=is_admin)
-    standings_row = [s for s in standings if s["player_id"] == id][0]
+    standings_row = next((s for s in standings if s["player_id"] == id), None)
+    if standings_row is None:
+        # player_standings covers every player of the tenant, so this means the
+        # cached standings predate this player. Nothing to render a modal from.
+        raise Http404('no standings row for this competitor yet')
     rounds = player_rounds_rows(request, id)
     # Cap the placement/hand cards to the same rounds the score grid shows, so a
     # withheld final round can't leak into them ahead of the ceremony.
@@ -76,7 +83,6 @@ def details_team(request, team_name):
         max_round=public_round_max(tenant, tournament, full_view=is_admin),
     )
     if extra_stats is None:
-        from django.http import Http404
         raise Http404
 
     leaderboard = scores_per_player_rows(request, full_view=is_admin)
@@ -125,6 +131,9 @@ def details_team(request, team_name):
         'members': members,
         'team_pos': team_pos,
         'team_total': team_total,
+        # Rendered through |json_script in the template: a round where the team
+        # isn't ranked yet is None, and Python's repr of that ("None") is a syntax
+        # error in JS that killed the whole modal script.
         'team_history_pos': team_history_pos,
         'tournament': tournament,
     }
@@ -144,6 +153,12 @@ def detailed_scores(request, round_nb, table_nb):
     # it; the 30s TTL bounds staleness for hand edits (which don't bump the
     # generation). Keyed on is_admin too, since staff and public can see different
     # rounds — and the not-yet-revealed placeholder below is cached the same way.
+    # Bounded to the seating chart before anything is cached: the key is built from
+    # URL coordinates, so a crawler walking /detailed_scores_<r>_<t> could otherwise
+    # fill the cache with one placeholder entry per pair it invented.
+    if not Seat.objects.filter(tenant=tenant, round_nb=round_nb, table_nb=table_nb).exists():
+        raise Http404('no such table in the seating chart')
+
     cache_key = f'modal_detailed:{subdomain}:{round_nb}:{table_nb}:{is_admin}:{leaderboard_gen(subdomain)}'
     cached = cache.get(cache_key)
     if cached is not None:
