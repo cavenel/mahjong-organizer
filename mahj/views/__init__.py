@@ -29,8 +29,8 @@ from .score_entry import (
     set_round_published,
     update_hand_points,
     validate_score_sheet,
-    update_position_penalty,
-    update_positions_bulk,
+    update_seat_penalty,
+    update_seats_bulk,
 )
 from .ceremony import ceremony_control, ceremony_data
 from .public import desktop, stats_xlsx
@@ -84,7 +84,7 @@ from .display import (
     update_screen_name,
     update_screen_view,
 )
-from .scan import scan_page, scan_positions, scan_prefill, scan_status
+from .scan import scan_page, scan_prefill, scan_seats, scan_status
 from .print_views import (
     cross_positions,
     player_cards,

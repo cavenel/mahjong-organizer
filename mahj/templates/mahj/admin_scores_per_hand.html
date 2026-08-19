@@ -543,7 +543,7 @@
       fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
       fd.append('id', posId);
       fd.append('penalty', val);
-      navigator.sendBeacon("update_position_penalty", fd);
+      navigator.sendBeacon("update_seat_penalty", fd);
     });
   }
 
@@ -557,7 +557,7 @@
       var val = parseInt($inp.val());
       if (isNaN(val)) val = 0;
       $.ajax({
-        type: "POST", url: "update_position_penalty",
+        type: "POST", url: "update_seat_penalty",
         data: {
           'csrfmiddlewaretoken': '{{ csrf_token }}',
           'id': posId,

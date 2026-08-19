@@ -59,8 +59,8 @@ urlpatterns = [
 
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),
-    path('update_position_penalty', views.update_position_penalty, name='update_position_penalty'),
-    path('update_positions_bulk', views.update_positions_bulk, name='update_positions_bulk'),
+    path('update_seat_penalty', views.update_seat_penalty, name='update_seat_penalty'),
+    path('update_seats_bulk', views.update_seats_bulk, name='update_seats_bulk'),
     path('set_round_published', views.set_round_published, name='set_round_published'),
     path('create_hand_points', views.create_hand_points, name='create_hand_points'),
     path('update_hand_points', views.update_hand_points, name='update_hand_points'),
@@ -80,7 +80,7 @@ urlpatterns = [
     path('scan', views.scan_page, name='scan'),
     path('scan_<int:round_nb>_<int:table_nb>', views.scan_page, name='scan_prefill_page'),
     path('scan_status', views.scan_status, name='scan_status'),
-    path('scan_positions', views.scan_positions, name='scan_positions'),
+    path('scan_seats', views.scan_seats, name='scan_seats'),
     path('scan_prefill', views.scan_prefill, name='scan_prefill'),
 
     # Print / export

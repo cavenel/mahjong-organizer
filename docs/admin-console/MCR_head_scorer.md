@@ -275,7 +275,7 @@ can photograph the sheet and let the OCR fill it in.
    - 🟢 **Empty — ready to scan**
    - 🟠 **Pre-filled but not valid — scanning will overwrite**
    - 🔵 **Already validated — locked** (edit it from the score sheet instead)
-   - 🟡 **No positions found** (you can still scan)
+   - 🟡 **No seats found** (you can still scan)
 2. Tap **Take photo** and shoot the **whole sheet**, flat and well-lit.
 3. The photo is aligned to the template and read by OCR (this runs on the server;
    the page polls until it's done — usually a few seconds).

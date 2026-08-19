@@ -50,7 +50,7 @@ def test_broadcast_swallows_send_failure(monkeypatch):
     monkeypatch.setattr('channels.layers.get_channel_layer', lambda: BoomLayer())
 
     # None of these should raise.
-    signals.broadcast_scorer_row('devsub', {'round_nb': 1, 'table_nb': 1, 'positions': []})
+    signals.broadcast_scorer_row('devsub', {'round_nb': 1, 'table_nb': 1, 'seats': []})
     signals.broadcast_display('devsub', 'screen.update', {'event': 'screen_update'})
     signals.invalidate_leaderboard('devsub')
 

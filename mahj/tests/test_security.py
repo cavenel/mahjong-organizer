@@ -207,8 +207,8 @@ class TestScanEndpointsPublic:
     def test_scan_page_anonymous_ok(self, client_, tournament):
         assert client_.get('/scan').status_code == 200
 
-    def test_scan_positions_anonymous_ok(self, client_, tournament):
-        resp = client_.get('/scan_positions', {'round_nb': 1, 'table_nb': 1})
+    def test_scan_seats_anonymous_ok(self, client_, tournament):
+        resp = client_.get('/scan_seats', {'round_nb': 1, 'table_nb': 1})
         assert resp.status_code == 200
 
     def test_scan_prefill_empty_table_anonymous_writes(self, client_, tournament):

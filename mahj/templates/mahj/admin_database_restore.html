@@ -98,7 +98,7 @@
         <div class="min-w-0">
           <h3 class="text-lg font-bold text-gray-900">Restore the live database?</h3>
           <p class="mt-2 text-sm text-gray-600">This will overwrite <strong>{{ db_name }}</strong> — currently
-            <strong>{{ db_counts.players }}</strong> players, <strong>{{ db_counts.positions }}</strong> positions,
+            <strong>{{ db_counts.players }}</strong> players, <strong>{{ db_counts.seats }}</strong> seats,
             <strong>{{ db_counts.hands }}</strong> hands — with:</p>
           <p class="mt-1 font-mono text-xs text-gray-500 break-all" id="restore-dump-name"></p>
           <p class="mt-1 text-xs text-rose-700" id="restore-dump-when"></p>
@@ -263,7 +263,7 @@
         if (j.status === "done") {
           var c = j.counts;
           var txt = "Restored.";
-          if (c) txt += " " + c.players + " players, " + c.positions + " positions, " + c.hands + " hands.";
+          if (c) txt += " " + c.players + " players, " + c.seats + " seats, " + c.hands + " hands.";
           $("#restore-phase").addClass("text-green-600").text(txt);
           $("#restore-close").prop("disabled", false);
         } else if (j.status === "error" || j.status === "expired") {

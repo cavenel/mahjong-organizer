@@ -341,7 +341,7 @@ The **Total** row then shows each player's hand total **plus** their penalty, an
 the **Table Points** are ranked on that **after-penalty** total — so the sheet's
 totals line up with the (penalised) MP/TP entered on the grid.
 
-Penalties live on the score sheet only: they are persisted on the `Position` row
+Penalties live on the score sheet only: they are persisted on the `Seat` row
 (`penalty` field) and also surface on the public per-table detail view, but they
 are **never** read by the leaderboard/standings code — the player's official
 score is the MP/TP entered on the Scoring grid, nothing else.
@@ -401,7 +401,7 @@ can photograph the sheet and let the OCR fill it in.
    - 🟢 **Empty — ready to scan**
    - 🟠 **Pre-filled but not valid — scanning will overwrite**
    - 🔵 **Already validated — locked** (edit it from the score sheet instead)
-   - 🟡 **No positions found** (you can still scan)
+   - 🟡 **No seats found** (you can still scan)
 2. Tap **Take photo** and shoot the **whole sheet**, flat and well-lit.
 3. The photo is aligned to the template and read by OCR (this runs on the server;
    the page polls until it's done — usually a few seconds).

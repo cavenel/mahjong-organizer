@@ -1764,7 +1764,7 @@ def options(request, error=None):
             # matching the worker's post-restore report.
             db_counts = {
                 "players": Player.objects.count(),
-                "positions": Seat.objects.count(),
+                "seats": Seat.objects.count(),
                 "hands": Hand.objects.count(),
             }
             if settings.STANDALONE:

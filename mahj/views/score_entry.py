@@ -86,7 +86,7 @@ def _row_payload(tenant, round_nb, table_nb):
     return {
         'round_nb': round_nb,
         'table_nb': table_nb,
-        'positions': [
+        'seats': [
             {
                 'id': p.id,
                 'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
@@ -340,7 +340,7 @@ def clear_score_sheet(request):
 
 
 @tenant_role_required('scorer')
-def update_position_penalty(request):
+def update_seat_penalty(request):
     """Set a single seat's penalty (an integer minipoint adjustment, +/-).
 
     Entered from the MCR score sheet. The penalty is a sheet-balance figure only:
@@ -365,7 +365,7 @@ def update_position_penalty(request):
 
 
 @tenant_role_required('scorer')
-def update_positions_bulk(request):
+def update_seats_bulk(request):
     """Update all 4 seats of a table row in a single request and transaction."""
     tenant = get_tenant(request)
     try:
@@ -373,7 +373,7 @@ def update_positions_bulk(request):
     except (ValueError, KeyError):
         return JsonResponse({'status': 'bad_request'}, status=400)
 
-    entries = data.get('positions', [])
+    entries = data.get('seats', [])
     ids = [int(e['id']) for e in entries]
     seats_by_id = {s.id: s for s in Seat.objects.filter(tenant=tenant, id__in=ids)}
 

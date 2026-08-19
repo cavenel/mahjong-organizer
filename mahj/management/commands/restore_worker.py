@@ -40,7 +40,7 @@ DB_PORT = os.environ.get('DB_PORT', '5432')
 _COUNT_SQL = (
     'SELECT '
     '(SELECT count(*) FROM "mahj_player") AS players, '
-    '(SELECT count(*) FROM "mahj_seat")   AS positions, '
+    '(SELECT count(*) FROM "mahj_seat")   AS seats, '
     '(SELECT count(*) FROM "mahj_hand")   AS hands;'
 )
 
@@ -251,8 +251,8 @@ class Command(BaseCommand):
             try:
                 with conn.cursor() as cur:
                     cur.execute(_COUNT_SQL)
-                    players, positions, hands = cur.fetchone()
-                    return {'players': players, 'positions': positions, 'hands': hands}
+                    players, seats, hands = cur.fetchone()
+                    return {'players': players, 'seats': seats, 'hands': hands}
             finally:
                 conn.close()
         except Exception:

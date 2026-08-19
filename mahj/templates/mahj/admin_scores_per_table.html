@@ -285,21 +285,21 @@
   }
 
   function send_ajax(row) {
-    var positions = [], vals = [];
+    var seats = [], vals = [];
     row.find(".seat_cell").each(function() {
       var mp = $(this).find("input[name='minipoints']").val();
-      positions.push({
+      seats.push({
         id: $(this).attr("data-id"),
         mp: mp,
         tp: $(this).find("input[name='tablepoints']").val(),
       });
       if (mp !== "") vals.push(parseInt(mp));
     });
-    var expectedState = (vals.length === positions.length) ? "ok" : "";
+    var expectedState = (vals.length === seats.length) ? "ok" : "";
     $.ajax({
-      type: "POST", url: "update_positions_bulk",
+      type: "POST", url: "update_seats_bulk",
       contentType: "application/json",
-      data: JSON.stringify({ positions: positions }),
+      data: JSON.stringify({ seats: seats }),
       headers: { "X-CSRFToken": "{{ csrf_token }}" },
       success: function() { setPip(row, expectedState); },
       error:   function(xhr) {
@@ -310,9 +310,9 @@
           // and say what happened — don't leave an unsaved score on screen.
           var rn = parseInt(row.attr("data-round-nb"));
           var serverRow = xhr.responseJSON.row;
-          if (serverRow && serverRow.positions) {
+          if (serverRow && serverRow.seats) {
             var seatCells = row.find(".seat_cell");
-            serverRow.positions.forEach(function(p, idx) {
+            serverRow.seats.forEach(function(p, idx) {
               var cell = seatCells.eq(idx);
               if (!cell.length) return;
               cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
@@ -344,18 +344,18 @@
       delete timers[rid];
       var row = $('#' + rid);
       if (!row.length) continue;
-      var positions = [];
+      var seats = [];
       row.find(".seat_cell").each(function() {
-        positions.push({
+        seats.push({
           id: $(this).attr("data-id"),
           mp: $(this).find("input[name='minipoints']").val(),
           tp: $(this).find("input[name='tablepoints']").val(),
         });
       });
-      fetch("update_positions_bulk", {
+      fetch("update_seats_bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-        body: JSON.stringify({ positions: positions }),
+        body: JSON.stringify({ seats: seats }),
         keepalive: true,
       });
     }
@@ -530,7 +530,7 @@
   // scorer-to-scorer live sync
   (function() {
     function handle(msg) {
-      if (msg.round_nb !== undefined && msg.positions) {
+      if (msg.round_nb !== undefined && msg.seats) {
         applyRowSync(msg);
       } else if (msg.published_rounds) {
         publishedRounds = new Set(msg.published_rounds);
@@ -562,7 +562,7 @@
       if (recentlyEdited[rid] && Date.now() - recentlyEdited[rid] < 3000) return;
       var seatCells = row.find(".seat_cell");
       var syncVals = [], allFilled = true;
-      msg.positions.forEach(function(p, idx) {
+      msg.seats.forEach(function(p, idx) {
         var cell = seatCells.eq(idx);
         if (!cell.length) return;
         cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");

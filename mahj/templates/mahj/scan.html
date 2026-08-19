@@ -110,7 +110,7 @@ roundEl.value = ctxRound || localStorage.getItem('scan_round') || '';
 tableEl.value = ctxTable || '';
 
 /* Current status of the entered round/table. */
-let currentStatus = null;  // { positions, has_hands, validated }
+let currentStatus = null;  // { seats, has_hands, validated }
 
 function setStatus(cls, text) {
   statusEl.className = 'rounded-lg p-2 text-xs font-semibold text-center mb-4 ' + cls;
@@ -141,12 +141,12 @@ async function refreshStatus() {
   statusAbort = new AbortController();
 
   try {
-    const { data } = await requestJSON(`scan_positions?round_nb=${round_nb}&table_nb=${table_nb}`, { signal: statusAbort.signal });
+    const { data } = await requestJSON(`scan_seats?round_nb=${round_nb}&table_nb=${table_nb}`, { signal: statusAbort.signal });
     currentStatus = data;
 
-    if (!data.ok || data.positions.length === 0) {
-      setStatus('bg-yellow-100 text-yellow-800', 'No positions found for this round/table.');
-      setScanEnabled(true);   // allow scan anyway (positions may not be seeded yet)
+    if (!data.ok || data.seats.length === 0) {
+      setStatus('bg-yellow-100 text-yellow-800', 'No seats found for this round/table.');
+      setScanEnabled(true);   // allow scan anyway (seats may not be seeded yet)
     } else if (data.validated || data.has_hands) {
       // A filled table is never overwritten by a scan — clear it on the score sheet to re-scan.
       setStatus('bg-blue-100 text-blue-800', 'Already has data — locked. Edit on the score sheet.');

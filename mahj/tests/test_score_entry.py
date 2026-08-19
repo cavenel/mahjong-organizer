@@ -139,7 +139,7 @@ class TestCreateHandPoints:
         assert written == 16
 
 
-class TestUpdatePositionPenalty:
+class TestUpdateSeatPenalty:
     """Per-player penalty: an integer minipoint adjustment saved from the score
     sheet. It is a score-sheet-only figure (the leaderboard never reads it), so
     unlike the MP/TP edits it stays editable after the round is published."""
@@ -152,7 +152,7 @@ class TestUpdatePositionPenalty:
 
     def test_sets_penalty(self, authed_client, tournament):
         seat = self._seat(tournament)
-        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -10})
+        resp = authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': -10})
         assert resp.status_code == 200
         assert json.loads(resp.content)['status'] == 'ok'
         seat.refresh_from_db()
@@ -162,7 +162,7 @@ class TestUpdatePositionPenalty:
         seat = self._seat(tournament)
         seat.penalty = 5
         seat.save(update_fields=['penalty'])
-        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': 'abc'})
+        resp = authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': 'abc'})
         assert resp.status_code == 200
         seat.refresh_from_db()
         assert seat.penalty == 0
@@ -170,7 +170,7 @@ class TestUpdatePositionPenalty:
     def test_penalty_does_not_touch_minipoints(self, authed_client, tournament):
         seat = self._seat(tournament)
         before_mp, before_tp = seat.minipoints, seat.tablepoints
-        authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -20})
+        authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': -20})
         seat.refresh_from_db()
         assert seat.minipoints == before_mp
         assert seat.tablepoints == before_tp
@@ -179,14 +179,14 @@ class TestUpdatePositionPenalty:
         # The penalty is a sheet-balance figure the standings never read, so it
         # can still be reconciled after the round is published — unlike MP/TP.
         seat = self._seat(tournament, round_nb=1)  # published in fixture
-        resp = authed_client.post('/update_position_penalty', {'id': seat.id, 'penalty': -10})
+        resp = authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': -10})
         assert resp.status_code == 200
         assert json.loads(resp.content)['status'] == 'ok'
         seat.refresh_from_db()
         assert seat.penalty == -10
 
     def test_nonexistent_seat_returns_404(self, authed_client):
-        resp = authed_client.post('/update_position_penalty', {'id': 999999, 'penalty': -10})
+        resp = authed_client.post('/update_seat_penalty', {'id': 999999, 'penalty': -10})
         assert resp.status_code == 404
 
     def test_score_sheet_renders_penalty_inputs(self, authed_client, tournament):
@@ -197,7 +197,7 @@ class TestUpdatePositionPenalty:
         # One editable penalty box per seat, pre-filled with the saved value.
         assert 'class="penalty-input"' in body
         assert 'id=\'pen_1\'' in body or 'id="pen_1"' in body
-        assert 'update_position_penalty' in body  # the persistence endpoint
+        assert 'update_seat_penalty' in body  # the persistence endpoint
         assert '-10' in body
 
 
@@ -215,8 +215,8 @@ class TestPublishedRoundLock:
 
     def _bulk_edit(self, client, seats, mp):
         return client.post(
-            '/update_positions_bulk',
-            data=json.dumps({'positions': [
+            '/update_seats_bulk',
+            data=json.dumps({'seats': [
                 {'id': s.id, 'mp': mp, 'tp': s.tablepoints} for s in seats
             ]}),
             content_type='application/json',
@@ -242,7 +242,7 @@ class TestPublishedRoundLock:
         body = json.loads(resp.content)
         assert body['row']['round_nb'] == 1
         assert body['row']['table_nb'] == 1
-        assert body['row']['positions'][0]['mp'] == original
+        assert body['row']['seats'][0]['mp'] == original
 
     def test_published_set_unchanged_after_rejected_edit(self, authed_client, tournament):
         before = set(PublishedRound.objects.filter(tenant=tournament['tenant'])

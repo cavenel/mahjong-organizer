@@ -309,7 +309,7 @@ def run_scan(image_bgr):
 WINDS = ['E', 'S', 'W', 'N']
 
 
-def scan_positions(request):
+def scan_seats(request):
     """Return the table's seats (players, MP, TP) for a given round/table."""
     _require_scan_enabled()
     tenant = get_tenant(request)
@@ -336,7 +336,6 @@ def scan_positions(request):
     for p in seats:
         first = p.player.short_name if p.player else ''
         data.append({
-            'position': p.wind,
             'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',
             'player': f"{p.draw_number}. {first}",
             'mp': p.minipoints,
@@ -345,7 +344,7 @@ def scan_positions(request):
 
     return JsonResponse({
         "ok": True,
-        "positions": data,
+        "seats": data,
         "has_hands": has_hands,
         "validated": valid_hand,
     })
