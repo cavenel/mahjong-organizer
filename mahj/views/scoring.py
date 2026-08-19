@@ -6,9 +6,41 @@ from .helpers import get_tenant, get_tournament
 
 
 LEADERBOARD_TTL = 20   # rendered HTML: how long the page can be served stale.
-SUB_CACHE_TTL = 300    # underlying data pieces: signals invalidate them on real writes,
-                       # so this longer TTL is just a defensive safety net and lets the
-                       # 20s HTML rebuild stay cheap (it just composes warm sub-caches).
+SUB_CACHE_TTL = 300    # the data pieces below.
+
+# The invalidation contract, stated because it is easy to get wrong:
+#
+# Every cache below is keyed `<prefix>:<subdomain>:<full_view>`, and
+# signals.invalidate_leaderboard() deletes those keys **by that exact prefix** for
+# both full_view values on any real write. So the TTL is not how stale the data can
+# get — a write clears it immediately — it is only a backstop for a write that
+# somehow bypasses the signals. The prefixes are therefore fixed names shared with
+# signals.py, never derived from the function, and adding a surface here means
+# adding its prefix there too or it will serve stale data for up to SUB_CACHE_TTL.
+#
+# `full_view` is in the key because staff and the public may see a different number
+# of rounds; a caller that passes its own `seats`/`hands` is not cached at all,
+# since its result depends on what it passed rather than on the key.
+
+
+def _cached(prefix, request, full_view, compute, bypass=False):
+    """Cache-or-compute one scoring surface under the shared key scheme above.
+
+    `bypass` is for callers that already hold the rows (a page assembling several
+    surfaces from one query set): that result depends on what they passed, so it
+    must never be written under the shared key.
+    """
+    if bypass:
+        return compute()
+    tenant = get_tenant(request)
+    subdomain = tenant.subdomain if tenant else ''
+    cache_key = f'{prefix}:{subdomain}:{full_view}'
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+    result = compute()
+    cache.set(cache_key, result, SUB_CACHE_TTL)
+    return result
 
 
 def scores_per_table_grid(request):
@@ -16,23 +48,12 @@ def scores_per_table_grid(request):
 
 
 def scores_per_player_rows(request, full_view=False, seats=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None:
-        return _scoring.player_standings(
-            tenant, get_tournament(request),
-            full_view=full_view, seats=seats,
-        )
-    cache_key = f'leaderboard:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    scores = _scoring.player_standings(
-        tenant, get_tournament(request),
-        full_view=full_view,
-    )
-    cache.set(cache_key, scores, SUB_CACHE_TTL)
-    return scores
+    return _cached(
+        'leaderboard', request, full_view,
+        lambda: _scoring.player_standings(
+            get_tenant(request), get_tournament(request),
+            full_view=full_view, seats=seats),
+        bypass=seats is not None)
 
 
 def player_rounds_rows(request, player_id):
@@ -44,71 +65,39 @@ def player_rounds_rows(request, player_id):
 
 
 def stat_rounds(request, full_view=False, seats=None, hands=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None or hands is not None:
-        return _scoring.round_winners(
-            tenant, get_tournament(request), full_view,
-            seats=seats, hands=hands,
-        )
-    cache_key = f'stat_rounds:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    result = _scoring.round_winners(tenant, get_tournament(request), full_view)
-    cache.set(cache_key, result, SUB_CACHE_TTL)
-    return result
+    return _cached(
+        'stat_rounds', request, full_view,
+        lambda: _scoring.round_winners(
+            get_tenant(request), get_tournament(request), full_view,
+            seats=seats, hands=hands),
+        bypass=seats is not None or hands is not None)
 
 
 def stat_all_rounds(request, full_view=False, seats=None, hands=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None or hands is not None:
-        return _scoring.overall_winners(
-            tenant, get_tournament(request), full_view,
-            seats=seats, hands=hands,
-        )
-    cache_key = f'stat_all:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    result = _scoring.overall_winners(tenant, get_tournament(request), full_view)
-    cache.set(cache_key, result, SUB_CACHE_TTL)
-    return result
+    return _cached(
+        'stat_all', request, full_view,
+        lambda: _scoring.overall_winners(
+            get_tenant(request), get_tournament(request), full_view,
+            seats=seats, hands=hands),
+        bypass=seats is not None or hands is not None)
 
 
 def table_stats(request, full_view=False, seats=None, hands=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None or hands is not None:
-        return _scoring.table_stats(
-            tenant, get_tournament(request), full_view,
-            seats=seats, hands=hands,
-        )
-    cache_key = f'table_stats:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    result = _scoring.table_stats(tenant, get_tournament(request), full_view)
-    cache.set(cache_key, result, SUB_CACHE_TTL)
-    return result
+    return _cached(
+        'table_stats', request, full_view,
+        lambda: _scoring.table_stats(
+            get_tenant(request), get_tournament(request), full_view,
+            seats=seats, hands=hands),
+        bypass=seats is not None or hands is not None)
 
 
 def table_stats_rounds(request, full_view=False, seats=None, hands=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None or hands is not None:
-        return _scoring.table_stats_rounds(
-            tenant, get_tournament(request), full_view,
-            seats=seats, hands=hands,
-        )
-    cache_key = f'table_stats_rounds:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    result = _scoring.table_stats_rounds(tenant, get_tournament(request), full_view)
-    cache.set(cache_key, result, SUB_CACHE_TTL)
-    return result
+    return _cached(
+        'table_stats_rounds', request, full_view,
+        lambda: _scoring.table_stats_rounds(
+            get_tenant(request), get_tournament(request), full_view,
+            seats=seats, hands=hands),
+        bypass=seats is not None or hands is not None)
 
 
 def stats_export(request, full_view=False, seats=None, hands=None):
@@ -119,21 +108,9 @@ def stats_export(request, full_view=False, seats=None, hands=None):
 
 
 def tournament_seating(request, full_view=False, valid_pairs=None, seats=None):
-    tenant = get_tenant(request)
-    subdomain = tenant.subdomain if tenant else ''
-    if seats is not None:
-        return _scoring.tournament_seating(
-            tenant, get_tournament(request),
-            full_view=full_view,
-            valid_pairs=valid_pairs, seats=seats,
-        )
-    cache_key = f'seating_v2:{subdomain}:{full_view}'
-    cached = cache.get(cache_key)
-    if cached is not None:
-        return cached
-    result = _scoring.tournament_seating(
-        tenant, get_tournament(request),
-        full_view=full_view, valid_pairs=valid_pairs,
-    )
-    cache.set(cache_key, result, SUB_CACHE_TTL)
-    return result
+    return _cached(
+        'seating_v2', request, full_view,
+        lambda: _scoring.tournament_seating(
+            get_tenant(request), get_tournament(request),
+            full_view=full_view, valid_pairs=valid_pairs, seats=seats),
+        bypass=seats is not None)

@@ -794,3 +794,68 @@ class TestSparseScoresKeepTheirRound:
         resp = c.get('/stats.xlsx', HTTP_HOST='test.example.com')
         assert resp.status_code == 200
         assert len(resp.content) > 0
+
+
+class TestCacheInvalidationContract:
+    """Every surface cached in views/scoring.py must be invalidated by signals.py.
+
+    They agree only by convention — the prefixes are string literals in two files —
+    and getting it wrong is silent: the surface just serves data up to SUB_CACHE_TTL
+    stale, with nothing to notice. So the convention is checked rather than trusted.
+    """
+
+    def _prefixes(self):
+        import pathlib
+        import re
+        scoring = pathlib.Path('mahj/views/scoring.py').read_text()
+        signals = pathlib.Path('mahj/signals.py').read_text()
+        written = set(re.findall(r"_cached\(\s*'([a-z_0-9]+)'", scoring))
+        deleted = set(re.findall(
+            r"cache\.delete\(f'([a-z_0-9]+):\{subdomain\}:\{full_view\}'\)", signals))
+        return written, deleted
+
+    def test_every_cached_surface_is_invalidated(self):
+        written, deleted = self._prefixes()
+        assert written, 'found no _cached() call sites — did the wrapper get renamed?'
+        assert written - deleted == set(), (
+            'these surfaces are cached but never invalidated: '
+            f'{sorted(written - deleted)} — add them to signals.invalidate_leaderboard'
+        )
+
+    def test_signals_does_not_clear_surfaces_that_no_longer_exist(self):
+        """The other direction, so the list doesn't rot into stale names."""
+        written, deleted = self._prefixes()
+        assert deleted - written == set(), (
+            f'signals clears keys nothing writes: {sorted(deleted - written)}')
+
+
+@pytest.fixture
+def real_cache(settings):
+    """A backend that actually stores. The suite runs on DummyCache so that
+    cache-invalidation assertions stay honest, but a test *about* caching would then
+    pass vacuously — cache.get() always returns None there."""
+    settings.CACHES = {
+        'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+    from django.core.cache import cache
+    cache.clear()
+    return cache
+
+
+class TestBypassIsNotCached:
+    """A caller passing its own seats/hands gets a result derived from those rows, so
+    it must never be stored under the shared key — the next caller would read it."""
+
+    def test_passing_seats_does_not_populate_the_cache(self, request_, tournament, real_cache):
+        from mahj.models import Seat
+        seats = list(Seat.objects.filter(tenant=tournament['tenant']))
+        scores_per_player_rows(request_, full_view=True, seats=seats)
+        assert real_cache.get('leaderboard:test:True') is None
+
+    def test_the_normal_path_does_populate_it(self, request_, tournament, real_cache):
+        rows = scores_per_player_rows(request_, full_view=True)
+        assert real_cache.get('leaderboard:test:True') == rows
+
+    def test_a_second_call_is_served_from_the_cache(self, request_, tournament, real_cache):
+        scores_per_player_rows(request_, full_view=True)
+        real_cache.set('leaderboard:test:True', [{'sentinel': True}], 300)
+        assert scores_per_player_rows(request_, full_view=True) == [{'sentinel': True}]
