@@ -4,6 +4,7 @@
 {% block viewport %}width=device-width, initial-scale=1{% endblock %}
 {% block head_extra %}
   <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
+  <script src="{% static 'js/mcr_table_points.js' %}"></script>
   <style>
     /* Full original width on a large window; never wider than 640px. No
        min-width — that would keep the table wide on a phone and force scroll. */
@@ -193,41 +194,6 @@
 
 {% block scripts %}
 <script>
-  function sortWithIndeces(toSort) {
-    var len = toSort.length;
-    var indices = new Array(len);
-    for (var i = 0; i < len; ++i) indices[i] = i;
-    indices.sort(function (a, b) { return toSort[a] < toSort[b] ? 1 : toSort[a] > toSort[b] ? -1 : 0; });
-    return indices;
-  }
-
-  function get_tp (minipoints) {
-    var indeces = sortWithIndeces(minipoints);
-    table_points = [4, 2, 1, 0];
-    tp = [null, null, null, null];
-    table_points_to_give = [];
-    players_to_give = [];
-    max_mp = 100000000;
-
-    for (var i = 0; i < indeces.length; ++i) {
-      if (minipoints[indeces[i]] != max_mp) {
-        players_to_give.push([])
-        table_points_to_give.push([])
-        max_mp = minipoints[indeces[i]];
-      }
-      players_to_give[players_to_give.length-1].push(indeces[i]);
-      table_points_to_give[table_points_to_give.length-1].push(table_points[i]);
-    }
-    for (var i = 0; i < players_to_give.length; ++i) {
-      var sum = table_points_to_give[i].reduce(function(a, b) { return a + b; });
-      var avg = sum / table_points_to_give[i].length;
-      for (var j = 0; j < players_to_give[i].length; ++j) {
-        tp[players_to_give[i][j]] = avg;
-      }
-    }
-    return tp;
-  }
-
   setTimeout(function() { $("#pts_1").focus(); }, 200);
   $("#pts_1").focus();
 
@@ -421,7 +387,7 @@
       var ok = Math.round(afterPenalty[p-1]) == Math.round(real_mp[p-1]);
       $("#total_" + p).css("background-color", ok ? "#bbf7d0" : "#fecaca");
     }
-    var tp = get_tp(afterPenalty);
+    var tp = tablePointsFromMinipoints(afterPenalty);
     for (var p = 1; p < 5; p++) {
       var v = tp[p-1];
       // Match the entered paren's format (Django floatformat:-2): whole numbers

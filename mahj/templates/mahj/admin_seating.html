@@ -134,13 +134,9 @@
   </section>
 </div>
 
+<script src="{% static 'js/browser_utils.js' %}"></script>
 <script>
 (function () {
-  function csrf() {
-    var m = document.cookie.match(/csrftoken=([^;]+)/);
-    return m ? m[1] : '';
-  }
-
   function row(label, value, ok) {
     var color = ok === true ? 'text-emerald-700' : (ok === false ? 'text-red-700' : 'text-gray-700');
     return '<div class="flex justify-between gap-4 py-0.5">' +
@@ -221,7 +217,7 @@
     }, extra);
     fetch('admin_generate_seating', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrf()},
+      headers: {'Content-Type': 'application/json', 'X-CSRFToken': csrfCookie()},
       body: JSON.stringify(body),
     }).then(function (r) {
       return r.json().then(function (d) { return {status: r.status, data: d}; });

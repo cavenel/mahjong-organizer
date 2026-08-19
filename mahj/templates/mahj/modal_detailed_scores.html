@@ -116,6 +116,7 @@
 {% endblock %}
 
 {% block scripts %}
+  <script src="{% static 'js/mcr_table_points.js' %}"></script>
   <script>
     function goBack() {
       if (window.parent !== window && typeof window.parent.modalGoBack === 'function') {
@@ -131,33 +132,6 @@
     function setBg(id, cls) { if (el(id)) el(id).className += ' ' + cls; }
     function clearBg(id) {
       ['win-self','win-ron','lose-ron'].forEach(c => el(id) && el(id).classList.remove(c));
-    }
-
-    function sortWithIndices(arr) {
-      return arr.map((v, i) => i).sort((a, b) => arr[a] < arr[b] ? 1 : arr[a] > arr[b] ? -1 : 0);
-    }
-
-    function getTP(minipoints) {
-      const indices = sortWithIndices(minipoints);
-      const tablePoints = [4, 2, 1, 0];
-      const tp = [null, null, null, null];
-      const groups = [], gpPts = [];
-      let prevMp = Infinity;
-
-      for (let i = 0; i < indices.length; i++) {
-        if (minipoints[indices[i]] !== prevMp) {
-          groups.push([]);
-          gpPts.push([]);
-          prevMp = minipoints[indices[i]];
-        }
-        groups[groups.length - 1].push(indices[i]);
-        gpPts[gpPts.length - 1].push(tablePoints[i]);
-      }
-      for (let i = 0; i < groups.length; i++) {
-        const avg = gpPts[i].reduce((a, b) => a + b, 0) / gpPts[i].length;
-        groups[i].forEach(j => tp[j] = avg);
-      }
-      return tp;
     }
 
     function updateScores() {
@@ -214,7 +188,7 @@
         if (!isNaN(pen)) total[p - 1] += pen;
       }
       for (let p = 1; p <= 4; p++) setTxt('total_' + p, total[p - 1]);
-      const tp = getTP(total);
+      const tp = tablePointsFromMinipoints(total);
       // Match floatformat:-2 used everywhere else: ≤2 decimals, no trailing zeros.
       for (let p = 1; p <= 4; p++) setTxt('tp_' + p, tp[p - 1] !== null ? tp[p - 1].toFixed(2).replace(/\.?0+$/, '') : '—');
     }

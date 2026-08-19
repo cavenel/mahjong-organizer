@@ -226,33 +226,13 @@
 
 <script src="{% static 'js/display_socket.js' %}"></script>
 <script src="{% static 'js/admin_sync_banner.js' %}"></script>
+<script src="{% static 'js/mcr_table_points.js' %}"></script>
 <script>
 
   $("body").on("click", ".show_hands", function() {
     var link = $(this).attr("data-link");
     window.showDetailsModal(link);
   });
-
-  function sortWithIndeces(arr) {
-    var idx = arr.map(function(_, i) { return i; });
-    idx.sort(function(a, b) { return arr[a] < arr[b] ? 1 : arr[a] > arr[b] ? -1 : 0; });
-    return idx;
-  }
-
-  function get_tp(mp) {
-    var idx = sortWithIndeces(mp), base = [4, 2, 1, 0], tp = [null, null, null, null];
-    var groups = [], pts_groups = [], prev = 1e9;
-    for (var i = 0; i < idx.length; i++) {
-      if (mp[idx[i]] !== prev) { groups.push([]); pts_groups.push([]); prev = mp[idx[i]]; }
-      groups[groups.length - 1].push(idx[i]);
-      pts_groups[pts_groups.length - 1].push(base[i]);
-    }
-    for (var i = 0; i < groups.length; i++) {
-      var avg = pts_groups[i].reduce(function(a, b) { return a + b; }, 0) / groups[i].length;
-      groups[i].forEach(function(j) { tp[j] = avg; });
-    }
-    return tp;
-  }
 
   function setRowBg(row, state, vals) {
     var cell = row.find(".col-sum").removeClass("sum-ok sum-err");
@@ -276,7 +256,7 @@
       vals.push(parseInt(v));
     }
     if (update_tp) {
-      var tp = get_tp(vals);
+      var tp = tablePointsFromMinipoints(vals);
       row.find("input[name='tablepoints']").each(function(i) { $(this).val(tp[i] != null ? tp[i] : ""); });
     }
     var state = _scoreState(vals);
@@ -486,7 +466,7 @@
       vals.push(parseInt(v));
     }
     if (allFilled) {
-      var tp = get_tp(vals);
+      var tp = tablePointsFromMinipoints(vals);
       row.find("input[name='tablepoints']").each(function(i) { $(this).val(tp[i] != null ? tp[i] : ""); });
       setRowBg(row, _scoreState(vals), vals);
       setPip(row, "pending");

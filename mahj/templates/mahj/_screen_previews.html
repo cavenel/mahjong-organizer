@@ -1,0 +1,56 @@
+{% comment %}
+Live thumbnails of every display screen, plus the modal that enlarges one.
+
+Shared by the display admin and the ceremony console — each supplies its own
+heading row (their toolbars differ) and includes this for the grid, the modal and
+`screen_previews.js`. Needs `screens` and `screen_base` in the context.
+
+Each card is the real display page in an iframe, 1920×1080 scaled to 0.2. The
+`src` is only set while the previews are shown (see the JS), so a collapsed panel
+costs nothing. The `data-screen-id` hooks let the display admin repaint a card's
+caption in place when its view changes; the ceremony console just ignores them.
+{% endcomment %}
+{% load static %}
+<div id="previews-container" class="flex flex-wrap gap-4" style="display:none;">
+  {% for screen in screens %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+      <div class="px-3 py-1.5 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-700 flex items-center justify-between gap-2">
+        <span class="truncate">/{{ forloop.counter }}<span class="preview-name-label" data-screen-id="{{ screen.id }}">{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}</span> <span class="preview-view font-normal text-gray-500" data-screen-id="{{ screen.id }}">— {{ screen.view }}</span></span>
+        <button type="button" title="Enlarge"
+                class="enlarge-preview shrink-0 p-1 rounded-md text-gray-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                data-screen-id="{{ screen.id }}"
+                data-screen-label="/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %}"
+                data-src="{{ screen_base }}/{{ forloop.counter }}"
+                data-title="/{{ forloop.counter }}{% if screen.friendly_name %} — {{ screen.friendly_name }}{% endif %} — {{ screen.view }}">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
+        </button>
+      </div>
+      <!-- 1920×1080 frame scaled to 0.2 → 384×216 thumbnail -->
+      <div class="bg-black overflow-hidden" style="width:384px;height:216px;">
+        <iframe class="preview-iframe"
+                data-src="{{ screen_base }}/{{ forloop.counter }}"
+                scrolling="no" tabindex="-1"
+                style="width:1920px;height:1080px;border:0;transform:scale(0.2);transform-origin:top left;"></iframe>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Enlarged preview modal -->
+<div id="preview-modal" class="fixed inset-0 z-50 items-center justify-center bg-black/70 p-4" style="display:none;">
+  <div class="bg-white rounded-xl shadow-2xl overflow-hidden flex flex-col max-w-full max-h-full">
+    <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 flex items-center justify-between gap-3">
+      <h3 id="preview-modal-title" class="text-sm font-semibold text-gray-700 truncate"></h3>
+      <button id="preview-modal-close" type="button"
+              class="shrink-0 p-1 rounded-md text-gray-500 hover:text-rose-600 hover:bg-rose-50 transition-colors">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div id="preview-modal-frame" class="bg-black overflow-hidden">
+      <iframe id="preview-modal-iframe" scrolling="no"
+              style="width:1920px;height:1080px;border:0;transform-origin:top left;"></iframe>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'js/screen_previews.js' %}"></script>
