@@ -138,7 +138,7 @@
     }).then(function(res) {
       if (res.handled) return;
       if (res.ok) { location.reload(); }
-      else { alert((res.data && res.data.error) || "Could not create user"); }
+      else { window.alertAction({ title: 'Couldn\u2019t create the user', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
     });
   });
 
@@ -154,7 +154,7 @@
       if (res.handled) return;
       if (!res.ok) {
         $cb.prop("checked", !$cb.prop("checked"));  // revert
-        alert((res.data && res.data.error) || "Could not update roles");
+        window.alertAction({ title: 'Couldn\u2019t update the roles', body: (res.data && res.data.error) || 'The server rejected the request.' });
       }
     });
   });
@@ -165,7 +165,7 @@
     var $btn = $(this);
     post("user_generate_link", { user_id: $row.data("user-id") }).then(function(res) {
       if (res.handled) return;
-      if (!res.ok || !res.data.url) { alert((res.data && res.data.error) || "Could not generate link"); return; }
+      if (!res.ok || !res.data.url) { window.alertAction({ title: 'Couldn\u2019t generate a login link', body: (res.data && res.data.error) || 'The server rejected the request.' }); return; }
       var url = res.data.url;
       var done = function() { var t = $btn.text(); $btn.text("Copied!"); setTimeout(function() { $btn.text(t); }, 1500); };
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -186,8 +186,8 @@
       onConfirm: function() {
         post("user_revoke_links", { user_id: $row.data("user-id") }).then(function(res) {
           if (res.handled) return;
-          if (res.ok) { alert("Links revoked. Generate a new link to log this user in again."); }
-          else { alert((res.data && res.data.error) || "Could not revoke links"); }
+          if (res.ok) { window.alertAction({ title: 'Links revoked', body: 'Generate a new link to log this user in again.', danger: false }); }
+          else { window.alertAction({ title: 'Couldn\u2019t revoke the links', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
         });
       },
     });
@@ -204,7 +204,7 @@
         post("user_delete", { user_id: $row.data("user-id") }).then(function(res) {
           if (res.handled) return;
           if (res.ok) { $row.remove(); }
-          else { alert((res.data && res.data.error) || "Could not delete user"); }
+          else { window.alertAction({ title: 'Couldn\u2019t delete the user', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
         });
       },
     });
@@ -221,7 +221,7 @@
         post("user_remove_from_tenant", { user_id: $row.data("user-id") }).then(function(res) {
           if (res.handled) return;
           if (res.ok) { $row.remove(); }
-          else { alert((res.data && res.data.error) || "Could not remove user"); }
+          else { window.alertAction({ title: 'Couldn\u2019t remove the user', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
         });
       },
     });

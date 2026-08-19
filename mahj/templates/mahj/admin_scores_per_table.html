@@ -314,9 +314,11 @@
           }
           if (!publishedRounds.has(rn)) publishedRounds.add(rn);
           refreshAllPublishToggles();
-          alert("Round " + rn + " is published, so its scores are locked.\n\n" +
-                "Your change was NOT saved and has been reverted to the published " +
-                "values. Unpublish the round first if you need to edit it.");
+          window.alertAction({
+            title: 'Round ' + rn + ' is locked',
+            body: 'Your change was NOT saved — the row has been reverted to the '
+                  + 'published values. Unpublish the round first if you need to edit it.',
+          });
         }
       },
     });
@@ -513,7 +515,7 @@
         refreshAllPublishToggles();
         var msg = "Could not " + (published ? "publish" : "unpublish") + " round " + roundNb;
         if (xhr.responseJSON && xhr.responseJSON.error) msg += ": " + xhr.responseJSON.error;
-        alert(msg);
+        window.alertAction({ title: 'Couldn\u2019t save', body: msg });
       },
     });
   });

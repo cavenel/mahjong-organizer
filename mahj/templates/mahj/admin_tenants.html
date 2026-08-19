@@ -91,7 +91,7 @@
     }).then(function(res) {
       if (res.handled) return;
       if (res.ok) { location.reload(); }
-      else { alert((res.data && res.data.error) || "Could not create tenant"); }
+      else { window.alertAction({ title: 'Couldn\u2019t create the tenant', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
     });
   });
 
@@ -106,7 +106,7 @@
       .then(function(res) {
         if (res.handled) return;
         if (res.ok) { location.reload(); }
-        else { alert((res.data && res.data.error) || "Could not rename tenant"); }
+        else { window.alertAction({ title: 'Couldn\u2019t rename the tenant', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
       });
   });
 

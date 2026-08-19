@@ -183,12 +183,12 @@
         renderAll();
         var msg = "Could not " + (published ? "publish" : "unpublish") + " round " + roundNb;
         if (res.data && res.data.error) msg += ":\n" + res.data.error;
-        alert(msg);
+        window.alertAction({ title: 'Couldn\u2019t update that round', body: msg });
       }
     }).catch(function() {
       delete toggle.dataset.busy;
       renderAll();
-      alert("Network error while updating round " + roundNb + ".");
+      window.alertAction({ title: 'Network error', body: 'Round ' + roundNb + ' was not updated. Check the connection and try again.' });
     });
   }
 
