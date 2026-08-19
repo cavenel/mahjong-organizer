@@ -5,6 +5,15 @@ class Tenant(models.Model):
     name = models.CharField(max_length=255)
     subdomain = models.CharField(max_length=255)
 
+    class Meta:
+        constraints = [
+            # The subdomain is the tenant key: every request resolves its tenant
+            # from the host, and get_or_create(subdomain=...) assumes one row. Two
+            # rows sharing one would make which tenant a request lands on depend on
+            # row order.
+            models.UniqueConstraint(fields=['subdomain'], name='unique_tenant_subdomain'),
+        ]
+
     @classmethod
     def get_default_pk(cls):
         tenant, created = cls.objects.get_or_create(

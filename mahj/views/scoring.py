@@ -37,7 +37,10 @@ def scores_per_player_rows(request, full_view=False, seats=None):
 
 def player_rounds_rows(request, player_id):
     tenant = get_tenant(request)
-    return _scoring.player_rounds(tenant, Player.objects.get(id=player_id))
+    # Scoped to the tenant: an unscoped id lookup would read another tenant's
+    # competitor and render their rounds on this subdomain.
+    return _scoring.player_rounds(
+        tenant, Player.objects.get(tenant=tenant, id=player_id))
 
 
 def stat_rounds(request, full_view=False, seats=None, hands=None):
