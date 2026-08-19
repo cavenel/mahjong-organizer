@@ -70,7 +70,15 @@ class Player(TenantAwareModel):
     with ``draw_number`` null is on the player list but not yet in the draw.
     """
     full_name  = models.CharField(max_length=70, default="")
+    # The person's real first and last name, stored raw from the import's two
+    # columns (mixed case preserved). full_name is the canonical "First Last"
+    # display; last_name is blank for a mononym.
     first_name = models.CharField(max_length=70, default="")
+    last_name  = models.CharField(max_length=70, default="", blank=True)
+    # A short display token disambiguated across the field: the first name, plus
+    # just enough of the surname ("Chris D.") when two competitors share a first
+    # name. Built in bulk at import; the save() fallback below covers single edits.
+    short_name = models.CharField(max_length=70, default="")
     EMA_ID     = models.CharField(max_length=70, default="")
     country    = models.CharField(max_length=70, default="")
     team       = models.CharField(max_length=70, default="", blank=True)
@@ -84,12 +92,15 @@ class Player(TenantAwareModel):
         ]
 
     def save(self, *args, **kwargs):
-        if self.first_name == "":
+        # Best-effort fallback for single saves (the import/editor bulk paths set
+        # these explicitly). Only fill blanks so a real value is never clobbered.
+        if not self.first_name:
             self.first_name = self.full_name.split(" ")[0]
+        if not self.last_name:
+            self.last_name = " ".join(self.full_name.split(" ")[1:])
+        if not self.short_name:
+            self.short_name = self.first_name
         return super().save(*args, **kwargs)
-
-    def last_name(self):
-        return " ".join(self.full_name.split(" ")[1:]).upper()
 
     def __str__(self):
         return self.full_name
@@ -140,9 +151,10 @@ class Seat(TenantAwareModel):
         return player.full_name if player else f"Player {self.draw_number}"
 
     def player_short_name(self):
-        """Short form of ``player_name`` (first name) for the compact seat views."""
+        """Short form of ``player_name`` (disambiguated ``short_name``) for the
+        compact seat views."""
         player = getattr(self, 'player', None)
-        return player.first_name if player else f"Player {self.draw_number}"
+        return player.short_name if player else f"Player {self.draw_number}"
 
     def __str__(self):
         return "R{0}, T{1}, {2}: #{3} [{4}MP / {5}TP]({6})".format(

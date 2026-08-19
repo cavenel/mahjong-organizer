@@ -79,7 +79,8 @@ def test_import_creates_players_and_seats(staff_client, imp_tenant):
 
 def _snapshot(tenant):
     players = {
-        (p.full_name, p.EMA_ID, p.country, p.team, p.draw_number)
+        (p.full_name, p.first_name, p.last_name, p.EMA_ID, p.country, p.team,
+         p.draw_number)
         for p in Player.objects.filter(tenant=tenant)
     }
     seats = {
@@ -224,6 +225,70 @@ def test_uneven_team_rejected(staff_client, imp_tenant):
     resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
+
+
+def test_names_stored_raw_from_two_columns(staff_client, imp_tenant):
+    """The Last/First columns are stored raw (mixed case preserved, no title-casing)
+    and full_name is the "First Last" join. Covers a mononym (blank surname), a
+    multi-word surname kept whole, and casing that .title() used to mangle."""
+    rows = _rows16()
+    rows[0] = ('', 'Cher', 90000, 'France', None, 1)               # mononym
+    rows[1] = ('Van Der Berg', 'Chris', 90001, 'Sweden', None, 2)  # multi-word surname
+    rows[2] = ('McDonald', 'chris', 90002, 'Scotland', None, 3)    # casing preserved
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    assert resp.status_code in (200, 302)
+
+    cher = Player.objects.get(tenant=imp_tenant, draw_number=1)
+    assert (cher.first_name, cher.last_name, cher.full_name) == ('Cher', '', 'Cher')
+
+    berg = Player.objects.get(tenant=imp_tenant, draw_number=2)
+    assert berg.last_name == 'Van Der Berg'
+    assert berg.full_name == 'Chris Van Der Berg'
+
+    mac = Player.objects.get(tenant=imp_tenant, draw_number=3)
+    assert mac.last_name == 'McDonald'  # not "Mcdonald"
+    assert mac.full_name == 'chris McDonald'
+
+
+def test_short_name_disambiguates_shared_first_name(staff_client, imp_tenant):
+    """short_name is the bare first name when unique, else first name + the shortest
+    surname prefix that separates same-first-name competitors ("Chris D.", growing
+    to "Chris Dere." when two share a prefix)."""
+    rows = _rows16()
+    rows[0] = ('Derek', 'Chris', 90000, 'Sweden', None, 1)
+    rows[1] = ('Dupont', 'Chris', 90001, 'Sweden', None, 2)
+    rows[2] = ('Dervinson', 'Chris', 90002, 'Sweden', None, 3)
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    assert resp.status_code in (200, 302)
+
+    def short(dn):
+        return Player.objects.get(tenant=imp_tenant, draw_number=dn).short_name
+
+    # A unique first name stays bare.
+    assert short(4) == 'First4'
+    # Three Chrises: Dupont splits on the first letter; Derek/Dervinson need "Dere"/"Derv".
+    assert short(1) == 'Chris Dere.'
+    assert short(2) == 'Chris Du.'
+    assert short(3) == 'Chris Derv.'
+
+
+def test_names_round_trip_through_export(staff_client, imp_tenant):
+    """A mononym and a multi-word surname survive export -> re-import byte-identical
+    (they no longer depend on re-splitting full_name)."""
+    rows = _rows16()
+    rows[0] = ('', 'Cher', 90000, 'France', None, 1)
+    rows[1] = ('Van Der Berg', 'Chris', 90001, 'Sweden', None, 2)
+    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    before = _snapshot(imp_tenant)
+
+    resp = staff_client.get('/admin_export_to_template')
+    assert resp.status_code == 200
+    exported = io.BytesIO(resp.content)
+    exported.seek(0)
+    exported.name = 'template.xlsx'
+    staff_client.post('/admin_upload_from_template', {'myfile': exported})
+
+    assert _snapshot(imp_tenant) == before
 
 
 def test_absent_ema_left_blank(staff_client, imp_tenant):

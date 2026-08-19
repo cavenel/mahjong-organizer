@@ -56,7 +56,7 @@ def cross_positions(request):
 
         def label(d):
             p = players_by_draw.get(d)
-            return p.first_name if p else "Player {0}".format(d)
+            return p.short_name if p else "Player {0}".format(d)
 
         cross = [{"player": label(d), "east": 0, "cross": [0] * len(draws)} for d in draws]
         for round_ in scores:

@@ -51,22 +51,22 @@ printed. Rename path + `name=` + every hardcoded JS/href/test string in lockstep
 - **`restore_worker.py` `AS positions` / `db_counts.positions`** — counts `Seat`
   rows; surfaces in `admin_database_restore.html`. → `seats`.
 
-## First name / last name handling refactor — IN PROGRESS
+## First name / last name handling refactor — DONE
 
-Store the real first/last name from the import's two columns instead of
-re-deriving parts by splitting `full_name` (which returns `""` for a mononym and
-mis-splits multi-word surnames), and give the three concepts honest names:
-`first_name` / `last_name` = real names, `short_name` = the disambiguated display
-token ("Chris D."), `full_name` = computed "First Last".
+The real first/last name are now stored from the import's two columns instead of
+re-deriving parts by splitting `full_name`, and the three concepts have honest
+names: `first_name` / `last_name` = real names, `short_name` = the disambiguated
+display token ("Chris D."), `full_name` = computed "First Last".
 
-**Full step-by-step design: `~/.claude/plans/splendid-hugging-cat.md`.**
-
-Status: the Player **model** fields are in place (+ migration `0012`). Still to
-do per that plan — import parser (preserve casing, no title-case) + last-name-
-initial disambiguation, lossless export round-trip, standings/EMA report using
-the real names, the token read sites (`Seat.player_short_name`, print, scan),
-the player editor's First/Last columns, and Step 7 tests (mononym, multi-word
-surname, casing preserved, short_name collision).
+Shipped (migration `0012` renames the old `first_name` token → `short_name` and
+adds the real `first_name`/`last_name`, backfilled by splitting `full_name`): the
+import parser preserves casing (no title-case) and builds `short_name` with a
+last-name-initial that grows only on collision; export writes the stored raw
+fields for a lossless round-trip; standings/EMA report use the real names
+(`last_name.upper()`); the token read sites (`Seat.player_short_name`, print,
+scan) use `short_name`; the player editor edits First/Last with `full_name`
+recomputed; tests cover mononym, multi-word surname, casing preserved, and
+short_name collision.
 
 ## Dead code (safe deletes)
 

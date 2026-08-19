@@ -334,7 +334,7 @@ def scan_positions(request):
 
     data = []
     for p in positions:
-        first = p.player.first_name if p.player else ''
+        first = p.player.short_name if p.player else ''
         data.append({
             'position': p.wind,
             'wind': WINDS[p.wind - 1] if 1 <= p.wind <= 4 else '',

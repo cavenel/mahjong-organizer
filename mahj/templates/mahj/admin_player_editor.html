@@ -25,6 +25,7 @@
           <th @click="sort('draw_number')" class="px-3 py-2 text-right font-medium cursor-pointer select-none whitespace-nowrap hover:text-gray-700">Draw number <span class="text-amber-500" x-text="arrow('draw_number')"></span></th>
           <th @click="sort('full_name')"  class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Full name <span class="text-amber-500" x-text="arrow('full_name')"></span></th>
           <th @click="sort('first_name')" class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">First name <span class="text-amber-500" x-text="arrow('first_name')"></span></th>
+          <th @click="sort('last_name')"  class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Last name <span class="text-amber-500" x-text="arrow('last_name')"></span></th>
           <th @click="sort('country')"    class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Country <span class="text-amber-500" x-text="arrow('country')"></span></th>
           <th @click="sort('EMA_ID')"     class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">EMA id <span class="text-amber-500" x-text="arrow('EMA_ID')"></span></th>
           <th @click="sort('team')"       class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Team <span class="text-amber-500" x-text="arrow('team')"></span></th>
@@ -39,8 +40,9 @@
                      @focus="$el._v = $el.value" @change="changeDraw(row, $el)"
                      class="w-16 text-right tabular-nums border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300">
             </td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.full_name" @change="saveMeta(row)" class="w-full min-w-[10rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-3 py-1 min-w-[10rem] text-gray-500" x-text="row.full_name"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.last_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
@@ -117,7 +119,7 @@
         row._error = '';
         var self = this;
         var payload = {
-          id: row.id, full_name: row.full_name, first_name: row.first_name,
+          id: row.id, first_name: row.first_name, last_name: row.last_name,
           EMA_ID: row.EMA_ID, country: row.country, team: row.team,
         };
         $.ajax({
@@ -126,7 +128,11 @@
           contentType: 'application/json',
           headers: { 'X-CSRFToken': '{{ csrf_token }}' },
           data: JSON.stringify({ players: [payload] }),
-          success: function () { self.flashSaved(row); },
+          success: function () {
+            // Mirror the server's recompute so the read-only Full name cell stays fresh.
+            row.full_name = ((row.first_name || '') + ' ' + (row.last_name || '')).trim();
+            self.flashSaved(row);
+          },
           error: function (xhr) {
             var msg = (xhr && xhr.responseText) || '';
             if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {

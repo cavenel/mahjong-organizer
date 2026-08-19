@@ -226,7 +226,7 @@ def _cumulative_row(player, all_positions, up_to_round, flag):
     return {
         'history_pos': [1], 'pos': 0, 'pos_se': '',
         'player_id': player.id, 'EMA_ID': player.EMA_ID,
-        'first_name': player.first_name, 'last_name': player.last_name(),
+        'first_name': player.first_name, 'last_name': player.last_name.upper(),
         'name': player.full_name, 'country': player.country, 'flag': flag,
         'team': player.team,
         'scores': [{'mp': p.minipoints, 'tp': p.tablepoints, 'round_nb': p.round_nb}

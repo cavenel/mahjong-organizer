@@ -345,10 +345,12 @@ def admin_upload_from_template(request):
                 )
                 if not has_name:
                     continue
-                # Make first_name, last_name into title-case strings:
-                first_name_raw = first_name_raw.strip().title() if isinstance(first_name_raw, str) else ""
-                last_name_raw = last_name_raw.strip().title() if isinstance(last_name_raw, str) else ""
-                full_name = f"{first_name_raw} {last_name_raw}".strip()
+                # Keep the organizer's casing (strip only) — title-casing mangles
+                # "McDonald" and "van der Berg". The raw first/last are stored; the
+                # canonical display is "First Last".
+                first = first_name_raw.strip() if isinstance(first_name_raw, str) else ""
+                last = last_name_raw.strip() if isinstance(last_name_raw, str) else ""
+                full_name = f"{first} {last}".strip()
                 # Coerce to str (a numeric team cell would otherwise crash the whole
                 # import) and collapse internal whitespace, so "Team  A" and "Team A"
                 # aren't grouped as two different teams.
@@ -391,8 +393,9 @@ def admin_upload_from_template(request):
                             f"draw numbers start at 1."
                         )
                 player_objs.append(Player(
-                    tenant=tenant, full_name=full_name, EMA_ID=ema,
-                    country=country or "", team=team, draw_number=draw_number,
+                    tenant=tenant, full_name=full_name, first_name=first,
+                    last_name=last, EMA_ID=ema, country=country or "", team=team,
+                    draw_number=draw_number,
                 ))
             if any_team and not all_have_team:
                 raise TemplateImportError(
@@ -420,21 +423,30 @@ def admin_upload_from_template(request):
             tournament.has_teams = any_team
             tournament.save()
 
-            # Disambiguate first names for display (two "Chris" -> "Chris."/"Christo").
-            # bulk_create skips Player.save(), so set first_name here in one bulk_update.
-            first_names = [unidecode(p.full_name) for p in player_objs]
+            # Build the short display token: the first name alone, or first name +
+            # the shortest surname prefix that separates competitors who share a
+            # first name ("Chris D.", growing to "Chris Dere." if two share "Der").
+            # bulk_create skips Player.save(), so set short_name here in one bulk_update.
+            by_first = defaultdict(list)
             for player in player_objs:
-                value = player.full_name.split(" ")[0]
-                firstname = value
-                for _ in range(10):
-                    ud_value = unidecode(value)
-                    if sum(fn[:len(ud_value)] == ud_value for fn in first_names) > 1:
-                        value += player.full_name[len(value):len(value) + 1]
-                    else:
-                        break
-                value = value.rstrip()
-                player.first_name = value + "." if value != firstname else value
-            Player.objects.bulk_update(player_objs, ['first_name'])
+                by_first[unidecode(player.first_name).lower()].append(player)
+            for group in by_first.values():
+                if len(group) == 1:
+                    group[0].short_name = group[0].first_name
+                    continue
+                for player in group:
+                    if not player.last_name:
+                        player.short_name = player.first_name
+                        continue
+                    n = 1
+                    while n < len(player.last_name):
+                        prefix = unidecode(player.last_name[:n]).lower()
+                        if sum(unidecode(p.last_name[:n]).lower() == prefix
+                               for p in group) == 1:
+                            break
+                        n += 1
+                    player.short_name = f"{player.first_name} {player.last_name[:n]}."
+            Player.objects.bulk_update(player_objs, ['short_name'])
 
             Hand.objects.filter(tenant=tenant).delete()
             ScoreSheet.objects.filter(tenant=tenant).delete()
@@ -569,11 +581,9 @@ def admin_export_to_template(request):
         'Team name (optional)', 'Random position (1 - # of players)',
     ])
     for player in players:
-        first_name = player.full_name.split(" ")[0]
-        last_name = " ".join(player.full_name.split(" ")[1:])
         players_sheet.append([
-            last_name,
-            first_name,
+            player.last_name,
+            player.first_name,
             # EMA_ID is stored zero-padded ("00001234"); export the number so the
             # importer's f"{ema:08d}" reproduces it (a blank stays blank).
             int(player.EMA_ID) if player.EMA_ID else None,
@@ -721,7 +731,7 @@ def admin_team_draw(request):
                 "id": p.id,
                 "original_index": order[p.id],
                 "full_name": p.full_name,
-                "first_name": p.first_name,
+                "short_name": p.short_name,
                 "country": p.country,
                 "flag": _country_flag(p.country),
                 "EMA_ID": p.EMA_ID,
@@ -836,7 +846,7 @@ def admin_player_draw(request):
         "id": p.id,
         "original_index": order[p.id],
         "full_name": p.full_name,
-        "first_name": p.first_name,
+        "short_name": p.short_name,
         "country": p.country,
         "flag": _country_flag(p.country),
         "draw_number": p.draw_number,
@@ -906,7 +916,7 @@ def admin_player_draw_assign(request):
 # NOT here: it's the draw itself (set by Randomize / Team draw / import) and the
 # seating chart is keyed by it, so reassigning it belongs to those tools, not to
 # a free-text metadata edit.
-_PLAYER_EDITABLE_FIELDS = ['full_name', 'first_name', 'EMA_ID', 'country', 'team']
+_PLAYER_EDITABLE_FIELDS = ['first_name', 'last_name', 'EMA_ID', 'country', 'team']
 
 
 @tenant_admin_required
@@ -937,14 +947,18 @@ def player_editor_save(request):
                     f"{field} is too long: {len(value)} characters "
                     f"(maximum {max_length}).", status=400)
             setattr(player, field, value)
-        # Mirror Player.save(): a blank first name falls back to the first token
-        # of the full name (bulk_update bypasses the model's save()).
-        if player.first_name == "":
-            player.first_name = player.full_name.split(" ")[0]
+        # First/last are the edited fields; when either changed keep the canonical
+        # "First Last" display and the short token in sync (bulk_update bypasses the
+        # model's save()). short_name loses cross-field disambiguation on an edit —
+        # acceptable for the occasional typo fix; a re-import rebuilds it fully.
+        if 'first_name' in r or 'last_name' in r:
+            player.full_name = f"{player.first_name} {player.last_name}".strip()
+            player.short_name = player.first_name
         to_update.append(player)
 
     if to_update:
-        Player.objects.bulk_update(to_update, _PLAYER_EDITABLE_FIELDS)
+        Player.objects.bulk_update(
+            to_update, _PLAYER_EDITABLE_FIELDS + ['full_name', 'short_name'])
     return HttpResponse('OK')
 
 
@@ -1510,8 +1524,8 @@ def options(request, error=None):
                 F('draw_number').asc(nulls_last=True), 'full_name')
             player_rows = [
                 {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
-                 'first_name': p.first_name, 'EMA_ID': p.EMA_ID, 'country': p.country,
-                 'team': p.team}
+                 'first_name': p.first_name, 'last_name': p.last_name,
+                 'EMA_ID': p.EMA_ID, 'country': p.country, 'team': p.team}
                 for p in players
             ]
             # The seating-chart slots a draw number may be assigned to (the editor

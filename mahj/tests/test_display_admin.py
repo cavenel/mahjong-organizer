@@ -488,16 +488,17 @@ def test_player_editor_save_persists_metadata(client_, staff, tournament):
     resp = client_.post(
         '/player_editor_save',
         data=json.dumps({'players': [{
-            'id': p.id, 'full_name': 'Corrected Name', 'first_name': '',
+            'id': p.id, 'first_name': 'Corrected', 'last_name': 'Name',
             'country': 'Norway', 'EMA_ID': 'E99999', 'team': 'Reds',
         }]}),
         content_type='application/json')
     assert resp.status_code == 200
     p.refresh_from_db()
-    assert p.full_name == 'Corrected Name'
     assert p.country == 'Norway'
-    # Blank first name mirrors Player.save(): first token of the full name.
-    assert p.first_name == 'Corrected'
+    # The editor edits first/last; full_name and short_name are recomputed from them.
+    assert (p.first_name, p.last_name) == ('Corrected', 'Name')
+    assert p.full_name == 'Corrected Name'
+    assert p.short_name == 'Corrected'
 
 
 def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):

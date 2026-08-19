@@ -44,11 +44,11 @@ stats/badges and the detailed-hand modal, but never the final ranking.
   clamps `from` on the high end (`admin_scores_per_hand.html`,
   `modal_detailed_scores.html`). Fix: guard `from < 0 || from > 4`.
 
-- **Name handling oddities (cosmetic).** `last_name()` returns an empty string for
-  a mononym (single-token `full_name`); team grouping is case-sensitive
-  (`"Dragons"` ≠ `"dragons"`) — now mitigated, since a case-split team fails the
-  "team size must be 4" import check rather than silently splitting. Fix
-  opportunistically.
+- **Team grouping is case-sensitive (cosmetic).** `"Dragons"` ≠ `"dragons"` —
+  mitigated, since a case-split team fails the "team size must be 4" import check
+  rather than silently splitting. Fix opportunistically. (The former `last_name()`
+  mononym / multi-word-surname oddity was resolved by the first/last-name refactor —
+  names are now stored raw from the import's two columns.)
 
 ### Scan / OCR (only if camera-scan is used live)
 
