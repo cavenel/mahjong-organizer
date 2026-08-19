@@ -13,7 +13,6 @@ from unidecode import unidecode
 
 from django.conf import settings
 from django.contrib.auth import logout
-from django.core.files.storage import FileSystemStorage
 from django.db import transaction
 from django.db.models import F
 from django.http import Http404, HttpResponse, HttpResponseBadRequest, HttpResponseForbidden, HttpResponseNotAllowed, HttpResponseRedirect, JsonResponse
@@ -281,6 +280,41 @@ def admin_print_EMA(request):
     return response
 
 
+def _normalize_ema_id(raw):
+    """The stored form of an EMA number: blank, or exactly eight digits.
+
+    The id is optional — many competitors have none — so blank stays blank. A
+    present-but-unparseable value is the organizer's mistake to surface, not to
+    swallow: blanking it silently flips the EMA-report flag, and the EMA export
+    reads the stored value back with ``int()``, so a free-text one crashes it.
+    Zero-padded because that is the canonical form — an unpadded "1234" wouldn't
+    match the same competitor imported from a template.
+
+    Raises ``ValueError`` (via ``int``/``float``) for the caller to report in its
+    own idiom: a template error on import, a 400 in the player editor.
+    """
+    if raw is None or not str(raw).strip():
+        return ""
+    return f"{int(float(str(raw).strip())):08d}"
+
+
+def _ema_id_for_export(stored):
+    """A stored EMA id as the template's number column wants it.
+
+    Normally an int, since _normalize_ema_id keeps the field digits-only. A row
+    predating that rule can still hold free text, so pass those through verbatim:
+    dropping them would lose data out of what is meant to be a backup, and
+    ``int()`` on them is what used to 500 the whole export. A re-import then
+    reports the offending competitor by name.
+    """
+    if not stored:
+        return None
+    try:
+        return int(stored)
+    except (TypeError, ValueError):
+        return stored
+
+
 class TemplateImportError(Exception):
     """A validation problem in an uploaded tournament template that the organizer
     can fix (bad cell, wrong player count, missing seating sheet). Its message is
@@ -296,232 +330,234 @@ def admin_upload_from_template(request):
             attached_file = request.FILES.get("myfile", None)
             if attached_file is None:
                 return options(request)
-            tmp_dir = BASE_DIR / "tmp"
-            tmp_file = tmp_dir / "template.xlsx"
-            if tmp_file.is_file():
-                os.remove(str(tmp_file))
-            fs = FileSystemStorage(location=str(tmp_dir))
-            fs.save("template.xlsx", attached_file)
 
-            Player.objects.filter(tenant=tenant).delete()
+            # One transaction for the whole wipe-and-load. The except below covers a
+            # failure we can catch; this covers the one we can't — the worker being
+            # killed or losing the database mid-import — which would otherwise commit a
+            # genuinely half-imported tournament the organizer cannot tell from a good
+            # one. The broadcasts stay outside it, so nothing is announced until the
+            # import has actually committed.
+            with transaction.atomic():
+                Player.objects.filter(tenant=tenant).delete()
 
-            # data_only=False so the seating sheet's mirror formulas ("=14+8")
-            # are read as formulas and evaluated below; a file with no cached
-            # results would otherwise read those seats as empty. Options/Players/
-            # Schedule hold plain values, so this doesn't change how they read.
-            wb = load_workbook(filename=str(tmp_file), data_only=False, read_only=True)
+                # Read straight from the upload, never via a path on disk: any shared
+                # staging file is a cross-tenant race, since two concurrent imports
+                # would fight over it and one tenant could load the other's workbook
+                # having already deleted its own players above.
+                # data_only=False so the seating sheet's mirror formulas ("=14+8")
+                # are read as formulas and evaluated below; a file with no cached
+                # results would otherwise read those seats as empty. Options/Players/
+                # Schedule hold plain values, so this doesn't change how they read.
+                wb = load_workbook(attached_file, data_only=False, read_only=True)
 
-            Schedule.objects.filter(tenant=tenant).delete()
-            sched_sheet = wb['Schedule']
-            schedule_rows = list(sched_sheet.iter_rows(min_row=2, max_col=4, values_only=True))
-            # Column 4 ("Is round") is optional; when it is missing (an older or
-            # hand-edited template leaves the cell None) fall back to guessing from
-            # the name (a row named "Round N" / "Session N" is a playing round).
-            # Either way staff can correct any misclassification afterwards in
-            # Tournament settings.
-            Schedule.objects.bulk_create([
-                Schedule(tenant=tenant, day=row[0], time=row[1], name=row[2],
-                         is_round=bool(row[3]) if row[3] is not None else _name_is_round(row[2]))
-                for row in schedule_rows if row[0] is not None
-            ])
+                Schedule.objects.filter(tenant=tenant).delete()
+                sched_sheet = wb['Schedule']
+                schedule_rows = list(sched_sheet.iter_rows(min_row=2, max_col=4, values_only=True))
+                # Column 4 ("Is round") is optional; when it is missing (an older or
+                # hand-edited template leaves the cell None) fall back to guessing from
+                # the name (a row named "Round N" / "Session N" is a playing round).
+                # Either way staff can correct any misclassification afterwards in
+                # Tournament settings.
+                Schedule.objects.bulk_create([
+                    Schedule(tenant=tenant, day=row[0], time=row[1], name=row[2],
+                             is_round=bool(row[3]) if row[3] is not None else _name_is_round(row[2]))
+                    for row in schedule_rows if row[0] is not None
+                ])
 
-            opt_sheet = wb['Options']
-            opt_vals = [row[1] for row in opt_sheet.iter_rows(min_row=1, max_row=6, max_col=2, values_only=True)]
-            tournament = get_tournament(request)
-            tournament.fullname = opt_vals[0] or ""
-            tournament.title = opt_vals[1] or ""
-            # A blank/zero rounds count would create no seating at all and "succeed"
-            # with nothing playable, so reject it. int() also normalises Excel's
-            # float (5.0 -> 5) before it reaches iter_rows' max_row below.
-            try:
-                nb_rounds = int(opt_vals[2])
-            except (TypeError, ValueError):
-                nb_rounds = 0
-            if nb_rounds < 1:
-                raise TemplateImportError(
-                    "The Options sheet must set the number of rounds to at least 1 "
-                    "(it was blank or zero) — otherwise no seating chart is created."
-                )
-            tournament.nb_rounds = nb_rounds
-            tournament.city = opt_vals[3] or ""
-            tournament.period = opt_vals[4] or ""
-            tournament.rules = opt_vals[5] or "MCR"
-            tournament.save()
+                opt_sheet = wb['Options']
+                opt_vals = [row[1] for row in opt_sheet.iter_rows(min_row=1, max_row=6, max_col=2, values_only=True)]
+                tournament = get_tournament(request)
+                tournament.fullname = opt_vals[0] or ""
+                tournament.title = opt_vals[1] or ""
+                # A blank/zero rounds count would create no seating at all and "succeed"
+                # with nothing playable, so reject it. int() also normalises Excel's
+                # float (5.0 -> 5) before it reaches iter_rows' max_row below.
+                try:
+                    nb_rounds = int(opt_vals[2])
+                except (TypeError, ValueError):
+                    nb_rounds = 0
+                if nb_rounds < 1:
+                    raise TemplateImportError(
+                        "The Options sheet must set the number of rounds to at least 1 "
+                        "(it was blank or zero) — otherwise no seating chart is created."
+                    )
+                tournament.nb_rounds = nb_rounds
+                tournament.city = opt_vals[3] or ""
+                tournament.period = opt_vals[4] or ""
+                tournament.rules = opt_vals[5] or "MCR"
+                tournament.save()
 
-            # Player list: one Player per real person. The optional 'rand' column is a
-            # pre-assigned draw number; when present the person is linked to their
-            # seats below, otherwise the draw is made later (randomize / team draw).
-            players_sheet = wb['Players']
-            player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
-            player_objs = []
-            any_team = False
-            all_have_team = True
-            for row in player_rows:
-                last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
-                # Skip fully-blank spacer / trailing rows and keep scanning: a row is
-                # a real competitor as long as it carries any name, so a mononym (only
-                # a first name, or only a surname) imports like everyone else and an
-                # interior blank doesn't truncate the list.
-                has_name = any(
-                    isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw)
-                )
-                if not has_name:
-                    continue
-                # Keep the organizer's casing (strip only) — title-casing mangles
-                # "McDonald" and "van der Berg". The raw first/last are stored; the
-                # canonical display is "First Last".
-                first = first_name_raw.strip() if isinstance(first_name_raw, str) else ""
-                last = last_name_raw.strip() if isinstance(last_name_raw, str) else ""
-                full_name = f"{first} {last}".strip()
-                # Coerce to str (a numeric team cell would otherwise crash the whole
-                # import) and collapse internal whitespace, so "Team  A" and "Team A"
-                # aren't grouped as two different teams.
-                team = " ".join(str(team_raw).split()) if team_raw is not None else ""
-                if team:
-                    any_team = True
-                else:
-                    all_have_team = False
-                # The EMA id is optional (many competitors have none) -> blank
-                # silently. A present-but-unparseable value is the organizer's
-                # mistake to surface, not to swallow: blanking it also silently
-                # flips the EMA-report flag.
-                if ema_raw is None or (isinstance(ema_raw, str) and not ema_raw.strip()):
-                    ema = ""
-                else:
+                # Player list: one Player per real person. The optional 'rand' column is a
+                # pre-assigned draw number; when present the person is linked to their
+                # seats below, otherwise the draw is made later (randomize / team draw).
+                players_sheet = wb['Players']
+                player_rows = list(players_sheet.iter_rows(min_row=2, max_col=6, values_only=True))
+                player_objs = []
+                any_team = False
+                all_have_team = True
+                for row in player_rows:
+                    last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
+                    # Skip fully-blank spacer / trailing rows and keep scanning: a row is
+                    # a real competitor as long as it carries any name, so a mononym (only
+                    # a first name, or only a surname) imports like everyone else and an
+                    # interior blank doesn't truncate the list.
+                    has_name = any(
+                        isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw)
+                    )
+                    if not has_name:
+                        continue
+                    # Keep the organizer's casing (strip only) — title-casing mangles
+                    # "McDonald" and "van der Berg". The raw first/last are stored; the
+                    # canonical display is "First Last".
+                    first = first_name_raw.strip() if isinstance(first_name_raw, str) else ""
+                    last = last_name_raw.strip() if isinstance(last_name_raw, str) else ""
+                    full_name = f"{first} {last}".strip()
+                    # Coerce to str (a numeric team cell would otherwise crash the whole
+                    # import) and collapse internal whitespace, so "Team  A" and "Team A"
+                    # aren't grouped as two different teams.
+                    team = " ".join(str(team_raw).split()) if team_raw is not None else ""
+                    if team:
+                        any_team = True
+                    else:
+                        all_have_team = False
+                    # The EMA id is optional (many competitors have none) -> blank
+                    # silently. A present-but-unparseable value is the organizer's
+                    # mistake to surface, not to swallow: blanking it also silently
+                    # flips the EMA-report flag.
                     try:
-                        ema = f"{int(float(str(ema_raw).strip())):08d}"
+                        ema = _normalize_ema_id(ema_raw)
                     except (TypeError, ValueError):
                         raise TemplateImportError(
                             f"Competitor '{full_name}' has an invalid EMA number "
                             f"'{ema_raw}'. Enter digits only, or leave the cell blank."
                         )
-                # The optional 'rand' column is the competitor's draw number. It is
-                # 1-based; 0 (or negative) collides with the empty-seat sentinel and
-                # would attach the player to every empty seat. The draw lives on the
-                # Player; seats are keyed by it. None until drawn.
-                if rand_raw is None:
-                    draw_number = None
-                else:
-                    try:
-                        draw_number = int(rand_raw)
-                    except (TypeError, ValueError):
-                        raise TemplateImportError(
-                            f"Competitor '{full_name}' has an invalid draw number "
-                            f"'{rand_raw}'. Use a whole number from 1, or leave it blank."
-                        )
-                    if draw_number < 1:
-                        raise TemplateImportError(
-                            f"Competitor '{full_name}' has draw number {draw_number}; "
-                            f"draw numbers start at 1."
-                        )
-                player_objs.append(Player(
-                    tenant=tenant, full_name=full_name, first_name=first,
-                    last_name=last, EMA_ID=ema, country=country or "", team=team,
-                    draw_number=draw_number,
-                ))
-            if any_team and not all_have_team:
-                raise TemplateImportError(
-                    "Some competitors have a team and some don't. When teams are "
-                    "used every competitor must have one — fill in the blank team cells."
-                )
-            # Teams are always groups of four. A team that comes out a different
-            # size is a player-list mistake — most often a typo or case mismatch that
-            # split one team in two ("Sweden" vs "sweden"), which the size check
-            # catches without silently merging genuinely distinct names.
-            if any_team:
-                sizes = Counter(p.team for p in player_objs)
-                wrong = sorted(name for name, n in sizes.items() if n != 4)
-                if wrong:
+                    # The optional 'rand' column is the competitor's draw number. It is
+                    # 1-based; 0 (or negative) collides with the empty-seat sentinel and
+                    # would attach the player to every empty seat. The draw lives on the
+                    # Player; seats are keyed by it. None until drawn.
+                    if rand_raw is None:
+                        draw_number = None
+                    else:
+                        try:
+                            draw_number = int(rand_raw)
+                        except (TypeError, ValueError):
+                            raise TemplateImportError(
+                                f"Competitor '{full_name}' has an invalid draw number "
+                                f"'{rand_raw}'. Use a whole number from 1, or leave it blank."
+                            )
+                        if draw_number < 1:
+                            raise TemplateImportError(
+                                f"Competitor '{full_name}' has draw number {draw_number}; "
+                                f"draw numbers start at 1."
+                            )
+                    player_objs.append(Player(
+                        tenant=tenant, full_name=full_name, first_name=first,
+                        last_name=last, EMA_ID=ema, country=country or "", team=team,
+                        draw_number=draw_number,
+                    ))
+                if any_team and not all_have_team:
                     raise TemplateImportError(
-                        f"Team '{wrong[0]}' has {sizes[wrong[0]]} competitor(s); every "
-                        f"team must have exactly 4. Check for a typo or case mismatch "
-                        f"in the team name."
+                        "Some competitors have a team and some don't. When teams are "
+                        "used every competitor must have one — fill in the blank team cells."
                     )
-            Player.objects.bulk_create(player_objs)
-
-            # The player list is all-or-nothing on teams (enforced just above), so the
-            # presence of any team name is the single signal for has_teams, which
-            # gates team standings/columns/printouts everywhere.
-            tournament.has_teams = any_team
-            tournament.save()
-
-            # Build the short display token: the first name alone, or first name +
-            # the shortest surname prefix that separates competitors who share a
-            # first name ("Chris D.", growing to "Chris Dere." if two share "Der").
-            # bulk_create skips Player.save(), so set short_name here in one bulk_update.
-            by_first = defaultdict(list)
-            for player in player_objs:
-                by_first[unidecode(player.first_name).lower()].append(player)
-            for group in by_first.values():
-                if len(group) == 1:
-                    group[0].short_name = group[0].first_name
-                    continue
-                for player in group:
-                    if not player.last_name:
-                        player.short_name = player.first_name
-                        continue
-                    n = 1
-                    while n < len(player.last_name):
-                        prefix = unidecode(player.last_name[:n]).lower()
-                        if sum(unidecode(p.last_name[:n]).lower() == prefix
-                               for p in group) == 1:
-                            break
-                        n += 1
-                    player.short_name = f"{player.first_name} {player.last_name[:n]}."
-            Player.objects.bulk_update(player_objs, ['short_name'])
-
-            Hand.objects.filter(tenant=tenant).delete()
-            ScoreSheet.objects.filter(tenant=tenant).delete()
-            Seat.objects.filter(tenant=tenant).delete()
-            # The new schedule starts with empty scores, so any rounds that were
-            # published for the previous tournament are now stale — unpublish them all.
-            PublishedRound.objects.filter(tenant=tenant).delete()
-            nb_players = len(player_objs)
-            nb_tables = nb_players // 4
-            # The seating sheet is optional: a workbook may carry only the player list,
-            # schedule and settings, leaving the tournament without a chart until
-            # one is built on the Seating page. When a "<N> players" sheet *is*
-            # present it is read (and validated) here.
-            sheet_name = '{0} players'.format(nb_players)
-            if sheet_name in wb.sheetnames:
-                seating_sheet = wb[sheet_name]
-                # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
-                # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated.
-                seating_rows = list(seating_sheet.iter_rows(
-                    min_row=3, max_row=2 + tournament.nb_rounds,
-                    min_col=2, max_col=1 + 5 * nb_tables,
-                    values_only=True,
-                ))
-                seats_to_create = []
-                expected = set(range(1, nb_players + 1))
-                for round_idx, row in enumerate(seating_rows):
-                    round_draws = []
-                    for table_nb in range(nb_tables):
-                        for wind in range(4):
-                            draw_number = _seat_draw_number(row[wind + 5 * table_nb])
-                            round_draws.append(draw_number)
-                            seats_to_create.append(Seat(
-                                tenant=tenant,
-                                draw_number=draw_number,
-                                round_nb=round_idx + 1,
-                                table_nb=table_nb + 1,
-                                wind=wind + 1,
-                                minipoints=None,
-                                tablepoints=None,
-                            ))
-                    # A valid chart seats every competitor 1..N exactly once each
-                    # round. A mismatch means the sheet is the wrong size, has blank
-                    # cells, or (the classic case) carries formulas with no cached
-                    # result — better to reject it than load a half-empty chart.
-                    if sorted(round_draws) != sorted(expected):
+                # Teams are always groups of four. A team that comes out a different
+                # size is a player-list mistake — most often a typo or case mismatch that
+                # split one team in two ("Sweden" vs "sweden"), which the size check
+                # catches without silently merging genuinely distinct names.
+                if any_team:
+                    sizes = Counter(p.team for p in player_objs)
+                    wrong = sorted(name for name, n in sizes.items() if n != 4)
+                    if wrong:
                         raise TemplateImportError(
-                            f"The '{sheet_name}' seating sheet is not a valid chart: "
-                            f"round {round_idx + 1} does not seat each competitor "
-                            f"1–{nb_players} exactly once. Check the sheet for blank "
-                            f"cells, duplicate numbers, or the wrong field size."
+                            f"Team '{wrong[0]}' has {sizes[wrong[0]]} competitor(s); every "
+                            f"team must have exactly 4. Check for a typo or case mismatch "
+                            f"in the team name."
                         )
-                Seat.objects.bulk_create(seats_to_create, batch_size=500)
-            wb.close()
+                Player.objects.bulk_create(player_objs)
+
+                # The player list is all-or-nothing on teams (enforced just above), so the
+                # presence of any team name is the single signal for has_teams, which
+                # gates team standings/columns/printouts everywhere.
+                tournament.has_teams = any_team
+                tournament.save()
+
+                # Build the short display token: the first name alone, or first name +
+                # the shortest surname prefix that separates competitors who share a
+                # first name ("Chris D.", growing to "Chris Dere." if two share "Der").
+                # bulk_create skips Player.save(), so set short_name here in one bulk_update.
+                by_first = defaultdict(list)
+                for player in player_objs:
+                    by_first[unidecode(player.first_name).lower()].append(player)
+                for group in by_first.values():
+                    if len(group) == 1:
+                        group[0].short_name = group[0].first_name
+                        continue
+                    for player in group:
+                        if not player.last_name:
+                            player.short_name = player.first_name
+                            continue
+                        n = 1
+                        while n < len(player.last_name):
+                            prefix = unidecode(player.last_name[:n]).lower()
+                            if sum(unidecode(p.last_name[:n]).lower() == prefix
+                                   for p in group) == 1:
+                                break
+                            n += 1
+                        player.short_name = f"{player.first_name} {player.last_name[:n]}."
+                Player.objects.bulk_update(player_objs, ['short_name'])
+
+                Hand.objects.filter(tenant=tenant).delete()
+                ScoreSheet.objects.filter(tenant=tenant).delete()
+                Seat.objects.filter(tenant=tenant).delete()
+                # The new schedule starts with empty scores, so any rounds that were
+                # published for the previous tournament are now stale — unpublish them all.
+                PublishedRound.objects.filter(tenant=tenant).delete()
+                nb_players = len(player_objs)
+                nb_tables = nb_players // 4
+                # The seating sheet is optional: a workbook may carry only the player list,
+                # schedule and settings, leaving the tournament without a chart until
+                # one is built on the Seating page. When a "<N> players" sheet *is*
+                # present it is read (and validated) here.
+                sheet_name = '{0} players'.format(nb_players)
+                if sheet_name in wb.sheetnames:
+                    seating_sheet = wb[sheet_name]
+                    # Materialize the full seating sheet once (rows 3..3+nb_rounds-1,
+                    # cols 2..2+5*nb_tables-1). Each cell holds the draw number seated.
+                    seating_rows = list(seating_sheet.iter_rows(
+                        min_row=3, max_row=2 + tournament.nb_rounds,
+                        min_col=2, max_col=1 + 5 * nb_tables,
+                        values_only=True,
+                    ))
+                    seats_to_create = []
+                    expected = set(range(1, nb_players + 1))
+                    for round_idx, row in enumerate(seating_rows):
+                        round_draws = []
+                        for table_nb in range(nb_tables):
+                            for wind in range(4):
+                                draw_number = _seat_draw_number(row[wind + 5 * table_nb])
+                                round_draws.append(draw_number)
+                                seats_to_create.append(Seat(
+                                    tenant=tenant,
+                                    draw_number=draw_number,
+                                    round_nb=round_idx + 1,
+                                    table_nb=table_nb + 1,
+                                    wind=wind + 1,
+                                    minipoints=None,
+                                    tablepoints=None,
+                                ))
+                        # A valid chart seats every competitor 1..N exactly once each
+                        # round. A mismatch means the sheet is the wrong size, has blank
+                        # cells, or (the classic case) carries formulas with no cached
+                        # result — better to reject it than load a half-empty chart.
+                        if sorted(round_draws) != sorted(expected):
+                            raise TemplateImportError(
+                                f"The '{sheet_name}' seating sheet is not a valid chart: "
+                                f"round {round_idx + 1} does not seat each competitor "
+                                f"1–{nb_players} exactly once. Check the sheet for blank "
+                                f"cells, duplicate numbers, or the wrong field size."
+                            )
+                    Seat.objects.bulk_create(seats_to_create, batch_size=500)
+                wb.close()
             invalidate_leaderboard(tenant.subdomain)
             broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
         except Exception as exc:
@@ -605,9 +641,9 @@ def admin_export_to_template(request):
         players_sheet.append([
             player.last_name,
             player.first_name,
-            # EMA_ID is stored zero-padded ("00001234"); export the number so the
-            # importer's f"{ema:08d}" reproduces it (a blank stays blank).
-            int(player.EMA_ID) if player.EMA_ID else None,
+            # EMA_ID is stored zero-padded ("00001234"); export the number so
+            # _normalize_ema_id reproduces it on re-import (a blank stays blank).
+            _ema_id_for_export(player.EMA_ID),
             player.country,
             player.team or None,
             player.draw_number,
@@ -966,6 +1002,15 @@ def player_editor_save(request):
             if field not in r:
                 continue
             value = (r.get(field) or '').strip()
+            if field == 'EMA_ID':
+                # Same rule as the importer, so an edited id matches an imported one
+                # and the EMA export's int() can't meet free text.
+                try:
+                    value = _normalize_ema_id(value)
+                except (TypeError, ValueError):
+                    return HttpResponse(
+                        f"'{value}' is not a valid EMA number — enter digits only, "
+                        f"or leave it blank.", status=400)
             max_length = Player._meta.get_field(field).max_length
             if max_length and len(value) > max_length:
                 return HttpResponse(
