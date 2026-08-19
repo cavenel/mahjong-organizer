@@ -33,6 +33,47 @@ from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
 logger = logging.getLogger(__name__)
 
+def _reauth_gate(request, next_page=None):
+    """The "confirm your password" panel shown in place of a sudo-gated page.
+
+    A borrowed or unattended session must re-confirm before user management, tenant
+    management or the database restore is even displayed. A link-only admin has no
+    password to confirm, so the panel says so rather than offering a form they can't
+    use. `next_page` is where to return to afterwards; the user console is the
+    default landing page, so it passes none.
+    """
+    context = {"link_only": not request.user.has_usable_password()}
+    if next_page:
+        context["reauth_next"] = next_page
+    return loader.get_template('mahj/admin_users_reauth.html').render(context, request)
+
+
+def _sheet_state_keys(tenant, as_strings=False):
+    """(validated, in-progress) score-sheet keys for this tenant.
+
+    A sheet is *validated* when its ScoreSheet says so, and *in progress* when it has
+    at least one played hand but is not validated — so the two sets never overlap and
+    a table falls in at most one. Two callers want two key shapes: the welcome
+    dashboard groups by round on `(round_nb, table_nb)` tuples, while the score grid
+    matches the "<round>-<table>" strings its template builds. One query pair either
+    way, and one definition of the rule.
+    """
+    def key(rn, tn):
+        return f'{rn}-{tn}' if as_strings else (rn, tn)
+
+    validated = {
+        key(rn, tn)
+        for rn, tn in ScoreSheet.objects.filter(tenant=tenant, validated=True)
+                                        .values_list('round_nb', 'table_nb')
+    }
+    filled = {
+        key(rn, tn)
+        for rn, tn in Hand.objects.filter(tenant=tenant, win_by__isnull=False)
+                                  .values_list('round_nb', 'table_nb').distinct()
+    } - validated
+    return validated, filled
+
+
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
 from .restore_admin import list_backups
@@ -204,13 +245,7 @@ def publisher_overview_rows(tenant, tournament):
         if total > 0 and mp_per[(rn, tn)] == total:
             scored_tables[rn].append(tn)
 
-    validated_keys = set(
-        ScoreSheet.objects.filter(tenant=tenant, validated=True).values_list('round_nb', 'table_nb')
-    )
-    filled_keys = set(
-        Hand.objects.filter(tenant=tenant, win_by__isnull=False)
-            .values_list('round_nb', 'table_nb').distinct()
-    ) - validated_keys
+    validated_keys, filled_keys = _sheet_state_keys(tenant)
 
     validated_tables = defaultdict(list)
     for rn, tn in validated_keys:
@@ -1753,17 +1788,9 @@ def options(request, error=None):
             PublishedRound.objects.filter(tenant=tenant)
                 .order_by('round_nb').values_list('round_nb', flat=True)
         )
-        validated_keys = {
-            f"{rn}-{tn}"
-            for rn, tn in ScoreSheet.objects.filter(tenant=tenant, validated=True)
-                                       .values_list('round_nb', 'table_nb')
-        }
-        filled_keys = {
-            f"{rn}-{tn}"
-            for rn, tn in Hand.objects.filter(tenant=tenant, win_by__isnull=False)
-                                       .values_list('round_nb', 'table_nb')
-                                       .distinct()
-        } - validated_keys
+        # The score grid keys its badges by the "<round>-<table>" string its template
+        # builds, so ask for that shape.
+        validated_keys, filled_keys = _sheet_state_keys(tenant, as_strings=True)
         context = {
             'grid': grid,
             "players": all_players,
@@ -1812,12 +1839,7 @@ def options(request, error=None):
         if not is_tenant_admin(request):
             page_content = "None"
         elif not reauth_ok(request):
-            # Borrowed/unattended session: make the admin re-enter their password
-            # before exposing (or letting them touch) user management. Link-only
-            # admins have no password to confirm, so they're shut out entirely.
-            template2 = loader.get_template('mahj/admin_users_reauth.html')
-            page_content = template2.render(
-                {"link_only": not request.user.has_usable_password()}, request)
+            page_content = _reauth_gate(request)
         else:
             # Only this tenant's memberships — other tenants' users are invisible.
             memberships = (Membership.objects.filter(tenant=tenant)
@@ -1855,10 +1877,7 @@ def options(request, error=None):
         if not request.user.is_superuser or settings.STANDALONE:
             page_content = "None"
         elif not reauth_ok(request):
-            template2 = loader.get_template('mahj/admin_users_reauth.html')
-            page_content = template2.render(
-                {"link_only": not request.user.has_usable_password(),
-                 "reauth_next": "tenants"}, request)
+            page_content = _reauth_gate(request, 'tenants')
         else:
             tenant_rows = [
                 {"id": t.id, "name": t.name, "subdomain": t.subdomain,
@@ -1879,10 +1898,7 @@ def options(request, error=None):
         if not request.user.is_superuser:
             page_content = "None"
         elif not reauth_ok(request):
-            template2 = loader.get_template('mahj/admin_users_reauth.html')
-            page_content = template2.render(
-                {"link_only": not request.user.has_usable_password(),
-                 "reauth_next": "database_restore"}, request)
+            page_content = _reauth_gate(request, 'database_restore')
         else:
             # Counts the confirm dialog shows as "what you're about to overwrite".
             # Unscoped (whole-DB): a restore replaces every tenant's rows at once,
