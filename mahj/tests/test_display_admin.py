@@ -459,7 +459,8 @@ def test_dashboard_no_warning_without_schedule(client_, staff, tournament):
 
 
 # ── Player editor (admin?page=player_editor) ─────────────────────────────────
-# Staff-only inline table for correcting player metadata. Every field autosaves;
+# Staff-only inline table for correcting player metadata. Fields are read-only until
+# the Edit players button unlocks them, then each one autosaves on change;
 # draw_number is editable here too and goes through admin_player_draw_assign.
 
 def test_player_editor_renders_players_for_staff(client_, staff, tournament):
@@ -472,6 +473,9 @@ def test_player_editor_renders_players_for_staff(client_, staff, tournament):
     assert 'Draw number' in html
     assert 'valid-draw-data' in html
     assert 'changeDraw(' in html
+    # Fields start locked; an Edit players button unlocks them.
+    assert 'toggleEdit()' in html
+    assert ':readonly="!editing"' in html
 
 
 def test_player_editor_forbidden_for_non_staff(client_, display_op, tournament):

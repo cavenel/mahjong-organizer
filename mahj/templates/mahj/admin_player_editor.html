@@ -5,11 +5,23 @@
     <div>
       <h2 class="text-2xl font-bold text-gray-800">Edit players</h2>
       <p class="text-sm text-gray-500 mt-1">
-        Fix names, countries, EMA ids, e-mails, teams and draw numbers. Every change
-        saves on its own — click a column heading to sort. Changing a draw number
-        reassigns that seat, so it asks first.
+        Fix names, countries, EMA ids, teams and draw numbers. The table is locked
+        until you click <span class="font-medium text-gray-600">Edit players</span> —
+        click a column heading to sort at any time. While unlocked, every change saves
+        on its own; changing a draw number reassigns that seat, so it asks first.
       </p>
     </div>
+    <button type="button" @click="toggleEdit()" x-show="rows.length"
+            class="px-4 py-2 text-sm font-medium rounded-lg shadow-sm whitespace-nowrap"
+            :class="editing
+              ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+              : 'bg-amber-500 text-white hover:bg-amber-600'"
+            x-text="editing ? '\u2713 Done editing' : '\u270e Edit players'"></button>
+  </div>
+
+  <div x-show="editing" x-cloak class="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+    Editing is unlocked — changes save as soon as you leave a field. Click
+    <span class="font-medium">Done editing</span> when you are finished.
   </div>
 
   <template x-if="rows.length === 0">
@@ -38,14 +50,16 @@
             <td class="px-2 py-1">
               <input type="text" inputmode="numeric" :value="row.draw_number ?? ''"
                      @focus="$el._v = $el.value" @change="changeDraw(row, $el)"
-                     class="w-16 text-right tabular-nums border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300">
+                     :readonly="!editing" :tabindex="editing ? 0 : -1"
+                     class="w-16 text-right tabular-nums border rounded px-2 py-1 focus:outline-none"
+                     :class="lockClass()">
             </td>
             <td class="px-3 py-1 min-w-[10rem] text-gray-500" x-text="row.full_name"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.last_name" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @change="saveMeta(row)" class="w-full min-w-[7rem] border border-transparent hover:border-gray-200 focus:border-amber-400 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-amber-300"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.last_name" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.team" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
             <td class="px-2 py-1 w-8 text-center align-middle">
               <span x-show="row._status === 'saving'" class="text-gray-400 text-xs">…</span>
               <span x-show="row._status === 'saved'" x-cloak class="text-green-600 text-sm">✓</span>
@@ -63,6 +77,7 @@
     return {
       rows: [],
       validDraw: [],
+      editing: false,
       sortKey: 'draw_number',
       sortDir: 'asc',
 
@@ -70,6 +85,16 @@
         this.rows = JSON.parse(document.getElementById('player-rows-data').textContent);
         this.validDraw = JSON.parse(document.getElementById('valid-draw-data').textContent);
         this.rows.forEach(function (r) { r._status = 'idle'; r._error = ''; });
+      },
+
+      // --- edit lock -------------------------------------------------------
+      toggleEdit() {
+        this.editing = !this.editing;
+      },
+      lockClass() {
+        return this.editing
+          ? 'border-transparent hover:border-gray-200 focus:border-amber-400 focus:ring-1 focus:ring-amber-300 bg-white cursor-text'
+          : 'border-transparent bg-transparent text-gray-600 cursor-default';
       },
 
       // --- sorting ---------------------------------------------------------
@@ -115,6 +140,7 @@
 
       // --- metadata autosave (name / country / EMA / e-mail / team) --------
       saveMeta(row) {
+        if (!this.editing) return;
         row._status = 'saving';
         row._error = '';
         var self = this;
@@ -145,6 +171,7 @@
 
       // --- draw-number autosave -------------------------------------------
       changeDraw(row, el) {
+        if (!this.editing) return;
         var origStr = (el._v == null ? '' : String(el._v)).trim();
         var newStr = (el.value || '').trim();
         if (newStr === origStr) return;
