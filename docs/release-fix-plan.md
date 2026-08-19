@@ -61,18 +61,20 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 **Theme:** player/team names are user-controlled; every injection point must escape. While in these exact templates, fold in the client-side duplication the review flagged.
 
-**Findings:** F4, F5, `scan.html` innerHTML, CSV-escaping, team-draw resume-overlay bug, client-side duplication (MCR tp-ranking, `getCookie`, preview-grid).
+**Findings:** F4, F5, `scan.html` innerHTML, CSV-escaping, team-draw resume-overlay bug, client-side duplication (MCR tp-ranking, `getCookie`, preview-grid). **✅ SESSION COMPLETE** — full suite 511 passing (+5 tests).
 
-- [ ] **F4 — five `json.dumps`+`|safe` injections** → `{{ …|json_script:"id" }}` + `JSON.parse(textContent)`: `display_ceremony.html:44` (public!), `admin_player_draw.html:38-43`, `admin_team_draw.html:32-37`. Update the corresponding view payload construction (`views/display.py:64`, `admin_views.py:772-774,859-860`) only if the key names change.
-- [ ] **F5 — draw-page `innerHTML` interpolation** → apply the existing `esc()` helper (defined in `display_ceremony.html:46-50`) or `textContent` at every site: `admin_player_draw.html:138-143,231,397,403,453,480,510-514`; `admin_team_draw.html:242,356,360,463,514,525,566,570,798,802`. Move `onclick="confirmTeam('${t.name}…')"` to an event listener keyed on team **id**, not name.
-- [ ] **`scan.html:213`** — render server error text with `textContent`, not `innerHTML`.
-- [ ] **CSV export escaping** (`admin_player_draw.html:536`, `admin_team_draw.html:633,787`) — double embedded `"` and quote newlines so a name with a quote doesn't corrupt the re-importable row.
-- [ ] **team-draw resume overlay** (`admin_team_draw.html:186-197`) — on resume with `paused=true`, unhide `#pause-overlay` (mirror `admin_player_draw.html:588`).
-- [ ] **De-dup while here** — extract the MCR table-point ranking (`get_tp` + `sortWithIndeces`, duplicated in `admin_scores_per_table.html:236`, `admin_scores_per_hand.html:196` (this copy also leaks globals), `modal_detailed_scores.html:137`) into one file under `static/js/`; extract `getCookie('csrftoken')` (×3) and the preview-grid/enlarge-modal block duplicated between `admin_display.html` and `admin_ceremony.html`.
+- [x] **F4 — five `json.dumps`+`|safe` injections** — all five now `{{ …|json_script:"id" }}` + `JSON.parse(textContent)`: `display_ceremony.html` (public), `admin_player_draw.html` (×2), `admin_team_draw.html` (×2). The views pass the objects instead of pre-dumped strings (`views/display.py`, `admin_views.py` draw-view contexts); `json` is no longer imported in `display.py`. `saved_draw` goes over as `[]` rather than the old `"null"` string — the page's `SAVED_DRAW.length > 0` check reads both the same way.
+- [x] **F5 — draw-page `innerHTML` interpolation** — every name/flag site in both draw pages goes through `escapeHtml()`. The `onclick="confirmTeam('${t.name}…')"` breakout is gone: the row carries `data-team-index` (the team's index in `TEAMS`) on a delegated listener. Teams have no DB id, and the event log persisted in `localStorage` is keyed by `team_name`, so the index is the page's stable handle — the name never re-enters markup.
+- [x] **`scan.html`** — the error card's message span is filled with `textContent` (mirrors `setPendingText` just above it).
+- [x] **CSV export escaping** — one shared `csvField()` quotes all three export sites, doubling embedded `"`; since every field is quoted, embedded newlines and commas are covered too.
+- [x] **team-draw resume overlay** — `loadState()`'s resume branch toggles `#pause-overlay` with the restored `paused` flag.
+- [x] **De-dup while here** — `static/js/mcr_table_points.js` (`tablePointsFromMinipoints`) replaces the three divergent `get_tp` copies; `static/js/browser_utils.js` (`escapeHtml` / `csvField` / `csrfCookie`) replaces the two `getCookie` copies, `admin_seating.html`'s `csrf()` and `display_ceremony.html`'s local `esc()`; `_screen_previews.html` + `static/js/screen_previews.js` replace the preview-grid/enlarge-modal block duplicated between `admin_display.html` and `admin_ceremony.html` (each page keeps its own heading toolbar — their buttons differ).
 
-**Files:** the templates above + one or two new `static/js/` files + minor view payload tweaks.
+**Files:** the templates above, three new `static/js/` files, one new template partial, `views/display.py`, `views/admin_views.py`.
 
-**Tests:** a template render / integration test that a player named `</script><script>…` and a team name with `"`/`<` appear escaped in the response HTML (extend `test_display_admin.py` / `test_player_draw.py` / `test_team_draw.py`). Note per memory: Tailwind rebuilds each Docker build, so new classes are fine; but new `static/js/` files must be referenced via `{% static %}`.
+**Tests:** `test_player_draw.py` (name holding `</script>` is escaped and still delivered; the escaping helper is loaded), `test_team_draw.py` (same for a team name with `"`/`<`; the row carries an index, not a name), `test_ceremony.py::TestScreenTakeover` (same on the **public** projector page). `json_script_payload()` in `conftest.py` reads back what `|json_script` wrote, so each test asserts both halves: nothing verbatim in the HTML, real name still in the payload.
+
+**⚠️ Manual click-through still recommended** (the JS paths tests can't reach): player draw → search, assign, undo, Export CSV; team draw → search a team, enter four roles, advance, save, Export CSV, and resume a paused draw; a score grid → type minipoints and check the table-point cells fill; display page and ceremony console → show/hide previews, enlarge one, Escape to close, plus Identify screens on the display page.
 
 **Risk:** moderate. `json_script` changes the read-side JS (`JSON.parse(textContent)`) — verify each consumer. Overlaps templates with S2, so do S2 first.
 
@@ -213,12 +215,12 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | `phase` unvalidated / `add_mode` crash | S2 |
 | `?logout=1` GET (×2) | S2 |
 | admin `json.loads` / `ScreenMode.get` / `.last()` 500s | S2 |
-| F4 `json.dumps\|safe` breakout (×5) | S3 |
-| F5 draw-page `innerHTML` XSS | S3 |
-| `scan.html` innerHTML error | S3 |
-| CSV export escaping | S3 |
-| team-draw resume overlay | S3 |
-| client tp-ranking / getCookie / preview-grid dup | S3 |
+| ✅ F4 `json.dumps\|safe` breakout (×5) | S3 |
+| ✅ F5 draw-page `innerHTML` XSS | S3 |
+| ✅ `scan.html` innerHTML error | S3 |
+| ✅ CSV export escaping | S3 |
+| ✅ team-draw resume overlay | S3 |
+| ✅ client tp-ranking / getCookie / preview-grid dup | S3 |
 | F7 Riichi save 500 | S4 |
 | F8 Riichi unpublishable | S4 |
 | publish/edit TOCTOU | S4 |

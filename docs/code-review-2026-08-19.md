@@ -35,7 +35,7 @@ Items marked **✅ DONE** below have been fixed and verified (full suite still 4
 1. **Gate `/print_scores`** — it publicly renders full unmasked standings (F1).
 2. **Authenticate the scorers WebSocket** — it streams live unpublished scores to anyone (F2).
 3. **Stop leaking scores through the scan API** and stop trusting client-authored score writes (F3, F13).
-4. **Escape the five `json.dumps|safe` injections and the draw pages' `innerHTML`** — stored XSS via player/team names, one on a public page (F4, F5).
+4. **✅ DONE — Escape the five `json.dumps|safe` injections and the draw pages' `innerHTML`** — stored XSS via player/team names, one on a public page (F4, F5).
 5. **Make every mutating endpoint POST-only** — ceremony publish, screen/mode CRUD, `set_tournament`, logout (F6).
 6. **Fix the Riichi path** — score saves 500 and rounds can never be published (F7, F8).
 7. **Close the two multi-tenant gaps** — login-link minting escalation and the shared import temp file (F9, F10).
@@ -81,21 +81,21 @@ For `phase='stat'`, the full slide (winners and values) is sent regardless of `s
 
 Player and team names are user-controlled (Excel import, player editor). Most of the codebase escapes correctly via `json_script` and an `esc()` helper — these pages predate that discipline.
 
-### F4 · HIGH · security/stored XSS — `json.dumps` + `|safe` inside `<script>`: `</script>`-breakout via names
+### ✅ DONE · F4 · HIGH · security/stored XSS — `json.dumps` + `|safe` inside `<script>`: `</script>`-breakout via names
 `display_ceremony.html:44` (public page, payload from `views/display.py:64`) · `admin_player_draw.html:38-43` · `admin_team_draw.html:32-37`
 
 Python's `json.dumps` escapes neither `<` nor `/`, so a player named `</script><script>…</script>` terminates the script block and injects live script. The ceremony display is a **public** page. The rest of the codebase already does this right with `|json_script` (`desktop.html:145`, `admin_seating.html:18`, `admin_settings.html:92`, …).
 
 **Fix:** Switch the five injections to `{{ …|json_script:"id" }}` + `JSON.parse(textContent)`, or at minimum `json.dumps(…).replace('<', '\\u003c')`.
 
-### F5 · HIGH · security/DOM XSS — Draw pages interpolate names unescaped into `innerHTML`
+### ✅ DONE · F5 · HIGH · security/DOM XSS — Draw pages interpolate names unescaped into `innerHTML`
 `admin_player_draw.html:138-143, 231, 397, 403, 453, 480, 510-514` · `admin_team_draw.html:242, 356, 360, 463, 514, 525, 566, 570, 798, 802`
 
 Template literals build HTML from `p.full_name` / `t.name` with no escaping. Worst case: `onclick="confirmTeam('${t.name.replace(/'/g, "\\'")}')"` escapes only single quotes — a name containing `"` breaks out of the attribute entirely. The server error string interpolated at `:453` also embeds a player name (`admin_views.py:906`). `display_ceremony.html:46-50` already defines the correct `esc()` helper — these pages just don't use it. Fixing this also fixes legitimate names with apostrophes or `<` rendering wrong.
 
 **Fix:** Apply the existing `esc()` helper (or `textContent`-based rendering) at every interpolation site; move the `onclick` to an event listener carrying the id, not the name.
 
-### Low · security — `scan.html` renders server error text via `innerHTML`
+### ✅ DONE · Low · security — `scan.html` renders server error text via `innerHTML`
 `mahj/templates/mahj/scan.html:213` · error source `views/scan.py:182-183`
 
 `div.innerHTML` with `${msg}` where `msg` can be OCR-pipeline error text.
@@ -331,8 +331,8 @@ The editor accepts any string; export does `int(player.EMA_ID)` → 500 on "N/A"
 - **Low · race** — `admin_views.py:898-912`: when a drawn number has no current holder, `select_for_update` locks nothing; two desks assigning simultaneously → the second gets an unhandled `IntegrityError` 500 instead of the designed 409. Catch it and return the 409 payload.
 - **Low · UI badge** — `seating.py:404-424`: `algebraic_feasible` is first-fit while `find_shifts` tries 300 random orderings, so the seating page can claim "rematch-free impossible" when `generate()` would succeed. Implement it as `len(find_shifts(T, R, seed=0)) >= R`. (The seating algebra itself was verified correct — forbidden shifts, distinct residues, teammate guarantee all check out.)
 - **Low · crash-swallow** — `seating.py:472-481`: `measure()` assumes contiguous draw numbers/rounds from 1; a hand-edited imported chart makes it raise, and the caller's blanket `except` silently hides the quality panel. Derive the sets from the rows; drop the blanket except.
-- **Low · UI state** — `admin_team_draw.html:186-197`: resuming a saved draw restores `paused` but never shows the pause overlay (the player-draw page does) — the page looks frozen, keys swallowed.
-- **Low · CSV** — `admin_player_draw.html:536`, `admin_team_draw.html:633, 787`: names are quoted without doubling embedded `"`; such a name corrupts the exported row meant to be re-imported.
+- **✅ DONE · Low · UI state** — `admin_team_draw.html:186-197`: resuming a saved draw restores `paused` but never shows the pause overlay (the player-draw page does) — the page looks frozen, keys swallowed.
+- **✅ DONE · Low · CSV** — `admin_player_draw.html:536`, `admin_team_draw.html:633, 787`: names are quoted without doubling embedded `"`; such a name corrupts the exported row meant to be re-imported.
 - **✅ DONE · Low · cosmetics** — `models.py:415`: `Schedule.__str__` prints `time` twice (meant `name`) and crashes on NULL; same NULL-concat in `Screen.__str__` (`models.py:273`).
 - **✅ DONE · Low · WS routing** — `routing.py:8-11`: the URL regex admits Unicode and unbounded length, but Channels group names must match `[a-zA-Z0-9_.-]{1,100}`; a crafted URL raises in `group_add`. Tighten to `[a-zA-Z0-9_.-]{1,80}`.
 - **Low · stats suppression** — `score_entry.py:136-138`: visiting `scores_per_hand_3_999` (scorer-gated GET) creates a phantom unvalidated sheet that marks round 3 "open" in the stats, with no UI listing it. 404 when no Seats exist for the pair.
@@ -363,7 +363,7 @@ A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with
 - **Dead parameter** — `views/display.py:200-202`: `_score_columns`'s `columns` argument is unused and threaded through `_paginate`.
 - **Duplication (server)** — the hand-tally classification loop exists four times in `stats.py` (194-225, 331-352, 538-559, 643-663) with subtly different keying — a divergence bug waiting to happen; placement counting exists twice (227-237 vs 686-716); `player_extra_stats`/`team_extra_stats` share ~35 verbatim lines. Extract `classify_hand(hand, wind)` + one placement helper.
 - **Duplication (server)** — `views/scoring.py`: six functions repeat the identical cache-or-compute wrapper; one `_cached(prefix, request, full_view, compute)` collapses ~80 lines to ~20. Also duplicated: `WINDS` lists in `score_entry.py:22` / `scan.py:309` / `scoring/_common.py:14`; the validated/filled table-key computation (`admin_views.py:183-189` vs `1631-1641`); the reauth-gate fragment pasted three times (`1689, 1732, 1756`).
-- **Duplication (client)** — MCR table-point ranking (`get_tp` + `sortWithIndeces`) implemented three times with divergent styles (`admin_scores_per_table.html:236`, `admin_scores_per_hand.html:196` — this copy leaks globals — and `modal_detailed_scores.html:137`). This is scoring logic that must agree with the server; extract to one static JS file. Smaller repeats: `getCookie('csrftoken')` ×3, the preview-grid + enlarge-modal block duplicated verbatim between `admin_display.html` and `admin_ceremony.html`.
+- **✅ DONE · Duplication (client)** — MCR table-point ranking (`get_tp` + `sortWithIndeces`) implemented three times with divergent styles (`admin_scores_per_table.html:236`, `admin_scores_per_hand.html:196` — this copy leaks globals — and `modal_detailed_scores.html:137`). This is scoring logic that must agree with the server; extract to one static JS file. Smaller repeats: `getCookie('csrftoken')` ×3, the preview-grid + enlarge-modal block duplicated verbatim between `admin_display.html` and `admin_ceremony.html`.
 - **Structural** — `admin_views.py:1322-1806`: `options()` is a ~480-line page dispatcher with 13 hand-rolled role gates; a `{page: (required_role, renderer)}` table makes missing gates impossible to overlook, and splitting the tunneled mutations into POST-only URLs fixes F6 structurally.
 - **Consistency** — native `alert()` inside admin-shell fragments where `window.alertAction` exists (the shell's own comment explains blocking dialogs stall WS timers): `admin_scores_per_table.html` ×2, `admin_users.html` ×7, `admin_publisher_overview.html` ×2, `admin_tenants.html` ×2.
 - **✅ DONE · Readability (docstrings)** — two docstrings described absent code: `seating.py:273` promised "local-search passes" (greedy-only), `signals.py:23` named cache keys that are now `modal_*`. Both corrected.
