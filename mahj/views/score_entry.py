@@ -137,6 +137,7 @@ def _row_payload(tenant, round_nb, table_nb):
                 'wind': WIND_LETTERS[p.wind - 1] if 1 <= p.wind <= 4 else '',
                 'mp': p.minipoints,
                 'tp': float(p.tablepoints) if p.tablepoints is not None else None,
+                'version': p.version,
             }
             for p in rows
         ],
@@ -415,6 +416,11 @@ def update_seat_penalty(request):
     standings (it surfaces only on the detailed-scores modal). Unlike the MP/TP
     edits it is therefore *not* publish-locked — like the per-hand detail it can
     still be reconciled after the round is published.
+
+    Also deliberately outside Seat's optimistic lock (see update_seats_bulk):
+    this is a single reconciliation field, not concurrent score entry, so
+    last-writer-wins is the right answer and a version handshake would be
+    ceremony. Saving a penalty neither checks nor bumps the seat's version.
     """
     tenant = get_tenant(request)
     try:
@@ -433,7 +439,21 @@ def update_seat_penalty(request):
 
 @tenant_role_required('scorer')
 def update_seats_bulk(request):
-    """Update all 4 seats of a table row in a single request and transaction."""
+    """Update all 4 seats of a table row in a single request and transaction.
+
+    Two staleness guards, both answered through the same ``409 {status: 'stale',
+    error, row}`` so the grid has one revert path:
+
+    - a seat id that no longer resolves means the page predates a re-import or
+      re-seating — the whole row is refused, never partially written;
+    - a seat version older than the stored one means another scorer saved this
+      row since the client last painted it (their write serialized ahead of this
+      one, so this payload was built from numbers that are already gone).
+
+    ``update_seat_penalty`` deliberately has no version check: penalty is a
+    single display-only reconciliation field edited from the detailed modal, not
+    concurrent score entry, so last-writer-wins is the right answer there.
+    """
     tenant = get_tenant(request)
     data = json_body(request)
 
@@ -455,18 +475,33 @@ def update_seats_bulk(request):
             Seat.objects.select_for_update().filter(tenant=tenant, id__in=ids)
         }
 
-        to_update = []
+        # An id that doesn't resolve means the client's view of the tournament is
+        # gone (roster re-imported, seating regenerated — both replace the Seat
+        # rows). Refuse the whole row rather than skip the seat: a partial write
+        # here used to store three of four scores and report success. The echoed
+        # row may legitimately be empty — the revert then blanks the row, which
+        # is what the page should show.
+        if len(seats_by_id) != len(set(ids)):
+            known = next(iter(seats_by_id.values()), None)
+            return JsonResponse({
+                'status': 'stale',
+                'error': 'this page is out of date — reload it',
+                'row': _row_payload(tenant,
+                                    known.round_nb if known else None,
+                                    known.table_nb if known else None),
+            }, status=409)
+
+        pairs = []
         for entry, seat_id in zip(entries, ids):
-            seat = seats_by_id.get(seat_id)
-            if seat is None:
-                continue
+            seat = seats_by_id[seat_id]
             # A blank cell clears the score. A cell holding something unparseable
             # is a client bug, and storing NULL for it would read downstream as
             # "not played yet" while the scorer believes their value saved — so
             # number_or_none rejects it instead.
             seat.minipoints = number_or_none(entry, 'mp')
             seat.tablepoints = number_or_none(entry, 'tp', cast=float)
-            to_update.append(seat)
+            pairs.append((entry, seat))
+        to_update = [seat for _, seat in pairs]
 
         if not to_update:
             return HttpResponse("")
@@ -491,7 +526,24 @@ def update_seats_bulk(request):
                 'row': _row_payload(tenant, round_nb, table_nb),
             }, status=409)
 
-        Seat.objects.bulk_update(to_update, ['minipoints', 'tablepoints'])
+        # Optimistic lock, same convention as Hand: the payload carries the
+        # version each seat had when the client painted it. The seats are already
+        # held under select_for_update, so a plain Python compare is race-free —
+        # no concurrent writer can move the version while we look at it. A
+        # mismatch means another scorer saved this row in between: their write is
+        # the one on record, so this one is refused whole and the client repaints
+        # from the echoed row.
+        stale = [s for e, s in pairs if int_param(e, 'version', default=0) != s.version]
+        if stale:
+            return JsonResponse({
+                'status': 'stale',
+                'error': 'another scorer changed this row',
+                'row': _row_payload(tenant, round_nb, table_nb),
+            }, status=409)
+
+        for seat in to_update:
+            seat.version += 1
+        Seat.objects.bulk_update(to_update, ['minipoints', 'tablepoints', 'version'])
 
     # Scorer-to-scorer live sync: cheap, no cache bust, not sent to public displays.
     broadcast_scorer_row(tenant.subdomain if tenant else '',

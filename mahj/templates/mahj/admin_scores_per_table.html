@@ -206,7 +206,7 @@
                 <td class="col-table">Table {{ forloop.counter }}</td>
                 {% for s in table %}
                   <td class="col-wind">
-                    <div class="seat_cell" data-id="{{ s.seat.id }}">
+                    <div class="seat_cell" data-id="{{ s.seat.id }}" data-version="{{ s.seat.version }}">
                       <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
@@ -282,24 +282,54 @@
     setPip(row, "ok");
   }
 
-  function send_ajax(row) {
-    var seats = [], vals = [];
+  function rowPayload(row) {
+    // One save payload = the whole row, each seat carrying the version it was
+    // last painted at, so the server can spot a save built from stale numbers.
+    var seats = [];
     row.find(".seat_cell").each(function() {
-      var mp = $(this).find("input[name='minipoints']").val();
       seats.push({
         id: $(this).attr("data-id"),
-        mp: mp,
+        mp: $(this).find("input[name='minipoints']").val(),
         tp: $(this).find("input[name='tablepoints']").val(),
+        version: parseInt($(this).attr("data-version")) || 0,
       });
-      if (mp !== "") vals.push(parseInt(mp));
     });
+    return seats;
+  }
+
+  // Repaint a row from the server's `row` payload (the 409 revert). The payload
+  // may legitimately be empty — a stale page whose seats are gone reverts to
+  // blank cells, which is what's actually there. Also adopts each seat's server
+  // version so the next save is measured against what the row now shows.
+  function revertRowFromServer(row, serverRow) {
+    var serverSeats = (serverRow && serverRow.seats) || [];
+    row.find(".seat_cell").each(function(idx) {
+      var p = serverSeats[idx];
+      $(this).find("input[name='minipoints']").val(p && p.mp != null ? p.mp : "");
+      $(this).find("input[name='tablepoints']").val(p && p.tp != null ? p.tp : "");
+      if (p && p.version != null) $(this).attr("data-version", p.version);
+    });
+    delete recentlyEdited[row.attr("id")];
+    update_line(row, false);
+  }
+
+  function send_ajax(row) {
+    var seats = rowPayload(row), vals = [];
+    seats.forEach(function(s) { if (s.mp !== "") vals.push(parseInt(s.mp)); });
     var expectedState = (vals.length === seats.length) ? "ok" : "";
     $.ajax({
       type: "POST", url: "update_seats_bulk",
       contentType: "application/json",
       data: JSON.stringify({ seats: seats }),
       headers: { "X-CSRFToken": "{{ csrf_token }}" },
-      success: function() { setPip(row, expectedState); },
+      success: function() {
+        setPip(row, expectedState);
+        // The server bumped each seat's version as it stored the row; adopt the
+        // bump, or our own next save would read as another scorer's conflict.
+        row.find(".seat_cell").each(function(idx) {
+          $(this).attr("data-version", seats[idx].version + 1);
+        });
+      },
       error:   function(xhr) {
         setPip(row, "err");
         if (xhr.status === 400 && xhr.responseJSON && xhr.responseJSON.error) {
@@ -313,30 +343,30 @@
           });
           return;
         }
-        if (xhr.status === 409 && xhr.responseJSON && xhr.responseJSON.status === "locked") {
-          // The round is published (perhaps just now, by another scorer), so the
-          // edit was rejected. Revert the row to the server's values, lock it,
-          // and say what happened — don't leave an unsaved score on screen.
+        var conflict = (xhr.status === 409 && xhr.responseJSON) ? xhr.responseJSON.status : null;
+        if (conflict === "locked" || conflict === "stale") {
+          // The edit was rejected because what this page shows is no longer
+          // what's there: the round was published ("locked"), or another scorer
+          // saved this row / the seating was replaced under us ("stale"). Either
+          // way, revert the row to the server's values and say what happened —
+          // don't leave an unsaved score on screen looking saved.
           var rn = parseInt(row.attr("data-round-nb"));
-          var serverRow = xhr.responseJSON.row;
-          if (serverRow && serverRow.seats) {
-            var seatCells = row.find(".seat_cell");
-            serverRow.seats.forEach(function(p, idx) {
-              var cell = seatCells.eq(idx);
-              if (!cell.length) return;
-              cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
-              cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");
+          revertRowFromServer(row, xhr.responseJSON.row);
+          if (conflict === "locked") {
+            if (!publishedRounds.has(rn)) publishedRounds.add(rn);
+            refreshAllPublishToggles();
+            window.alertAction({
+              title: 'Round ' + rn + ' is locked',
+              body: 'Your change was NOT saved — the row has been reverted to the '
+                    + 'published values. Unpublish the round first if you need to edit it.',
             });
-            delete recentlyEdited[row.attr("id")];
-            update_line(row, false);
+          } else {
+            window.alertAction({
+              title: 'Table ' + row.attr("data-table-nb") + ' changed elsewhere',
+              body: 'Your change was NOT saved — ' + xhr.responseJSON.error
+                    + '. The row now shows the current scores.',
+            });
           }
-          if (!publishedRounds.has(rn)) publishedRounds.add(rn);
-          refreshAllPublishToggles();
-          window.alertAction({
-            title: 'Round ' + rn + ' is locked',
-            body: 'Your change was NOT saved — the row has been reverted to the '
-                  + 'published values. Unpublish the round first if you need to edit it.',
-          });
         }
       },
     });
@@ -355,14 +385,7 @@
       delete timers[rid];
       var row = $('#' + rid);
       if (!row.length) continue;
-      var seats = [];
-      row.find(".seat_cell").each(function() {
-        seats.push({
-          id: $(this).attr("data-id"),
-          mp: $(this).find("input[name='minipoints']").val(),
-          tp: $(this).find("input[name='tablepoints']").val(),
-        });
-      });
+      var seats = rowPayload(row);
       fetch("update_seats_bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
@@ -578,6 +601,9 @@
         if (!cell.length) return;
         cell.find("input[name='minipoints']").val(p.mp != null ? p.mp : "");
         cell.find("input[name='tablepoints']").val(p.tp != null ? p.tp : "");
+        // Adopt the sender's version: this row now shows their save, so our
+        // next edit is built on it and must carry its version.
+        if (p.version != null) cell.attr("data-version", p.version);
         if (p.mp == null) allFilled = false; else syncVals.push(p.mp);
       });
       var syncState = allFilled ? _scoreState(syncVals) : "";

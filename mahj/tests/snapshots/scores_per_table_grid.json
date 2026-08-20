@@ -13,6 +13,7 @@
           "table_nb": 1,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -28,6 +29,7 @@
           "table_nb": 1,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -43,6 +45,7 @@
           "table_nb": 1,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -58,6 +61,7 @@
           "table_nb": 1,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -75,6 +79,7 @@
           "table_nb": 2,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -90,6 +95,7 @@
           "table_nb": 2,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -105,6 +111,7 @@
           "table_nb": 2,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -120,6 +127,7 @@
           "table_nb": 2,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -137,6 +145,7 @@
           "table_nb": 3,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -152,6 +161,7 @@
           "table_nb": 3,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -167,6 +177,7 @@
           "table_nb": 3,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -182,6 +193,7 @@
           "table_nb": 3,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -199,6 +211,7 @@
           "table_nb": 4,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -214,6 +227,7 @@
           "table_nb": 4,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -229,6 +243,7 @@
           "table_nb": 4,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -244,6 +259,7 @@
           "table_nb": 4,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -263,6 +279,7 @@
           "table_nb": 1,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -278,6 +295,7 @@
           "table_nb": 1,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -293,6 +311,7 @@
           "table_nb": 1,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -308,6 +327,7 @@
           "table_nb": 1,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -325,6 +345,7 @@
           "table_nb": 2,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -340,6 +361,7 @@
           "table_nb": 2,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -355,6 +377,7 @@
           "table_nb": 2,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -370,6 +393,7 @@
           "table_nb": 2,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -387,6 +411,7 @@
           "table_nb": 3,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -402,6 +427,7 @@
           "table_nb": 3,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -417,6 +443,7 @@
           "table_nb": 3,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -432,6 +459,7 @@
           "table_nb": 3,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -449,6 +477,7 @@
           "table_nb": 4,
           "tablepoints": 4.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -464,6 +493,7 @@
           "table_nb": 4,
           "tablepoints": 2.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -479,6 +509,7 @@
           "table_nb": 4,
           "tablepoints": 1.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -494,6 +525,7 @@
           "table_nb": 4,
           "tablepoints": 0.0,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -513,6 +545,7 @@
           "table_nb": 1,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -528,6 +561,7 @@
           "table_nb": 1,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -543,6 +577,7 @@
           "table_nb": 1,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -558,6 +593,7 @@
           "table_nb": 1,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -575,6 +611,7 @@
           "table_nb": 2,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -590,6 +627,7 @@
           "table_nb": 2,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -605,6 +643,7 @@
           "table_nb": 2,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -620,6 +659,7 @@
           "table_nb": 2,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -637,6 +677,7 @@
           "table_nb": 3,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -652,6 +693,7 @@
           "table_nb": 3,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -667,6 +709,7 @@
           "table_nb": 3,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -682,6 +725,7 @@
           "table_nb": 3,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }
@@ -699,6 +743,7 @@
           "table_nb": 4,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 1
         }
       },
@@ -714,6 +759,7 @@
           "table_nb": 4,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 2
         }
       },
@@ -729,6 +775,7 @@
           "table_nb": 4,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 3
         }
       },
@@ -744,6 +791,7 @@
           "table_nb": 4,
           "tablepoints": null,
           "tenant_id": 1,
+          "version": 0,
           "wind": 4
         }
       }

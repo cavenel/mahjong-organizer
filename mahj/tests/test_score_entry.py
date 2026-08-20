@@ -9,7 +9,7 @@ import pytest
 from django.contrib.auth.models import AnonymousUser, User
 from django.test import Client, RequestFactory
 
-from mahj.models import Hand, Player, PublishedRound, Seat
+from mahj.models import Hand, Player, PublishedRound, Seat, Tenant
 from mahj.tests.conftest import grant
 from mahj.views.scoring import scores_per_player_rows
 
@@ -535,6 +535,171 @@ class TestBulkPayloadIntegrity:
             content_type='application/json',
         )
         assert resp.status_code == 400
+
+
+class TestSeatOptimisticLock:
+    """The score grid's whole-row save carries each seat's version, mirroring the
+    Hand convention. A save built from numbers another scorer has since replaced
+    is refused whole with 409 {status: 'stale', row} — the failure this closes is
+    the silent one, where B's screen and the database both end up agreeing on B's
+    numbers and nobody learns A's set ever existed."""
+
+    def _row(self, tournament, round_nb=3, table_nb=1):
+        return list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=round_nb, table_nb=table_nb,
+        ).order_by('wind'))
+
+    def _save(self, client, seats, mp, versions=None):
+        if versions is None:
+            versions = [s.version for s in seats]
+        return client.post(
+            '/update_seats_bulk',
+            data=json.dumps({'seats': [
+                {'id': s.id, 'mp': mp, 'tp': 0, 'version': v}
+                for s, v in zip(seats, versions)
+            ]}),
+            content_type='application/json',
+        )
+
+    def test_current_version_saves_and_increments(self, authed_client, tournament):
+        seats = self._row(tournament)
+        assert all(s.version == 0 for s in seats)
+        resp = self._save(authed_client, seats, mp=25)
+        assert resp.status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 25
+            assert s.version == 1
+
+    def test_stale_version_gets_409_and_writes_nothing(self, authed_client, tournament):
+        seats = self._row(tournament)
+        # Scorer A saves first (versions 0 -> 1).
+        assert self._save(authed_client, seats, mp=10).status_code == 200
+        # Scorer B still holds version 0 on every seat.
+        resp = self._save(authed_client, seats, mp=999, versions=[0, 0, 0, 0])
+        assert resp.status_code == 409
+        body = json.loads(resp.content)
+        assert body['status'] == 'stale'
+        # The echoed row carries A's values, so B's grid reverts to them.
+        assert [p['mp'] for p in body['row']['seats']] == [10, 10, 10, 10]
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 10  # B's write must not have landed
+            assert s.version == 1      # and the refusal didn't bump anything
+
+    def test_one_stale_seat_blocks_the_whole_row(self, authed_client, tournament):
+        # The row is written as a unit, so it must be refused as a unit too — a
+        # per-seat mix of old and new numbers is exactly the corruption at stake.
+        seats = self._row(tournament)
+        assert self._save(authed_client, seats, mp=10).status_code == 200
+        resp = self._save(authed_client, seats, mp=999, versions=[1, 1, 1, 0])
+        assert resp.status_code == 409
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 10
+
+    def test_version_round_trips_through_row_payload(self, authed_client, tournament):
+        # The 409's row is what the client repaints (and re-arms) from: saving
+        # again with the versions it carries must succeed — the rebase path.
+        seats = self._row(tournament)
+        assert self._save(authed_client, seats, mp=10).status_code == 200
+        conflict = self._save(authed_client, seats, mp=20, versions=[0, 0, 0, 0])
+        echoed = [p['version'] for p in json.loads(conflict.content)['row']['seats']]
+        assert echoed == [1, 1, 1, 1]
+        assert self._save(authed_client, seats, mp=20, versions=echoed).status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 20
+            assert s.version == 2
+
+    def test_missing_version_reads_as_zero(self, authed_client, tournament):
+        # A payload with no version at all (an old page) is judged against
+        # version 0 — fresh seats accept it, edited seats refuse it.
+        seats = self._row(tournament)
+        first = authed_client.post(
+            '/update_seats_bulk',
+            data=json.dumps({'seats': [{'id': s.id, 'mp': 5, 'tp': 0} for s in seats]}),
+            content_type='application/json')
+        assert first.status_code == 200
+        second = authed_client.post(
+            '/update_seats_bulk',
+            data=json.dumps({'seats': [{'id': s.id, 'mp': 6, 'tp': 0} for s in seats]}),
+            content_type='application/json')
+        assert second.status_code == 409
+
+    def test_penalty_save_neither_checks_nor_bumps_the_version(
+            self, authed_client, tournament):
+        # Penalty is a display-only reconciliation field: deliberately outside
+        # the optimistic lock (last-writer-wins is right for it).
+        seat = self._row(tournament)[0]
+        Seat.objects.filter(id=seat.id).update(version=7)
+        resp = authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': -10})
+        assert resp.status_code == 200
+        seat.refresh_from_db()
+        assert seat.penalty == -10
+        assert seat.version == 7
+
+
+class TestUnresolvedSeatId:
+    """A seat id the server can't resolve means the page predates a re-import or
+    re-seating (both replace the Seat rows). The old code skipped the seat and
+    reported success — three of four scores stored, green pip. Now the whole row
+    is refused through the same stale channel."""
+
+    def _post(self, client, seat_entries):
+        return client.post(
+            '/update_seats_bulk',
+            data=json.dumps({'seats': seat_entries}),
+            content_type='application/json',
+        )
+
+    def test_one_dead_id_refuses_the_whole_row(self, authed_client, tournament):
+        seats = list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).order_by('wind'))
+        dead = seats[3]
+        Seat.objects.filter(id=dead.id).delete()
+
+        resp = self._post(authed_client, [
+            {'id': s.id, 'mp': 55, 'tp': 0, 'version': 0} for s in seats])
+        assert resp.status_code == 409
+        body = json.loads(resp.content)
+        assert body['status'] == 'stale'
+        for s in seats[:3]:
+            s.refresh_from_db()
+            assert s.minipoints is None  # the partial save is gone, not stored
+
+    def test_all_ids_dead_echoes_an_empty_row(self, authed_client, tournament):
+        # The page-left-open-across-an-import case: every seat is gone. The row
+        # payload is empty, and the client blanks the row from it — which is
+        # what's actually there.
+        seats = list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1))
+        entries = [{'id': s.id, 'mp': 55, 'tp': 0, 'version': 0} for s in seats]
+        Seat.objects.filter(id__in=[s.id for s in seats]).delete()
+
+        resp = self._post(authed_client, entries)
+        assert resp.status_code == 409
+        body = json.loads(resp.content)
+        assert body['status'] == 'stale'
+        assert body['row']['seats'] == []
+
+    def test_another_tenants_seat_is_a_dead_id_here(self, authed_client, tournament):
+        # Tenant scoping rides on the same check: a foreign seat doesn't resolve,
+        # so the row is refused rather than partially written.
+        other = Tenant.objects.create(name='Other', subdomain='other')
+        foreign = Seat.objects.create(
+            tenant=other, round_nb=1, table_nb=1, wind=1, draw_number=1)
+        mine = Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).first()
+        resp = self._post(authed_client, [
+            {'id': mine.id, 'mp': 55, 'tp': 0, 'version': 0},
+            {'id': foreign.id, 'mp': 55, 'tp': 0, 'version': 0},
+        ])
+        assert resp.status_code == 409
+        mine.refresh_from_db()
+        assert mine.minipoints is None
+        foreign.refresh_from_db()
+        assert foreign.minipoints is None
 
 
 class TestPruneBumpsVersion:

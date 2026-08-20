@@ -33,6 +33,7 @@
         "table_nb": 4,
         "tablepoints": 0.0,
         "tenant_id": 1,
+        "version": 0,
         "wind": 4
       }
     ],
@@ -706,6 +707,7 @@
         "table_nb": 1,
         "tablepoints": 0.0,
         "tenant_id": 1,
+        "version": 0,
         "wind": 4
       }
     ],

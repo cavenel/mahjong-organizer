@@ -145,6 +145,10 @@ class Seat(TenantAwareModel):
 
     minipoints  = models.IntegerField(default=None, null=True)
     tablepoints = models.FloatField(default=None, null=True)
+    # Optimistic lock for the score grid, same convention as Hand.version: every
+    # saved edit bumps it, and a save carrying an older version is answered with
+    # a 409 + the current row instead of overwriting another scorer's numbers.
+    version     = models.IntegerField(default=0)
     # Per-player penalty (minipoints), entered on the score sheet. Integer, may be
     # negative. The table total after penalties = sum of the four hand totals +
     # this; table points are ranked on that after-penalty total. A non-zero sum of
