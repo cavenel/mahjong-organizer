@@ -11,6 +11,7 @@ import os
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
 from django.db.models import F
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
@@ -425,11 +426,15 @@ def scan_seats(request):
 
 
 def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
-    """Write a Hand cell under the optimistic-lock convention: bump version
-    atomically on update so a concurrent per-cell update_hand_points sees a
-    version change and gets a 409 instead of being silently clobbered. Falls
-    back to create() for a first-touch row (the unique_hand_per_cell constraint
-    makes the loser of a create race raise rather than double-insert)."""
+    """Write one OCR hand cell. This path does not detect conflicts itself —
+    there is no ``version=`` predicate here; what keeps a concurrent scorer's
+    entry from being overwritten is the caller's emptiness gate, taken under
+    ``select_for_update`` in the same transaction as these writes. The
+    ``F('version') + 1`` bump serves the *other* direction: a per-cell editor
+    still holding the pre-scan version fails its own version check on its next
+    save, instead of silently overwriting the prefill. Falls back to create()
+    for a first-touch row (the unique_hand_per_cell constraint makes the loser
+    of a create race raise rather than double-insert)."""
     updated = Hand.objects.filter(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb, hand_nb=hand_nb,
     ).update(version=F('version') + 1, **fields)
@@ -501,29 +506,41 @@ def scan_prefill(request):
     # A filled table is never overwritten by a scan: anyone (including
     # unregistered users) may scan an empty table, but existing data can only be
     # changed on the score sheet. Clear it there to re-scan.
-    already_filled = Hand.objects.filter(
-        tenant=tenant, round_nb=round_nb, table_nb=table_nb, win_by__isnull=False,
-    ).exists()
-    if already_filled:
-        return JsonResponse({
-            "ok": False,
-            "conflict": True,
-            "error": f"Round {round_nb} Table {table_nb} already has data.",
-        }, status=409)
+    #
+    # One transaction for the gate and the writes, with the table's hand rows
+    # locked: a scorer starting entry in the gap between "is it empty?" and the
+    # writes was previously overwritten. Their sheet materializes its 16 rows on
+    # open, so locking the existing rows serializes the two paths — their UPDATE
+    # waits on these locks and then fails its own version predicate against the
+    # bumped versions. (An unopened table has no rows to lock, but then nobody
+    # is mid-entry on it either — first-touch creates race only against another
+    # scan, where the unique constraint keeps it single.)
+    with transaction.atomic():
+        already_filled = any(
+            h.win_by is not None
+            for h in Hand.objects.select_for_update().filter(
+                tenant=tenant, round_nb=round_nb, table_nb=table_nb)
+        )
+        if already_filled:
+            return JsonResponse({
+                "ok": False,
+                "conflict": True,
+                "error": f"Round {round_nb} Table {table_nb} already has data.",
+            }, status=409)
 
-    for entry in scores:
-        if not isinstance(entry, dict):
-            continue
-        try:
-            hand_nb = int(entry['Hand'])
-        except (KeyError, TypeError, ValueError):
-            continue        # a row the OCR couldn't place; the rest still lands
-        if hand_nb < 1 or hand_nb > 16:
-            continue
-        confidence = entry.get('Confidence')
-        fields = _parse_hand(entry.get('Value'), entry.get('Winner'), entry.get('Discarder'))
-        fields['confidence'] = CONFIDENCE_LEVELS.get(confidence, 0.3)
-        _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
+        for entry in scores:
+            if not isinstance(entry, dict):
+                continue
+            try:
+                hand_nb = int(entry['Hand'])
+            except (KeyError, TypeError, ValueError):
+                continue        # a row the OCR couldn't place; the rest still lands
+            if hand_nb < 1 or hand_nb > 16:
+                continue
+            confidence = entry.get('Confidence')
+            fields = _parse_hand(entry.get('Value'), entry.get('Winner'), entry.get('Discarder'))
+            fields['confidence'] = CONFIDENCE_LEVELS.get(confidence, 0.3)
+            _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
 
     # Validating a sheet is what takes it out of the review queue, so it needs the
     # scorer role — and is off unless explicitly asked for. Anyone may scan an empty

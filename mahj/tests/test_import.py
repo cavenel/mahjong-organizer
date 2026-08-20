@@ -331,6 +331,84 @@ def test_blank_rounds_rejected(staff_client, imp_tenant):
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0
 
 
+class TestPrecheckRejectsUntouched:
+    """The checks that catch the realistic wrong-file mistakes (missing sheets,
+    unreadable rounds count, unplayable player count, colliding draw numbers,
+    not-a-workbook) run BEFORE the first delete(): a workbook failing one is
+    rejected with the tournament untouched — that untouched-ness is the property
+    under test. A workbook that passes them and fails deeper in the parse keeps
+    the documented wipe-to-empty (see test_failed_import_leaves_tournament_empty)."""
+
+    @pytest.fixture
+    def live_before(self, staff_client, imp_tenant):
+        """A populated tournament, and its snapshot to compare against."""
+        staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+        assert Player.objects.filter(tenant=imp_tenant).count() == 16
+        return _snapshot(imp_tenant)
+
+    def _assert_rejected_untouched(self, resp, imp_tenant, live_before):
+        assert resp.status_code == 200
+        assert 'nothing was changed' in resp.content.decode()
+        assert _snapshot(imp_tenant) == live_before
+
+    def test_missing_required_sheet(self, staff_client, imp_tenant, live_before):
+        wb = load_workbook(TEMPLATE)
+        wb.remove(wb['Players'])
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        buf.name = 'template.xlsx'
+        resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+        assert 'Players' in resp.content.decode()  # the message names the sheet
+
+    def test_unreadable_rounds_count(self, staff_client, imp_tenant, live_before):
+        resp = staff_client.post(
+            '/admin_upload_from_template',
+            {'myfile': _workbook(_rows16(), nb_rounds=None)})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+
+    def test_player_count_not_a_multiple_of_four(self, staff_client, imp_tenant,
+                                                 live_before):
+        resp = staff_client.post(
+            '/admin_upload_from_template', {'myfile': _workbook(_rows16()[:15])})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+        assert '15 competitors' in resp.content.decode()
+
+    def test_empty_player_list(self, staff_client, imp_tenant, live_before):
+        resp = staff_client.post(
+            '/admin_upload_from_template', {'myfile': _workbook([])})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+
+    def test_duplicate_draw_numbers(self, staff_client, imp_tenant, live_before):
+        """Two competitors sharing a 'rand' value used to hit the per-tenant
+        unique constraint mid-load — a traceback and a wiped tournament."""
+        rows = _rows16()
+        rows[7] = ('Last8', 'First8', 90007, 'Sweden', None, 5)  # 5 already taken
+        resp = staff_client.post(
+            '/admin_upload_from_template', {'myfile': _workbook(rows)})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+        assert 'Draw number 5' in resp.content.decode()
+
+    def test_not_a_workbook(self, staff_client, imp_tenant, live_before):
+        buf = io.BytesIO(b'this is not an xlsx file')
+        buf.name = 'notes.txt'
+        resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+        self._assert_rejected_untouched(resp, imp_tenant, live_before)
+
+    def test_a_good_workbook_still_imports(self, staff_client, imp_tenant, live_before):
+        """The pre-checks must not reject what the app itself produces: a fresh
+        import over the live tournament replaces it wholesale."""
+        rows = [(f'New{i + 1}', f'Player{i + 1}', 80000 + i, 'Norway', None, i + 1)
+                for i in range(16)]
+        resp = staff_client.post(
+            '/admin_upload_from_template', {'myfile': _workbook(rows)})
+        assert resp.status_code in (200, 302)
+        players = Player.objects.filter(tenant=imp_tenant)
+        assert players.count() == 16
+        assert set(players.values_list('country', flat=True)) == {'Norway'}
+
+
 def test_failed_import_leaves_tournament_empty(staff_client, imp_tenant):
     """F-C1: a failed re-import over a live tournament wipes it to a clean empty
     state (no partial/ghost tournament, and not silently reverted to the old one)."""
@@ -597,17 +675,24 @@ def test_two_tenants_importing_do_not_cross(staff_client, imp_tenant, db):
 
 
 def test_a_failure_mid_import_leaves_nothing_behind(staff_client, imp_tenant):
-    """The import is one transaction, and a validation failure additionally wipes to
+    """The import is one transaction, and a validation failure mid-parse wipes to
     empty by design — never a half-loaded tournament, and never the old one
-    silently restored."""
+    silently restored. The trigger must be a *deep* failure (here a broken
+    seating chart, found after players and schedule are already written): the
+    cheap mistakes are pre-checked before anything is deleted and reject with
+    the tournament untouched instead (see TestPrecheckRejectsUntouched)."""
     assert staff_client.post(
         '/admin_upload_from_template', {'myfile': _filled_workbook(16)}).status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
 
-    # A workbook whose Options sheet has no round count: rejected after the players
-    # have already been parsed, so it exercises the wipe.
     wb = load_workbook(TEMPLATE)
-    wb['Options'].cell(row=3, column=2).value = 0
+    ps = wb['Players']
+    for i in range(16):
+        r = i + 2
+        ps.cell(r, 1, f'Last{i + 1}')
+        ps.cell(r, 2, f'First{i + 1}')
+        ps.cell(r, 6, i + 1)
+    wb['16 players'].cell(row=3, column=2).value = None  # blank one round-1 seat
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)

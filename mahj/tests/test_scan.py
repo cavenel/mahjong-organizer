@@ -103,6 +103,65 @@ class TestScanPrefill:
         assert h.points == 20
 
 
+class TestScanGateAndVersionBump:
+    """scan_prefill's emptiness gate and its writes are one transaction, with the
+    table's hand rows locked — the gate is the whole of its conflict handling
+    (see _write_hand's docstring). What the version bump buys is the *other*
+    direction: a per-cell editor who read the row before the scan fails their own
+    version check afterwards. True lock contention can't be exercised on the
+    sqlite test database; these pin the two halves that are deterministic."""
+
+    def test_prefill_refuses_a_table_that_gained_a_hand(self, client_, tournament,
+                                                        scorer, finished_job):
+        """The sheet was opened (16 placeholder rows) and a scorer entered one
+        hand before the scan landed: the gate must see that typed hand among the
+        placeholders, refuse the whole scan, and write none of its rows."""
+        client_.force_login(scorer)
+        tenant = tournament['tenant']
+        client_.get('/scores_per_hand_3_1')  # materializes the placeholder rows
+        typed = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=5)
+        resp = client_.post('/update_hand_points', {
+            'id': typed.id, 'version': typed.version, 'points': 30, 'by': 2, 'from': 4})
+        assert resp.status_code == 200
+
+        finished_job('job_gate', round_nb=3, table_nb=1, scores=[
+            {'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 'certain'},
+            {'Hand': 5, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 'certain'},
+        ])
+        resp = _prefill(client_, job_id='job_gate')
+        assert resp.status_code == 409
+        assert resp.json()['conflict'] is True
+
+        typed.refresh_from_db()
+        assert typed.points == 30  # the scorer's hand is intact
+        untouched = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
+        assert untouched.win_by is None  # and no scan row landed either
+
+    def test_prefill_bump_invalidates_a_stale_per_cell_save(self, client_, tournament,
+                                                            scorer, finished_job):
+        """A scorer's device reads the empty sheet, then the scan prefills it.
+        The device's save, still carrying the pre-scan version, must get a 409
+        and rebase — never overwrite the prefill silently."""
+        client_.force_login(scorer)
+        tenant = tournament['tenant']
+        client_.get('/scores_per_hand_3_1')
+        cell = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
+        pre_scan_version = cell.version
+
+        finished_job('job_bump', round_nb=3, table_nb=1, scores=[
+            {'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 'certain'}])
+        assert _prefill(client_, job_id='job_bump').status_code == 200
+        cell.refresh_from_db()
+        assert cell.version == pre_scan_version + 1
+        assert cell.points == 20
+
+        stale = client_.post('/update_hand_points', {
+            'id': cell.id, 'version': pre_scan_version, 'points': 55, 'by': 3, 'from': 1})
+        assert stale.status_code == 409
+        cell.refresh_from_db()
+        assert cell.points == 20  # the prefill survived
+
+
 class TestScanPrefillTrustsOnlyTheJob:
     """F13. The endpoint is anonymous by design — a player photographs their own
     sheet — but it used to take the scores, the round and the table from the request

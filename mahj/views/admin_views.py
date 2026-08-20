@@ -374,15 +374,113 @@ class TemplateImportError(Exception):
     and reported with a traceback instead."""
 
 
+def _player_row_has_name(last_name_raw, first_name_raw):
+    """A Players row is a real competitor as long as it carries any name — a
+    mononym (only a first name, or only a surname) counts, and a fully-blank
+    row is a spacer to skip. One definition, used by the pre-checks and the
+    import loop, so they can't disagree on what a competitor is."""
+    return any(isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw))
+
+
+def _precheck_template(wb):
+    """The cheap checks that catch a wrong or old-format workbook, run BEFORE
+    the import deletes anything: required sheets present, a readable rounds
+    count, a playable player count, no colliding draw numbers. Each failure
+    raises TemplateImportError, and the caller answers it with the tournament
+    untouched — converting "wrong file erased my tournament" into "wrong file
+    was rejected". A workbook that passes these and still fails deeper in the
+    parse keeps the deliberate wipe-to-empty (import is a full replace): these
+    checks exist to catch the wrong *file*, not every wrong cell."""
+    for name in ('Options', 'Players', 'Schedule'):
+        if name not in wb.sheetnames:
+            raise TemplateImportError(
+                f"The workbook has no '{name}' sheet — is this a tournament "
+                f"template? Export the current tournament, or download the blank "
+                f"template, to get a file in the expected format."
+            )
+
+    opt_vals = [row[1] for row in wb['Options'].iter_rows(
+        min_row=1, max_row=6, max_col=2, values_only=True)]
+    # A blank/zero rounds count would create no seating at all and "succeed"
+    # with nothing playable. int() also normalises Excel's float (5.0 -> 5).
+    try:
+        nb_rounds = int(opt_vals[2])
+    except (IndexError, TypeError, ValueError):
+        nb_rounds = 0
+    if nb_rounds < 1:
+        raise TemplateImportError(
+            "The Options sheet must set the number of rounds to at least 1 "
+            "(it was blank, zero or unreadable) — otherwise no seating chart "
+            "is created."
+        )
+
+    player_rows = [row for row in wb['Players'].iter_rows(
+                       min_row=2, max_col=6, values_only=True)
+                   if _player_row_has_name(row[0], row[1])]
+    if not player_rows:
+        raise TemplateImportError(
+            "The Players sheet lists no competitors. Fill in the player list "
+            "(a row counts once it carries a name)."
+        )
+    if len(player_rows) % 4:
+        raise TemplateImportError(
+            f"The Players sheet lists {len(player_rows)} competitors; mahjong "
+            f"seats four to a table, so the count must be a multiple of 4."
+        )
+
+    # Duplicate draw numbers would violate the per-tenant unique constraint
+    # mid-load — a traceback and a wiped tournament. Blank cells are fine (a
+    # player not yet drawn in); unparseable ones are named per-competitor by
+    # the main parse.
+    draws = []
+    for row in player_rows:
+        try:
+            draws.append(int(row[5]))
+        except (TypeError, ValueError):
+            continue
+    duplicated = sorted({d for d in draws if draws.count(d) > 1})
+    if duplicated:
+        raise TemplateImportError(
+            f"Draw number {duplicated[0]} is assigned to more than one "
+            f"competitor in the 'rand' column. Each draw number may appear "
+            f"only once."
+        )
+
+
 @tenant_admin_required
 def admin_upload_from_template(request):
     tenant = get_tenant(request)
     if request.method == 'POST':
-        try:
-            attached_file = request.FILES.get("myfile", None)
-            if attached_file is None:
-                return options(request)
+        attached_file = request.FILES.get("myfile", None)
+        if attached_file is None:
+            return options(request)
 
+        # Read straight from the upload, never via a path on disk: any shared
+        # staging file is a cross-tenant race, since two concurrent imports
+        # would fight over it and one tenant could load the other's workbook.
+        # data_only=False so the seating sheet's mirror formulas ("=14+8")
+        # are read as formulas and evaluated below; a file with no cached
+        # results would otherwise read those seats as empty. Options/Players/
+        # Schedule hold plain values, so this doesn't change how they read.
+        #
+        # Loading and pre-checking happen before anything is deleted: a file
+        # that isn't a workbook, or fails a pre-check, is rejected with the
+        # tournament untouched. Only a workbook that gets past this point is
+        # allowed to replace the tournament — and from there on, a failure
+        # deliberately wipes to empty (see the except below).
+        try:
+            wb = load_workbook(attached_file, data_only=False, read_only=True)
+            _precheck_template(wb)
+        except TemplateImportError as exc:
+            return options(request, error=(
+                "Import failed — nothing was changed.<br/>{0}".format(escape(str(exc)))))
+        except Exception as exc:
+            return options(request, error=(
+                "Import failed — nothing was changed.<br/>The file could not be "
+                "read as an Excel workbook (.xlsx):<br/><code>{0}</code>".format(
+                    escape(str(exc)))))
+
+        try:
             # One transaction for the whole wipe-and-load. The except below covers a
             # failure we can catch; this covers the one we can't — the worker being
             # killed or losing the database mid-import — which would otherwise commit a
@@ -391,16 +489,6 @@ def admin_upload_from_template(request):
             # import has actually committed.
             with transaction.atomic():
                 Player.objects.filter(tenant=tenant).delete()
-
-                # Read straight from the upload, never via a path on disk: any shared
-                # staging file is a cross-tenant race, since two concurrent imports
-                # would fight over it and one tenant could load the other's workbook
-                # having already deleted its own players above.
-                # data_only=False so the seating sheet's mirror formulas ("=14+8")
-                # are read as formulas and evaluated below; a file with no cached
-                # results would otherwise read those seats as empty. Options/Players/
-                # Schedule hold plain values, so this doesn't change how they read.
-                wb = load_workbook(attached_file, data_only=False, read_only=True)
 
                 Schedule.objects.filter(tenant=tenant).delete()
                 sched_sheet = wb['Schedule']
@@ -421,18 +509,11 @@ def admin_upload_from_template(request):
                 tournament = get_tournament(request)
                 tournament.fullname = opt_vals[0] or ""
                 tournament.title = opt_vals[1] or ""
-                # A blank/zero rounds count would create no seating at all and "succeed"
-                # with nothing playable, so reject it. int() also normalises Excel's
-                # float (5.0 -> 5) before it reaches iter_rows' max_row below.
-                try:
-                    nb_rounds = int(opt_vals[2])
-                except (TypeError, ValueError):
-                    nb_rounds = 0
-                if nb_rounds < 1:
-                    raise TemplateImportError(
-                        "The Options sheet must set the number of rounds to at least 1 "
-                        "(it was blank or zero) — otherwise no seating chart is created."
-                    )
+                # Parseability and the >= 1 floor were established by
+                # _precheck_template before anything was deleted; int() also
+                # normalises Excel's float (5.0 -> 5) before it reaches
+                # iter_rows' max_row below.
+                nb_rounds = int(opt_vals[2])
                 tournament.nb_rounds = nb_rounds
                 tournament.city = opt_vals[3] or ""
                 tournament.period = opt_vals[4] or ""
@@ -449,14 +530,9 @@ def admin_upload_from_template(request):
                 all_have_team = True
                 for row in player_rows:
                     last_name_raw, first_name_raw, ema_raw, country, team_raw, rand_raw = row
-                    # Skip fully-blank spacer / trailing rows and keep scanning: a row is
-                    # a real competitor as long as it carries any name, so a mononym (only
-                    # a first name, or only a surname) imports like everyone else and an
-                    # interior blank doesn't truncate the list.
-                    has_name = any(
-                        isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw)
-                    )
-                    if not has_name:
+                    # Skip fully-blank spacer / trailing rows and keep scanning
+                    # (the shared rule also drives the pre-check's player count).
+                    if not _player_row_has_name(last_name_raw, first_name_raw):
                         continue
                     # Keep the organizer's casing (strip only) — title-casing mangles
                     # "McDonald" and "van der Berg". The raw first/last are stored; the
