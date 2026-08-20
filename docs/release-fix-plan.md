@@ -10,7 +10,7 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - Mark the covered findings **✅ DONE** in `code-review-2026-08-19.md` as you finish them, and tick the checklist boxes here.
 - Keep each session's diff self-contained so it's independently reviewable/revertable.
 
-**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S1-S4, then S6, S7, S8, then S5 (deferred at the user's request after S4, picked up last). **All eight sessions are complete and every finding in the review is resolved.** One item remains from the plan's own notes rather than the review: the `options()` decomposition (S8 explains why it was left). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
+**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S1-S4, then S6, S7, S8, then S5 (deferred at the user's request after S4, picked up last), then the `options()` decomposition. **The plan is complete: every finding in the review is resolved.** S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
 
 **Already done** (safe mechanical batch, 2026-08-19): dead imports, dead `_last_published_round`, `Schedule`/`Screen` `__str__`, Turkey in `EUROPE`, WS regex, two docstrings.
 
@@ -222,7 +222,8 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - **`measure()`** derives its slot and round sets from the rows, and "everyone seated once per round" is now checked against the chart's own slot set — holding an imported chart to `range(1, N+1)` called good charts broken. The caller keeps its guard (a mid-tournament operator needs the rest of the page more than the quality panel) but logs, so the panel can't vanish silently again.
 - **The `stats.py` extraction was verified, not assumed.** `stats_export` had no golden coverage, so a snapshot went in first; after the refactor both it and `table_stats.json` are byte-identical. Same technique for `history_pos`: every new list is exactly the old one minus its two lead-in entries, with no other field changed.
 - **`cross_positions` needed three guards, not the two the review listed** — the third turned up because the test was written before the fix.
-- **`options()` mega-view decomposition — NOT DONE, deliberately.** S2 deferred it to avoid a large, browser-untestable template rewrite, and that reasoning is stronger now, not weaker: every `?action=` branch would move to its own URL, so every template that posts to `admin?page=X&action=Y` changes, and **the S2/S3 browser click-through is still outstanding**. Stacking an untested rewrite on top of unverified UI changes would make any regression impossible to attribute. Recommended sequencing: do the click-through first, then decompose in its own session. A safe subset — extracting each page's context-building into a named function without touching a single URL or template — captures most of the readability win at no UI risk, if a smaller step is wanted.
+- **✅ `options()` mega-view decomposition — DONE after S5**, once the click-through it was blocked on had passed. Each of the thirteen pages has a renderer, and `ADMIN_PAGES` names the gate; `options()` is 43 lines. **The half deliberately not done:** the review also wanted each `?action=` mutation split into its own POST-only URL. That was its structural fix for F6, but S2's 405 guards already closed F6, so what's left of it is cosmetic — and it would have changed every template posting to `admin?page=X&action=Y`, invalidating the click-through just completed. The display page's mutations are extracted to `_display_action` instead, same URL.
+- **What the decomposition was actually for.** Not the line count. The gates were thirteen hand-rolled inline clauses, so *a page added without one looked exactly like a page that didn't need one*. A table row can't omit its gate. The matching test is a role × page matrix (5 accounts × 13 pages, asserting page / empty / reauth) plus a check that the expectations cover every row — so adding a page without deciding who sees it fails the suite. Confirmed it has teeth by loosening one gate: four tests fail.
 
 ---
 
@@ -293,4 +294,4 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | ✅ field errors raised as `BadRequest` (found in S4) | S8 |
 | ✅ audio-probe backoff | S8 |
 | ✅ `history_pos` shape / cache comment | S8 |
-| `options()` mega-view decomposition | S2 (partial) / **STILL OPEN** — see S8's notes |
+| ✅ `options()` mega-view decomposition | post-S5 — page table + gate matrix; the URL split stays undone, see S8's notes |
