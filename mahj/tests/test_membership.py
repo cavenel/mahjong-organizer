@@ -621,3 +621,103 @@ class TestTenantDelete:
                         html, re.DOTALL)
         assert row, 'no row for the current tenant'
         assert 'delete-tenant' not in row.group(0)
+
+
+# --------------------------------------------------------------------------
+# The admin page table
+# --------------------------------------------------------------------------
+
+class TestAdminPageTable:
+    """`ADMIN_PAGES` is the console's access-control spec, so pin it as one.
+
+    The gates used to be a dozen hand-rolled clauses inside a 500-line if/elif
+    chain, where a page added without one looked exactly like a page that didn't
+    need one. These tests are the executable half of that fix: the table's shape,
+    and then what each role actually gets for every page in it.
+    """
+
+    def test_every_page_names_a_gate_and_a_renderer(self):
+        from mahj.views.admin_views import ADMIN_PAGES
+        for name, spec in ADMIN_PAGES.items():
+            assert callable(spec.gate), f'{name} has no gate'
+            assert callable(spec.render), f'{name} has no renderer'
+            if spec.reauth_next:
+                assert spec.reauth, f'{name} names a reauth target but is not gated'
+
+    # What each account should get for each page: 'page' (it renders), 'empty'
+    # (the shell's blank panel — the page either doesn't exist for them or isn't
+    # theirs to see), or 'reauth' (the confirm-your-password panel first).
+    EXPECTED = {
+        'scorer': {'welcome': 'page', 'scoring': 'page'},
+        'display_op': {'welcome': 'page', 'display': 'page', 'ceremony': 'page'},
+        'publisher': {'welcome': 'page', 'scoring': 'page',
+                      'publisher_overview': 'page'},
+        'admin': {'welcome': 'page', 'display': 'page', 'settings': 'page',
+                  'player_editor': 'page', 'publish_target': 'page',
+                  'import_template': 'page', 'seating': 'page', 'scoring': 'page',
+                  'ceremony': 'page', 'publisher_overview': 'page',
+                  'users': 'reauth', 'tenants': 'empty',
+                  'database_restore': 'empty'},
+        'superuser': {'welcome': 'page', 'display': 'page', 'settings': 'page',
+                      'player_editor': 'page', 'publish_target': 'page',
+                      'import_template': 'page', 'seating': 'page',
+                      'scoring': 'page', 'ceremony': 'page',
+                      'publisher_overview': 'page', 'users': 'reauth',
+                      'tenants': 'reauth', 'database_restore': 'reauth'},
+    }
+
+    def _account(self, role, tenant):
+        user = User.objects.create_user(f'u_{role}', password='pw',
+                                       is_superuser=(role == 'superuser'))
+        if role != 'superuser':
+            grant(user, tenant, **{('admin' if role == 'admin' else role): True})
+        c = client_for(HOST_A)
+        c.force_login(user)
+        return c
+
+    def _outcome(self, client, page):
+        resp = client.get(f'/admin?page={page}')
+        assert resp.status_code == 200, f'{page} -> {resp.status_code}'
+        content = resp.context['page_content']
+        if content == 'None':
+            return 'empty'
+        if 'id="reauth-form"' in content:
+            return 'reauth'
+        return 'page'
+
+    @pytest.mark.parametrize('role', sorted(EXPECTED))
+    def test_each_role_sees_exactly_its_pages(self, role, tournament):
+        from mahj.views.admin_views import ADMIN_PAGES
+        client = self._account(role, tournament['tenant'])
+        expected = self.EXPECTED[role]
+        got = {page: self._outcome(client, page) for page in ADMIN_PAGES}
+        assert got == {p: expected.get(p, 'empty') for p in ADMIN_PAGES}
+
+    def test_the_expectations_cover_every_page(self):
+        """So adding a page to the table without deciding who sees it fails here."""
+        from mahj.views.admin_views import ADMIN_PAGES
+        assert set(self.EXPECTED['superuser']) == set(ADMIN_PAGES)
+
+    def test_an_unknown_page_is_indistinguishable_from_a_forbidden_one(self, tournament):
+        """Probing ?page= must not map out what exists."""
+        client = self._account('scorer', tournament['tenant'])
+        assert self._outcome(client, 'no_such_page') == 'empty'
+        assert self._outcome(client, 'tenants') == 'empty'
+
+    def test_no_page_lands_on_the_role_the_account_works_from(self, tournament):
+        """A single-role account is greeted by the page it uses, not a dashboard
+        summarising things it can't reach."""
+        t = tournament['tenant']
+        assert self._account('scorer', t).get('/admin').context['page'] == 'scoring'
+        assert self._account('display_op', t).get('/admin').context['page'] == 'display'
+        assert self._account('publisher', t).get('/admin').context['page'] == 'scoring'
+        assert self._account('admin', t).get('/admin').context['page'] == 'welcome'
+
+    def test_a_display_op_who_also_publishes_lands_on_display(self, tournament):
+        """Ordering, not an accident: the display operator is at the projectors and
+        needs the screen controls first."""
+        user = User.objects.create_user('both', password='pw')
+        grant(user, tournament['tenant'], display_op=True, publisher=True)
+        c = client_for(HOST_A)
+        c.force_login(user)
+        assert c.get('/admin').context['page'] == 'display'

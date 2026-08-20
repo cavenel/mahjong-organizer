@@ -5,7 +5,7 @@ import os
 import re
 import time
 import traceback
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, namedtuple
 from datetime import datetime
 
 import json
@@ -1465,8 +1465,568 @@ def _save_schedule(request, tenant):
     return JsonResponse({'rounds': sum(1 for o in objs if o.is_round)})
 
 
+# ---- admin page dispatch --------------------------------------------------
+#
+# The admin console is one URL (`admin?page=…`): one shell around one page fragment.
+# Each page gets a renderer of its own below, and ADMIN_PAGES at the end of the
+# section says who may see it. That table is the point of the split — the gates used
+# to be a dozen hand-rolled `and not has_role(...)` clauses spread through a single
+# 500-line if/elif chain, where a page added without one looked exactly like a page
+# that didn't need one. A row without a gate now doesn't parse as a row.
+#
+# Every renderer takes the same (request, tenant, error) so the dispatcher can call
+# them without knowing which is which; only the welcome page has anything to do with
+# `error` (the importer redisplays its failure there). A renderer returns either the
+# rendered fragment, which the dispatcher wraps in the shell, or an HttpResponse,
+# which the dispatcher returns untouched — that is how the two pages that carry
+# `?action=` mutations answer with a redirect, a JSON payload or a 405.
+
+
+def _page_welcome(request, tenant, error=None):
+    from ..publish.sftp_upload import is_configured as _static_publish_configured
+    from ..scoring import _last_complete_round, publish_state
+    tournament = get_tournament(request)
+    nb_players = Player.objects.filter(tenant=tenant).count()
+    nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
+    nb_screens = Screen.objects.filter(tenant=tenant).count()
+    # _last_complete_round returns nb_rounds when it finds no incomplete seat —
+    # which also happens with no seats at all, a false "all complete". Guard on
+    # the seating chart actually existing.
+    has_seats = Seat.objects.filter(tenant=tenant).exists()
+    complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
+    last_published, _ = publish_state(tenant, tournament)
+    # Warn when a schedule exists but its playing rounds don't line up with
+    # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
+    # mismatch leaves per-round times blank/misaligned. Only flag once a
+    # schedule has been set up — a fresh, empty schedule isn't "wrong".
+    schedule_total = Schedule.objects.filter(tenant=tenant).count()
+    schedule_rounds = Schedule.objects.filter(tenant=tenant, is_round=True).count()
+    template2 = loader.get_template('mahj/admin_welcome.html')
+    return template2.render(
+        {
+            "error": error,
+            "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
+            "tournament": tournament,
+            "nb_players": nb_players,
+            # Whether a seating chart exists at all (imported or generated) —
+            # the player list can be drawn in only once there are seats to fill.
+            "has_seats": has_seats,
+            # A player is "drawn in" once assigned a draw number; the player list is
+            # ready to play when every player holds one.
+            "draw_done": nb_players > 0 and nb_drawn == nb_players,
+            "nb_drawn": nb_drawn,
+            "nb_screens": nb_screens,
+            "complete_round": complete_round,
+            "last_published": last_published,
+            "schedule_rounds": schedule_rounds,
+            "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
+            # Server-authoritative round timer: >0 and in the future means a
+            # round is counting down / running (the dashboard shows it live).
+            "counter": get_counter(tenant),
+        },
+        request,
+    )
+
+
+def _display_action(request, tenant, tournament):
+    """Handle a display-page `?action=` mutation. An HttpResponse, or None to render.
+
+    Every action here mutates state (or fires a broadcast), so each must be POST: a
+    GET link would let a crafted cross-site navigation drive these — delete a screen,
+    blank every projector, rewrite settings — while a display operator is logged in.
+    Requiring POST also hands CSRF protection back to Django's middleware, which
+    never checks GET.
+    """
+    action = request.GET.get('action')
+    # Every branch below mutates state (or fires a broadcast), so it must be
+    # POST: a GET link would let a crafted cross-site navigation drive these
+    # (delete a screen, blank every projector, rewrite settings) while a
+    # display operator is logged in. Requiring POST also hands CSRF
+    # protection back to Django's middleware, which never checks GET.
+    is_mutation = (
+        action in {"set_tournament", "add_screen", "remove_screen",
+                   "identify_screens", "add_mode", "set_all_views"}
+        or request.GET.get('rm_mode') or request.GET.get('set_mode'))
+    if is_mutation and request.method != 'POST':
+        return HttpResponseNotAllowed(['POST'])
+    if action == "set_tournament":
+        return _apply_set_tournament(request, tournament, DISPLAY_SETTINGS_FIELDS)
+    elif action == "add_screen":
+        Screen(tenant=tenant, name="", view="black").save()
+        # 'screens_changed' (not plain 'screen_update') so the overview grid
+        # redraws for the new screen count. Existing per-screen displays are
+        # unaffected: only the last position is ever added or removed.
+        broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+        return HttpResponseRedirect(_display_redirect('screens'))
+    elif action == "remove_screen":
+        last = Screen.objects.filter(tenant=tenant).order_by('id').last()
+        if last is not None:
+            last.delete()
+            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
+        return HttpResponseRedirect(_display_redirect('screens'))
+    elif action == "identify_screens":
+        # Flash each screen's positional number (/1, /2, …) as a corner badge
+        # for a few seconds so an operator can match physical projectors to
+        # their URLs. Reuses the existing 'screen.update' channel with a
+        # distinct event the display socket intercepts without reloading —
+        # see mahj/static/js/display_socket.js.
+        broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_identify'})
+        return HttpResponse("")
+    elif action == "add_mode":
+        mode_name = request.POST.get('mode_name')
+        screens = Screen.objects.filter(tenant=tenant).order_by('id')
+        views_list = [str(screen.view) for screen in screens]
+        ScreenMode(tenant=tenant, name=mode_name, views=views_list).save()
+        return HttpResponseRedirect(_display_redirect('screens'))
+    elif request.GET.get('rm_mode'):
+        mode = _screen_mode_or_404(tenant, request.GET.get('rm_mode'))
+        mode.delete()
+        return HttpResponseRedirect('admin?page=display')
+    elif action == "set_all_views":
+        # Bulk "All screens" control: point every screen at one view in a
+        # single write + one broadcast (rather than N per-screen posts).
+        # Mirrors set_mode's shape so the admin page can sync each card's
+        # selects/previews from the returned list.
+        view = request.GET.get('view') or 'black'
+        screens = Screen.objects.filter(tenant=tenant).order_by('id')
+        applied = []
+        for screen in screens:
+            screen.view = view
+            screen.save()
+            applied.append({'id': screen.id, 'view': screen.view})
+        broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+        return JsonResponse({'screens': applied})
+    elif request.GET.get('set_mode'):
+        mode = _screen_mode_or_404(tenant, request.GET.get('set_mode'))
+        views_list = mode.views if isinstance(mode.views, list) else []
+        screens = Screen.objects.filter(tenant=tenant).order_by('id')
+        applied = []
+        # A mode is a full-room snapshot (add_mode saves every screen's
+        # view), so applying one sets every screen: a screen added after
+        # the mode was saved goes blank rather than keeping stale content
+        # (e.g. live standings during a "Break" mode).
+        for i, screen in enumerate(screens):
+            screen.view = views_list[i] if i < len(views_list) else "black"
+            screen.save()
+            applied.append({'id': screen.id, 'view': screen.view})
+        broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
+        # The admin page applies modes via AJAX so it can refresh the
+        # selects/previews in place; a direct (non-AJAX) hit redirects back.
+        if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+            return JsonResponse({'screens': applied})
+        return HttpResponseRedirect('admin?page=display')
+    return None
+
+
+def _page_display(request, tenant, error=None):
+    tournament = get_tournament(request)
+    mutated = _display_action(request, tenant, tournament)
+    if mutated is not None:
+        return mutated
+    screens = Screen.objects.filter(tenant=tenant).order_by('id')
+    modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
+    # A running ceremony takes over every screen, so the display controls
+    # below are inert until it ends. Flag it so the page can warn up front;
+    # the banner then tracks live 'ceremony.update' broadcasts over the socket.
+    ceremony_state = CeremonyState.objects.filter(tenant=tenant).first()
+    context = {
+        "screens": screens,
+        "modes": _mode_breakdowns(modes, screens),
+        "nb_players": Player.objects.filter(tenant=tenant).count(),
+        # Distinct non-empty team names — drives the "Standings — teams" page
+        # picker (individual pages + team pages).
+        "nb_teams": Player.objects.filter(tenant=tenant).exclude(team="")
+            .values_list('team', flat=True).distinct().count(),
+        "tournament": tournament,
+        "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
+        # Base URL the screens are reachable at, taken from THIS request so the
+        # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
+        # cloud this resolves to https://<tenant>.<BASE_DOMAIN> (proxy headers); in
+        # the standalone build to http://<host>:<port>. A hardcoded
+        # <BASE_DOMAIN> URL would be cross-origin — and unreachable — on a laptop.
+        "screen_base": request.build_absolute_uri('/').rstrip('/'),
+        # Which collapsible panel to render already open (see _display_redirect).
+        "open_panel": request.GET.get('open', ''),
+    }
+    # Standalone (LAN-served) build: list the addresses other devices can use
+    # to open a screen — loopback (this machine) + the LAN IP. The public IP is
+    # filled in client-side (external lookup) with a port-forward warning.
+    if settings.STANDALONE:
+        from .helpers import lan_ip
+        port = request.get_port()
+        bases = [("This machine", f"http://127.0.0.1:{port}")]
+        ip = lan_ip()
+        if ip:
+            bases.append(("Same network (LAN)", f"http://{ip}:{port}"))
+        context["standalone"] = True
+        context["access_bases"] = bases
+        context["access_port"] = port
+    template2 = loader.get_template('mahj/admin_display.html')
+    return template2.render(context, request)
+
+
+def _page_settings(request, tenant, error=None):
+    tournament = get_tournament(request)
+    action = request.GET.get('action')
+    if action in ("set_tournament", "save_schedule") and request.method != 'POST':
+        # Both write; see _display_action on why that means POST.
+        return HttpResponseNotAllowed(['POST'])
+    if action == "set_tournament":
+        return _apply_set_tournament(request, tournament, TOURNAMENT_SETTINGS_FIELDS)
+    if action == "save_schedule":
+        return _save_schedule(request, tenant)
+    template2 = loader.get_template('mahj/admin_settings.html')
+    schedule_rows = [
+        {"day": s.day or "", "time": s.time or "",
+         "name": s.name or "", "is_round": s.is_round}
+        for s in Schedule.objects.filter(tenant=tenant).order_by('id')
+    ]
+    return template2.render({
+        "tournament": tournament,
+        "schedule_rows": schedule_rows,
+    }, request)
+
+
+
+def _page_player_editor(request, tenant, error=None):
+    players = Player.objects.filter(tenant=tenant).order_by(
+        F('draw_number').asc(nulls_last=True), 'full_name')
+    player_rows = [
+        {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
+         'first_name': p.first_name, 'last_name': p.last_name,
+         'EMA_ID': p.EMA_ID, 'country': p.country, 'team': p.team}
+        for p in players
+    ]
+    # The seating-chart slots a draw number may be assigned to (the editor
+    # rejects anything else before it reaches admin_player_draw_assign).
+    valid_draw_numbers = sorted(set(
+        Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True)))
+    template2 = loader.get_template('mahj/admin_player_editor.html')
+    return template2.render(
+        {"player_rows": player_rows,
+         "valid_draw_numbers": valid_draw_numbers}, request)
+
+
+
+def _page_publish_target(request, tenant, error=None):
+    from ..models import PublishTarget
+    target = PublishTarget.objects.filter(tenant=tenant).order_by('id').first()
+    template2 = loader.get_template('mahj/admin_publish_target.html')
+    return template2.render({
+        "target": target,
+        # Secrets are write-only — never render the value, just whether one
+        # is set, so the form can show a "configured" hint.
+        "has_password": bool(target and target.password_enc),
+        "has_key": bool(target and target.private_key_enc),
+        # The advertised spectator URL lives on TournamentSettings (cached,
+        # non-secret) but is edited here, next to the SFTP target.
+        "public_url": get_tournament(request).public_url,
+        "subdomain": tenant.subdomain if tenant else '',
+    }, request)
+
+
+
+def _page_publisher_overview(request, tenant, error=None):
+    tournament = get_tournament(request)
+    template2 = loader.get_template('mahj/admin_publisher_overview.html')
+    return template2.render({
+        "rows": publisher_overview_rows(tenant, tournament),
+        "tournament": tournament,
+        "subdomain": tenant.subdomain if tenant else '',
+    }, request)
+
+
+
+def _page_users(request, tenant, error=None):
+    # Only this tenant's memberships — other tenants' users are invisible.
+    memberships = (Membership.objects.filter(tenant=tenant)
+                   .select_related('user').order_by('user__username'))
+    # A user is "shared" (credential-managed only by a superuser) if they
+    # also belong to another tenant. One query, not one per row.
+    shared_user_ids = set(
+        Membership.objects.exclude(tenant=tenant)
+        .filter(user__in=[m.user_id for m in memberships])
+        .values_list('user_id', flat=True))
+    user_rows = []
+    for m in memberships:
+        u = m.user
+        user_rows.append({
+            "id": u.id,
+            "username": u.username,
+            "is_tenant_admin": m.is_tenant_admin,
+            "is_self": u.id == request.user.id,
+            "last_login": u.last_login,
+            "has_password": u.has_usable_password(),
+            "shared": u.id in shared_user_ids,
+            "roles": [{"name": n, "label": TENANT_ROLE_LABELS[n],
+                       "active": getattr(m, f'is_{n}')} for n in TENANT_ROLES],
+        })
+    template2 = loader.get_template('mahj/admin_users.html')
+    return template2.render({
+        "user_rows": user_rows,
+        "role_defs": [{"name": n, "label": TENANT_ROLE_LABELS[n]} for n in TENANT_ROLES],
+        # Gates the "add an existing account" form: making an account shared
+        # between tournaments is a superuser action (see user_add_existing).
+        "is_superuser": request.user.is_superuser,
+        "link_validity_days": settings.SESAME_MAX_AGE // 86400,
+    }, request)
+
+
+
+def _page_tenants(request, tenant, error=None):
+    tenant_rows = [
+        {"id": t.id, "name": t.name, "subdomain": t.subdomain,
+         "admins": Membership.objects.filter(tenant=t, is_tenant_admin=True).count(),
+         "members": Membership.objects.filter(tenant=t).count(),
+         # Neither of these can be deleted — the fallback every tenant FK
+         # points at, and the one this request is being served from. The
+         # view refuses both; these just grey the button out rather than
+         # offering something that will be rejected.
+         "is_default": t.subdomain == Tenant.DEFAULT_SUBDOMAIN,
+         "is_current": tenant is not None and t.pk == tenant.pk}
+        for t in Tenant.objects.all().order_by('subdomain')
+    ]
+    template2 = loader.get_template('mahj/admin_tenants.html')
+    return template2.render({
+        "tenant_rows": tenant_rows,
+        "base_domain": settings.BASE_DOMAIN,
+    }, request)
+
+
+
+def _page_database_restore(request, tenant, error=None):
+    # Counts the confirm dialog shows as "what you're about to overwrite".
+    # Unscoped (whole-DB): a restore replaces every tenant's rows at once,
+    # matching the worker's post-restore report.
+    db_counts = {
+        "players": Player.objects.count(),
+        "seats": Seat.objects.count(),
+        "hands": Hand.objects.count(),
+    }
+    if settings.STANDALONE:
+        from .. import standalone_backup
+        restore_ctx = {
+            "groups": standalone_backup.list_snapshot_groups(),
+            "db_name": standalone_backup.CONFIRM_TOKEN,
+            "pull_configured": False,   # off-host pull is Postgres-only
+            "standalone": True,         # restore applies on relaunch
+            "db_counts": db_counts,
+        }
+    else:
+        restore_ctx = {
+            "groups": list_backups(),
+            "db_name": settings.DATABASES['default']['NAME'],
+            "pull_configured": bool(os.environ.get('REMOTE')),
+            "db_counts": db_counts,
+        }
+    template2 = loader.get_template('mahj/admin_database_restore.html')
+    return template2.render(restore_ctx, request)
+
+
+
+def _page_import_template(request, tenant, error=None):
+    # The upload confirm dialog names what it will erase, so tell the fragment
+    # how big the current tournament is and whether any scores exist.
+    existing_players = Player.objects.filter(tenant=tenant).count()
+    existing_scores = (
+        Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+        or Hand.objects.filter(tenant=tenant).exists()
+    )
+    template2 = loader.get_template('mahj/admin_import_template.html')
+    return template2.render({
+        'existing_players': existing_players,
+        'existing_scores': existing_scores,
+    }, request)
+
+
+
+def _page_seating(request, tenant, error=None):
+    from .. import seating as _seating
+    tournament = get_tournament(request)
+    nb_players = Player.objects.filter(tenant=tenant).count()
+    nb_rounds = tournament.nb_rounds or 0
+    # Measure the seating chart currently in place (independent of the player list:
+    # its size is the draw slots it seats), so the page can show what exists.
+    seats = list(Seat.objects.filter(tenant=tenant)
+                 .values_list('round_nb', 'table_nb', 'wind', 'draw_number'))
+    current = current_headline = None
+    if seats:
+        n_chart = len({s[3] for s in seats})
+        r_chart = len({s[0] for s in seats})
+        try:
+            current = _seating.measure(seats, n_chart, r_chart,
+                                       has_teams=tournament.has_teams)
+            current_headline = _seating.headline(current)
+            current['headline'] = current_headline
+        except Exception:
+            # measure() derives its key sets from the rows, so it handles a
+            # hand-edited or imported chart; anything still raising here is a bug
+            # rather than odd data. Keep the page up — a mid-tournament operator
+            # needs the rest of it more than the quality panel — but log it, so
+            # the panel can't go missing silently the way it used to.
+            logger.exception("seating measure() failed for tenant %s",
+                             tenant.subdomain if tenant else '-')
+            current = None
+    can_generate = (nb_players >= 8 and nb_players % 4 == 0 and nb_rounds >= 1)
+    seating_scores = (
+        Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+        or Hand.objects.filter(tenant=tenant).exists()
+    )
+    template2 = loader.get_template('mahj/admin_seating.html')
+    return template2.render({
+        'nb_players': nb_players,
+        'nb_rounds': nb_rounds,
+        'has_teams': tournament.has_teams,
+        'has_seats': bool(seats),
+        'existing_scores': seating_scores,
+        'current': current,
+        'current_headline': current_headline,
+        'can_generate': can_generate,
+        'algebraic_ok': can_generate and _seating.algebraic_feasible(nb_players, nb_rounds),
+    }, request)
+
+
+
+def _page_scoring(request, tenant, error=None):
+    tournament = get_tournament(request)
+    grid = scores_per_table_grid(request)
+    all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
+    try:
+        nb_rounds = len(scores_per_player_rows(request, True)[0]["scores"])
+    except Exception:
+        nb_rounds = 6
+    template2 = loader.get_template('mahj/admin_scores_per_table.html')
+    published_rounds = list(
+        PublishedRound.objects.filter(tenant=tenant)
+            .order_by('round_nb').values_list('round_nb', flat=True)
+    )
+    # The score grid keys its badges by the "<round>-<table>" string its template
+    # builds, so ask for that shape.
+    validated_keys, filled_keys = _sheet_state_keys(tenant, as_strings=True)
+    context = {
+        'grid': grid,
+        "players": all_players,
+        "tournament": tournament,
+        "active_round": nb_rounds + 1,
+        "published_rounds": published_rounds,
+        "subdomain": tenant.subdomain if tenant else '',
+        "validated_keys": validated_keys,
+        "filled_keys": filled_keys,
+        # Only publishers (and tenant admins) may publish/unpublish — the
+        # endpoint is gated the same way, so keep the toggle disabled for plain
+        # scorer accounts to avoid a dead control.
+        "can_publish": has_role(request, 'publisher'),
+    }
+    return template2.render(context, request)
+
+
+
+def _page_ceremony(request, tenant, error=None):
+    template2 = loader.get_template('mahj/admin_ceremony.html')
+    return template2.render({
+        "tournament": get_tournament(request),
+        "subdomain": tenant.subdomain if tenant else '',
+        "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
+        # Same-origin base for the preview iframes (see the display page):
+        # cloud → https://<tenant>.<BASE_DOMAIN>, standalone → http://<host>:<port>.
+        "screen_base": request.build_absolute_uri('/').rstrip('/'),
+    }, request)
+
+
+# ---- who may see each page ------------------------------------------------
+#
+# The view's own decorator admits any app role, which is the right gate for the
+# shell but too wide for most pages inside it: a display operator has no business
+# on the score grid, and a scorer none in user management. So each page names its
+# own audience.
+
+def _gate_shell(request):
+    """Any account the shell itself admits — the decorator is the whole gate."""
+    return True
+
+
+def _gate_tenant_admin(request):
+    return is_tenant_admin(request)
+
+
+def _gate_display_op(request):
+    """Display operators only. A scorer or publisher turned away here can't drive
+    the page's mutating actions either — they run behind the same gate."""
+    return has_role(request, 'display_op')
+
+
+def _gate_scoring(request):
+    """Scorers and publishers. Explicitly not display operators, whom the shell
+    admits and who have no reason to see the score grid."""
+    return has_role(request, 'scorer', 'publisher')
+
+
+def _gate_publisher(request):
+    """has_role('publisher') also covers tenant admins and superusers."""
+    return has_role(request, 'publisher')
+
+
+def _gate_superuser(request):
+    return request.user.is_superuser
+
+
+def _gate_tenant_management(request):
+    """Superuser, and meaningless in the single-tenant standalone build (the tenant
+    is pinned via LOCAL_TENANT), so it's hidden there rather than left broken."""
+    return request.user.is_superuser and not settings.STANDALONE
+
+
+# `reauth` marks a page a borrowed or unattended session must re-confirm a password
+# to reach: these three hold credentials or can wipe the database, so a valid session
+# cookie alone isn't enough. `reauth_next` is where the confirm panel returns to —
+# None for the user console, which is where it lands by default anyway.
+_AdminPage = namedtuple('_AdminPage', 'gate render reauth reauth_next',
+                        defaults=(False, None))
+
+ADMIN_PAGES = {
+    "welcome":            _AdminPage(_gate_shell, _page_welcome),
+    "display":            _AdminPage(_gate_display_op, _page_display),
+    "settings":           _AdminPage(_gate_tenant_admin, _page_settings),
+    "player_editor":      _AdminPage(_gate_tenant_admin, _page_player_editor),
+    "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target),
+    "import_template":    _AdminPage(_gate_tenant_admin, _page_import_template),
+    "seating":            _AdminPage(_gate_tenant_admin, _page_seating),
+    "scoring":            _AdminPage(_gate_scoring, _page_scoring),
+    "ceremony":           _AdminPage(_gate_display_op, _page_ceremony),
+    "publisher_overview": _AdminPage(_gate_publisher, _page_publisher_overview),
+    "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True),
+    "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
+                                     reauth=True, reauth_next='tenants'),
+    "database_restore":   _AdminPage(_gate_superuser, _page_database_restore,
+                                     reauth=True, reauth_next='database_restore'),
+}
+
+
+def _landing_page(request):
+    """Which page a request with no `?page=` lands on.
+
+    Tenant admins get the full dashboard. A single-role account gets the page it
+    actually works from, rather than a summary of things it can't reach. Publishers
+    manage publishing from the scoring page.
+
+    The order matters for an account holding more than one role: display_op is
+    checked before publisher, so someone doing both lands on the screen controls —
+    they're standing at the projectors.
+    """
+    if is_tenant_admin(request):
+        return "welcome"
+    if has_role(request, 'scorer'):
+        return "scoring"
+    if has_role(request, 'display_op'):
+        return "display"
+    if has_role(request, 'publisher'):
+        return "scoring"
+    return "welcome"
+
+
 @tenant_role_required('scorer', 'display_op', 'publisher')
 def options(request, error=None):
+    """The admin console: one shell, one page fragment, dispatched via ADMIN_PAGES."""
     tenant = get_tenant(request)
     if request.GET.get('logout') == "1":
         # Logout is a state change, so it must be POST (a GET link would let a
@@ -1476,483 +2036,21 @@ def options(request, error=None):
         logout(request)
         return HttpResponseRedirect('admin')
 
-    template = loader.get_template('mahj/admin.html')
-    page = request.GET.get('page')
-    
-    # Land each single-role account on the page it works from; tenant admins get
-    # the full dashboard (welcome), so only redirect non-admins.
-    if page is None and not is_tenant_admin(request):
-        if has_role(request, 'scorer'):
-            page = "scoring"
-        elif has_role(request, 'display_op'):
-            page = "display"
-        elif has_role(request, 'publisher'):
-            # Publishers manage publishing from the scoring page.
-            page = "scoring"
-
-    if page == "welcome" or page is None:
-        page = "welcome"
-        from ..publish.sftp_upload import is_configured as _static_publish_configured
-        from ..scoring import _last_complete_round, publish_state
-        tournament = get_tournament(request)
-        nb_players = Player.objects.filter(tenant=tenant).count()
-        nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
-        nb_screens = Screen.objects.filter(tenant=tenant).count()
-        # _last_complete_round returns nb_rounds when it finds no incomplete seat —
-        # which also happens with no seats at all, a false "all complete". Guard on
-        # the seating chart actually existing.
-        has_seats = Seat.objects.filter(tenant=tenant).exists()
-        complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
-        last_published, _ = publish_state(tenant, tournament)
-        # Warn when a schedule exists but its playing rounds don't line up with
-        # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
-        # mismatch leaves per-round times blank/misaligned. Only flag once a
-        # schedule has been set up — a fresh, empty schedule isn't "wrong".
-        schedule_total = Schedule.objects.filter(tenant=tenant).count()
-        schedule_rounds = Schedule.objects.filter(tenant=tenant, is_round=True).count()
-        template2 = loader.get_template('mahj/admin_welcome.html')
-        page_content = template2.render(
-            {
-                "error": error,
-                "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
-                "tournament": tournament,
-                "nb_players": nb_players,
-                # Whether a seating chart exists at all (imported or generated) —
-                # the player list can be drawn in only once there are seats to fill.
-                "has_seats": has_seats,
-                # A player is "drawn in" once assigned a draw number; the player list is
-                # ready to play when every player holds one.
-                "draw_done": nb_players > 0 and nb_drawn == nb_players,
-                "nb_drawn": nb_drawn,
-                "nb_screens": nb_screens,
-                "complete_round": complete_round,
-                "last_published": last_published,
-                "schedule_rounds": schedule_rounds,
-                "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
-                # Server-authoritative round timer: >0 and in the future means a
-                # round is counting down / running (the dashboard shows it live).
-                "counter": get_counter(tenant),
-            },
-            request,
-        )
-    elif page == "display" and not has_role(request, 'display_op'):
-        # Display-operator-only: the shared admin gate admits any app role, so a
-        # scorer/publisher must be turned away here — otherwise they could not
-        # only view this page but drive its inline mutating actions below
-        # (add/remove screen, set_tournament, set_all_views, set_mode…).
+    page = request.GET.get('page') or _landing_page(request)
+    spec = ADMIN_PAGES.get(page)
+    if spec is None or not spec.gate(request):
+        # "None" is what the shell renders as an empty panel. An unknown page and a
+        # page this account may not see are deliberately indistinguishable: probing
+        # `?page=…` shouldn't map out what exists.
         page_content = "None"
-    elif page == "display":
-        tournament = get_tournament(request)
-        action = request.GET.get('action')
-        # Every branch below mutates state (or fires a broadcast), so it must be
-        # POST: a GET link would let a crafted cross-site navigation drive these
-        # (delete a screen, blank every projector, rewrite settings) while a
-        # display operator is logged in. Requiring POST also hands CSRF
-        # protection back to Django's middleware, which never checks GET.
-        is_mutation = (
-            action in {"set_tournament", "add_screen", "remove_screen",
-                       "identify_screens", "add_mode", "set_all_views"}
-            or request.GET.get('rm_mode') or request.GET.get('set_mode'))
-        if is_mutation and request.method != 'POST':
-            return HttpResponseNotAllowed(['POST'])
-        if action == "set_tournament":
-            return _apply_set_tournament(request, tournament, DISPLAY_SETTINGS_FIELDS)
-        elif action == "add_screen":
-            Screen(tenant=tenant, name="", view="black").save()
-            # 'screens_changed' (not plain 'screen_update') so the overview grid
-            # redraws for the new screen count. Existing per-screen displays are
-            # unaffected: only the last position is ever added or removed.
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
-            return HttpResponseRedirect(_display_redirect('screens'))
-        elif action == "remove_screen":
-            last = Screen.objects.filter(tenant=tenant).order_by('id').last()
-            if last is not None:
-                last.delete()
-                broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
-            return HttpResponseRedirect(_display_redirect('screens'))
-        elif action == "identify_screens":
-            # Flash each screen's positional number (/1, /2, …) as a corner badge
-            # for a few seconds so an operator can match physical projectors to
-            # their URLs. Reuses the existing 'screen.update' channel with a
-            # distinct event the display socket intercepts without reloading —
-            # see mahj/static/js/display_socket.js.
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_identify'})
-            return HttpResponse("")
-        elif action == "add_mode":
-            mode_name = request.POST.get('mode_name')
-            screens = Screen.objects.filter(tenant=tenant).order_by('id')
-            views_list = [str(screen.view) for screen in screens]
-            ScreenMode(tenant=tenant, name=mode_name, views=views_list).save()
-            return HttpResponseRedirect(_display_redirect('screens'))
-        elif request.GET.get('rm_mode'):
-            mode = _screen_mode_or_404(tenant, request.GET.get('rm_mode'))
-            mode.delete()
-            return HttpResponseRedirect('admin?page=display')
-        elif action == "set_all_views":
-            # Bulk "All screens" control: point every screen at one view in a
-            # single write + one broadcast (rather than N per-screen posts).
-            # Mirrors set_mode's shape so the admin page can sync each card's
-            # selects/previews from the returned list.
-            view = request.GET.get('view') or 'black'
-            screens = Screen.objects.filter(tenant=tenant).order_by('id')
-            applied = []
-            for screen in screens:
-                screen.view = view
-                screen.save()
-                applied.append({'id': screen.id, 'view': screen.view})
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
-            return JsonResponse({'screens': applied})
-        elif request.GET.get('set_mode'):
-            mode = _screen_mode_or_404(tenant, request.GET.get('set_mode'))
-            views_list = mode.views if isinstance(mode.views, list) else []
-            screens = Screen.objects.filter(tenant=tenant).order_by('id')
-            applied = []
-            # A mode is a full-room snapshot (add_mode saves every screen's
-            # view), so applying one sets every screen: a screen added after
-            # the mode was saved goes blank rather than keeping stale content
-            # (e.g. live standings during a "Break" mode).
-            for i, screen in enumerate(screens):
-                screen.view = views_list[i] if i < len(views_list) else "black"
-                screen.save()
-                applied.append({'id': screen.id, 'view': screen.view})
-            broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screen_update'})
-            # The admin page applies modes via AJAX so it can refresh the
-            # selects/previews in place; a direct (non-AJAX) hit redirects back.
-            if request.headers.get('x-requested-with') == 'XMLHttpRequest':
-                return JsonResponse({'screens': applied})
-            return HttpResponseRedirect('admin?page=display')
-        screens = Screen.objects.filter(tenant=tenant).order_by('id')
-        modes = ScreenMode.objects.filter(tenant=tenant).order_by('id')
-        # A running ceremony takes over every screen, so the display controls
-        # below are inert until it ends. Flag it so the page can warn up front;
-        # the banner then tracks live 'ceremony.update' broadcasts over the socket.
-        ceremony_state = CeremonyState.objects.filter(tenant=tenant).first()
-        context = {
-            "screens": screens,
-            "modes": _mode_breakdowns(modes, screens),
-            "nb_players": Player.objects.filter(tenant=tenant).count(),
-            # Distinct non-empty team names — drives the "Standings — teams" page
-            # picker (individual pages + team pages).
-            "nb_teams": Player.objects.filter(tenant=tenant).exclude(team="")
-                .values_list('team', flat=True).distinct().count(),
-            "tournament": tournament,
-            "ceremony_active": bool(ceremony_state and ceremony_state.phase != 'idle'),
-            # Base URL the screens are reachable at, taken from THIS request so the
-            # preview iframes stay same-origin (X-Frame-Options: SAMEORIGIN). In the
-            # cloud this resolves to https://<tenant>.<BASE_DOMAIN> (proxy headers); in
-            # the standalone build to http://<host>:<port>. A hardcoded
-            # <BASE_DOMAIN> URL would be cross-origin — and unreachable — on a laptop.
-            "screen_base": request.build_absolute_uri('/').rstrip('/'),
-            # Which collapsible panel to render already open (see _display_redirect).
-            "open_panel": request.GET.get('open', ''),
-        }
-        # Standalone (LAN-served) build: list the addresses other devices can use
-        # to open a screen — loopback (this machine) + the LAN IP. The public IP is
-        # filled in client-side (external lookup) with a port-forward warning.
-        if settings.STANDALONE:
-            from .helpers import lan_ip
-            port = request.get_port()
-            bases = [("This machine", f"http://127.0.0.1:{port}")]
-            ip = lan_ip()
-            if ip:
-                bases.append(("Same network (LAN)", f"http://{ip}:{port}"))
-            context["standalone"] = True
-            context["access_bases"] = bases
-            context["access_port"] = port
-        template2 = loader.get_template('mahj/admin_display.html')
-        page_content = template2.render(context, request)
-    elif page == "settings":
-        # Staff-only: a scorer/display op reaching ?page=settings gets nothing.
-        if not is_tenant_admin(request):
-            page_content = "None"
-        else:
-            tournament = get_tournament(request)
-            action = request.GET.get('action')
-            if action in ("set_tournament", "save_schedule") and request.method != 'POST':
-                return HttpResponseNotAllowed(['POST'])
-            if action == "set_tournament":
-                return _apply_set_tournament(request, tournament, TOURNAMENT_SETTINGS_FIELDS)
-            if action == "save_schedule":
-                return _save_schedule(request, tenant)
-            template2 = loader.get_template('mahj/admin_settings.html')
-            schedule_rows = [
-                {"day": s.day or "", "time": s.time or "",
-                 "name": s.name or "", "is_round": s.is_round}
-                for s in Schedule.objects.filter(tenant=tenant).order_by('id')
-            ]
-            page_content = template2.render({
-                "tournament": tournament,
-                "schedule_rows": schedule_rows,
-            }, request)
-    elif page == "player_editor":
-        # Staff-only: a scorer/display op reaching ?page=player_editor gets nothing.
-        if not is_tenant_admin(request):
-            page_content = "None"
-        else:
-            players = Player.objects.filter(tenant=tenant).order_by(
-                F('draw_number').asc(nulls_last=True), 'full_name')
-            player_rows = [
-                {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
-                 'first_name': p.first_name, 'last_name': p.last_name,
-                 'EMA_ID': p.EMA_ID, 'country': p.country, 'team': p.team}
-                for p in players
-            ]
-            # The seating-chart slots a draw number may be assigned to (the editor
-            # rejects anything else before it reaches admin_player_draw_assign).
-            valid_draw_numbers = sorted(set(
-                Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True)))
-            template2 = loader.get_template('mahj/admin_player_editor.html')
-            page_content = template2.render(
-                {"player_rows": player_rows,
-                 "valid_draw_numbers": valid_draw_numbers}, request)
-    elif page == "publish_target":
-        # Staff-only: holds SFTP credentials, so a scorer/display op gets nothing.
-        if not is_tenant_admin(request):
-            page_content = "None"
-        else:
-            from ..models import PublishTarget
-            target = PublishTarget.objects.filter(tenant=tenant).order_by('id').first()
-            template2 = loader.get_template('mahj/admin_publish_target.html')
-            page_content = template2.render({
-                "target": target,
-                # Secrets are write-only — never render the value, just whether one
-                # is set, so the form can show a "configured" hint.
-                "has_password": bool(target and target.password_enc),
-                "has_key": bool(target and target.private_key_enc),
-                # The advertised spectator URL lives on TournamentSettings (cached,
-                # non-secret) but is edited here, next to the SFTP target.
-                "public_url": get_tournament(request).public_url,
-                "subdomain": tenant.subdomain if tenant else '',
-            }, request)
-    elif page == "import_template" and not is_tenant_admin(request):
-        # Tenant-admin-only: this page erases and re-imports the whole tournament.
-        page_content = "None"
-    elif page == "import_template":
-        # The upload confirm dialog names what it will erase, so tell the fragment
-        # how big the current tournament is and whether any scores exist.
-        existing_players = Player.objects.filter(tenant=tenant).count()
-        existing_scores = (
-            Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
-            or Hand.objects.filter(tenant=tenant).exists()
-        )
-        template2 = loader.get_template('mahj/admin_import_template.html')
-        page_content = template2.render({
-            'existing_players': existing_players,
-            'existing_scores': existing_scores,
-        }, request)
-    elif page == "seating" and not is_tenant_admin(request):
-        # Tenant-admin-only: generating replaces the chart and clears scores.
-        page_content = "None"
-    elif page == "seating":
-        from .. import seating as _seating
-        tournament = get_tournament(request)
-        nb_players = Player.objects.filter(tenant=tenant).count()
-        nb_rounds = tournament.nb_rounds or 0
-        # Measure the seating chart currently in place (independent of the player list:
-        # its size is the draw slots it seats), so the page can show what exists.
-        seats = list(Seat.objects.filter(tenant=tenant)
-                     .values_list('round_nb', 'table_nb', 'wind', 'draw_number'))
-        current = current_headline = None
-        if seats:
-            n_chart = len({s[3] for s in seats})
-            r_chart = len({s[0] for s in seats})
-            try:
-                current = _seating.measure(seats, n_chart, r_chart,
-                                           has_teams=tournament.has_teams)
-                current_headline = _seating.headline(current)
-                current['headline'] = current_headline
-            except Exception:
-                # measure() derives its key sets from the rows, so it handles a
-                # hand-edited or imported chart; anything still raising here is a bug
-                # rather than odd data. Keep the page up — a mid-tournament operator
-                # needs the rest of it more than the quality panel — but log it, so
-                # the panel can't go missing silently the way it used to.
-                logger.exception("seating measure() failed for tenant %s",
-                                 tenant.subdomain if tenant else '-')
-                current = None
-        can_generate = (nb_players >= 8 and nb_players % 4 == 0 and nb_rounds >= 1)
-        seating_scores = (
-            Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
-            or Hand.objects.filter(tenant=tenant).exists()
-        )
-        template2 = loader.get_template('mahj/admin_seating.html')
-        page_content = template2.render({
-            'nb_players': nb_players,
-            'nb_rounds': nb_rounds,
-            'has_teams': tournament.has_teams,
-            'has_seats': bool(seats),
-            'existing_scores': seating_scores,
-            'current': current,
-            'current_headline': current_headline,
-            'can_generate': can_generate,
-            'algebraic_ok': can_generate and _seating.algebraic_feasible(nb_players, nb_rounds),
-        }, request)
-    elif page == "scoring" and not has_role(request, 'scorer', 'publisher'):
-        # Scoring is for scorers and publishers (a display operator has no reason
-        # to see it); the shared admin gate admits display ops too, so exclude them.
-        page_content = "None"
-    elif page == "scoring":
-        tournament = get_tournament(request)
-        grid = scores_per_table_grid(request)
-        all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
-        try:
-            nb_rounds = len(scores_per_player_rows(request, True)[0]["scores"])
-        except Exception:
-            nb_rounds = 6
-        template2 = loader.get_template('mahj/admin_scores_per_table.html')
-        published_rounds = list(
-            PublishedRound.objects.filter(tenant=tenant)
-                .order_by('round_nb').values_list('round_nb', flat=True)
-        )
-        # The score grid keys its badges by the "<round>-<table>" string its template
-        # builds, so ask for that shape.
-        validated_keys, filled_keys = _sheet_state_keys(tenant, as_strings=True)
-        context = {
-            'grid': grid,
-            "players": all_players,
-            "tournament": tournament,
-            "active_round": nb_rounds + 1,
-            "published_rounds": published_rounds,
-            "subdomain": tenant.subdomain if tenant else '',
-            "validated_keys": validated_keys,
-            "filled_keys": filled_keys,
-            # Only publishers (and tenant admins) may publish/unpublish — the
-            # endpoint is gated the same way, so keep the toggle disabled for plain
-            # scorer accounts to avoid a dead control.
-            "can_publish": has_role(request, 'publisher'),
-        }
-        page_content = template2.render(context, request)
-    elif page == "ceremony" and not has_role(request, 'display_op'):
-        # Display-operator-only, like the display page (ceremony takes over the
-        # screens); its data/control endpoints are already display_op-gated.
-        page_content = "None"
-    elif page == "ceremony":
-        template2 = loader.get_template('mahj/admin_ceremony.html')
-        page_content = template2.render({
-            "tournament": get_tournament(request),
-            "subdomain": tenant.subdomain if tenant else '',
-            "screens": Screen.objects.filter(tenant=tenant).order_by('id'),
-            # Same-origin base for the preview iframes (see the display page):
-            # cloud → https://<tenant>.<BASE_DOMAIN>, standalone → http://<host>:<port>.
-            "screen_base": request.build_absolute_uri('/').rstrip('/'),
-        }, request)
-    elif page == "publisher_overview":
-        # Publisher-only: a plain scorer reaching this page (?page=…) gets nothing.
-        # has_role('publisher') also covers tenant admins and superusers.
-        if not has_role(request, 'publisher'):
-            page_content = "None"
-        else:
-            tournament = get_tournament(request)
-            template2 = loader.get_template('mahj/admin_publisher_overview.html')
-            page_content = template2.render({
-                "rows": publisher_overview_rows(tenant, tournament),
-                "tournament": tournament,
-                "subdomain": tenant.subdomain if tenant else '',
-            }, request)
-    elif page == "users":
-        # Tenant-admin-only, scoped to THIS tenant: a scorer/display op reaching
-        # ?page=users gets nothing.
-        if not is_tenant_admin(request):
-            page_content = "None"
-        elif not reauth_ok(request):
-            page_content = _reauth_gate(request)
-        else:
-            # Only this tenant's memberships — other tenants' users are invisible.
-            memberships = (Membership.objects.filter(tenant=tenant)
-                           .select_related('user').order_by('user__username'))
-            # A user is "shared" (credential-managed only by a superuser) if they
-            # also belong to another tenant. One query, not one per row.
-            shared_user_ids = set(
-                Membership.objects.exclude(tenant=tenant)
-                .filter(user__in=[m.user_id for m in memberships])
-                .values_list('user_id', flat=True))
-            user_rows = []
-            for m in memberships:
-                u = m.user
-                user_rows.append({
-                    "id": u.id,
-                    "username": u.username,
-                    "is_tenant_admin": m.is_tenant_admin,
-                    "is_self": u.id == request.user.id,
-                    "last_login": u.last_login,
-                    "has_password": u.has_usable_password(),
-                    "shared": u.id in shared_user_ids,
-                    "roles": [{"name": n, "label": TENANT_ROLE_LABELS[n],
-                               "active": getattr(m, f'is_{n}')} for n in TENANT_ROLES],
-                })
-            template2 = loader.get_template('mahj/admin_users.html')
-            page_content = template2.render({
-                "user_rows": user_rows,
-                "role_defs": [{"name": n, "label": TENANT_ROLE_LABELS[n]} for n in TENANT_ROLES],
-                # Gates the "add an existing account" form: making an account shared
-                # between tournaments is a superuser action (see user_add_existing).
-                "is_superuser": request.user.is_superuser,
-                "link_validity_days": settings.SESAME_MAX_AGE // 86400,
-            }, request)
-    elif page == "tenants":
-        # Superuser-only: create/rename tenants. Meaningless in the single-tenant
-        # standalone build (the tenant is pinned via LOCAL_TENANT), so it's hidden
-        # there.
-        if not request.user.is_superuser or settings.STANDALONE:
-            page_content = "None"
-        elif not reauth_ok(request):
-            page_content = _reauth_gate(request, 'tenants')
-        else:
-            tenant_rows = [
-                {"id": t.id, "name": t.name, "subdomain": t.subdomain,
-                 "admins": Membership.objects.filter(tenant=t, is_tenant_admin=True).count(),
-                 "members": Membership.objects.filter(tenant=t).count(),
-                 # Neither of these can be deleted — the fallback every tenant FK
-                 # points at, and the one this request is being served from. The
-                 # view refuses both; these just grey the button out rather than
-                 # offering something that will be rejected.
-                 "is_default": t.subdomain == Tenant.DEFAULT_SUBDOMAIN,
-                 "is_current": tenant is not None and t.pk == tenant.pk}
-                for t in Tenant.objects.all().order_by('subdomain')
-            ]
-            template2 = loader.get_template('mahj/admin_tenants.html')
-            page_content = template2.render({
-                "tenant_rows": tenant_rows,
-                "base_domain": settings.BASE_DOMAIN,
-            }, request)
-    elif page == "database_restore":
-        # Superuser-only (the restore is whole-cluster, a platform-operator
-        # action — see restore_admin), and — like user management — re-confirm the
-        # password first: this page can WIPE the live DB, so a borrowed session
-        # must re-auth.
-        if not request.user.is_superuser:
-            page_content = "None"
-        elif not reauth_ok(request):
-            page_content = _reauth_gate(request, 'database_restore')
-        else:
-            # Counts the confirm dialog shows as "what you're about to overwrite".
-            # Unscoped (whole-DB): a restore replaces every tenant's rows at once,
-            # matching the worker's post-restore report.
-            db_counts = {
-                "players": Player.objects.count(),
-                "seats": Seat.objects.count(),
-                "hands": Hand.objects.count(),
-            }
-            if settings.STANDALONE:
-                from .. import standalone_backup
-                restore_ctx = {
-                    "groups": standalone_backup.list_snapshot_groups(),
-                    "db_name": standalone_backup.CONFIRM_TOKEN,
-                    "pull_configured": False,   # off-host pull is Postgres-only
-                    "standalone": True,         # restore applies on relaunch
-                    "db_counts": db_counts,
-                }
-            else:
-                restore_ctx = {
-                    "groups": list_backups(),
-                    "db_name": settings.DATABASES['default']['NAME'],
-                    "pull_configured": bool(os.environ.get('REMOTE')),
-                    "db_counts": db_counts,
-                }
-            template2 = loader.get_template('mahj/admin_database_restore.html')
-            page_content = template2.render(restore_ctx, request)
+    elif spec.reauth and not reauth_ok(request):
+        page_content = _reauth_gate(request, spec.reauth_next)
     else:
-        page_content = "None"
+        page_content = spec.render(request, tenant, error)
+        if isinstance(page_content, HttpResponse):
+            # A mutating `?action=` answered with a redirect, JSON or a 405 — not
+            # shell content.
+            return page_content
 
     from ..publish.sftp_upload import is_configured as _static_publish_configured
     context = {
@@ -1969,4 +2067,4 @@ def options(request, error=None):
         # when web publishing is configured, so idle installs don't poll.
         "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
     }
-    return HttpResponse(template.render(context, request))
+    return HttpResponse(loader.get_template('mahj/admin.html').render(context, request))
