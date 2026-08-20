@@ -11,6 +11,7 @@ before the files it points at have landed.
 import io
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,6 +28,13 @@ VERSION_FILE = 'version.json'
 # dir, never uploaded.
 MANIFEST_FILE = '.upload_manifest.json'
 
+# Default directory for the tournament dumps uploaded on every publish, and how
+# many to keep. Placed BESIDE the served site, never inside it: a dump holds every
+# score, including a withheld final round the public site is still hiding, so a
+# guessable URL under the web root would leak the podium before the ceremony.
+DUMP_DIR_NAME = 'mahj-backups'
+KEEP_DUMPS = 20
+
 
 @dataclass
 class PublishConfig:
@@ -39,6 +47,21 @@ class PublishConfig:
     key_data: str = ''      # inline private key PEM
     host_key: str = ''      # a single known_hosts line to pin the host (optional)
     subdomain: str = ''     # so a learned host key can be written back to the row
+    backup_path: str = ''   # where dumps go; blank → beside the site (see dump_dir)
+
+    def dump_dir(self):
+        """The remote directory tournament dumps are uploaded to.
+
+        The operator's ``backup_path`` wins. Otherwise a sibling of the site
+        directory (``public_html`` → ``mahj-backups``), so the default is not
+        web-fetchable; with no site path to be a sibling of, it is relative to
+        the login directory, which is not served either.
+        """
+        if self.backup_path:
+            return self.backup_path.rstrip('/')
+        site = (self.path or '').rstrip('/')
+        parent = site.rsplit('/', 1)[0] if '/' in site else ''
+        return f'{parent}/{DUMP_DIR_NAME}' if parent else DUMP_DIR_NAME
 
 
 def resolve_config(subdomain):
@@ -61,6 +84,7 @@ def resolve_config(subdomain):
         key_data=secrets.decrypt(target.private_key_enc),
         host_key=target.host_key or '',
         subdomain=subdomain,
+        backup_path=(target.backup_path or '').strip(),
     )
 
 
@@ -225,3 +249,49 @@ def upload_dir(local_dir, subdomain=None, full=False, progress=None):
         pass  # manifest is an optimization; losing it just means a full next upload
     logger.info("Uploaded %d of %d files for %r to %s (skipped %d unchanged)",
                 len(to_send), len(files), subdomain, remote_root, len(files) - len(to_send))
+
+
+def _prune_dumps(sftp, remote_dir, subdomain):
+    """Keep only the newest KEEP_DUMPS dumps for this tenant in `remote_dir`.
+
+    Matched by this tenant's own filename prefix, so tenants publishing to a
+    shared directory never reap each other's dumps. The names carry a sortable
+    UTC stamp (see tenant_dump.dump_filename), so lexical order is time order.
+    """
+    # The stamp is matched explicitly, so tenant "oemc" can never reap
+    # "oemc_2026"'s dumps (its name would otherwise look like this one's prefix).
+    pattern = re.compile(rf'^mahj_{re.escape(subdomain)}_\d{{8}}T\d{{6}}Z\.json\.gz$')
+    try:
+        names = sorted(n for n in sftp.listdir(remote_dir) if pattern.match(n))
+    except IOError:
+        return
+    for name in names[:-KEEP_DUMPS] if len(names) > KEEP_DUMPS else []:
+        try:
+            sftp.remove(f'{remote_dir}/{name}')
+        except IOError:
+            logger.warning("Could not remove the old dump %s", name)
+
+
+def upload_dump(subdomain, data, filename):
+    """Upload one tournament dump to the tenant's backup directory, then prune
+    the old ones. No-op when the tenant has no enabled publish target.
+
+    Called after a successful site publish (see publish.trigger) so every
+    published state has an off-site restore point.
+    """
+    cfg = resolve_config(subdomain)
+    if cfg is None:
+        logger.info("Dump upload skipped: no publish target for %r.", subdomain)
+        return
+    remote_dir = cfg.dump_dir()
+    client = _connect(cfg)
+    try:
+        sftp = client.open_sftp()
+        _ensure_remote_dir(sftp, remote_dir)
+        sftp.putfo(io.BytesIO(data), f'{remote_dir}/{filename}')
+        _prune_dumps(sftp, remote_dir, subdomain)
+        sftp.close()
+    finally:
+        client.close()
+    logger.info("Uploaded the tournament dump %s for %r to %s (%d bytes)",
+                filename, subdomain, remote_dir, len(data))

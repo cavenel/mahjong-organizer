@@ -656,14 +656,17 @@ class TestAdminPageTable:
                   'player_editor': 'page', 'publish_target': 'page',
                   'import_template': 'page', 'seating': 'page', 'scoring': 'page',
                   'ceremony': 'page', 'publisher_overview': 'page',
-                  'users': 'reauth', 'tenants': 'empty',
+                  'users': 'reauth', 'backup': 'reauth', 'tenants': 'empty',
                   'database_restore': 'empty'},
         'superuser': {'welcome': 'page', 'display': 'page', 'settings': 'page',
                       'player_editor': 'page', 'publish_target': 'page',
                       'import_template': 'page', 'seating': 'page',
                       'scoring': 'page', 'ceremony': 'page',
                       'publisher_overview': 'page', 'users': 'reauth',
-                      'tenants': 'reauth', 'database_restore': 'reauth'},
+                      'backup': 'reauth', 'tenants': 'reauth',
+                      # Snapshot restore is a standalone-build page; the suite runs
+                      # as a cloud install, where it's hidden.
+                      'database_restore': 'empty'},
     }
 
     def _account(self, role, tenant):

@@ -81,8 +81,8 @@ LOCAL_TENANT = os.environ.get('LOCAL_TENANT', '').strip() or 'local'
 SCAN_ENABLED = False
 
 # --- single-process backup/restore ------------------------------------------
-# Use the sqlite snapshot + restore-on-relaunch path instead of the Postgres
-# restore_worker, so the admin "Database restore" page works here too.
+# Rolling sqlite snapshots + restore-on-relaunch, driven by the admin console's
+# "Snapshot restore" page (standalone-only; see mahj/standalone_backup.py).
 STANDALONE = True
 
 # --- sqlite PRAGMAs on every connection --------------------------------------

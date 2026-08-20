@@ -54,10 +54,12 @@ urlpatterns = [
     path('tenant_rename', views.tenant_rename, name='tenant_rename'),
     path('tenant_delete', views.tenant_delete, name='tenant_delete'),
 
-    # Database restore (superuser only)
-    path('restore_pull', views.restore_pull, name='restore_pull'),
+    # Snapshot restore (standalone build, superuser only)
     path('restore_run', views.restore_run, name='restore_run'),
-    path('restore_status', views.restore_status, name='restore_status'),
+
+    # Per-tenant backup (tenant admin)
+    path('tenant_dump', views.tenant_dump_download, name='tenant_dump'),
+    path('tenant_restore', views.tenant_restore, name='tenant_restore'),
 
     # Score entry
     path('scores_per_hand_<int:round_nb>_<int:table_nb>', views.admin_scores_per_hand, name='admin_scores_per_hand'),

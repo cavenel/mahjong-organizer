@@ -136,11 +136,12 @@ The sidebar only shows the pages **your roles can use**:
 │
 │  ADMINISTRATION                  (admin)
 │  ├─ User management
+│  ├─ Backup & restore
 │  └─ Publish target
 └─
 ```
 
-(Platform operators see three more entries under *Administration* —
+(Platform operators see two more entries under *Administration* —
 see [Part VI](#part-vi-platform-operator).)
 
 > ![Sidebar staff](screenshots/03-sidebar-staff.png)<br>
@@ -786,7 +787,34 @@ private key; **Test connection** verifies the setup. The same page sets the
 Leave the target disabled to not publish. Progress of an upload shows as a
 toast in the console shell.
 
-## 19. After the tournament — EMA export
+Each publish also uploads a **backup of the whole tournament** next to the site
+(see [§19](#19-backing-up-and-restoring-a-tournament)). The **Backup directory**
+field says where; leave it blank for a `mahj-backups` folder beside it.
+Prefer a directory *outside* the served site — a backup contains every score,
+including a withheld final round the public site is still hiding.
+
+## 19. Backing up and restoring a tournament
+
+**Administration → Backup & restore** deals in **dump files**: one file holding
+the entire tournament — settings, the player list, the seating, every entered
+score, which rounds are published, the schedule, the screens and the round
+timer.
+
+- **Download dump** saves one now. If web publishing is configured, one is also
+  uploaded automatically on every publish, so a recent backup is already off-site
+  (the 20 most recent are kept). Without a publish target, downloading is the
+  only copy — do it after each round.
+- **Restore from dump** replaces the current tournament with an uploaded file.
+  It asks you to retype the subdomain first, and it cannot be undone. User
+  accounts and the publish target are kept as they are.
+
+A dump can be restored into **any** tournament on any install running the same
+app version — that is how a tournament moves onto a venue laptop (or back off
+it) when the server is unreachable. If the file was made for a different
+tenant, the confirm dialog says so before you commit.
+
+
+## 20. After the tournament — EMA export
 
 **Results → Generate EMA report** downloads the ranking-submission workbook
 (`EMA_report.xlsx`) once the event is finished and all rounds are published.
@@ -798,15 +826,15 @@ it.
 # Part VI: Platform operator
 
 *The superuser who runs the server — not part of the tournament crew. Their
-sidebar shows three extra entries under Administration:*
+sidebar shows two extra entries under Administration:*
 
 - **Tenants** — create and manage tournaments (each lives on its own
   subdomain), and jump into any tenant's user management.
-- **Database restore** — restore a database dump (whole-server, all
-  tournaments), with an optional pull-from-remote. Guarded by a password
-  re-check.
 - **Database administration** — the raw Django admin (`/admin_db/`), for
   low-level data access.
+
+*(The standalone venue-laptop build shows a third, **Snapshot restore**, which
+rolls its whole local database back to an automatic snapshot.)*
 
 Setting up the server itself — Docker, DNS/TLS, environment variables, backups,
 the standalone venue-laptop build — is documented in
@@ -816,7 +844,7 @@ the standalone venue-laptop build — is documented in
 
 # Appendices
 
-## 20. Permissions recap
+## 21. Permissions recap
 
 | Action | Scorer | Publisher | Display op | Admin |
 |---|:--:|:--:|:--:|:--:|
@@ -831,7 +859,7 @@ the standalone venue-laptop build — is documented in
 (Roles combine: a user holding several roles has the union of these. The
 platform operator can do all of this on every tournament.)
 
-## 21. Rehearsing on the test tenant
+## 22. Rehearsing on the test tenant
 
 The **test tenant** is a throwaway tournament for rehearsing the whole system —
 training scorers, checking how the leaderboard/screens look with data, and
@@ -914,7 +942,7 @@ players/seating; re-running **Import from template** resets the whole tenant.
   which also makes it a good place to confirm a new user's roles before the
   real event.
 
-## 22. Quick reference
+## 23. Quick reference
 
 | Task | Where | Role |
 |---|---|---|
@@ -938,5 +966,6 @@ players/seating; re-running **Import from template** resets the whole tenant.
 | Run the awards | **Ceremony console** | Display op |
 | Make final results public | Ceremony console → **Publish to everyone & end** | Display op |
 | Publish the site to a web host | Administration → **Publish target** | Admin |
+| Back up / restore the tournament | Administration → **Backup & restore** | Admin |
 | Generate the ranking export | Results → **Generate EMA report** | Admin |
-| Rehearse with fake data | `test.<your-domain>` → Scoring → **Fill all rounds** | any (see §21) |
+| Rehearse with fake data | `test.<your-domain>` → Scoring → **Fill all rounds** | any (see §22) |

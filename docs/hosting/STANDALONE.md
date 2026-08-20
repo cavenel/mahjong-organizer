@@ -3,7 +3,8 @@
 The tournament admin can run two ways from the **same** code:
 
 - **Robust (Docker Compose)** — Postgres, Redis, Channels, workers, nginx. For a
-  server or a busy multi-tenant deployment. See `RUNBOOK.md`.
+  server or a busy multi-tenant deployment. See
+  [deployment.md](deployment.md).
 - **Standalone (this doc)** — one process, a local sqlite file, no external
   services, packaged as a per-OS binary a non-technical operator double-clicks on
   a venue laptop. Manual score entry (no camera scan/OCR).
@@ -75,11 +76,34 @@ every few minutes while running (safe on a live database, unlike copying the fil
 keeping the most recent ones. It also runs an integrity check on startup and
 refuses to serve a corrupt database, pointing you at the snapshots.
 
-**To recover from the admin console:** open **Database restore**
+**To recover from the admin console:** open **Snapshot restore**
 (`/admin?page=database_restore`), pick a snapshot, and confirm. The restore is
 applied the next time you launch the app (a running process can't swap its own
-open database), so quit and relaunch to complete it — the same "Database restore"
-page the Docker/Postgres deployment uses, just backed by the sqlite snapshots.
+open database), so quit and relaunch to complete it. This rolls the *whole* local
+database back; to bring back a single tournament instead, use **Backup &
+restore** (below).
+
+## Running the tournament from this laptop (server fallback)
+
+A tournament dump is portable between installs, so this build doubles as the
+fallback when the server is unreachable mid-event:
+
+1. Get the latest dump for the tournament — from the server's publish target
+   (the `mahj-backups/` folder beside the remote site directory, or wherever its
+   **Backup directory** points), or from a copy downloaded earlier on
+   *Administration → Backup & restore*.
+2. In this app, create/select the tournament's tenant (`LOCAL_TENANT`), open
+   **Backup & restore**, upload the dump and retype the subdomain.
+3. Everything comes back: settings, players, seating, entered scores, published
+   rounds, the schedule and the round timer. Publish target and user accounts are
+   *not* in the dump — re-enter the target here if you want to keep publishing the
+   spectator site.
+4. Afterwards, download a dump from this laptop and restore it onto the server the
+   same way, so the server has the rest of the event.
+
+Both installs must be running the **same app version** — a dump records the
+schema it was made on and refuses to restore onto a different one rather than
+loading half of itself.
 
 **To recover by hand** (e.g. the app won't start): quit, go to the data dir,
 rename the newest `snapshots/mahj-*.sqlite3` to `mahj.sqlite3` (replacing the bad

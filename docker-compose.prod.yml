@@ -17,7 +17,6 @@ services:
       - gunicorn_sock:/run/gunicorn
       - static_files:/static
       - ./captures:/app/mahj/captures
-      - ${MAHJ_BACKUP_DIR:-/opt/mahj-backups}:/backups:ro   # list dumps on the restore page
     ports: []    # nginx handles external traffic; web is not exposed directly
     # Probe the request path, not just the socket file: a hung gunicorn still owns a
     # bound socket, so `test -S` would call it healthy forever. curl over the socket
@@ -42,12 +41,6 @@ services:
   # OCR workers run prod settings; everything else (build, command, queue,
   # ./captures mount, replicas) is inherited from the base compose file.
   scan_worker:
-    environment:
-      DJANGO_SETTINGS_MODULE: apps.settings.prod
-
-  # Restore worker runs prod settings; everything else (command, /backups mount,
-  # pull config) is inherited from the base compose file.
-  restore_worker:
     environment:
       DJANGO_SETTINGS_MODULE: apps.settings.prod
 

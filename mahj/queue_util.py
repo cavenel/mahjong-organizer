@@ -1,14 +1,13 @@
-"""Shared retry helper for the two Redis work queues.
+"""Retry helper for writing a Redis work queue's job result.
 
-`scan_queue` and `restore_queue` are separate modules with their own keys and
-payloads, but both end a job by writing its result to Redis — and both do it *after*
-the expensive, already-paid-for work is done. An unguarded write there loses the
-answer to a momentary bus outage and takes the worker loop down with it, stalling
-every job queued behind. The retry policy is the same for both, so it lives once.
+`scan_queue` ends a job by writing its result to Redis, *after* the expensive,
+already-paid-for work is done. An unguarded write there loses the answer to a
+momentary bus outage and takes the worker loop down with it, stalling every job
+queued behind.
 
-redis is imported inside the function, not at module scope: `restore_queue` is
-imported by the URLconf and the standalone build ships without redis, so anything it
-imports has to stay importable there too.
+redis is imported inside the function, not at module scope: the standalone build
+ships without redis, so anything reachable from the URLconf has to stay importable
+there too.
 """
 import time
 

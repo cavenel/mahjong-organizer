@@ -34,7 +34,7 @@ subdomain (`<tenant>.your-domain`).
 - **Alpine.js** + **Tailwind CSS** on the front end (no build step at runtime —
   Tailwind is regenerated on each Docker build)
 - **Docker Compose** for the full production stack (web, nginx, db, pgbouncer,
-  redis, redis_bus, scan_worker, restore_worker)
+  redis, redis_bus, scan_worker)
 
 ## Quick start (Docker)
 

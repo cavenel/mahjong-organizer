@@ -35,6 +35,60 @@ def _export(tmp_path, subdomain='test'):
     return out
 
 
+class _FakeSFTP:
+    """Records what an upload did instead of talking to a server: files written,
+    directories created, files removed, and what listdir reports."""
+
+    def __init__(self):
+        self.written = {}
+        self.made_dirs = set()
+        self.removed = []
+        self.listing = []
+
+    # -- the paramiko SFTPClient surface upload_dump/upload_dir use ------------
+    def stat(self, path):
+        if path not in self.made_dirs:
+            raise IOError(f'no such dir {path}')
+
+    def mkdir(self, path):
+        self.made_dirs.add(path)
+
+    def putfo(self, fileobj, remote):
+        self.written[remote] = fileobj.read()
+        # A real server lists what was just written, which is what the pruning
+        # that follows an upload sees.
+        self.listing.append(remote.rsplit('/', 1)[-1])
+
+    def put(self, local, remote):
+        self.written[remote] = open(local, 'rb').read()
+
+    def listdir(self, path):
+        return list(self.listing)
+
+    def remove(self, path):
+        self.removed.append(path)
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def fake_sftp(monkeypatch):
+    """Stand in for a live SFTP connection (see test_sftp_host_key for the
+    host-key half of this)."""
+    sftp = _FakeSFTP()
+
+    class _Client:
+        def open_sftp(self):
+            return sftp
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr('mahj.publish.sftp_upload._connect', lambda cfg: _Client())
+    return sftp
+
+
 class TestFilesProduced:
     def test_index_and_version(self, tmp_path, tournament):
         out = _export(tmp_path)
@@ -351,3 +405,94 @@ class TestPublishTargetEndpoint:
         assert resp.status_code == 200
         assert b'topsecret' not in resp.content
         assert b'configured' in resp.content
+
+
+class TestDumpUpload:
+    """Every publish uploads a tournament dump next to the site (see tenant_dump),
+    so a published state can always be restored."""
+
+    def _target(self, tenant, **kw):
+        from mahj.models import PublishTarget
+        fields = dict(enabled=True, host='web.example', username='u', path='/srv/site')
+        fields.update(kw)
+        return PublishTarget.objects.create(tenant=tenant, **fields)
+
+    def test_default_dump_dir_sits_beside_the_site_not_inside_it(self, tournament):
+        """A dump under the web root would be fetchable by anyone guessing the
+        name — and it holds the withheld final round."""
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        assert sftp_upload.resolve_config('test').dump_dir() == '/srv/mahj-backups'
+
+    def test_backup_path_overrides_it(self, tournament):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'], backup_path='/var/backups/mahj/')
+        assert sftp_upload.resolve_config('test').dump_dir() == '/var/backups/mahj'
+
+    def test_upload_dump_sends_the_file_and_prunes_old_ones(self, tournament, fake_sftp):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        # More existing dumps than we keep, plus another tenant's — which must
+        # survive, since tenants may share one backup directory.
+        existing = [f'mahj_test_202607{i + 1:02d}T100000Z.json.gz' for i in range(25)]
+        # Another tenant's dumps, and one whose subdomain merely *starts* with
+        # this one's name — neither may be reaped.
+        fake_sftp.listing = existing + ['mahj_other_20260101T100000Z.json.gz',
+                                        'mahj_test_2026_20260101T100000Z.json.gz']
+
+        sftp_upload.upload_dump('test', b'payload', 'mahj_test_20260820T120000Z.json.gz')
+
+        assert fake_sftp.written['/srv/mahj-backups/mahj_test_20260820T120000Z.json.gz'] == b'payload'
+        assert '/srv/mahj-backups' in fake_sftp.made_dirs
+        # 25 old + 1 new = 26, keep 20 → the 6 oldest of this tenant's go.
+        assert len(fake_sftp.removed) == 6
+        assert all('mahj_test_2026_' not in p for p in fake_sftp.removed)
+        assert all('mahj_other_' not in p for p in fake_sftp.removed)
+
+    def test_upload_dump_without_a_target_is_a_noop(self, tournament, fake_sftp):
+        from mahj.publish import sftp_upload
+        sftp_upload.upload_dump('test', b'payload', 'dump.json.gz')
+        assert fake_sftp.written == {}
+
+    def test_publish_uploads_a_dump_and_reports_done(self, tournament, monkeypatch, settings):
+        """The whole background job: render, upload, then back up."""
+        settings.CACHES = {'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+        from django.core.cache import caches
+        caches['default'].clear()
+        from mahj.publish import trigger
+        sent = {}
+        monkeypatch.setattr(trigger, 'set_progress', lambda *a, **kw: None, raising=False)
+        monkeypatch.setattr('mahj.publish.static_export.export_public',
+                            lambda *a, **kw: None)
+        monkeypatch.setattr('mahj.publish.sftp_upload.upload_dir', lambda *a, **kw: None)
+        monkeypatch.setattr('mahj.publish.sftp_upload.upload_dump',
+                            lambda sub, data, name: sent.update(sub=sub, data=data, name=name))
+        trigger._run('test')
+        assert sent['sub'] == 'test' and sent['name'].startswith('mahj_test_')
+        # A real dump of the fixture tenant, not an empty one.
+        import gzip
+        import json as _json
+        payload = _json.loads(gzip.decompress(sent['data']))
+        assert len(payload['models']['Player']) == 16
+
+    def test_a_failed_backup_still_reports_the_site_as_published(self, tournament, monkeypatch,
+                                                                 settings):
+        """The site is already live by then, so a backup problem is a note on a
+        done publish, never a failed publish."""
+        settings.CACHES = {'default': {
+            'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+        from django.core.cache import caches
+        caches['default'].clear()
+        from mahj.publish import trigger
+
+        def boom(*a, **kw):
+            raise RuntimeError('remote disk full')
+
+        monkeypatch.setattr('mahj.publish.static_export.export_public', lambda *a, **kw: None)
+        monkeypatch.setattr('mahj.publish.sftp_upload.upload_dir', lambda *a, **kw: None)
+        monkeypatch.setattr('mahj.publish.sftp_upload.upload_dump', boom)
+        trigger._run('test')
+        progress = trigger.get_progress('test')
+        assert progress['phase'] == 'done'
+        assert 'remote disk full' in progress['error']

@@ -32,7 +32,8 @@ it *defines* the scope (it names both the user and the tenant). Three tiers:
 
 - **Platform superuser** — Django `is_superuser`. Cross-tenant; bypasses
   Membership entirely (needs no row) and is the only cross-tenant actor. Creates
-  tenants and runs the whole-cluster DB restore.
+  tenants; in the standalone build, also restores the whole local database from a
+  snapshot.
 - **Tenant admin** — an `is_tenant_admin` Membership. Manages that tenant's users
   and roles (including co-admins). Can't reach other tenants or platform ops.
 - **Tenant role** — `Scorer` / `Display operator` / `Publisher`, scoped to one
@@ -104,3 +105,24 @@ points, minipoints break ties; other rules rank on minipoints). `penalty` is a
 sheet-balance field already folded into `minipoints` — it is **not** re-added
 when ranking. `Hand` rows feed stats, badges and the hand-detail modal, never the
 ranking.
+
+## What "a tournament" is: dumps and wipes
+
+`mahj/tenant_dump.py` names the per-tenant model set once, in `TENANT_MODELS`,
+and both the dump/restore pair and the reset page's wipe (`wipe_tenant`) work
+from it. Add a tenant-scoped model and it belongs in that tuple — otherwise it
+silently survives a wipe and vanishes from every backup.
+
+A dump is gzipped JSON: each row's concrete fields minus `id` and `tenant_id`,
+which are reassigned on restore. That works only because **no model has a foreign
+key to another** — seating references players by `draw_number` *value*, not by FK
+(see above) — so there is nothing to remap. Restore is `bulk_create` in
+`TENANT_MODELS` order inside one transaction, after a wipe in the same
+transaction; `Schedule` order is preserved because fresh ids ascend in dump
+order, and its ordering is semantic.
+
+Two things are deliberately **outside** a dump: `PublishTarget` (deployment
+config, whose secrets are Fernet ciphertext under one install's `SECRET_KEY`) and
+`Membership`/`User` (global accounts). So a dump carries no secrets and can be
+restored into any tenant on any install at the same migration — which is what a
+dump stamps and checks.

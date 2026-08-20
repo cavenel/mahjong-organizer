@@ -1,0 +1,154 @@
+{% load static %}
+<div class="max-w-2xl space-y-4">
+  <h2 class="text-xl font-bold text-gray-800">Backup &amp; restore</h2>
+  <p class="text-sm text-gray-600">
+    A dump file is this tournament in one file: settings, players, seating, all
+    entered scores, published rounds, schedule, screens and the round timer.
+    Restoring one brings the tournament back exactly as it was when the dump was
+    made — on this server or on another install (for example the standalone app
+    on a venue laptop).
+  </p>
+
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
+    <p class="text-sm text-gray-600">
+      Download the current tournament as a dump file.
+      {% if publish_configured %}
+      <span class="text-gray-500">A dump is also uploaded to your publish
+      target automatically on every web publish, so a recent one is already
+      off-site.</span>
+      {% else %}
+      <span class="text-gray-500">Web publishing is not configured, so dumps are
+      not saved off-site automatically — download one after each round.</span>
+      {% endif %}
+    </p>
+    <a href="tenant_dump"
+       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
+              border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      Download dump
+    </a>
+  </div>
+
+  <form id="restore-form" class="space-y-4" onsubmit="return confirmRestore();">
+    {% csrf_token %}
+
+    <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-2">
+      <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      <span><b>Warning:</b> Restoring a dump replaces the whole current tournament,
+      including all entered scores. User accounts and the publish target are kept.</span>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2">
+      <input type="file" name="dumpfile" accept=".gz,application/gzip"
+             class="block flex-1 min-w-0 text-sm text-gray-700 file:mr-3 file:px-4 file:py-2 file:rounded-lg
+                    file:border-0 file:bg-amber-50 file:text-amber-700 file:font-medium
+                    hover:file:bg-amber-100 cursor-pointer">
+      <button type="submit"
+              class="px-4 py-2 text-sm font-semibold rounded-lg border-2 border-rose-500 text-rose-600
+                     hover:bg-rose-500 hover:text-white transition-colors">
+        Restore from dump
+      </button>
+    </div>
+
+    <div id="restore-loading" class="hidden flex items-center gap-3 text-sm text-gray-600">
+      <svg class="animate-spin w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" class="opacity-25"></circle>
+        <path fill="currentColor" class="opacity-75" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path>
+      </svg>
+      Restoring, please wait...
+    </div>
+  </form>
+</div>
+
+{{ subdomain|json_script:"backup-subdomain" }}
+<script>
+  // Restore replaces the whole tournament, so the confirm names what is about
+  // to be erased AND what the dump holds. The dump's own metadata is read
+  // client-side (it's gzipped JSON, and DecompressionStream can open it) so the
+  // dialog can flag a dump made for a different tenant — the failover case —
+  // before anything is sent. Browsers without DecompressionStream just get the
+  // generic wording; the server re-validates the file either way.
+  async function dumpMetadata(file) {
+    try {
+      var stream = file.stream().pipeThrough(new DecompressionStream('gzip'));
+      var text = await new Response(stream).text();
+      var payload = JSON.parse(text);
+      return {
+        subdomain: payload.subdomain,
+        created: payload.created_utc,
+        players: (payload.models && payload.models.Player || []).length,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function confirmRestore() {
+    var form = document.getElementById('restore-form');
+    var fileInput = form.querySelector('input[name=dumpfile]');
+    if (!fileInput.files.length) {
+      window.alertAction({ title: 'No file chosen', body: 'Pick a dump file (.json.gz) first.' });
+      return false;
+    }
+    var subdomain = JSON.parse(document.getElementById('backup-subdomain').textContent);
+    dumpMetadata(fileInput.files[0]).then(function (meta) {
+      var body = 'This replaces the current tournament ({{ existing_players }} competitor{{ existing_players|pluralize }}' +
+                 {% if existing_scores %}' and all entered scores'{% else %}''{% endif %} +
+                 ') with the uploaded dump. This cannot be undone.';
+      if (meta) {
+        body += '\n\nThe dump holds ' + meta.players + ' competitors, made ' +
+                (meta.created || 'at an unknown time') + '.';
+        if (meta.subdomain && meta.subdomain !== subdomain) {
+          body += '\n⚠ It was made for another tenant ("' + meta.subdomain +
+                  '") — restoring it here is normal only when moving a tournament between installs.';
+        }
+      }
+      window.confirmAction({
+        title: 'Replace current tournament?',
+        body: body,
+        confirmLabel: 'Erase and restore',
+        danger: true,
+        prompt: subdomain,
+        onConfirm: function () { runRestore(form, subdomain); },
+      });
+    });
+    return false;
+  }
+
+  function runRestore(form, subdomain) {
+    var loading = document.getElementById('restore-loading');
+    loading.classList.remove('hidden');
+    var data = new FormData();
+    data.append('dumpfile', form.querySelector('input[name=dumpfile]').files[0]);
+    data.append('confirm', subdomain);
+    data.append('csrfmiddlewaretoken', form.querySelector('[name=csrfmiddlewaretoken]').value);
+    fetch('tenant_restore', { method: 'POST', body: data })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, json: j }; }); })
+      .then(function (res) {
+        loading.classList.add('hidden');
+        if (res.json.status === 'reauth_required') {
+          // The confirmation window lapsed mid-visit; reloading shows the
+          // password panel.
+          window.location.reload();
+          return;
+        }
+        if (!res.ok || res.json.status !== 'ok') {
+          window.alertAction({ title: 'Restore failed', body: res.json.error || 'Unexpected error.' });
+          return;
+        }
+        var counts = res.json.counts || {};
+        window.alertAction({
+          title: 'Tournament restored',
+          body: 'Restored ' + (counts.Player || 0) + ' competitors, ' +
+                (counts.Seat || 0) + ' seats and ' + (counts.Hand || 0) + ' hands' +
+                (res.json.source_subdomain ? ' from a dump of "' + res.json.source_subdomain + '"' : '') + '.',
+          onConfirm: function () { window.location.reload(); },
+        });
+      })
+      .catch(function () {
+        loading.classList.add('hidden');
+        window.alertAction({ title: 'Network error', body: 'The restore request did not complete. Reload the page and check the tournament before retrying.' });
+      });
+    return false;
+  }
+</script>

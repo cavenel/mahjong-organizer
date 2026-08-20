@@ -1,5 +1,4 @@
 import json
-import os
 import pathlib
 from functools import wraps
 
@@ -184,7 +183,7 @@ def _deny(request):
 
 
 def superuser_required(view):
-    """Platform-operator gate (tenant CRUD, whole-cluster restore)."""
+    """Platform-operator gate (tenant CRUD, whole-database snapshot restore)."""
     @wraps(view)
     def inner(request, *args, **kwargs):
         if request.user.is_authenticated and request.user.is_superuser:
@@ -249,16 +248,10 @@ def public_site_host(subdomain, public_url=''):
 
 
 def get_domain(request):
-    # Local instance: a venue laptop is reached at localhost / a bare LAN IP,
-    # which carries no subdomain, so normal host parsing can't find the tenant.
-    # LOCAL_TENANT pins every request to one tenant regardless of IP/subnet.
-    #   - The standalone build sets settings.LOCAL_TENANT and is always honoured
-    #     (that build is single-tenant by construction).
-    #   - The DEBUG-gated env var is the dev/laptop-failover path; it stays gated
-    #     so it can never collapse the multi-tenant cloud (prod) onto one tenant.
+    # The standalone build is reached at localhost, which carries no subdomain, so
+    # normal host parsing can't find a tenant. That build is single-tenant by
+    # construction and sets settings.LOCAL_TENANT, which pins every request to it.
     forced = (getattr(settings, 'LOCAL_TENANT', '') or '').strip()
-    if not forced and settings.DEBUG:
-        forced = os.environ.get('LOCAL_TENANT', '').strip()
     if forced:
         return forced
     host = request.get_host().split(':')[0]   # drop any :port

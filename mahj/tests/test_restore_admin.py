@@ -1,24 +1,21 @@
-"""Database-restore admin console: gating, typed-confirmation, dump validation,
-and the grouped backup listing.
+"""Snapshot-restore endpoint (standalone build): gating, the typed confirmation,
+and the fact that a cloud install doesn't offer it at all.
 
-The destructive worker itself (pause pool / drop / pg_restore) needs a real
-Postgres + pgbouncer and is exercised manually (see scripts/DB_RESTORE.md); these
-tests cover the request-side guards that keep it safe: staff-only + fresh reauth,
-the typed DB-name confirmation, and path/header validation of the chosen dump.
+The swap itself (drop the WAL sidecars, copy the snapshot over the live DB)
+happens at launch and is covered in test_standalone_backup.py. Per-tenant dump
+restore — the cloud path — is test_tenant_dump.py.
 """
 import time
 
 import pytest
-from django.conf import settings
 from django.contrib.auth.models import User
-from django.test import Client
+from django.test import Client, override_settings
 
-from mahj import restore_queue
-from mahj.views import restore_admin
 from mahj.views.user_admin import REAUTH_SESSION_KEY
 from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
+CONFIRM = 'mahj.sqlite3'   # standalone_backup.CONFIRM_TOKEN
 
 
 @pytest.fixture
@@ -30,21 +27,16 @@ def client_():
 
 @pytest.fixture
 def super_user(db):
-    # Restore is a platform-operator action, gated on is_superuser.
+    # A snapshot restore replaces the whole database, so it stays superuser-gated.
     return User.objects.create_superuser('operator', password='pw')
 
 
 @pytest.fixture
 def staff_user(tenant):
-    # A per-tenant admin (NOT a platform superuser), who must NOT reach restore.
+    # A per-tenant admin (NOT a platform superuser), who must not reach it.
     u = User.objects.create_user('staffer', password='pw')
     grant(u, tenant, admin=True)
     return u
-
-
-@pytest.fixture
-def plain_user(db):
-    return User.objects.create_user('regular', password='pw')
 
 
 def _reauth(client_):
@@ -55,163 +47,91 @@ def _reauth(client_):
 
 
 @pytest.fixture
-def no_redis(monkeypatch):
-    """Capture enqueued jobs without touching redis_bus."""
-    jobs = []
-    monkeypatch.setattr(restore_queue, 'enqueue', lambda job: jobs.append(job))
-    monkeypatch.setattr(restore_queue, 'new_job_id', lambda: 'testjob')
-    return jobs
+def snapshots(tmp_path, monkeypatch):
+    """A standalone data dir with one healthy snapshot in it."""
+    import sqlite3
+    monkeypatch.setenv('MAHJ_DB_PATH', str(tmp_path / 'mahj.sqlite3'))
+    snaps = tmp_path / 'snapshots'
+    snaps.mkdir()
+    snap = snaps / 'mahj-20260820-120000-000000.sqlite3'
+    sqlite3.connect(str(snap)).close()   # a valid (empty) sqlite file
+    return snap
 
-
-@pytest.fixture
-def backups_dir(tmp_path, monkeypatch):
-    monkeypatch.setattr(restore_queue, 'BACKUPS_DIR', tmp_path)
-    return tmp_path
-
-
-def _make_dump(directory, name, header=b'PGDMP', body=b'\x00\x00rest'):
-    path = directory / name
-    path.write_bytes(header + body)
-    return path
-
-
-# -- gating ------------------------------------------------------------------
 
 class TestGating:
-    @pytest.mark.parametrize('path,method', [
-        ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
-    ])
-    def test_anonymous_redirected(self, client_, db, path, method):
-        resp = getattr(client_, method)(path)
+    def test_anonymous_redirected(self, client_, db):
+        resp = client_.post('/restore_run')
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
 
-    @pytest.mark.parametrize('path,method', [
-        ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
-    ])
-    def test_superuser_without_reauth_blocked(self, client_, super_user, path, method):
+    def test_superuser_without_reauth_blocked(self, client_, super_user):
         client_.force_login(super_user)
-        resp = getattr(client_, method)(path)
+        resp = client_.post('/restore_run')
         assert resp.status_code == 403
         assert resp.json()['status'] == 'reauth_required'
 
-    @pytest.mark.parametrize('path,method', [
-        ('/restore_pull', 'post'), ('/restore_run', 'post'), ('/restore_status', 'get'),
-    ])
-    def test_staff_non_superuser_blocked_even_with_reauth(self, client_, staff_user, path, method):
-        # F-H1: a per-tenant admin must not reach the whole-cluster restore.
-        # superuser_required denies an authenticated non-superuser with a 403
-        # (the login bounce is reserved for anonymous requests).
+    def test_tenant_admin_blocked_even_with_reauth(self, client_, staff_user):
+        """A per-tenant admin restores their own tournament from a dump; rolling the
+        whole database back stays a platform-operator action."""
         client_.force_login(staff_user)
         _reauth(client_)
-        resp = getattr(client_, method)(path)
-        assert resp.status_code == 403
+        assert client_.post('/restore_run').status_code == 403
 
-    def test_non_staff_blocked_even_with_reauth(self, client_, plain_user):
-        client_.force_login(plain_user)
-        _reauth(client_)
-        resp = client_.get('/restore_status?job_id=x')
-        # superuser_required denies an authenticated non-superuser with a 403.
-        assert resp.status_code == 403
-
-
-# -- restore_run: typed confirmation + dump validation -----------------------
 
 class TestRestoreRun:
     def _login(self, client_, super_user):
         client_.force_login(super_user)
         _reauth(client_)
 
-    def test_wrong_confirm_rejected(self, client_, super_user, backups_dir, no_redis):
+    def test_unavailable_outside_the_standalone_build(self, client_, super_user, snapshots):
+        """A cloud install has no snapshots — it restores a tournament dump instead."""
         self._login(client_, super_user)
-        _make_dump(backups_dir, 'mahj_cloud_20260630T184242Z.dump')
-        resp = client_.post('/restore_run', data={
-            'dump': 'mahj_cloud_20260630T184242Z.dump', 'confirm': 'nope',
-        }, content_type='application/json')
-        assert resp.status_code == 400
-        assert no_redis == []          # nothing enqueued
+        resp = client_.post('/restore_run',
+                            data={'dump': snapshots.name, 'confirm': CONFIRM},
+                            content_type='application/json')
+        assert resp.status_code == 404
 
-    def test_unknown_dump_rejected(self, client_, super_user, backups_dir, no_redis):
+    @override_settings(STANDALONE=True)
+    def test_wrong_confirm_rejected(self, client_, super_user, snapshots):
         self._login(client_, super_user)
-        resp = client_.post('/restore_run', data={
-            'dump': 'mahj_cloud_does_not_exist.dump', 'confirm': settings.DATABASES['default']['NAME'],
-        }, content_type='application/json')
+        resp = client_.post('/restore_run',
+                            data={'dump': snapshots.name, 'confirm': 'nope'},
+                            content_type='application/json')
         assert resp.status_code == 400
-        assert no_redis == []
+        assert not (snapshots.parent.parent / 'restore_pending').exists()
 
-    def test_path_traversal_rejected(self, client_, super_user, backups_dir, no_redis):
+    @override_settings(STANDALONE=True)
+    def test_unknown_snapshot_rejected(self, client_, super_user, snapshots):
         self._login(client_, super_user)
-        resp = client_.post('/restore_run', data={
-            'dump': '../../etc/passwd', 'confirm': settings.DATABASES['default']['NAME'],
-        }, content_type='application/json')
+        resp = client_.post('/restore_run',
+                            data={'dump': 'mahj-nope.sqlite3', 'confirm': CONFIRM},
+                            content_type='application/json')
         assert resp.status_code == 400
-        assert no_redis == []
 
-    def test_missing_header_rejected(self, client_, super_user, backups_dir, no_redis):
+    @override_settings(STANDALONE=True)
+    def test_path_traversal_rejected(self, client_, super_user, snapshots):
         self._login(client_, super_user)
-        _make_dump(backups_dir, 'mahj_cloud_bad.dump', header=b'NOTPG')
-        resp = client_.post('/restore_run', data={
-            'dump': 'mahj_cloud_bad.dump', 'confirm': settings.DATABASES['default']['NAME'],
-        }, content_type='application/json')
+        resp = client_.post('/restore_run',
+                            data={'dump': '../../etc/passwd', 'confirm': CONFIRM},
+                            content_type='application/json')
         assert resp.status_code == 400
-        assert no_redis == []
 
-    def test_valid_restore_enqueued(self, client_, super_user, backups_dir, no_redis):
+    @override_settings(STANDALONE=True)
+    def test_valid_restore_is_scheduled_for_the_next_launch(self, client_, super_user, snapshots):
         self._login(client_, super_user)
-        _make_dump(backups_dir, 'mahj_cloud_20260630T184242Z.dump')
-        resp = client_.post('/restore_run', data={
-            'dump': 'mahj_cloud_20260630T184242Z.dump', 'confirm': settings.DATABASES['default']['NAME'],
-        }, content_type='application/json')
+        resp = client_.post('/restore_run',
+                            data={'dump': snapshots.name, 'confirm': CONFIRM},
+                            content_type='application/json')
         assert resp.status_code == 200
-        assert resp.json()['status'] == 'ok'
-        assert len(no_redis) == 1
-        job = no_redis[0]
-        assert job['job_id'] == 'testjob'
-        assert job['action'] == 'restore'
-        assert job['dump'] == 'mahj_cloud_20260630T184242Z.dump'
-        # The admin's session key rides along so the worker can re-insert it after
-        # the DB swap (the restore wipes django_session and would log them out).
-        assert job['session_key']
-
-    def test_pull_enqueued(self, client_, super_user, no_redis):
-        client_.force_login(super_user)
-        _reauth(client_)
-        resp = client_.post('/restore_pull')
-        assert resp.status_code == 200
-        assert no_redis == [{'job_id': 'testjob', 'action': 'pull'}]
+        body = resp.json()
+        assert body['status'] == 'ok' and body['standalone'] is True
+        # The marker the launcher reads before Django opens the DB.
+        marker = snapshots.parent.parent / 'restore_pending'
+        assert marker.read_text() == snapshots.name
 
 
-# -- listing + helpers -------------------------------------------------------
-
-class TestListBackups:
-    def test_empty_when_no_dir(self, backups_dir):
-        # tmp_path exists but holds no dumps
-        assert restore_admin.list_backups() == []
-
-    def test_grouped_by_source_venue_first(self, backups_dir):
-        for name in ['mahj_cloud_20260630T100000Z.dump',
-                     'mahj_cloud_20260630T110000Z.dump',
-                     'mahj_venue_20260630T120000Z.dump']:
-            _make_dump(backups_dir, name)
-        groups = restore_admin.list_backups()
-        assert [g['source'] for g in groups] == ['venue', 'cloud']
-        cloud = next(g for g in groups if g['source'] == 'cloud')
-        assert cloud['count'] == 2
-        # Newest first within a source.
-        assert cloud['recent'][0]['name'] == 'mahj_cloud_20260630T110000Z.dump'
-        assert cloud['newest'] == 'mahj_cloud_20260630T110000Z.dump'
-
-    def test_recent_slice_caps_the_list(self, backups_dir, monkeypatch):
-        monkeypatch.setattr(restore_admin, 'RECENT_PER_SOURCE', 2)
-        for i in range(5):
-            _make_dump(backups_dir, f'mahj_cloud_20260630T10000{i}Z.dump')
-        (group,) = restore_admin.list_backups()
-        assert group['count'] == 5
-        assert len(group['recent']) == 2
-        assert group['has_more'] is True
-
-
-def test_confirm_dialog_renders_seat_counts(client_, super_user, tournament):
+@override_settings(STANDALONE=True)
+def test_confirm_dialog_renders_seat_counts(client_, super_user, tournament, snapshots):
     """The "what you're about to overwrite" counts come from `db_counts`, whose
     Seat tally is keyed `seats` — a mismatch would silently render blanks."""
     import re
@@ -222,14 +142,12 @@ def test_confirm_dialog_renders_seat_counts(client_, super_user, tournament):
                   r'<strong>(\d+)</strong> hands', body)
     assert m, [l.strip() for l in body.splitlines() if 'players,' in l][:5]
     assert (int(m.group(1)), int(m.group(2))) == (16, 48)
-    # The worker reports the same three keys back for the post-restore line.
-    assert 'c.seats + " seats, "' in body
 
 
-def test_parse_name_handles_underscored_source():
-    assert restore_admin._parse_name('mahj_venue_lan_20260630T184242Z.dump')[0] == 'venue_lan'
-
-
-def test_human_size():
-    assert restore_admin._human_size(500) == '500B'
-    assert restore_admin._human_size(309000).endswith('K')
+def test_page_is_hidden_on_a_cloud_install(client_, super_user, tournament):
+    """Not STANDALONE: the page renders as the shell's blank panel, the same as any
+    page this account may not see."""
+    client_.force_login(super_user)
+    _reauth(client_)
+    resp = client_.get('/admin?page=database_restore')
+    assert resp.context['page_content'] == 'None'

@@ -1,16 +1,16 @@
 """sqlite backup/restore for the standalone build.
 
 The launcher (standalone/run.py) takes rolling online-backup snapshots and, on
-startup, applies any restore the admin scheduled. The admin "Database restore"
+startup, applies any restore the admin scheduled. The admin "Snapshot restore"
 page (mahj/views/restore_admin.py) lists these snapshots and schedules a restore
 by writing a marker file; it takes effect on the next launch, because a single
 process can't safely swap the sqlite file it currently holds open (WAL).
 
-This is the sqlite counterpart to the Postgres restore_worker path: same admin
-page, different mechanism. Paths derive from MAHJ_DB_PATH (set by the launcher),
-so the module needs no Django settings and is safe to import before
-django.setup() — the launcher calls apply_pending_restore() before Django opens
-the database.
+This rolls back the whole local database. To move or restore a single tournament
+(here or on a cloud install), see mahj/tenant_dump.py. Paths derive from
+MAHJ_DB_PATH (set by the launcher), so the module needs no Django settings and is
+safe to import before django.setup() — the launcher calls apply_pending_restore()
+before Django opens the database.
 """
 import datetime
 import os
@@ -191,8 +191,7 @@ def _ago(mtime):
 
 
 def list_snapshot_groups():
-    """Snapshots shaped like restore_admin.list_backups() so the same template
-    renders them: a single 'local' group, newest first."""
+    """The snapshots the restore page lists: a single 'local' group, newest first."""
     items = []
     for p in snapshots_dir().glob('mahj-*.sqlite3'):
         try:

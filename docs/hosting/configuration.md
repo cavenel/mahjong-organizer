@@ -23,7 +23,7 @@ requires `DJANGO_SETTINGS_MODULE=apps.settings.prod`** plus the variables below.
 | `ALLOWED_HOSTS` | `BASE_DOMAIN` + subdomains | Extra allowed `Host` values (comma-separated). |
 | `ANTHROPIC_API_KEY` | *(unset → scanning off)* | Enables score-sheet photo OCR. Manual entry is unaffected. |
 | `VENUE_TZ` | `UTC` | IANA timezone for the projector clock only; storage stays UTC. |
-| `LOCAL_TENANT` | *(unset)* | **Dev/standalone only** — pin every request to one tenant (venue-laptop failover). Ignored in prod. |
+| `LOCAL_TENANT` | *(unset)* | **Standalone build only** — pins every request to one tenant (that build is single-tenant, reached at localhost). Ignored elsewhere. |
 
 The spectator URL shown on screens (QR) and player cards is configured
 **per tenant** in the admin (Administration → Publish target → *Spectator URL*),
@@ -60,13 +60,10 @@ The same page has a **Spectator URL** field — the address advertised on screen
 (QR) and printed cards. Leave it blank to use `<tenant>.<BASE_DOMAIN>`, or set it
 to where the static site is published so spectators land on the published site.
 
-## In-app database restore (optional)
+## Backups
 
-The admin console's **Database restore** page reads dumps from a host directory.
-See [scripts/DB_RESTORE.md](../../scripts/DB_RESTORE.md).
-
-`MAHJ_BACKUP_DIR` (`/opt/mahj-backups`), `MAHJ_WORKER_UID`/`MAHJ_WORKER_GID`
-(owner of that dir + the SSH key), and — for the **Pull from remote** button —
-`BACKUP_REMOTE`, `BACKUP_SSH_PORT`, `MAHJ_BACKUP_SSH_KEY` (a group-readable
-*copy* of the backup key). Leave `BACKUP_REMOTE` unset to hide pull; local
-restore still works.
+Nothing to configure here. Backups are per-tenant tournament dumps written by the
+app itself and uploaded to the tenant's publish target on every publish; the
+target (including an optional separate **Backup directory**) is stored per tenant
+in the database, edited on *Administration → Publish target*. See
+[deployment.md](deployment.md#backups--restore).

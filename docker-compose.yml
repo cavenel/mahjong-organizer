@@ -67,9 +67,6 @@ services:
       DB_PASSWORD: ${DB_PASSWORD}
       DB_NAME: ${DB_NAME}
       AUTH_TYPE: scram-sha-256
-      # Lets restore_worker reach the pgbouncer admin console (PAUSE/RESUME the pool
-      # around a DB restore) as the app DB user, over scram with DB_PASSWORD.
-      ADMIN_USERS: ${DB_USER}
       POOL_MODE: ${PGBOUNCER_POOL_MODE:-transaction}
       MAX_CLIENT_CONN: ${PGBOUNCER_MAX_CLIENT_CONN:-300}
       DEFAULT_POOL_SIZE: ${PGBOUNCER_DEFAULT_POOL_SIZE:-25}
@@ -96,14 +93,8 @@ services:
       DB_HOST: pgbouncer
       REDIS_URL: redis://redis:6379/1
       REDIS_BUS_URL: redis://redis_bus:6379/0
-      # Not used to pull here (that's restore_worker) — only so the restore page
-      # can tell whether "Pull from remote" is configured on this box.
-      REMOTE: ${BACKUP_REMOTE:-}
     volumes:
       - ./captures:/app/mahj/captures
-      # Read-only so the Database-restore page can list the dumps. Restore/pull
-      # (which need write) happen in restore_worker, not here.
-      - ${MAHJ_BACKUP_DIR:-/opt/mahj-backups}:/backups:ro
     depends_on:
       pgbouncer:
         condition: service_healthy
@@ -136,47 +127,6 @@ services:
       # than 2. They share one FIFO queue (no double-processing), and ~0.5 GB each
       # under load stays well within the box's memory headroom.
       replicas: 4
-
-  # Database restore/pull worker — consumes the Redis restore queue off the request
-  # path. EXACTLY ONE (a restore must serialise: it drops + recreates the DB). It
-  # pauses the pgbouncer pool and talks to the db service directly, so it needs NO
-  # Docker socket. Mounts the backups dir read-write (read for restore, write for
-  # pull). Pull needs REMOTE/SSH_KEY (mirrors scripts/backup_db.env); restore does not.
-  restore_worker:
-    build: .
-    restart: unless-stopped
-    logging: *default-logging
-    env_file: .env
-    # Stays the image's `app` user (ssh needs a real passwd entry), but joins the
-    # GROUP that owns the backups dir + pull key on the host, so it can read the
-    # key and write pulled dumps without chowning host files away from the backup
-    # cron. Set MAHJ_WORKER_GID to that group (e.g. 1001) + make the dir group-
-    # writable, and point MAHJ_BACKUP_SSH_KEY at a group-readable COPY of the key
-    # (NOT the cron's own key, which must stay 600 — see scripts/DB_RESTORE.md).
-    # Default 1000 is a harmless self-add on a single-user dev box.
-    group_add:
-      - "${MAHJ_WORKER_GID:-1000}"
-    environment:
-      DJANGO_SETTINGS_MODULE: apps.settings.dev
-      DB_HOST: pgbouncer
-      REDIS_URL: redis://redis:6379/1
-      REDIS_BUS_URL: redis://redis_bus:6379/0
-      # Pull config (optional — pull is disabled if REMOTE is unset).
-      REMOTE: ${BACKUP_REMOTE:-}
-      SSH_KEY: /run/backup_key
-      SSH_PORT: ${BACKUP_SSH_PORT:-22}
-    volumes:
-      - ${MAHJ_BACKUP_DIR:-/opt/mahj-backups}:/backups
-      # The pull SSH key; harmless /dev/null placeholder when pull isn't configured.
-      - ${MAHJ_BACKUP_SSH_KEY:-/dev/null}:/run/backup_key:ro
-    depends_on:
-      db:
-        condition: service_healthy
-      pgbouncer:
-        condition: service_healthy
-      redis_bus:
-        condition: service_healthy
-    command: python manage.py restore_worker
 
 volumes:
   postgres_data:

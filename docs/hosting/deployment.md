@@ -24,7 +24,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 
 Services: **web** (gunicorn/ASGI), **nginx** (TLS termination + static),
 **db** (PostgreSQL), **pgbouncer**, **redis** (cache), **redis_bus** (Channels +
-scan queue), **scan_worker** and **restore_worker**. Named volumes persist
+scan queue) and **scan_worker**. Named volumes persist
 `postgres_data`, `letsencrypt`, `static_files` and the redis data.
 
 nginx renders its vhost from `nginx/mahjong.conf.template` at start, substituting
@@ -115,9 +115,30 @@ the database with it. Use the backup/restore paths below instead.
 
 ## Backups & restore
 
-`scripts/backup_db.sh` dumps the database and (optionally) ships it to a remote
-host; `scripts/install_backup_cron.sh` schedules it. Restore either from the
-admin console (**Administration → Database restore**) or with
-`scripts/restore_db.sh`. See [scripts/DB_RESTORE.md](../../scripts/DB_RESTORE.md)
-and, for the emergency venue-laptop instance, [STANDALONE.md](STANDALONE.md) +
-[scripts/LAPTOP_FAILOVER.md](../../scripts/LAPTOP_FAILOVER.md).
+Backups are **per tournament**, not per server, and they need no host scripts or
+cron: every web publish uploads a full tournament dump — settings, players,
+seating, all scores, published rounds, schedule, screens, the round timer — to
+the tenant's publish target over SFTP, next to the static site.
+
+- **Where they land**: a `mahj-backups/` directory *beside* the target's remote
+  site directory — not inside it, so the dumps aren't web-fetchable (a dump holds
+  every score, including a withheld final round the public site is still hiding).
+  Override it with **Backup directory** on *Administration → Publish target*. The
+  newest 20 per tenant are kept.
+- **On demand**: *Administration → Backup & restore* downloads a dump any time.
+  Tenants with no publish target configured have only this, so download one after
+  each round.
+- **To restore**: the same page — upload a dump and retype the subdomain. It
+  replaces that tenant's whole tournament and leaves user accounts and the publish
+  target alone. A dump restores into *any* tenant on *any* install running the
+  same app version, which is what makes the venue-laptop fallback below work.
+
+Because a dump is per tenant, restoring one never touches another tournament on
+the same server. The database itself needs no application-level backup path: take
+host-level snapshots of the `postgres_data` volume if you want whole-server
+recovery.
+
+**If the server is unreachable mid-tournament**, run the standalone build on a
+venue laptop and restore the latest dump into it — see
+[STANDALONE.md](STANDALONE.md). Publish from the laptop for the rest of the event,
+then dump from the laptop and restore that back onto the server afterwards.

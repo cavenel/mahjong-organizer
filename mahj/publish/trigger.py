@@ -1,9 +1,10 @@
 """Fire a public-site export+upload after a publish, off the request thread.
 
-Publish/unpublish regenerates the static spectator site and SFTP-uploads it. It
-runs in a daemon thread so a publish request never blocks on rendering or the
-network, and is a no-op unless the publishing tenant has an enabled publish
-target (see publish.sftp_upload).
+Publish/unpublish regenerates the static spectator site, SFTP-uploads it, and
+then uploads a dump of the tournament alongside it, so every published state has
+an off-site restore point (see tenant_dump). It runs in a daemon thread so a
+publish request never blocks on rendering or the network, and is a no-op unless
+the publishing tenant has an enabled publish target (see publish.sftp_upload).
 """
 import logging
 import threading
@@ -47,6 +48,26 @@ def _should_publish(subdomain):
     return is_configured(subdomain)
 
 
+def _backup(subdomain):
+    """Upload a tournament dump next to the published site — one restore point
+    per publish (see tenant_dump).
+
+    Returns '' on success or a short message on failure. Deliberately not fatal:
+    the site is already live by this point, so a backup problem must not report
+    the publish itself as failed — it's reported as a note on a done publish.
+    """
+    from ..models import Tenant
+    from ..tenant_dump import dump_filename, dump_tenant
+    from .sftp_upload import upload_dump
+    try:
+        tenant = Tenant.objects.get(subdomain=subdomain)
+        upload_dump(subdomain, dump_tenant(tenant), dump_filename(subdomain))
+        return ''
+    except Exception as e:
+        logger.warning("Dump upload failed for %r: %s", subdomain, e, exc_info=True)
+        return f'Site published, but the backup upload failed: {e}'
+
+
 def _run(subdomain):
     from .sftp_upload import upload_dir
     from .static_export import export_public
@@ -63,7 +84,11 @@ def _run(subdomain):
 
             set_progress(subdomain, 'upload', pct=0, message='Uploading…')
             upload_dir(out, subdomain=subdomain, progress=_on_upload)
-            set_progress(subdomain, 'done', pct=100, message='Published to the web.')
+            set_progress(subdomain, 'backup', pct=95, message='Saving a backup…')
+            problem = _backup(subdomain)
+            set_progress(subdomain, 'done', pct=100,
+                         message=problem or 'Published to the web.',
+                         error=problem)
             logger.info("Static site published for %r", subdomain)
         except Exception as e:
             logger.warning("Static publish failed for %r: %s", subdomain, e)

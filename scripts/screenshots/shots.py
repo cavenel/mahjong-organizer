@@ -224,6 +224,17 @@ def stage_admin(ctx):
     page.wait_for_timeout(500)
     shoot(page.locator('#admin-maincol main'), '02-assign-role.png')
 
+    # Backup & restore — also behind the password re-check.
+    page.goto(f'{BASE}/admin?page=backup')
+    page.wait_for_load_state('networkidle')
+    main = page.locator('#admin-maincol')
+    if main.locator('input[type=password]').count():
+        main.locator('input[type=password]').fill(PW)
+        main.locator('button[type=submit]').first.click()
+        page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(500)
+    shoot(page.locator('#admin-maincol main > div').first, '41-backup-restore.png')
+
     def goto_scoring(round_nb=None):
         page.goto(f'{BASE}/admin?page=scoring')
         page.wait_for_selector('.table_row', state='attached')

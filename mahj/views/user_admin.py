@@ -73,10 +73,10 @@ def tenant_admin_and_reauthed(view):
 def superuser_and_reauthed(view):
     """Like ``tenant_admin_and_reauthed``, but requires ``is_superuser``.
 
-    Platform-operator actions (tenant CRUD, seeding admins, the whole-cluster DB
-    restore) live behind this: they are cross-tenant, so they must never be
-    reachable by a per-tenant admin — the superuser flag is the only cross-tenant
-    guard."""
+    Platform-operator actions (tenant CRUD, seeding admins, the standalone
+    build's whole-database snapshot restore) live behind this: they reach past one
+    tenant, so they must never be reachable by a per-tenant admin — the superuser
+    flag is the only cross-tenant guard."""
     @wraps(view)
     def inner(request, *args, **kwargs):
         if not reauth_ok(request):

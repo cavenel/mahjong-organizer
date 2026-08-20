@@ -1,7 +1,6 @@
 import hashlib
 import io
 import logging
-import os
 import re
 import time
 import traceback
@@ -90,7 +89,6 @@ def _sheet_state_keys(tenant, as_strings=False):
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
-from .restore_admin import list_backups
 from .scoring import (
     scores_per_player_rows,
     scores_per_table_grid,
@@ -1237,21 +1235,12 @@ def admin_reset(request):
     tenant = get_tenant(request)
     if tenant is None:
         return HttpResponseBadRequest("No tenant")
-    from ..models import PublishTarget, TournamentSettings
+    # The model list lives in tenant_dump (shared with dump/restore). Deleting
+    # the settings row resets identity/branding/format, logo and the round timer
+    # to defaults; get_tournament recreates a fresh one on next read.
+    from ..tenant_dump import wipe_tenant
     with transaction.atomic():
-        Hand.objects.filter(tenant=tenant).delete()
-        ScoreSheet.objects.filter(tenant=tenant).delete()
-        Seat.objects.filter(tenant=tenant).delete()
-        PublishedRound.objects.filter(tenant=tenant).delete()
-        Player.objects.filter(tenant=tenant).delete()
-        Schedule.objects.filter(tenant=tenant).delete()
-        Screen.objects.filter(tenant=tenant).delete()
-        ScreenMode.objects.filter(tenant=tenant).delete()
-        CeremonyState.objects.filter(tenant=tenant).delete()
-        PublishTarget.objects.filter(tenant=tenant).delete()
-        # Deleting the settings row resets identity/branding/format, logo and the
-        # round timer to defaults; get_tournament recreates a fresh one on next read.
-        TournamentSettings.objects.filter(tenant=tenant).delete()
+        wipe_tenant(tenant, include_publish_target=True)
     # Wake public displays and scorer pages: nothing is published anymore, the
     # screen set is gone, and the leaderboard/settings caches are stale.
     invalidate_leaderboard(tenant.subdomain)
@@ -1314,6 +1303,7 @@ def publish_target_save(request):
     target.host = request.POST.get('host', '').strip()
     target.username = request.POST.get('username', '').strip()
     target.path = request.POST.get('path', '').strip()
+    target.backup_path = request.POST.get('backup_path', '').strip()
     target.host_key = request.POST.get('host_key', '').strip()
     port_raw = request.POST.get('port', '').strip() or '22'
     try:
@@ -1871,32 +1861,25 @@ def _page_tenants(request, tenant, error=None):
 
 
 def _page_database_restore(request, tenant, error=None):
-    # Counts the confirm dialog shows as "what you're about to overwrite".
-    # Unscoped (whole-DB): a restore replaces every tenant's rows at once,
-    # matching the worker's post-restore report.
-    db_counts = {
-        "players": Player.objects.count(),
-        "seats": Seat.objects.count(),
-        "hands": Hand.objects.count(),
-    }
-    if settings.STANDALONE:
-        from .. import standalone_backup
-        restore_ctx = {
-            "groups": standalone_backup.list_snapshot_groups(),
-            "db_name": standalone_backup.CONFIRM_TOKEN,
-            "pull_configured": False,   # off-host pull is Postgres-only
-            "standalone": True,         # restore applies on relaunch
-            "db_counts": db_counts,
-        }
-    else:
-        restore_ctx = {
-            "groups": list_backups(),
-            "db_name": settings.DATABASES['default']['NAME'],
-            "pull_configured": bool(os.environ.get('REMOTE')),
-            "db_counts": db_counts,
-        }
+    """The standalone build's snapshot restore: roll the whole local database
+    back to one of the launcher's rolling sqlite snapshots.
+
+    Standalone-only (the gate hides it elsewhere). A cloud install restores one
+    tournament at a time from a dump instead — see the Backup & restore page.
+    """
+    from .. import standalone_backup
     template2 = loader.get_template('mahj/admin_database_restore.html')
-    return template2.render(restore_ctx, request)
+    return template2.render({
+        "groups": standalone_backup.list_snapshot_groups(),
+        "db_name": standalone_backup.CONFIRM_TOKEN,
+        # Counts the confirm dialog shows as "what you're about to overwrite".
+        # Unscoped: a snapshot restore replaces the whole local database.
+        "db_counts": {
+            "players": Player.objects.count(),
+            "seats": Seat.objects.count(),
+            "hands": Hand.objects.count(),
+        },
+    }, request)
 
 
 
@@ -1914,6 +1897,25 @@ def _page_import_template(request, tenant, error=None):
         'existing_scores': existing_scores,
     }, request)
 
+
+
+def _page_backup(request, tenant, error=None):
+    """Backup & restore: download this tournament as a dump file, or replace it
+    with an uploaded one (endpoints in views/backup_admin). The restore confirm
+    dialog names what it is about to erase, so pass the current size."""
+    from ..publish.sftp_upload import is_configured as _static_publish_configured
+    template2 = loader.get_template('mahj/admin_backup.html')
+    return template2.render({
+        'subdomain': tenant.subdomain if tenant else '',
+        'existing_players': Player.objects.filter(tenant=tenant).count(),
+        'existing_scores': (
+            Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+            or Hand.objects.filter(tenant=tenant).exists()
+        ),
+        # When web publishing is configured, every publish also uploads a dump
+        # next to the static site — the page says so.
+        'publish_configured': _static_publish_configured(tenant.subdomain if tenant else ''),
+    }, request)
 
 
 def _page_seating(request, tenant, error=None):
@@ -2042,8 +2044,12 @@ def _gate_publisher(request):
     return has_role(request, 'publisher')
 
 
-def _gate_superuser(request):
-    return request.user.is_superuser
+def _gate_snapshot_restore(request):
+    """Superuser, and only in the standalone build: rolling sqlite snapshots are
+    that build's mechanism. A cloud install restores one tournament at a time
+    from a dump (the Backup & restore page), so the page is hidden there rather
+    than left offering something that isn't there."""
+    return request.user.is_superuser and settings.STANDALONE
 
 
 def _gate_tenant_management(request):
@@ -2066,6 +2072,8 @@ ADMIN_PAGES = {
     "player_editor":      _AdminPage(_gate_tenant_admin, _page_player_editor),
     "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target),
     "import_template":    _AdminPage(_gate_tenant_admin, _page_import_template),
+    "backup":             _AdminPage(_gate_tenant_admin, _page_backup,
+                                     reauth=True, reauth_next='backup'),
     "seating":            _AdminPage(_gate_tenant_admin, _page_seating),
     "scoring":            _AdminPage(_gate_scoring, _page_scoring),
     "ceremony":           _AdminPage(_gate_display_op, _page_ceremony),
@@ -2073,7 +2081,7 @@ ADMIN_PAGES = {
     "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True),
     "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
                                      reauth=True, reauth_next='tenants'),
-    "database_restore":   _AdminPage(_gate_superuser, _page_database_restore,
+    "database_restore":   _AdminPage(_gate_snapshot_restore, _page_database_restore,
                                      reauth=True, reauth_next='database_restore'),
 }
 

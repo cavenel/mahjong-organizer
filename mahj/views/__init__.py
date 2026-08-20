@@ -72,10 +72,10 @@ from .user_admin import (
     user_revoke_links,
     user_update_roles,
 )
-from .restore_admin import (
-    restore_pull,
-    restore_run,
-    restore_status,
+from .restore_admin import restore_run
+from .backup_admin import (
+    tenant_dump_download,
+    tenant_restore,
 )
 from .display import (
     check_tournament,
