@@ -1,0 +1,24 @@
+# System libraries Playwright's headless Chromium needs and a bare host may
+# lack, installed without root via pixi (conda-forge). Point LD_LIBRARY_PATH at
+# .pixi/envs/default/lib before launching the browser — see README.md.
+[project]
+name = "shots-env"
+channels = ["conda-forge"]
+platforms = ["linux-64"]
+
+[dependencies]
+at-spi2-atk = "*"
+at-spi2-core = "*"
+"atk-1.0" = "*"
+xorg-libxcomposite = "*"
+xorg-libxdamage = "*"
+xorg-libxfixes = "*"
+xorg-libxrandr = "*"
+alsa-lib = "*"
+libcups = "*"
+pango = "*"
+cairo = "*"
+libxkbcommon = "*"
+nss = "*"
+nspr = "*"
+libgbm = "*"

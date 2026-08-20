@@ -43,3 +43,8 @@ test_queries_2.sh
 
 # Generated at build time by `manage.py build_docs_pdf` (collected into staticfiles)
 mahj/static/docs/
+
+# Screenshot pipeline scratch (scripts/screenshots/README.md)
+scripts/screenshots/.local/
+scripts/screenshots/.pixi/
+scripts/screenshots/pixi.lock
