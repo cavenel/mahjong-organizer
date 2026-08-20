@@ -193,12 +193,14 @@ def stage_admin(ctx):
     print('== admin shots ==')
     page = login(ctx, 'anna.admin')
 
-    # Dashboard + sidebar
+    # Dashboard content (00, bottom-trimmed in stage_post) and the whole shell —
+    # sidebar beside the dashboard (03): a viewport shot, so the admin sidebar
+    # reads in context instead of as a tall bare strip.
     page.goto(f'{BASE}/admin?page=welcome')
     page.wait_for_load_state('networkidle')
     page.wait_for_timeout(800)
     shoot(page.locator('#admin-maincol main'), '00-welcome-dashboard.png')
-    shoot(page.locator('#admin-sidebar'), '03-sidebar-staff.png')
+    shoot(page, '03-sidebar-staff.png')
 
     # Print modal (player cards), scrolled to the cards — leave via goto
     page.click('button:has-text("Print / Export")')
@@ -230,10 +232,14 @@ def stage_admin(ctx):
             page.click(f'button[role=tab]:has-text("Round {round_nb}")')
             page.wait_for_timeout(500)
 
-    # Toolbar + round 3 grid shots (filled and empty rows side by side)
+    # Toolbar + round 3 grid shots (filled and empty rows side by side). The
+    # test toolbar gets its own shot (41) and is hidden for the page shot (10),
+    # which illustrates the Scoring page as it looks on a real tenant.
     goto_scoring(3)
     shoot(page.locator('div.border-dashed.border-amber-400'), '41-test-toolbar.png')
+    page.evaluate("document.querySelector('div.border-dashed.border-amber-400').style.display = 'none'")
     shoot(page.locator('#admin-maincol main'), '10-scoring-page.png')
+    page.evaluate("document.querySelector('div.border-dashed.border-amber-400').style.display = ''")
     shoot(page.locator('#table_row_r3_t1'), '11-filled-row.png')
     shoot(page.locator('.tab-pane[data-round-nb="3"] .flex.items-center.gap-3').first,
           '33-last-round-hint.png')
@@ -243,9 +249,25 @@ def stage_admin(ctx):
     page.wait_for_timeout(3000)
     shoot(page.locator('#modalDetails-iframe').locator('xpath=ancestor::div[contains(@class,"relative")][1]'),
           '12-score-sheet.png')
+    # 14: a wide strip of the sheet's top rows with the QR beside them — the
+    # bare .sheet-side column is mostly empty stretch. Clip in page coordinates
+    # computed from the QR block's box (frame boxes are page-relative).
     frame = page.frame(name='modalDetails-iframe')
     if frame:
-        shoot(frame.locator('.sheet-side'), '14-scan-qr.png')
+        qr = frame.locator('div.flex.flex-col.items-center', has=frame.locator('svg')).first
+        box = qr.bounding_box()
+        if box:
+            left = max(0, box['x'] - 740)
+            clip = {'x': left, 'y': max(0, box['y'] - 14),
+                    'width': box['x'] + box['width'] + 18 - left,
+                    'height': box['height'] + 34}
+            try:
+                page.screenshot(path=str(OUT / '14-scan-qr.png'), clip=clip)
+                done.append('14-scan-qr.png')
+                print('  ✓ 14-scan-qr.png')
+            except Exception as e:
+                failed.append('14-scan-qr.png')
+                print(f'  ✗ 14-scan-qr.png: {str(e)[:160]}')
 
     # Score sheet modal, table 1 (confidence tints)
     goto_scoring(3)
@@ -265,12 +287,12 @@ def stage_admin(ctx):
     pane2.locator('.publish-toggle').click()   # re-publish
     page.wait_for_timeout(1500)
 
-    # Publisher overview
+    # Publisher overview — the intro + table card, not the whole (mostly empty) page
     page.goto(f'{BASE}/admin?page=publisher_overview')
     page.wait_for_load_state('networkidle')
     page.wait_for_timeout(800)
-    shoot(page.locator('#admin-maincol main'), '32-publisher-overview.png')
-    shoot(page.locator('#admin-maincol main'), '42-filled-data.png')
+    shoot(page.locator('.po-wrap'), '32-publisher-overview.png')
+    shoot(page.locator('.po-wrap'), '42-filled-data.png')
 
     # Display page: screens/views/modes are seeded via ORM (the UI keeps them in
     # collapsed <details> panels); open the panels before shooting.
@@ -348,7 +370,8 @@ def stage_mobile(pw_browser):
 
 def stage_post():
     """Crop the tall captures: the PDF caps image height, so a skyscraper shot
-    renders unreadably small. Keep each page shot's informative top."""
+    renders unreadably small. Keep each page shot's informative top, and trim
+    trailing background from element shots that stretch past their content."""
     from PIL import Image
     print('== post-crops ==')
     for name, keep in (('20-display-page.png', 2300),
@@ -360,6 +383,22 @@ def stage_post():
         if h > keep:
             im.crop((0, 0, w, keep)).save(p)
         print(f'  ✓ {name} -> {w}x{min(h, keep)}')
+    # Page-content shots are taller than their content; trim rows matching the
+    # page background (sampled bottom-left), leaving a small margin.
+    for name in ('00-welcome-dashboard.png', '10-scoring-page.png',
+                 '02-assign-role.png'):
+        p = OUT / name
+        im = Image.open(p).convert('RGB')
+        w, h = im.size
+        px = im.load()
+        bg = px[2, h - 2]
+        last = h - 1
+        for y in range(h - 1, 0, -1):
+            if any(abs(px[x, y][c] - bg[c]) > 8 for x in range(0, w, 8) for c in (0, 1, 2)):
+                last = y
+                break
+        im.crop((0, 0, w, min(h, last + 40))).save(p)
+        print(f'  ✓ {name} -> {w}x{min(h, last + 40)} (trimmed)')
 
 
 def main():
