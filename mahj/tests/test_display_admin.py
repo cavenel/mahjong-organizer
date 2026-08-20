@@ -748,18 +748,35 @@ class TestSettingsAutosaveIsVisible:
     reloading. The Schedule card on the same page always reported itself, which made
     the page inconsistent with itself as well as unhelpful."""
 
-    def test_the_page_carries_a_status_element(self, client_, staff, tournament):
+    def test_every_field_card_carries_its_own_status_slot(self, client_, staff, tournament):
+        """Reported in the card being edited, not once at the top: Format and Rounds
+        sit below the fold, where a page-level status is invisible exactly when it is
+        wanted."""
+        import re
+        body = None
         client_.force_login(staff)
         body = client_.get('/admin?page=settings').content.decode()
-        assert 'id="settings-save-state"' in body
+        cards = re.findall(r'class="settings-card\b', body)
+        slots = re.findall(r'class="settings-save-state\b', body)
+        assert len(cards) == 3, f'expected Identity/Format/Rounds, found {len(cards)}'
+        assert len(slots) == len(cards), 'every card needs exactly one status slot'
+
+    def test_every_autosaving_field_sits_in_a_card(self, client_, staff, tournament):
+        """A field outside a .settings-card would report into the wrong slot."""
+        import re
+        client_.force_login(staff)
+        body = client_.get('/admin?page=settings').content.decode()
+        # Split on the card boundaries; no tournament-input may appear before the first.
+        head = body.split('class="settings-card')[0]
+        assert 'tournament-input' not in head
 
     def test_the_autosave_reports_success_and_failure(self, client_, staff, tournament):
         client_.force_login(staff)
         body = client_.get('/admin?page=settings').content.decode()
         # Same wording and fade as the Schedule card, so the page reads as one thing.
-        assert "settingsSaveState('Saving…')" in body
-        assert "settingsSaveState('Saved')" in body
-        assert "settingsSaveState('')" in body
+        assert "settingsSaveState('Saving…', $card)" in body
+        assert "settingsSaveState('Saved', $card)" in body
+        assert "settingsSaveState('', $card)" in body
 
     def test_a_field_still_saves(self, client_, staff, tournament):
         """The indicator must not have disturbed the save it reports on."""
