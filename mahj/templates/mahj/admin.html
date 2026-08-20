@@ -323,7 +323,14 @@
         </div>
         <div class="min-w-0">
           <h3 class="text-lg font-bold text-gray-900" x-text="confirmModal.title"></h3>
-          <p class="mt-2 text-sm text-gray-600" x-text="confirmModal.body"></p>
+          <p class="mt-2 text-sm text-gray-600 whitespace-pre-line" x-text="confirmModal.body"></p>
+          <!-- Typed confirmation, when the caller asks for one: Confirm stays
+               disabled until the text matches exactly. -->
+          <input x-show="confirmModal.prompt" type="text" x-model="confirmModal.typed"
+                 @keydown.enter="confirmModal.typed === confirmModal.prompt && runConfirm()"
+                 :placeholder="confirmModal.prompt" autocomplete="off" spellcheck="false"
+                 class="mt-3 w-full text-sm border border-gray-300 rounded-lg px-3 py-2
+                        focus:outline-none focus:ring-2 focus:ring-rose-300">
         </div>
       </div>
       <div class="flex justify-end gap-2 px-6 py-4 bg-gray-50">
@@ -331,7 +338,8 @@
                 class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
                 x-text="confirmModal.cancelLabel"></button>
         <button type="button" @click="runConfirm()" x-text="confirmModal.confirmLabel"
-                class="px-4 py-2 text-sm font-semibold text-white rounded-lg"
+                :disabled="confirmModal.prompt && confirmModal.typed !== confirmModal.prompt"
+                class="px-4 py-2 text-sm font-semibold text-white rounded-lg disabled:opacity-40 disabled:cursor-not-allowed"
                 :class="confirmModal.danger ? 'bg-rose-500 hover:bg-rose-600' : 'bg-amber-500 hover:bg-amber-600'"></button>
       </div>
     </div>
@@ -356,6 +364,9 @@
         detailsModal: { open: false, src: '' },
         confirmModal: { open: false, title: '', body: '', confirmLabel: 'Confirm',
                         cancelLabel: 'Cancel', danger: true, hideCancel: false,
+                        // prompt: text the operator must retype to enable Confirm
+                        // ('' = a plain confirm). typed: what they have entered.
+                        prompt: '', typed: '',
                         _onConfirm: null, _onCancel: null },
 
         init() { window._adminShell = this; },
@@ -379,6 +390,8 @@
             cancelLabel: opts.cancelLabel || 'Cancel',
             danger: opts.danger !== false,
             hideCancel: false,
+            prompt: opts.prompt || '',
+            typed: '',
             _onConfirm: opts.onConfirm || null,
             _onCancel: opts.onCancel || null,
           };
@@ -391,6 +404,7 @@
             title: opts.title || 'Something went wrong',
             body: opts.body || '',
             confirmLabel: opts.confirmLabel || 'OK',
+            prompt: '', typed: '',        // never a typed confirmation
             cancelLabel: 'Cancel',
             danger: opts.danger !== false,
             hideCancel: true,
@@ -405,10 +419,14 @@
           if (cb) cb();
         },
         runConfirm() {
+          // A typed confirmation that doesn't match is a no-op: the button is
+          // disabled, but Enter and a stray call shouldn't get through either.
+          if (this.confirmModal.prompt && this.confirmModal.typed !== this.confirmModal.prompt) return;
           var cb = this.confirmModal._onConfirm;
+          var typed = this.confirmModal.typed;
           this.confirmModal.open = false;
           this.confirmModal._onConfirm = this.confirmModal._onCancel = null;
-          if (cb) cb();
+          if (cb) cb(typed);
         },
         closePrintModal()   { this.printModal.open   = false; this.printModal.src   = ''; },
         closeDetailsModal() {

@@ -54,6 +54,12 @@
               <a href="//{{ t.subdomain }}.{{ base_domain }}/admin?page=users" target="_blank"
                  class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">Manage users →</a>
               <button type="button" class="rename-tenant rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50">Rename</button>
+              {% if not t.is_default and not t.is_current %}
+              <button type="button" class="delete-tenant rounded border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50">Delete</button>
+              {% else %}
+              <span class="px-2 py-1 text-xs text-gray-300"
+                    title="{% if t.is_default %}The fallback tenant every record points at{% else %}The tournament you are working in — delete it from another tenant's admin{% endif %}">Delete</span>
+              {% endif %}
             </div>
           </td>
         </tr>
@@ -92,6 +98,34 @@
       if (res.handled) return;
       if (res.ok) { location.reload(); }
       else { window.alertAction({ title: 'Couldn\u2019t create the tenant', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
+    });
+  });
+
+  // Delete tenant — everything belonging to it goes: players, seating, scores,
+  // screens, publish target, memberships. The subdomain has to be retyped, because
+  // this is the most destructive button in the console.
+  $(document).on("click", ".delete-tenant", function() {
+    var $row = $(this).closest("tr");
+    var subdomain = String($row.data("subdomain"));
+    window.confirmAction({
+      title: 'Delete ' + $row.data("name") + '?',
+      body: 'This removes the tournament and everything in it — players, seating, '
+            + 'every score, screens, the publish target and all user memberships. '
+            + 'The user accounts themselves are kept. This cannot be undone.\n\n'
+            + 'Type ' + subdomain + ' to confirm.',
+      prompt: subdomain,
+      confirmLabel: 'Delete tournament',
+      danger: true,
+      onConfirm: function(typed) {
+        post("tenant_delete", {
+          tenant_id: $row.data("tenant-id"),
+          confirm: typed,
+        }).then(function(res) {
+          if (res.handled) return;
+          if (res.ok) { location.reload(); }
+          else { window.alertAction({ title: 'Couldn\u2019t delete the tenant', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
+        });
+      },
     });
   });
 

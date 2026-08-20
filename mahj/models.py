@@ -2,6 +2,11 @@ from django.contrib.auth.models import User
 from django.db import models
 
 class Tenant(models.Model):
+    # The fallback every tenant FK defaults to. Referenced by get_default_pk below
+    # and by the delete guard in views/user_admin — deleting this row would strand
+    # every record that points at it, so it is named once.
+    DEFAULT_SUBDOMAIN = 'default'
+
     name = models.CharField(max_length=255)
     subdomain = models.CharField(max_length=255)
 
@@ -17,7 +22,7 @@ class Tenant(models.Model):
     @classmethod
     def get_default_pk(cls):
         tenant, created = cls.objects.get_or_create(
-            subdomain='default',
+            subdomain=cls.DEFAULT_SUBDOMAIN,
             defaults=dict(name='Empty subdomain'),
         )
         return tenant.pk

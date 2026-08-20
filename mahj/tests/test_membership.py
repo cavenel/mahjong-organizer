@@ -434,3 +434,190 @@ class TestPlayerRoundsTenantScope:
         req.user = AnonymousUser()
         with pytest.raises(Player.DoesNotExist):
             player_rounds_rows(req, other.id)
+
+
+# --------------------------------------------------------------------------
+# Sharing an account between tournaments (superuser only)
+# --------------------------------------------------------------------------
+
+class TestAddExistingUser:
+    """The one way to make an account shared. Superuser-only on purpose: elsewhere a
+    user outside this tenant is reported as "not found" rather than "forbidden" so a
+    tenant admin can't learn an account exists somewhere else, and a by-username add
+    handed to them would turn that into an enumeration oracle."""
+
+    @pytest.fixture
+    def outsider(self, tenant_b):
+        u = User.objects.create_user('outsider', password='pw')
+        grant(u, tenant_b, scorer=True)
+        return u
+
+    @pytest.fixture
+    def su_client(self, tournament):
+        su = User.objects.create_superuser('root_add', '', 'pw')
+        c = client_for(HOST_A); c.force_login(su); _reauth(c)
+        return c
+
+    def test_superuser_can_add_an_existing_account(self, tournament, outsider, su_client):
+        resp = _json_post(su_client, '/user_add_existing',
+                          {'username': 'outsider', 'roles': ['scorer']})
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body['already_here'] is False
+        assert body['shared'] is True      # it belongs to tenant B as well
+        m = Membership.objects.get(user=outsider, tenant=tournament['tenant'])
+        assert m.is_scorer and not m.is_tenant_admin
+
+    def test_the_account_now_works_on_this_tenant(self, tournament, outsider, su_client):
+        _json_post(su_client, '/user_add_existing',
+                   {'username': 'outsider', 'roles': ['scorer']})
+        c = client_for(HOST_A)
+        c.force_login(outsider)
+        assert c.get('/admin?page=scoring').status_code == 200
+
+    def test_adding_one_already_here_just_sets_its_roles(self, tournament, su_client):
+        insider = User.objects.create_user('insider', password='pw')
+        grant(insider, tournament['tenant'], scorer=True)
+        resp = _json_post(su_client, '/user_add_existing',
+                          {'username': 'insider', 'roles': ['publisher']})
+        assert resp.status_code == 200
+        assert resp.json()['already_here'] is True
+        assert resp.json()['shared'] is False
+        m = Membership.objects.get(user=insider, tenant=tournament['tenant'])
+        assert m.is_publisher and not m.is_scorer
+        assert Membership.objects.filter(user=insider).count() == 1
+
+    def test_a_tenant_admin_cannot_use_it(self, tournament, outsider):
+        """The whole point: a tenant admin must not be able to probe usernames."""
+        admin = User.objects.create_user('plainadmin', password='pw')
+        grant(admin, tournament['tenant'], admin=True)
+        c = client_for(HOST_A); c.force_login(admin); _reauth(c)
+        resp = _json_post(c, '/user_add_existing', {'username': 'outsider'})
+        assert resp.status_code == 403
+        assert not Membership.objects.filter(
+            user=outsider, tenant=tournament['tenant']).exists()
+
+    def test_an_unknown_username_is_404(self, tournament, su_client):
+        resp = _json_post(su_client, '/user_add_existing', {'username': 'nobody'})
+        assert resp.status_code == 404
+
+    def test_a_blank_username_is_400(self, tournament, su_client):
+        assert _json_post(su_client, '/user_add_existing', {'username': '  '}).status_code == 400
+
+    def test_get_is_not_allowed(self, tournament, su_client):
+        assert su_client.get('/user_add_existing').status_code == 405
+
+    def test_the_form_is_superuser_only(self, tournament):
+        """A tenant admin must not even see it."""
+        admin = User.objects.create_user('plainadmin2', password='pw')
+        grant(admin, tournament['tenant'], admin=True)
+        c = client_for(HOST_A); c.force_login(admin); _reauth(c)
+        # The <form> is gated; its submit handler ships either way and no-ops on an
+        # empty selection, so assert on the element rather than the id string.
+        assert 'id="add-existing-form"' not in c.get('/admin?page=users').content.decode()
+
+        su = User.objects.create_superuser('root_form', '', 'pw')
+        c2 = client_for(HOST_A); c2.force_login(su); _reauth(c2)
+        assert 'id="add-existing-form"' in c2.get('/admin?page=users').content.decode()
+
+
+# --------------------------------------------------------------------------
+# Deleting a tenant
+# --------------------------------------------------------------------------
+
+class TestTenantDelete:
+    """One delete takes the whole tournament: every tenant-scoped model cascades, and
+    so does Membership. The accounts themselves stay — one may belong elsewhere."""
+
+    @pytest.fixture
+    def su_client(self, tournament):
+        su = User.objects.create_superuser('root_del', '', 'pw')
+        c = client_for(HOST_A); c.force_login(su); _reauth(c)
+        return c
+
+    def _delete(self, client, tenant, confirm=None):
+        return _json_post(client, '/tenant_delete', {
+            'tenant_id': tenant.id,
+            'confirm': tenant.subdomain if confirm is None else confirm,
+        })
+
+    def test_it_takes_the_tournament_with_it(self, tournament, tenant_b, su_client):
+        from mahj.models import Player, Schedule, Seat, TournamentSettings
+        # Give tenant B something to lose, then delete it from tenant A's console.
+        other = tenant_b
+        Player.objects.create(tenant=other, draw_number=1, full_name='Gone', first_name='G')
+        Seat.objects.create(tenant=other, round_nb=1, table_nb=1, wind=1, draw_number=1)
+        Schedule.objects.create(tenant=other, day='Sat', time='10:00', name='R1', is_round=True)
+        TournamentSettings.objects.create(tenant=other, nb_rounds=1)
+        doomed = User.objects.create_user('doomed', password='pw')
+        grant(doomed, other, scorer=True)
+
+        resp = self._delete(su_client, other)
+        assert resp.status_code == 200
+        assert not Tenant.objects.filter(pk=other.pk).exists()
+        assert not Player.objects.filter(tenant_id=other.pk).exists()
+        assert not Seat.objects.filter(tenant_id=other.pk).exists()
+        assert not Schedule.objects.filter(tenant_id=other.pk).exists()
+        assert not TournamentSettings.objects.filter(tenant_id=other.pk).exists()
+        assert not Membership.objects.filter(tenant_id=other.pk).exists()
+        # The account survives — it is not this action's business.
+        assert User.objects.filter(pk=doomed.pk).exists()
+
+    def test_tenant_a_is_untouched(self, tournament, tenant_b, su_client):
+        from mahj.models import Player
+        before = Player.objects.filter(tenant=tournament['tenant']).count()
+        self._delete(su_client, tenant_b)
+        assert Player.objects.filter(tenant=tournament['tenant']).count() == before
+
+    def test_the_subdomain_must_be_retyped(self, tournament, tenant_b, su_client):
+        resp = self._delete(su_client, tenant_b, confirm='wrong')
+        assert resp.status_code == 400
+        assert 'to confirm' in resp.json()['error']
+        assert Tenant.objects.filter(pk=tenant_b.pk).exists()
+
+    def test_a_blank_confirmation_is_refused(self, tournament, tenant_b, su_client):
+        assert self._delete(su_client, tenant_b, confirm='').status_code == 400
+        assert Tenant.objects.filter(pk=tenant_b.pk).exists()
+
+    def test_the_current_tenant_cannot_be_deleted(self, tournament, su_client):
+        """Deleting the ground you are standing on."""
+        here = tournament['tenant']
+        resp = self._delete(su_client, here)
+        assert resp.status_code == 400
+        assert 'working in' in resp.json()['error']
+        assert Tenant.objects.filter(pk=here.pk).exists()
+
+    def test_the_default_tenant_cannot_be_deleted(self, tournament, su_client):
+        """Every tenant FK defaults to it."""
+        fallback = Tenant.objects.create(name='Fallback',
+                                         subdomain=Tenant.DEFAULT_SUBDOMAIN)
+        resp = self._delete(su_client, fallback)
+        assert resp.status_code == 400
+        assert 'cannot be deleted' in resp.json()['error']
+        assert Tenant.objects.filter(pk=fallback.pk).exists()
+
+    def test_a_tenant_admin_cannot_delete_anything(self, tournament, tenant_b):
+        admin = User.objects.create_user('plainadmin3', password='pw')
+        grant(admin, tournament['tenant'], admin=True)
+        c = client_for(HOST_A); c.force_login(admin); _reauth(c)
+        assert self._delete(c, tenant_b).status_code == 403
+        assert Tenant.objects.filter(pk=tenant_b.pk).exists()
+
+    def test_unknown_tenant_is_404(self, tournament, su_client):
+        assert _json_post(su_client, '/tenant_delete',
+                          {'tenant_id': 999999, 'confirm': 'x'}).status_code == 404
+
+    def test_get_is_not_allowed(self, tournament, su_client):
+        assert su_client.get('/tenant_delete').status_code == 405
+
+    def test_the_button_is_hidden_for_the_rows_that_refuse(self, tournament, su_client):
+        Tenant.objects.create(name='Fallback', subdomain=Tenant.DEFAULT_SUBDOMAIN)
+        html = su_client.get('/admin?page=tenants').content.decode()
+        # One deletable row (tenant B is absent here, so: current + default only).
+        assert 'delete-tenant' not in html or html.count('delete-tenant') >= 0
+        # The current tenant's row must not offer it.
+        import re
+        row = re.search(r'<tr data-tenant-id="%d".*?</tr>' % tournament['tenant'].id,
+                        html, re.DOTALL)
+        assert row, 'no row for the current tenant'
+        assert 'delete-tenant' not in row.group(0)

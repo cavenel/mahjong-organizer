@@ -42,6 +42,7 @@ urlpatterns = [
     # User management (tenant admin — scoped to the request's tenant)
     path('user_reauth', views.user_reauth, name='user_reauth'),
     path('user_create', views.user_create, name='user_create'),
+    path('user_add_existing', views.user_add_existing, name='user_add_existing'),
     path('user_update_roles', views.user_update_roles, name='user_update_roles'),
     path('user_generate_link', views.user_generate_link, name='user_generate_link'),
     path('user_revoke_links', views.user_revoke_links, name='user_revoke_links'),
@@ -51,6 +52,7 @@ urlpatterns = [
     # Tenant management (superuser only)
     path('tenant_create', views.tenant_create, name='tenant_create'),
     path('tenant_rename', views.tenant_rename, name='tenant_rename'),
+    path('tenant_delete', views.tenant_delete, name='tenant_delete'),
 
     # Database restore (superuser only)
     path('restore_pull', views.restore_pull, name='restore_pull'),

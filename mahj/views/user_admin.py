@@ -30,7 +30,7 @@ from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from sesame.utils import get_token
 
-from ..models import Membership, Tenant
+from ..models import Membership, Tenant, TournamentSettings
 from .helpers import get_tenant, is_tenant_admin, json_body, superuser_required, tenant_admin_required
 
 # Tier-3 role flags the console toggles (tenant_admin is handled as its own flag).
@@ -173,6 +173,50 @@ def user_create(request):
         _set_membership(user, tenant, data.get('roles', []), data.get('is_tenant_admin'))
 
     return JsonResponse({'status': 'ok', 'id': user.id, 'username': user.username})
+
+
+@superuser_and_reauthed
+def user_add_existing(request):
+    """Give an account that already exists a Membership in the current tenant.
+
+    Superuser-only, deliberately — this is the one way to create a *shared* account,
+    and handing it to tenant admins would undo an isolation property the rest of the
+    module works to keep. Elsewhere a user outside this tenant is reported as "not
+    found" rather than "forbidden" (see ``_target_in_tenant``) precisely so a tenant
+    admin can't learn that an account exists somewhere else; a by-username add would
+    turn that into an enumeration oracle they could probe. A superuser already spans
+    tenants, and credential containment already makes shared accounts theirs to
+    manage, so this belongs to them.
+
+    Idempotent: an account already here just has its roles set, so this doubles as
+    "re-grant" without a separate endpoint.
+    """
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = json_body(request)
+    tenant = get_tenant(request)
+    if tenant is None:
+        return JsonResponse({'status': 'error', 'error': 'no tenant'}, status=400)
+
+    username = (data.get('username') or '').strip()
+    if not username:
+        return JsonResponse({'status': 'error', 'error': 'username required'}, status=400)
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        return JsonResponse(
+            {'status': 'error', 'error': f'No account named {username!r}.'}, status=404)
+
+    already_here = Membership.objects.filter(user=user, tenant=tenant).exists()
+    _set_membership(user, tenant, data.get('roles', []), data.get('is_tenant_admin'))
+    return JsonResponse({
+        'status': 'ok', 'id': user.id, 'username': user.username,
+        # So the page can say "added" vs "roles updated" rather than guessing.
+        'already_here': already_here,
+        # True once this account belongs somewhere else too: from here on its
+        # credentials are superuser-managed.
+        'shared': Membership.objects.filter(user=user).exclude(tenant=tenant).exists(),
+    })
 
 
 @tenant_admin_and_reauthed
@@ -373,6 +417,65 @@ def tenant_rename(request):
     tenant.subdomain = subdomain
     tenant.save(update_fields=['name', 'subdomain'])
     return JsonResponse({'status': 'ok'})
+
+@superuser_and_reauthed
+def tenant_delete(request):
+    """Delete a tenant and everything belonging to it.
+
+    Every tenant-scoped model has ``on_delete=CASCADE`` on its tenant FK, and so does
+    Membership, so one delete takes the players, seating, hands, sheets, published
+    rounds, schedule, screens, modes, ceremony state, publish target, settings and
+    memberships with it. The post_delete signal drops the tenant cache.
+
+    The user accounts themselves are left alone on purpose: an account may belong to
+    another tournament, and tidying up one that no longer belongs anywhere is a
+    separate decision rather than a side effect of this one.
+
+    Guards, in order of how bad the mistake would be: the caller must retype the
+    subdomain (this is the most destructive button in the app, so it borrows the
+    database-restore page's typed-confirmation habit); the default tenant can never go,
+    since every tenant FK defaults to it; and neither can the tenant the caller is
+    currently working in, which would delete the ground they are standing on.
+    """
+    blocked = _standalone_blocked()
+    if blocked is not None:
+        return blocked
+    if request.method != 'POST':
+        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    data = json_body(request)
+    try:
+        tenant = Tenant.objects.get(pk=data.get('tenant_id'))
+    except (Tenant.DoesNotExist, ValueError, TypeError):
+        return JsonResponse({'status': 'error', 'error': 'tenant not found'}, status=404)
+
+    if _clean_subdomain(data.get('confirm')) != tenant.subdomain:
+        return JsonResponse(
+            {'status': 'error',
+             'error': f'Type the subdomain "{tenant.subdomain}" to confirm.'}, status=400)
+
+    if tenant.subdomain == Tenant.DEFAULT_SUBDOMAIN:
+        return JsonResponse(
+            {'status': 'error',
+             'error': f'The "{Tenant.DEFAULT_SUBDOMAIN}" tenant is the fallback every '
+                      'record points at and cannot be deleted.'}, status=400)
+
+    current = get_tenant(request)
+    if current is not None and current.pk == tenant.pk:
+        return JsonResponse(
+            {'status': 'error',
+             'error': 'That is the tournament you are working in. Open another '
+                      "tenant's admin and delete it from there."}, status=400)
+
+    # Django leaves FileField files on disk, so the uploaded logo has to go by hand
+    # or it outlives the tournament it belonged to.
+    for row in TournamentSettings.objects.filter(tenant=tenant):
+        if row.logo:
+            row.logo.delete(save=False)
+
+    subdomain, name = tenant.subdomain, tenant.name
+    tenant.delete()
+    return JsonResponse({'status': 'ok', 'subdomain': subdomain, 'name': name})
+
 
 # A tenant's first admin is seeded through that tenant's own User-management page:
 # a superuser bypasses membership, so they can open <subdomain>/admin?page=users

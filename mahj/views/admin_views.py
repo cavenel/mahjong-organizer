@@ -1884,6 +1884,9 @@ def options(request, error=None):
             page_content = template2.render({
                 "user_rows": user_rows,
                 "role_defs": [{"name": n, "label": TENANT_ROLE_LABELS[n]} for n in TENANT_ROLES],
+                # Gates the "add an existing account" form: making an account shared
+                # between tournaments is a superuser action (see user_add_existing).
+                "is_superuser": request.user.is_superuser,
                 "link_validity_days": settings.SESAME_MAX_AGE // 86400,
             }, request)
     elif page == "tenants":
@@ -1898,7 +1901,13 @@ def options(request, error=None):
             tenant_rows = [
                 {"id": t.id, "name": t.name, "subdomain": t.subdomain,
                  "admins": Membership.objects.filter(tenant=t, is_tenant_admin=True).count(),
-                 "members": Membership.objects.filter(tenant=t).count()}
+                 "members": Membership.objects.filter(tenant=t).count(),
+                 # Neither of these can be deleted — the fallback every tenant FK
+                 # points at, and the one this request is being served from. The
+                 # view refuses both; these just grey the button out rather than
+                 # offering something that will be rejected.
+                 "is_default": t.subdomain == Tenant.DEFAULT_SUBDOMAIN,
+                 "is_current": tenant is not None and t.pk == tenant.pk}
                 for t in Tenant.objects.all().order_by('subdomain')
             ]
             template2 = loader.get_template('mahj/admin_tenants.html')

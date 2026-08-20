@@ -41,6 +41,39 @@
     </div>
   </form>
 
+  {% if is_superuser %}
+  <!-- Add an existing account. Superuser-only: this is the one way to make an
+       account shared between tournaments, and a tenant admin with a by-username
+       lookup could probe which usernames exist elsewhere — which the rest of the
+       console works to hide. -->
+  <form id="add-existing-form" class="rounded-lg border border-dashed border-gray-300 bg-white p-4 space-y-3">
+    <div>
+      <h3 class="font-semibold text-gray-700">Add an existing account</h3>
+      <p class="text-xs text-gray-500 mt-0.5">
+        Give an account that already exists access to this tournament — for someone
+        scoring more than one. Its credentials then become superuser-managed.
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-3 items-end">
+      <label class="flex flex-col text-xs text-gray-500">Existing username
+        <input type="text" name="username" required autocomplete="off"
+               class="mt-1 rounded border border-gray-300 px-2 py-1 text-sm text-gray-800">
+      </label>
+    </div>
+    <div class="flex flex-wrap gap-4 items-center">
+      <span class="text-xs text-gray-500">Roles here:</span>
+      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="is_tenant_admin" class="accent-amber-500"> Admin (full control of this tournament)</label>
+      {% for role in role_defs %}
+      <label class="flex items-center gap-1 text-sm text-gray-700"><input type="checkbox" name="role" value="{{ role.name }}" class="accent-amber-500"> {{ role.label }}</label>
+      {% endfor %}
+      <button type="submit"
+              class="ml-auto rounded-lg border border-amber-500 px-4 py-1.5 text-sm font-medium text-amber-700 hover:bg-amber-50">
+        Add to this tournament
+      </button>
+    </div>
+  </form>
+  {% endif %}
+
   <!-- User table -->
   <div class="rounded-lg border border-gray-200 bg-white overflow-x-auto">
     <table class="w-full text-sm text-gray-700">
@@ -139,6 +172,29 @@
       if (res.handled) return;
       if (res.ok) { location.reload(); }
       else { window.alertAction({ title: 'Couldn\u2019t create the user', body: (res.data && res.data.error) || 'The server rejected the request.' }); }
+    });
+  });
+
+  // Add an existing account (superuser-only form, so the handler may not be bound
+  // to anything — jQuery no-ops on an empty selection).
+  $("#add-existing-form").on("submit", function(e) {
+    e.preventDefault();
+    var $f = $(this);
+    var roles = [];
+    $f.find('input[name="role"]:checked').each(function() { roles.push(this.value); });
+    post("user_add_existing", {
+      username: $f.find('[name="username"]').val(),
+      is_tenant_admin: $f.find('[name="is_tenant_admin"]').prop("checked"),
+      roles: roles,
+    }).then(function(res) {
+      if (res.handled) return;
+      if (res.ok) { location.reload(); }
+      else {
+        window.alertAction({
+          title: 'Couldn\u2019t add that account',
+          body: (res.data && res.data.error) || 'The server rejected the request.',
+        });
+      }
     });
   });
 

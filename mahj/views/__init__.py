@@ -61,7 +61,9 @@ from .admin_views import (
 )
 from .user_admin import (
     tenant_create,
+    tenant_delete,
     tenant_rename,
+    user_add_existing,
     user_create,
     user_delete,
     user_generate_link,
