@@ -105,3 +105,75 @@ def test_publisher_sees_scoring_and_overview(client_, publisher, tournament):
     for hidden in ('>Configuration</p>', '>Players</p>', '>Displays</p>',
                    '>Results</p>', '>Administration</p>'):
         assert hidden not in html
+
+
+class TestConfirmDialogIsAlwaysEscapable:
+    """The shared modal can require typed confirmation, which disables its Confirm
+    button until the text matches. A one-button notice (no Cancel) must never be
+    subject to that — a disabled Confirm there traps the operator in the dialog with
+    no way out, which is what happened when a failed action raised a notice while the
+    modal still carried a prompt.
+
+    Asserted on the template because the invariant lives in an Alpine expression;
+    there is no browser here to click it.
+    """
+
+    def _shell(self):
+        import pathlib
+        return pathlib.Path('mahj/templates/mahj/admin.html').read_text()
+
+    def test_the_button_asks_one_shared_predicate(self):
+        shell = self._shell()
+        # Not an inline copy of the condition — the button, the Enter key and
+        # runConfirm must all consult the same one or they can disagree.
+        assert ':disabled="confirmBlocked()"' in shell
+        assert 'if (this.confirmBlocked()) return;' in shell
+        assert shell.count('confirmBlocked()') >= 3
+
+    def test_the_predicate_returns_a_real_boolean(self):
+        """Alpine removes a bound attribute only for null/undefined/false — anything
+        else is *set*, and for a boolean attribute the value becomes the attribute
+        name. An expression short-circuiting to '' therefore renders
+        disabled="disabled". Every branch here has to yield an actual boolean."""
+        body = self._shell().split('confirmBlocked() {')[1].split('},')[0]
+        assert 'return false;' in body          # the hideCancel branch
+        assert '!!m.prompt' in body             # coerced, not a bare string
+
+    def test_no_disabled_binding_short_circuits_on_a_non_boolean(self):
+        """The trap that broke every dialog: `:disabled="someString && …"`. A
+        comparison as the left operand is fine — it yields a real false."""
+        import pathlib
+        import re
+        offenders = []
+        for path in pathlib.Path('mahj/templates/mahj').glob('*.html'):
+            for expr in re.findall(r':disabled="([^"]*)"', path.read_text()):
+                if '&&' not in expr:
+                    continue
+                left = expr.split('&&')[0].strip()
+                # Safe if the left operand is itself a comparison or a call.
+                if any(op in left for op in ('===', '!==', '==', '!=', '>=', '<=', '>', '<')):
+                    continue
+                if left.endswith(')') or left.startswith('!'):
+                    continue
+                offenders.append(f'{path.name}: {expr}')
+        assert not offenders, (
+            'these :disabled bindings can short-circuit to a non-boolean, which '
+            f'Alpine renders as disabled="disabled": {offenders}')
+
+    def test_a_one_button_notice_can_never_be_blocked(self):
+        shell = self._shell()
+        body = shell.split('confirmBlocked() {')[1].split('},')[0]
+        # The guard that makes it structural rather than incidental.
+        assert 'if (m.hideCancel) return false;' in body
+
+    def test_showalert_never_sets_a_prompt(self):
+        shell = self._shell()
+        alert_body = shell.split('showAlert(opts) {')[1].split('},')[0]
+        assert "prompt: ''" in alert_body
+        assert 'opts.prompt' not in alert_body
+
+    def test_the_dialog_keeps_its_other_exits(self):
+        """Escape and the backdrop, so even a blocked Confirm is not a dead end."""
+        shell = self._shell()
+        assert 'keydown.escape.window="confirmModal.open && closeConfirm()"' in shell
+        assert 'bg-black/50 backdrop-blur-sm" @click="closeConfirm()"' in shell
