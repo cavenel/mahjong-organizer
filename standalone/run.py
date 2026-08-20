@@ -13,7 +13,7 @@ config is in place before Django loads:
 Backups are the durability substitute for the Docker stack's Postgres: rolling
 online-backup snapshots (safe on a live DB) into a snapshots/ dir, plus a
 quick_check on startup. Recovery = quit, replace the .sqlite with a snapshot,
-relaunch (see docs/STANDALONE.md).
+relaunch (see docs/hosting/STANDALONE.md).
 """
 import os
 import secrets

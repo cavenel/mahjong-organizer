@@ -1,6 +1,6 @@
 name: Build standalone binaries
 
-# Builds the per-OS standalone admin binary (docs/STANDALONE.md) and, on a
+# Builds the per-OS standalone admin binary (docs/hosting/STANDALONE.md) and, on a
 # version tag, drafts a GitHub Release with the archives attached.
 #
 # There is no cross-platform binary — each target is built on its native runner

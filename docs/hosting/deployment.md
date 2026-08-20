@@ -58,7 +58,8 @@ Migrations apply automatically on container start. Then:
 docker compose exec web python manage.py createsuperuser
 ```
 
-Access is **per-tenant** (see `docs/data-model.md` → *Access control*). The
+Access is **per-tenant** (see [`docs/dev/data-model.md`](../dev/data-model.md) →
+*Access control*). The
 superuser bypasses membership, so they can:
 
 2. **Create a tenant** — log in at `https://<BASE_DOMAIN>/admin` → **Administration
@@ -80,7 +81,7 @@ the old global roles onto memberships when exactly one tenant exists; with
 several tenants it can't guess, so grant access manually with
 `manage.py assign_membership <user> <subdomain> --roles=tenant_admin,scorer,…`.
 
-**Standalone build** (`docs/STANDALONE.md`): single-tenant and single-operator —
+**Standalone build** ([`STANDALONE.md`](STANDALONE.md)): single-tenant and single-operator —
 it auto-creates a superuser on first launch, so it works out of the box with no
 membership setup.
 
@@ -117,6 +118,6 @@ the database with it. Use the backup/restore paths below instead.
 `scripts/backup_db.sh` dumps the database and (optionally) ships it to a remote
 host; `scripts/install_backup_cron.sh` schedules it. Restore either from the
 admin console (**Administration → Database restore**) or with
-`scripts/restore_db.sh`. See [scripts/DB_RESTORE.md](../scripts/DB_RESTORE.md)
+`scripts/restore_db.sh`. See [scripts/DB_RESTORE.md](../../scripts/DB_RESTORE.md)
 and, for the emergency venue-laptop instance, [STANDALONE.md](STANDALONE.md) +
-[scripts/LAPTOP_FAILOVER.md](../scripts/LAPTOP_FAILOVER.md).
+[scripts/LAPTOP_FAILOVER.md](../../scripts/LAPTOP_FAILOVER.md).

@@ -185,20 +185,16 @@
     <div class="border-t border-gray-100 p-2 shrink-0 relative" @click.outside="userMenuOpen=false">
       <div x-show="userMenuOpen" x-transition x-cloak
            class="absolute bottom-full left-2 right-2 mb-2 min-w-[14rem] bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm max-h-[70vh] overflow-auto">
-        {% if is_tenant_admin %}
-        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guides (PDF)</p>
-        <a target="_blank" href="/static/docs/full_admin.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+        {# One guide for every role (a part per role) — shown to everyone, since #}
+        {# each signed-in role has a part written for them. #}
+        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Guide (PDF)</p>
+        <a target="_blank" href="/static/docs/guide.pdf" class="flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
           <svg class="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-          Full guide — all roles
+          Operator guide — all roles
         </a>
-        <a target="_blank" href="/static/docs/MCR_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — head scorer</a>
-        <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — head scorer (cheat sheet)</a>
-        <a target="_blank" href="/static/docs/MCR_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">MCR — scorer</a>
-        <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR — scorer (cheat sheet)</a>
-        <a target="_blank" href="/static/docs/Riichi_head_scorer.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — head scorer</a>
-        <a target="_blank" href="/static/docs/Riichi_scorers.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-700 hover:bg-gray-50">Riichi — scorer</a>
+        <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR scorer cheat sheet</a>
+        <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR head-scorer cheat sheet</a>
         <div class="border-t border-gray-100 my-1"></div>
-        {% endif %}
         <form method="post" action="admin?logout=1">
           {% csrf_token %}
           <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">

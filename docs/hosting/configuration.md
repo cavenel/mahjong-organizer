@@ -1,7 +1,7 @@
 # Configuration
 
 All configuration is via environment variables, read from a `.env` file in
-production. Copy [`.env.example`](../.env.example) to `.env` and fill it in —
+production. Copy [`.env.example`](../../.env.example) to `.env` and fill it in —
 that file is the authoritative, commented source; this page groups the same
 variables by purpose and marks what is required.
 
@@ -63,7 +63,7 @@ to where the static site is published so spectators land on the published site.
 ## In-app database restore (optional)
 
 The admin console's **Database restore** page reads dumps from a host directory.
-See [scripts/DB_RESTORE.md](../scripts/DB_RESTORE.md).
+See [scripts/DB_RESTORE.md](../../scripts/DB_RESTORE.md).
 
 `MAHJ_BACKUP_DIR` (`/opt/mahj-backups`), `MAHJ_WORKER_UID`/`MAHJ_WORKER_GID`
 (owner of that dir + the SSH key), and — for the **Pull from remote** button —

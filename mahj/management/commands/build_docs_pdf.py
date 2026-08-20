@@ -1,4 +1,5 @@
-"""Render the admin-console Markdown guides to PDFs served from /static/docs/.
+"""Render the admin-console docs (the guide + cheat sheets) to PDFs served from
+/static/docs/.
 
 Run at build time (see the Dockerfile builder stage, just before
 ``collectstatic``). Output lands in ``mahj/static/docs/`` — a build artifact that
@@ -7,8 +8,8 @@ WhiteNoise/nginx at ``/static/docs/<name>.pdf``.
 
 Local use::
 
-    python manage.py build_docs_pdf            # render every guide
-    python manage.py build_docs_pdf --only full_admin MCR_scorers
+    python manage.py build_docs_pdf            # render everything
+    python manage.py build_docs_pdf --only guide
 
 Requires WeasyPrint's native libraries (Pango/Cairo/GDK-PixBuf) and the Symbola
 font on the host; the Dockerfile installs both in the builder stage.
@@ -20,7 +21,7 @@ import markdown
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-# Files in the source dir that are repo navigation, not standalone guides.
+# Files in the source dir that are repo navigation, not printable documents.
 SKIP = {"readme.md"}
 
 # Print stylesheet. DejaVu covers the box-drawing characters used in the sidebar
@@ -41,6 +42,10 @@ body {
 }
 h1, h2, h3, h4 { line-height: 1.2; break-after: avoid; }
 h1 { font-size: 1.9rem; border-bottom: 2px solid #ddd; padding-bottom: .2em; }
+/* The guide is one document in role Parts, each an h1: start each Part on a
+   fresh page. First-of-type is the document title, which must not page-break.
+   Single-h1 documents (the cheat sheets) are unaffected. */
+h1:not(:first-of-type) { break-before: page; }
 h2 { font-size: 1.45rem; border-bottom: 1px solid #eee; padding-bottom: .15em;
      margin-top: 1.4em; }
 h3 { font-size: 1.2rem; margin-top: 1.2em; }

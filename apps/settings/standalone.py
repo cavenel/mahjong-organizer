@@ -2,7 +2,7 @@
 
 Runs on a local sqlite file with an in-process cache and channel layer, so the
 whole thing can be frozen into a PyInstaller binary and launched on a venue
-laptop by a non-technical operator (see docs/STANDALONE.md and standalone/run.py).
+laptop by a non-technical operator (see docs/hosting/STANDALONE.md and standalone/run.py).
 Everything the robust Docker stack needs Postgres / pgbouncer / Redis / nginx /
 workers for is either swapped for an in-process equivalent or dropped.
 """

@@ -2,7 +2,7 @@
 
 How per-tenant authorization is enforced in the view layer. The *model* — the
 `Membership` join, the three tiers, and cross-tenant isolation — is documented in
-[`docs/data-model.md`](../data-model.md#access-control-user--tenant-membership);
+[`data-model.md`](data-model.md#access-control-user--tenant-membership);
 this file covers how a view actually gates on it and the non-obvious rules a
 maintainer needs before touching a gate.
 

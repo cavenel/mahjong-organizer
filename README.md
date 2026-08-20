@@ -41,7 +41,7 @@ subdomain (`<tenant>.your-domain`).
 ```bash
 git clone <this-repo> mahj && cd mahj
 cp .env.example .env
-# Edit .env: set DJANGO_SECRET_KEY, BASE_DOMAIN, DB_PASSWORD (see docs/configuration.md)
+# Edit .env: set DJANGO_SECRET_KEY, BASE_DOMAIN, DB_PASSWORD (see docs/hosting/configuration.md)
 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # Migrations apply automatically on container start.
@@ -65,14 +65,14 @@ python -m pytest        # settings module: apps.settings.test
 
 ## Documentation
 
-| Doc | What it covers |
-|-----|----------------|
-| [docs/deployment.md](docs/deployment.md) | Production Docker deployment, DNS/TLS, backups |
-| [docs/configuration.md](docs/configuration.md) | Every environment variable, with defaults |
-| [docs/data-model.md](docs/data-model.md) | Domain model (Player / Seat / Hand / settings) |
-| [docs/admin-console/](docs/admin-console/) | Operator guides (head scorer, scorers, full admin) for MCR and Riichi |
-| [docs/STANDALONE.md](docs/STANDALONE.md) | Emergency venue-laptop failover instance |
-| [scripts/](scripts/) | Backup, restore and laptop-failover runbooks |
+`docs/` is organized by audience — see [docs/README.md](docs/README.md) for the map.
+
+| Audience | Where | What it covers |
+|----------|-------|----------------|
+| Tournament crew | [docs/admin-console/](docs/admin-console/) | The operator guide — one document with a part per role (Scorer, Publisher, Display operator, Admin) — plus printable cheat sheets; also served as PDFs from the app's admin menu |
+| Whoever hosts the server | [docs/hosting/](docs/hosting/) | Docker deployment, DNS/TLS, every environment variable, the standalone venue-laptop build |
+| | [scripts/](scripts/) | Backup, restore and laptop-failover runbooks, next to the scripts they document |
+| Developers | [docs/dev/](docs/dev/) | Data model, access control, accepted risks, click-through fixtures |
 
 ## License
 

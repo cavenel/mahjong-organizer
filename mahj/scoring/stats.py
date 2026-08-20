@@ -1,7 +1,7 @@
 """Per-round and per-player/team statistics, the seating-grid table, and the
 per-player rounds/opponents used by the modals and the projector cards.
 
-Hand encoding (see docs/data-model.md): ``win_by`` is a wind (1-4) for a win, 0
+Hand encoding (see docs/dev/data-model.md): ``win_by`` is a wind (1-4) for a win, 0
 for a draw, and NULL for an unplayed placeholder; a win with ``win_from is None``
 is a self-draw; ``points`` is its value. A validated score sheet stores exactly
 the hands played (draws included, unplayed pruned), so "hands played at a table"
