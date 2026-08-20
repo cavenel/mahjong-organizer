@@ -1,7 +1,14 @@
 <div class="max-w-3xl space-y-6">
-  <div>
-    <h2 class="text-2xl font-bold text-gray-800">Tournament settings</h2>
-    <p class="text-sm text-gray-500 mt-1">Name, schedule and branding for this tournament. Changes save as you edit.</p>
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-800">Tournament settings</h2>
+      <p class="text-sm text-gray-500 mt-1">Name, schedule and branding for this tournament. Changes save as you edit.</p>
+    </div>
+    <!-- Autosave status for the field cards below. Page-level rather than per-card
+         because one edit posts every tournament-* field in a single call, so a badge
+         on the card you happened to touch would misrepresent what was saved. The
+         Schedule card has its own — it saves separately. -->
+    <span id="settings-save-state" class="text-xs text-gray-400 shrink-0 mt-1"></span>
   </div>
 
   <!-- Identity ---------------------------------------------------------------->
@@ -276,6 +283,20 @@
     };
   }
 
+  // Report the autosave the way the Schedule card does. These fields used to save
+  // silently — only a failure spoke up — so an operator had no way to tell a change
+  // had landed short of reloading the page.
+  var settingsSaveTimer = null;
+  function settingsSaveState(text) {
+    $("#settings-save-state").text(text);
+    clearTimeout(settingsSaveTimer);
+    if (text === 'Saved') {
+      settingsSaveTimer = setTimeout(function() {
+        $("#settings-save-state").text('');
+      }, 1500);
+    }
+  }
+
   // Autosave each field on change — posts every tournament-* input in one call.
   $(".tournament-input").on('change', function() {
     var getTournament = $(".tournament-input").map(function() {
@@ -285,11 +306,16 @@
       var val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
       return el.id + "=" + encodeURIComponent(val) + "&";
     }).get().join("");
+    settingsSaveState('Saving…');
     $.ajax({
       type: "POST",
       url: "/admin?page=settings&action=set_tournament&" + getTournament,
       data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
+      success: function() { settingsSaveState('Saved'); },
       error: function(xhr) {
+        // Clear the status rather than leaving "Saving…" up — the dialog below is
+        // what reports the failure.
+        settingsSaveState('');
         // set_tournament returns a short plain-text reason on a 400; a 500 is an
         // HTML error page with no useful text, so fall back to a generic line.
         var msg = (xhr && xhr.responseText) || '';

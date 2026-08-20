@@ -740,3 +740,39 @@ class TestPanelReopensAfterAScreenChange:
         html = client_.get('/admin?page=display&open=../../etc/passwd').content.decode()
         assert not _details_is_open(html, 'configure-screens')
         assert not _details_is_open(html, 'display-settings')
+
+
+class TestSettingsAutosaveIsVisible:
+    """The tournament fields autosave on change. They used to do it silently — only a
+    failure spoke up — so an operator had no way to tell an edit had landed short of
+    reloading. The Schedule card on the same page always reported itself, which made
+    the page inconsistent with itself as well as unhelpful."""
+
+    def test_the_page_carries_a_status_element(self, client_, staff, tournament):
+        client_.force_login(staff)
+        body = client_.get('/admin?page=settings').content.decode()
+        assert 'id="settings-save-state"' in body
+
+    def test_the_autosave_reports_success_and_failure(self, client_, staff, tournament):
+        client_.force_login(staff)
+        body = client_.get('/admin?page=settings').content.decode()
+        # Same wording and fade as the Schedule card, so the page reads as one thing.
+        assert "settingsSaveState('Saving…')" in body
+        assert "settingsSaveState('Saved')" in body
+        assert "settingsSaveState('')" in body
+
+    def test_a_field_still_saves(self, client_, staff, tournament):
+        """The indicator must not have disturbed the save it reports on."""
+        client_.force_login(staff)
+        resp = client_.post(
+            '/admin?page=settings&action=set_tournament&tournament-city=Uppsala')
+        assert resp.status_code in (200, 302)
+        tournament['settings'].refresh_from_db()
+        assert tournament['settings'].city == 'Uppsala'
+
+    def test_an_over_long_field_still_reports_the_reason(self, client_, staff, tournament):
+        client_.force_login(staff)
+        resp = client_.post(
+            '/admin?page=settings&action=set_tournament&tournament-city=' + 'x' * 200)
+        assert resp.status_code == 400
+        assert b'too long' in resp.content
