@@ -95,9 +95,19 @@ class Command(BaseCommand):
                 'status': 'error', 'phase': 'done', 'error': str(e)})
 
     def _set(self, job_id, status, phase, **extra):
+        """Publish a progress update, retried and never fatal.
+
+        Every update the restore page shows comes through here, including the final
+        verdict. An unguarded write meant a bus blip mid-restore could take the worker
+        down between dropping the database and finishing it — leaving the operator
+        watching a page that never changes while their data is half-replaced. The
+        restore itself must outlive a failure to *talk about* the restore.
+        """
         result = {'status': status, 'phase': phase}
         result.update(extra)
-        restore_queue.set_result(job_id, result)
+        if not restore_queue.set_result_with_retry(job_id, result):
+            logger.error("restore job %s reached %s/%s but the update could not be "
+                         "stored; the page will look stalled", job_id, status, phase)
         logger.info("restore job %s -> %s/%s", job_id, status, phase)
 
     # -- restore -------------------------------------------------------------

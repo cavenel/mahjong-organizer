@@ -17,6 +17,8 @@ from pathlib import Path
 import redis
 from django.conf import settings
 
+from .queue_util import write_with_retry
+
 QUEUE_KEY = 'scan:queue'
 _RESULT_PREFIX = 'scan:result:'
 RESULT_TTL = 600   # seconds a finished/pending result is retained for polling
@@ -47,6 +49,37 @@ def stage_image(raw_bytes):
 
 def image_path(job_id):
     return JOBS_DIR / job_id
+
+
+# Staged images are unlinked when a worker picks the job up, so the only files left
+# behind are from jobs whose worker died mid-run, or that were never dequeued because
+# the queue was lost. A little older than the result TTL: past that the job can't be
+# polled or written any more, so its image is certainly dead.
+STALE_IMAGE_AGE_S = RESULT_TTL * 2
+
+
+def sweep_stale_images(now=None):
+    """Delete staged images older than STALE_IMAGE_AGE_S. Returns how many went.
+
+    Called opportunistically when a new image is staged, so the directory is tidied by
+    the traffic that dirties it and there's no cron to forget. Anonymous uploads land
+    here, so without this a run of failed jobs grows the volume until it's full.
+    """
+    import time
+    cutoff = (now if now is not None else time.time()) - STALE_IMAGE_AGE_S
+    removed = 0
+    try:
+        entries = list(JOBS_DIR.iterdir())
+    except OSError:
+        return 0
+    for path in entries:
+        try:
+            if path.is_file() and path.stat().st_mtime < cutoff:
+                path.unlink()
+                removed += 1
+        except OSError:
+            continue        # raced with a worker, or not ours to remove
+    return removed
 
 
 def discard_image(job_id):
@@ -85,15 +118,38 @@ def carry_job_facts(job, result):
 
 
 def dequeue(timeout=5):
-    """Block up to `timeout` seconds for the next job (FIFO). None on timeout."""
+    """Block up to `timeout` seconds for the next job (FIFO). None on timeout.
+
+    Refreshes the job's pending marker as it hands the job over: the marker is what
+    the client polls, and it was set with RESULT_TTL when the job was *enqueued*. A
+    backlog longer than that TTL meant the marker expired while the job was still
+    waiting, so the client was told "timed out or lost" for a scan that then completed
+    anyway. Restarting the clock at the moment work begins is what the TTL was for.
+    """
     item = _redis().blpop(QUEUE_KEY, timeout=timeout)
     if item is None:
         return None
-    return json.loads(item[1])
+    job = json.loads(item[1])
+    job_id = job.get('job_id')
+    if job_id:
+        try:
+            _redis().expire(_RESULT_PREFIX + job_id, RESULT_TTL)
+        except redis.RedisError:
+            pass        # the result write below is what actually matters
+    return job
 
 
 def set_result(job_id, result):
     _redis().set(_RESULT_PREFIX + job_id, json.dumps(result), ex=RESULT_TTL)
+
+
+def set_result_with_retry(job_id, result):
+    """``set_result``, retried across a brief Redis outage. True if it landed.
+
+    The OCR call is already paid for by the time a worker gets here, so losing the
+    answer to a bus restart is the expensive failure. See queue_util.
+    """
+    return write_with_retry(lambda: set_result(job_id, result))
 
 
 def get_result(job_id):

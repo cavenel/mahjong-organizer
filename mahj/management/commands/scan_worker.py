@@ -69,5 +69,13 @@ class Command(BaseCommand):
         # The result carries the job's own round/table/tenant forward, so the web
         # tier can read the scan's target from the job rather than from a request
         # body it cannot trust.
-        scan_queue.set_result(job_id, scan_queue.carry_job_facts(job, result))
+        #
+        # Retried, and never allowed to raise: the OCR call is already paid for by the
+        # time we get here, so a bus blip at write time must not lose the answer — or
+        # take the worker loop down with it and stall every queued job behind it.
+        if not scan_queue.set_result_with_retry(
+                job_id, scan_queue.carry_job_facts(job, result)):
+            logger.error("scan job %s finished but its result could not be stored; "
+                         "the client will see it as timed out", job_id)
+            return
         logger.info("scan job %s -> %s", job_id, result.get('status'))

@@ -18,6 +18,8 @@ from pathlib import Path
 
 from django.conf import settings
 
+from .queue_util import write_with_retry
+
 # redis is imported lazily inside _redis() (like mahj.scan_queue / mahj.views.scan
 # defer their heavy deps) so importing this module — and therefore the admin
 # URLconf that pulls it in via restore_admin — never requires redis. The

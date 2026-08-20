@@ -317,3 +317,159 @@ class TestScoreSheetQr:
         assert resp.status_code == 200
         html = resp.content.decode()
         assert '<svg' in html  # QR code rendered inline
+
+
+class TestUploadMetering:
+    """Every accepted photo stages a file on a shared volume and buys one paid vision
+    call, and the endpoint is anonymous. So it needs its own ceiling — nginx's body
+    limit is 20 MB and says nothing about how many."""
+
+    def _upload(self, client, content=b'x' * 100, name='sheet.jpg'):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return client.post('/scan_3_1',
+                           {'image': SimpleUploadedFile(name, content, 'image/jpeg')})
+
+    @pytest.fixture
+    def staged(self, monkeypatch):
+        """Capture what gets staged, without touching Redis or the disk."""
+        calls = {'staged': [], 'enqueued': []}
+        monkeypatch.setattr('mahj.scan_queue.stage_image',
+                            lambda raw: (calls['staged'].append(raw), 'jid')[1])
+        monkeypatch.setattr('mahj.scan_queue.enqueue',
+                            lambda job: calls['enqueued'].append(job))
+        monkeypatch.setattr('mahj.scan_queue.sweep_stale_images', lambda: 0)
+        return calls
+
+    def test_an_oversized_photo_is_refused_before_staging(self, client_, tournament,
+                                                          staged):
+        from mahj.views.scan import MAX_UPLOAD_BYTES
+        resp = self._upload(client_, content=b'x' * (MAX_UPLOAD_BYTES + 1))
+        assert resp.status_code == 413
+        assert staged['staged'] == [], 'an oversized upload must not be staged'
+        assert staged['enqueued'] == [], 'and must not buy an OCR call'
+
+    def test_a_normal_photo_is_staged_with_its_table(self, client_, tournament, staged):
+        resp = self._upload(client_)
+        assert resp.status_code == 200
+        assert resp.json()['job_id'] == 'jid'
+        # The round and table come from the URL, which is what makes them trustworthy
+        # later — see TestScanPrefillTrustsOnlyTheJob.
+        job = staged['enqueued'][0]
+        assert job['round_nb'] == 3 and job['table_nb'] == 1
+        assert job['subdomain'] == 'test'
+
+    def test_a_non_image_is_refused(self, client_, tournament, staged, monkeypatch):
+        monkeypatch.setattr('mahj.views.scan._looks_like_an_image', lambda raw: False)
+        resp = self._upload(client_, content=b'this is not a photo')
+        assert resp.status_code == 400
+        assert staged['staged'] == []
+
+    def test_the_image_check_fails_open_without_the_imaging_stack(self):
+        """These endpoints are meant to work on a host with no OCR stack, so a
+        missing cv2 must not reject every upload."""
+        import builtins
+        from mahj.views.scan import _looks_like_an_image
+        real_import = builtins.__import__
+
+        def no_cv2(name, *a, **kw):
+            if name in ('cv2', 'numpy'):
+                raise ImportError(name)
+            return real_import(name, *a, **kw)
+
+        builtins.__import__ = no_cv2
+        try:
+            assert _looks_like_an_image(b'anything') is True
+        finally:
+            builtins.__import__ = real_import
+
+    def test_a_burst_from_one_device_is_throttled(self, client_, tournament, staged,
+                                                  settings):
+        """One phone (or one script) must not be able to run up the OCR bill."""
+        from mahj.views.scan import UPLOAD_MAX_PER_WINDOW
+        settings.CACHES = {
+            'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'}}
+        from django.core.cache import cache
+        cache.clear()
+
+        codes = [self._upload(client_).status_code
+                 for _ in range(UPLOAD_MAX_PER_WINDOW + 2)]
+        assert codes[:UPLOAD_MAX_PER_WINDOW] == [200] * UPLOAD_MAX_PER_WINDOW
+        assert codes[UPLOAD_MAX_PER_WINDOW:] == [429, 429]
+
+    def test_throttling_fails_open_without_a_usable_cache(self, client_, tournament,
+                                                          staged):
+        """The suite's DummyCache can't count. Scanning at the venue must not stop
+        because the cache backend won't support it."""
+        for _ in range(10):
+            assert self._upload(client_).status_code == 200
+
+
+class TestStaleImageSweep:
+    """Staged images are unlinked when a worker picks the job up, so what's left is
+    from jobs whose worker died or that were never dequeued. Anonymous uploads land
+    here, so without a sweep a run of failures grows the volume until it's full."""
+
+    def test_it_removes_old_files_and_keeps_fresh_ones(self, tmp_path, monkeypatch):
+        import os
+        import time
+        from mahj import scan_queue
+        monkeypatch.setattr(scan_queue, 'JOBS_DIR', tmp_path)
+
+        old = tmp_path / 'ancient'
+        old.write_bytes(b'x')
+        stale = time.time() - scan_queue.STALE_IMAGE_AGE_S - 60
+        os.utime(old, (stale, stale))
+        fresh = tmp_path / 'recent'
+        fresh.write_bytes(b'x')
+
+        assert scan_queue.sweep_stale_images() == 1
+        assert not old.exists()
+        assert fresh.exists()
+
+    def test_a_missing_directory_is_not_an_error(self, tmp_path, monkeypatch):
+        from mahj import scan_queue
+        monkeypatch.setattr(scan_queue, 'JOBS_DIR', tmp_path / 'nope')
+        assert scan_queue.sweep_stale_images() == 0
+
+
+class TestResultWriteSurvivesABusBlip:
+    """A worker reaches the result write having already paid for the OCR call. An
+    unguarded write loses that answer to a momentary outage — and takes the worker
+    loop down with it, stalling every job behind."""
+
+    def test_it_retries_and_succeeds(self, monkeypatch):
+        import redis as redis_mod
+        from mahj import queue_util
+        monkeypatch.setattr(queue_util.time, 'sleep', lambda s: None)
+        attempts = {'n': 0}
+
+        def flaky():
+            attempts['n'] += 1
+            if attempts['n'] < 3:
+                raise redis_mod.RedisError('bus restarting')
+
+        assert queue_util.write_with_retry(flaky) is True
+        assert attempts['n'] == 3
+
+    def test_it_gives_up_without_raising(self, monkeypatch):
+        import redis as redis_mod
+        from mahj import queue_util
+        monkeypatch.setattr(queue_util.time, 'sleep', lambda s: None)
+
+        def always_down():
+            raise redis_mod.RedisError('bus gone')
+
+        assert queue_util.write_with_retry(always_down) is False
+
+    def test_a_worker_logs_the_loss_instead_of_dying(self, monkeypatch, caplog):
+        """The whole point: one unwritable result must not stop the loop."""
+        import logging
+        from mahj import scan_queue
+        from mahj.management.commands.scan_worker import Command
+        monkeypatch.setattr(scan_queue, 'set_result_with_retry', lambda *a, **k: False)
+        monkeypatch.setattr('mahj.views.scan._read_image',
+                            lambda path: (_ for _ in ()).throw(RuntimeError('no file')))
+        monkeypatch.setattr(scan_queue, 'discard_image', lambda jid: None)
+        with caplog.at_level(logging.ERROR):
+            Command()._process({'job_id': 'j', 'round_nb': 1, 'table_nb': 1})
+        assert any('could not be stored' in r.message for r in caplog.records)

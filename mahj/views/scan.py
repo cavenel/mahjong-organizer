@@ -1,5 +1,6 @@
 """Django view for capturing, aligning, and cropping a score sheet."""
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -9,6 +10,7 @@ import os
 # endpoints testable — on hosts where the OCR stack isn't installed.
 
 from django.conf import settings
+from django.core.cache import cache
 from django.db.models import F
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
@@ -126,6 +128,55 @@ def _encode_jpeg(crop):
     return base64.standard_b64encode(buf.tobytes()).decode('ascii')
 
 
+# What an anonymous upload is allowed to cost us. Each accepted photo stages a file
+# on the shared volume and buys one paid vision-API call, so the endpoint needs a
+# ceiling of its own rather than relying on nginx's body limit alone.
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024      # a phone photo of an A4 sheet, generously
+UPLOAD_WINDOW_S = 60
+UPLOAD_MAX_PER_WINDOW = 6               # per client address; a re-shoot or two is fine
+
+
+def _upload_allowed(request):
+    """Simple per-address rate limit on staging a scan.
+
+    Cache-backed and best-effort: the cache is shared but not transactional, so two
+    simultaneous uploads can both pass. That is fine — this exists to stop one phone
+    (or one script) burning the OCR budget, not to be a precise quota. A cache
+    without INCR support, or no cache at all, fails open rather than blocking the
+    venue's scanning.
+    """
+    addr = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+            or request.META.get('REMOTE_ADDR') or 'unknown')
+    key = f'scan_uploads:{hashlib.sha256(addr.encode()).hexdigest()[:32]}'
+    try:
+        if cache.add(key, 1, UPLOAD_WINDOW_S):
+            return True
+        return cache.incr(key) <= UPLOAD_MAX_PER_WINDOW
+    except Exception:
+        return True
+
+
+def _looks_like_an_image(raw):
+    """True if these bytes decode as an image.
+
+    The OCR worker would fail on anything else anyway, but by then the file is staged
+    and a paid vision call is queued, so junk is cheaper to reject here.
+
+    Fails *open* when the imaging stack isn't installed: cv2/numpy are imported lazily
+    all through this module precisely so these endpoints work on a host without it,
+    and refusing every upload there would be worse than letting the worker decide.
+    """
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return True
+    try:
+        return cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR) is not None
+    except Exception:
+        return False
+
+
 def scan_page(request, round_nb=None, table_nb=None):
     _require_scan_enabled()
     if request.method == "POST":
@@ -137,9 +188,26 @@ def scan_page(request, round_nb=None, table_nb=None):
         file = request.FILES.get("image")
         if not file:
             return JsonResponse({"ok": False, "error": "No image uploaded"}, status=400)
+        if file.size > MAX_UPLOAD_BYTES:
+            mb = MAX_UPLOAD_BYTES // (1024 * 1024)
+            return JsonResponse(
+                {"ok": False,
+                 "error": f"That photo is too large (limit {mb} MB). Take it again at a "
+                          "lower resolution."}, status=413)
+        if not _upload_allowed(request):
+            return JsonResponse(
+                {"ok": False,
+                 "error": "Too many scans from this device just now. Wait a moment and "
+                          "try again."}, status=429)
+        raw = file.read()
+        if not _looks_like_an_image(raw):
+            return JsonResponse(
+                {"ok": False, "error": "That file isn't a readable image. Take the photo again."},
+                status=400)
         tenant = get_tenant(request)
         try:
-            job_id = scan_queue.stage_image(file.read())
+            scan_queue.sweep_stale_images()
+            job_id = scan_queue.stage_image(raw)
             scan_queue.enqueue({
                 'job_id': job_id,
                 'round_nb': round_nb,
@@ -317,22 +385,26 @@ def scan_seats(request):
     filled/validated flags."""
     _require_scan_enabled()
     tenant = get_tenant(request)
-    round_nb = request.GET.get('round_nb')
-    table_nb = request.GET.get('table_nb')
-    if not round_nb or not table_nb:
+    # Coerced once, up front. These are raw query parameters on a public endpoint, so
+    # a non-numeric one is a routine event, not a 500 — and int() was being called on
+    # them three times over besides.
+    try:
+        round_nb = int(request.GET['round_nb'])
+        table_nb = int(request.GET['table_nb'])
+    except (KeyError, TypeError, ValueError):
         return JsonResponse({"ok": False, "error": "round_nb and table_nb required"}, status=400)
 
     seats = _attach_players(tenant, list(Seat.objects.filter(
-        tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
     ).order_by('wind')))
 
     has_hands = Hand.objects.filter(
-        tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
         win_by__isnull=False,
     ).exists()
 
     valid_hand = ScoreSheet.objects.filter(
-        tenant=tenant, round_nb=int(round_nb), table_nb=int(table_nb),
+        tenant=tenant, round_nb=round_nb, table_nb=table_nb,
         validated=True,
     ).exists()
 
