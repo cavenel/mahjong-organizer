@@ -28,12 +28,6 @@ stats/badges and the detailed-hand modal, but never the final ranking.
   `leaderboard_gen`, so the detailed modal shows a stale penalty publicly for up
   to the cache TTL. Fix: bump the leaderboard generation on penalty save.
 
-- **beforeunload score flush has no error handling.** Clearing a cell schedules a
-  debounced save; navigating away inside that window fires a `fetch(keepalive)`
-  with no 409/network handling, so a write landing on a now-published round can
-  silently diverge. Fix: flush on `visibilitychange`/`pagehide`, re-validate on
-  next focus.
-
 - **Score entry swallows bad input.** An unresolvable seat id is silently skipped
   (partial 3-of-4 save reported as success); a non-numeric MP/TP is coerced to
   `None`, which blocks publishing with no indication of which seat. Fix: 409 on
@@ -58,6 +52,22 @@ stats/badges and the detailed-hand modal, but never the final ranking.
 - **OCR values written verbatim** with no range/balance check (seat ∈ 1..4/null,
   `win_by != win_from`, winner ⇒ points ≥ 8, four-player balance). A garbled digit
   silently mis-attributes or drops a win.
+
+## Accepted
+
+Risks weighed and kept, with the reason — so they aren't re-opened as oversights.
+
+- **A navigate-away flush can be rejected without telling the scorer.** The score
+  grid's debounced save is flushed with `sendBeacon` on `beforeunload` and
+  `pagehide` (both events, because mobile browsers often skip `beforeunload`) —
+  but a beacon is fire-and-forget by nature: at `pagehide` there is no page left
+  to show a dialog on, and `sendBeacon` reports only whether the browser queued
+  the request. So a flush that lands on a round published in the meantime is
+  rejected (correctly — the round is locked) and the scorer isn't told at that
+  moment. Accepted because the failure is visible on next load, the scorer holds
+  the paper sheet, and unpublish → correct → republish fixes it in seconds.
+  Handling it "properly" would mean a reconcile-on-return mechanism for a
+  2-second window — new surface for a rare, self-revealing case.
 
 ## Invariants worth preserving (verified correct — do not "fix")
 

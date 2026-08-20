@@ -117,6 +117,7 @@
 
 {% block scripts %}
   <script src="{% static 'js/mcr_table_points.js' %}"></script>
+  <script src="{% static 'js/mcr_hand_points.js' %}"></script>
   <script>
     function goBack() {
       if (window.parent !== window && typeof window.parent.modalGoBack === 'function') {
@@ -147,7 +148,8 @@
           clearBg('total_' + i + '_' + p);
         }
 
-        if (isNaN(by) || by < 1 || by > 4 || from > 4) {
+        const deltas = window.mcrHandPointDeltas(pts, by, from);
+        if (!deltas) {
           for (let p = 1; p <= 4; p++) {
             setTxt('pts_' + i + '_' + p, '');
             setTxt('total_' + i + '_' + p, total[p - 1]);
@@ -155,17 +157,12 @@
           continue;
         }
 
-        // A self-draw has no discarder: win_from is NULL, so `from` is NaN here.
+        // Presentation only — the money is mcrHandPointDeltas' one definition.
+        // A self-draw has no discarder: win_from is NULL in stored data, so
+        // `from` is NaN here (never 0 — the server collapses that on save).
         const selfDraw = (isNaN(from) || from === by);
         for (let p = 1; p <= 4; p++) {
-          let delta;
-          if (selfDraw) {
-            delta = (p === by) ? 3 * (8 + pts) : -(8 + pts);
-          } else {
-            if (p === by)        delta = 3 * 8 + pts;
-            else if (p === from) delta = -(8 + pts);
-            else                 delta = -8;
-          }
+          const delta = deltas[p - 1];
           setTxt('pts_' + i + '_' + p, delta > 0 ? '+' + delta : delta < 0 ? delta : '');
           total[p - 1] += delta;
           setTxt('total_' + i + '_' + p, total[p - 1]);

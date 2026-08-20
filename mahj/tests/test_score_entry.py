@@ -640,6 +640,52 @@ class TestSeatOptimisticLock:
         assert seat.version == 7
 
 
+class TestBeaconFlushEnvelope:
+    """The navigate-away flush arrives as a sendBeacon, which cannot set the
+    X-CSRFToken header — so the grid posts FormData with the usual JSON save
+    body under 'payload' (the token rides as a form field Django can read).
+    Same body, same guards, different envelope."""
+
+    def _row(self, tournament):
+        return list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).order_by('wind'))
+
+    def _beacon(self, client, seats, mp, versions=None):
+        if versions is None:
+            versions = [s.version for s in seats]
+        return client.post('/update_seats_bulk', {
+            'payload': json.dumps({'seats': [
+                {'id': s.id, 'mp': mp, 'tp': 0, 'version': v}
+                for s, v in zip(seats, versions)
+            ]}),
+        })
+
+    def test_form_payload_saves_the_row(self, authed_client, tournament):
+        seats = self._row(tournament)
+        resp = self._beacon(authed_client, seats, mp=33)
+        assert resp.status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 33
+            assert s.version == 1
+
+    def test_form_payload_hits_the_same_stale_guard(self, authed_client, tournament):
+        seats = self._row(tournament)
+        assert self._beacon(authed_client, seats, mp=10).status_code == 200
+        resp = self._beacon(authed_client, seats, mp=999, versions=[0, 0, 0, 0])
+        assert resp.status_code == 409
+        assert json.loads(resp.content)['status'] == 'stale'
+        for s in seats:
+            s.refresh_from_db()
+            assert s.minipoints == 10
+
+    def test_malformed_payload_is_a_400(self, authed_client, tournament):
+        resp = authed_client.post('/update_seats_bulk', {'payload': 'not json'})
+        assert resp.status_code == 400
+        resp = authed_client.post('/update_seats_bulk', {'payload': '["a", "list"]'})
+        assert resp.status_code == 400
+
+
 class TestUnresolvedSeatId:
     """A seat id the server can't resolve means the page predates a re-import or
     re-seating (both replace the Seat rows). The old code skipped the seat and

@@ -378,6 +378,12 @@
   // Publishing/unpublishing needs the publisher role or tenant admin (the backend rejects plain scorers).
   var canPublish = {{ can_publish|yesno:"true,false" }};
 
+  // Save any edit still inside its debounce window before the page goes away.
+  // sendBeacon (not fetch) and BOTH events, matching the per-hand sheet: mobile
+  // browsers and backgrounded tabs often skip beforeunload and fire only
+  // pagehide, and a beacon is queued by the browser to outlive the page. A
+  // beacon can't set the CSRF header, so it posts FormData — the token as a
+  // form field, the usual JSON save body under 'payload'.
   function flushPending() {
     for (var rid in timers) {
       if (!timers[rid]) continue;
@@ -385,16 +391,14 @@
       delete timers[rid];
       var row = $('#' + rid);
       if (!row.length) continue;
-      var seats = rowPayload(row);
-      fetch("update_seats_bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "X-CSRFToken": "{{ csrf_token }}" },
-        body: JSON.stringify({ seats: seats }),
-        keepalive: true,
-      });
+      var fd = new FormData();
+      fd.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+      fd.append('payload', JSON.stringify({ seats: rowPayload(row) }));
+      navigator.sendBeacon("update_seats_bulk", fd);
     }
   }
   window.addEventListener('beforeunload', flushPending);
+  window.addEventListener('pagehide', flushPending);
 
   function rowIsComplete(row) {
     var ok = true;

@@ -1,3 +1,4 @@
+import json
 
 from django.conf import settings
 from django.core.exceptions import BadRequest
@@ -455,7 +456,19 @@ def update_seats_bulk(request):
     concurrent score entry, so last-writer-wins is the right answer there.
     """
     tenant = get_tenant(request)
-    data = json_body(request)
+    if request.content_type == 'application/json':
+        data = json_body(request)
+    else:
+        # The navigate-away flush arrives as a sendBeacon: a beacon cannot set
+        # the X-CSRFToken header, and Django reads csrfmiddlewaretoken only from
+        # a form body — so the flush posts FormData (like the per-hand sheet's
+        # beacons) carrying the same JSON object in a 'payload' field.
+        try:
+            data = json.loads(request.POST.get('payload') or '{}')
+        except ValueError:
+            raise BadRequest('Malformed JSON payload')
+        if not isinstance(data, dict):
+            raise BadRequest('JSON payload must be an object')
 
     entries = data.get('seats') or []
     if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):

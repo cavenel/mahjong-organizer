@@ -5,6 +5,7 @@
 {% block head_extra %}
   <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
   <script src="{% static 'js/mcr_table_points.js' %}"></script>
+  <script src="{% static 'js/mcr_hand_points.js' %}"></script>
   <style>
     /* Full original width on a large window; never wider than 640px. No
        min-width — that would keep the table wide on a phone and force scroll. */
@@ -347,27 +348,17 @@
       var pts  = parseInt($("#pts_"  + (i+1)).val());
       var by   = parseInt($("#by_"   + (i+1)).val());
       var from = parseInt($("#from_" + (i+1)).val());
-      if (isNaN(from)) from = 0;
-      if (isNaN(by) || by < 1 || by > 4 || from > 4) {
+      var deltas = window.mcrHandPointDeltas(pts, by, from);
+      if (!deltas) {
         for (var p = 1; p < 5; p++) {
           $("#pts_"   + (i+1) + "_" + p).val("");
           $("#total_" + (i+1) + "_" + p).val(total[p-1]);
         }
         continue;
       }
-      if (from == 0 || from == by) {
-        for (var p = 1; p < 5; p++) {
-          $("#pts_" + (i+1) + "_" + p).val(p == by ? 3*(8+pts) : -8 - pts);
-        }
-      } else {
-        for (var p = 1; p < 5; p++) {
-          if (p == by)        $("#pts_" + (i+1) + "_" + p).val(3*8 + pts);
-          else if (p == from) $("#pts_" + (i+1) + "_" + p).val(-8 - pts);
-          else                $("#pts_" + (i+1) + "_" + p).val(-8);
-        }
-      }
       for (var p = 1; p < 5; p++) {
-        total[p-1] += parseInt($("#pts_" + (i+1) + "_" + p).val());
+        $("#pts_" + (i+1) + "_" + p).val(deltas[p-1]);
+        total[p-1] += deltas[p-1];
         $("#total_" + (i+1) + "_" + p).val(total[p-1]);
       }
     }
