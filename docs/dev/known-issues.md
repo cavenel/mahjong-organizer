@@ -1,73 +1,77 @@
 # Known issues (developer notes)
 
-Open correctness and robustness issues, for maintainers — not user-facing. None
-of them affect the championship ranking: standings are computed **only** from
-seat minipoints/tablepoints, so the hand-level bugs below can corrupt
-stats/badges and the detailed-hand modal, but never the final ranking.
+The risks this codebase knowingly carries, for maintainers — not user-facing.
+There is no "open" list: at release every known issue was either fixed (see the
+pre-release plan in `docs/pre-release-plan.md` and the git history) or accepted
+here, with the reasoning written down so it isn't re-opened as an oversight.
 
-## Open
-
-- **Seat has no optimistic lock (score entry is last-writer-wins).** The
-  score-bearing seat model has no `version` field, unlike `Hand`. Two scorers
-  submitting the same table row → the later `bulk_update` silently clobbers the
-  earlier with no 409. The publish check is also a TOCTOU just outside the
-  surrounding transaction. Fix: add a `version` field + version-predicated
-  update (mirror the Hand path). Interim mitigation: one scorer per table.
-
-- **Excel import is destructive before validation.** The import path deletes
-  Players/Schedule/Hands/Seats/PublishedRounds up front, then a broad `except`
-  wipes everything and sets `nb_rounds=0`. Any malformed sheet (missing/misnamed
-  sheet, non-int `nb_rounds`, duplicate/blank `rand_id`, player count not
-  divisible by 4) can erase a live tournament instead of being rejected. Fix:
-  validate the whole workbook in memory, then do all deletes+creates in one
-  transaction. Interim mitigation: back up first, import into a fresh/staging
-  tenant.
-
-- **Penalty edit on a published round doesn't bust the detailed-modal cache.**
-  Saving `penalty` with `update_fields=['penalty']` never bumps
-  `leaderboard_gen`, so the detailed modal shows a stale penalty publicly for up
-  to the cache TTL. Fix: bump the leaderboard generation on penalty save.
-
-- **Score entry swallows bad input.** An unresolvable seat id is silently skipped
-  (partial 3-of-4 save reported as success); a non-numeric MP/TP is coerced to
-  `None`, which blocks publishing with no indication of which seat. Fix: 409 on
-  unresolved id; reject non-numeric instead of nulling.
-
-- **TP-recompute guard checks `from > 4` but not `from < 0`.** A negative seat
-  index mis-distributes points. The guard bounds the winner both sides but only
-  clamps `from` on the high end (`admin_scores_per_hand.html`,
-  `modal_detailed_scores.html`). Fix: guard `from < 0 || from > 4`.
-
-- **Team grouping is case-sensitive (cosmetic).** `"Dragons"` ≠ `"dragons"` —
-  mitigated, since a case-split team fails the "team size must be 4" import check
-  rather than silently splitting. Fix opportunistically. (The former `last_name()`
-  mononym / multi-word-surname oddity was resolved by the first/last-name refactor —
-  names are now stored raw from the import's two columns.)
-
-### Scan / OCR (only if camera-scan is used live)
-
-- **`_write_hand` does a blind version bump** with no `version=` predicate (its
-  docstring claiming a 409 is wrong), and the gate+write aren't atomic → scorer
-  edits between gate and write are clobbered.
-- **OCR values written verbatim** with no range/balance check (seat ∈ 1..4/null,
-  `win_by != win_from`, winner ⇒ points ≥ 8, four-player balance). A garbled digit
-  silently mis-attributes or drops a win.
+One severity floor frames everything below: standings are computed **only**
+from seat minipoints/tablepoints. Hand-level data feeds stats, badges and the
+detailed-scores modal — never the final ranking.
 
 ## Accepted
 
-Risks weighed and kept, with the reason — so they aren't re-opened as oversights.
+Risks weighed and kept. Each entry says what happens, why it is the right
+trade, and what would have to change to revisit it.
 
-- **A navigate-away flush can be rejected without telling the scorer.** The score
-  grid's debounced save is flushed with `sendBeacon` on `beforeunload` and
-  `pagehide` (both events, because mobile browsers often skip `beforeunload`) —
-  but a beacon is fire-and-forget by nature: at `pagehide` there is no page left
-  to show a dialog on, and `sendBeacon` reports only whether the browser queued
-  the request. So a flush that lands on a round published in the meantime is
-  rejected (correctly — the round is locked) and the scorer isn't told at that
-  moment. Accepted because the failure is visible on next load, the scorer holds
-  the paper sheet, and unpublish → correct → republish fixes it in seconds.
-  Handling it "properly" would mean a reconcile-on-return mechanism for a
-  2-second window — new surface for a rare, self-revealing case.
+- **Standings reads can lag live score entry by up to `SUB_CACHE_TTL` (5
+  minutes) — for every score field, penalty included.** This is the documented
+  invalidation contract, stated in full in `views/scoring.py`: score entry
+  writes with `update()`/`bulk_update()` (which fire no signals) and does not
+  bust the leaderboard caches; scorers see their own edits through the
+  WebSocket row sync, and the caches are invalidated explicitly by the events
+  that change what the standings should say (publish/unpublish, import, reset,
+  the draw). A penalty edit behaving exactly like a minipoints edit is the
+  correct, homogeneous outcome — making `update_seat_penalty` the one write in
+  the app that busts the cache would be the inconsistency. The stale value is
+  cosmetic (penalty is display-only for ranking), appears on one modal, and
+  self-corrects within the TTL.
+
+- **An import that fails deep in the parse wipes the tournament to empty.**
+  The import is a full replace by design, and a half-loaded tournament is worse
+  than none — the `except` deliberately clears every player/seating/score table
+  rather than leave a ghost. The realistic wrong-file mistakes never get that
+  far: `_precheck_template` rejects a missing sheet, an unreadable rounds
+  count, an unplayable player count, colliding draw numbers, or a file that
+  isn't a workbook at all *before anything is deleted*, with the tournament
+  untouched. What remains wipe-to-empty is a workbook that passes those checks
+  and still fails mid-parse (a bad cell deep in the player list, a broken
+  seating chart) — rare, loudly reported on the options page, and run from a
+  pre-tournament action behind a confirm dialog that names what will be
+  erased. Full parse-then-delete validation would mean restructuring the
+  longest function in the codebase with no way to prove equivalence except
+  importing every workbook shape by hand.
+
+- **A navigate-away flush can be rejected without telling the scorer.** The
+  score grid's debounced save is flushed with `sendBeacon` on `beforeunload`
+  and `pagehide` (both events, because mobile browsers often skip
+  `beforeunload`) — but a beacon is fire-and-forget by nature: at `pagehide`
+  there is no page left to show a dialog on, and `sendBeacon` reports only
+  whether the browser queued the request. So a flush that lands on a round
+  published in the meantime is rejected (correctly — the round is locked) and
+  the scorer isn't told at that moment. Accepted because the failure is visible
+  on next load, the scorer holds the paper sheet, and unpublish → correct →
+  republish fixes it in seconds. Handling it "properly" would mean a
+  reconcile-on-return mechanism for a 2-second window — new surface for a
+  rare, self-revealing case.
+
+- **OCR values are not range- or balance-checked beyond structural bounds.**
+  The scan is a *prefill*, not a save. `_parse_hand` is tolerant by design — a
+  garbled digit leaves the scorer an empty cell rather than failing the sheet —
+  and it already bounds what it stores: seats via `_seat` (1–4 or null),
+  `hand_nb` to 1–16, `win_from == win_by` collapsed to a self-draw. What it
+  does not enforce is the MCR 8-point minimum or the four-player balance; the
+  sheet flags a value below 8 in red (`markValueValidity`), and a scorer must
+  validate the sheet before it counts. Rejecting such rows server-side would
+  make the OCR *worse*: a rejected row is a blank cell the scorer must notice,
+  where today it is a wrong cell the sheet paints red. The human check is the
+  design, and it is a better check.
+
+- **Team grouping is case-sensitive.** `"Dragons"` ≠ `"dragons"`. The import's
+  "team size must be 4" check rejects a case-split team rather than silently
+  splitting it, so the failure mode is a clear import error before play, not
+  corrupt standings during it. Cosmetic, guarded, and touching team identity
+  for it risks more than it fixes.
 
 ## Invariants worth preserving (verified correct — do not "fix")
 
