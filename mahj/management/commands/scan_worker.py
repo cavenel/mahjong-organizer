@@ -66,5 +66,8 @@ class Command(BaseCommand):
             result = {'status': 'error', 'error': f'Scan failed: {e}'}
         finally:
             scan_queue.discard_image(job_id)
-        scan_queue.set_result(job_id, result)
+        # The result carries the job's own round/table/tenant forward, so the web
+        # tier can read the scan's target from the job rather than from a request
+        # body it cannot trust.
+        scan_queue.set_result(job_id, scan_queue.carry_job_facts(job, result))
         logger.info("scan job %s -> %s", job_id, result.get('status'))

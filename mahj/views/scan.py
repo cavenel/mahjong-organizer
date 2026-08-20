@@ -371,21 +371,60 @@ def _write_hand(tenant, round_nb, table_nb, hand_nb, fields):
 
 
 def scan_prefill(request):
-    """Write OCR-extracted hand data to DB, mark as valid."""
+    """Write a finished scan job's OCR result into the score sheet.
+
+    POST ``{job_id, validate?}``. Everything that decides *what gets written where*
+    comes from the job the server staged, never from this request body:
+
+    * The scores are read from the queue result. They used to be taken from the
+      body, which meant a caller needed no photo at all — an anonymous POST could
+      write hand values of its choosing into any empty table.
+    * The round, table and tenant come from the job too, recorded from the scan URL
+      when the image was staged. So a job cannot be redirected at a different table
+      or a different tournament than the one it was photographed for.
+    * ``validate`` is honoured only for a scorer, and defaults to off. It used to
+      default to *on*, so an anonymous POST also marked the sheet validated —
+      skipping the review this whole flow exists to feed. The scan page has always
+      asked for a saved-but-unvalidated sheet, and says so on its result card.
+
+    The job is not consumed, so a retry after a dropped response still works: a
+    replay can only rewrite the table the photo was of, and the already-filled guard
+    below stops the second attempt anyway.
+    """
     _require_scan_enabled()
     if request.method != 'POST':
         return JsonResponse({"ok": False, "error": "POST required"}, status=405)
 
+    from .. import scan_queue
     body = json_body(request)
+    job_id = str(body.get('job_id') or '').strip()
+    if not job_id:
+        return JsonResponse({"ok": False, "error": "job_id required"}, status=400)
+
+    result = scan_queue.get_result(job_id)
+    if result is None:
+        return JsonResponse(
+            {"ok": False, "status": "expired",
+             "error": "Scan timed out or was lost. Re-take the photo."}, status=404)
+    if result.get('status') != 'done':
+        return JsonResponse(
+            {"ok": False, "error": "That scan hasn't finished reading yet."}, status=409)
 
     tenant = get_tenant(request)
-    try:
-        round_nb = int(body['round_nb'])
-        table_nb = int(body['table_nb'])
-    except (KeyError, TypeError, ValueError):
+    subdomain = tenant.subdomain if tenant else ''
+    if (result.get('subdomain') or '') != subdomain:
+        # Staged on another tournament's scan page — invisible here, like any other
+        # cross-tenant reference.
+        raise Http404
+
+    round_nb, table_nb = result.get('round_nb'), result.get('table_nb')
+    if not round_nb or not table_nb:
         return JsonResponse(
-            {"ok": False, "error": "round_nb and table_nb are required"}, status=400)
-    scores = body.get('scores', [])
+            {"ok": False,
+             "error": "That scan wasn't taken for a particular table. Use the QR code "
+                      "or link on the score sheet, which carries the round and table."},
+            status=400)
+    scores = result.get('scores') or []
 
     # A filled table is never overwritten by a scan: anyone (including
     # unregistered users) may scan an empty table, but existing data can only be
@@ -401,7 +440,12 @@ def scan_prefill(request):
         }, status=409)
 
     for entry in scores:
-        hand_nb = int(entry['Hand'])
+        if not isinstance(entry, dict):
+            continue
+        try:
+            hand_nb = int(entry['Hand'])
+        except (KeyError, TypeError, ValueError):
+            continue        # a row the OCR couldn't place; the rest still lands
         if hand_nb < 1 or hand_nb > 16:
             continue
         confidence = entry.get('Confidence')
@@ -409,7 +453,10 @@ def scan_prefill(request):
         fields['confidence'] = CONFIDENCE_LEVELS.get(confidence, 0.3)
         _write_hand(tenant, round_nb, table_nb, hand_nb, fields)
 
-    validate = body.get('validate', True)
+    # Validating a sheet is what takes it out of the review queue, so it needs the
+    # scorer role — and is off unless explicitly asked for. Anyone may scan an empty
+    # table; only a scorer may declare the result final.
+    validate = bool(body.get('validate')) and has_role(request, 'scorer')
     if validate:
         _prune_to_played_hands(tenant, round_nb, table_nb)
     ScoreSheet.objects.update_or_create(

@@ -306,7 +306,10 @@ fileEl.addEventListener('change', async function () {
     fd.append('image', file);
     fd.append('csrfmiddlewaretoken', csrf);
 
-    const { data } = await requestJSON('scan', { method: 'POST', body: fd });
+    // Upload to the table's own URL, so the server records which round and table
+    // this photo was for at staging time. scan_prefill then reads the target off the
+    // job instead of trusting a body — a request body can name any table.
+    const { data } = await requestJSON(`scan_${round_nb}_${table_nb}`, { method: 'POST', body: fd });
     if (!data.ok || !data.job_id) throw new Error(data.error || 'Could not start the scan. Try again.');
 
     const scores = await pollScan(data.job_id, round_nb, table_nb, card);
@@ -315,9 +318,8 @@ fileEl.addEventListener('change', async function () {
     const { data: pdata } = await requestJSON('scan_prefill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf },
-      body: JSON.stringify({
-        round_nb, table_nb, scores, validate: false,
-      }),
+      // Just the job: the scores, round and table all come from the job server-side.
+      body: JSON.stringify({ job_id: data.job_id }),
     });
     if (!pdata.ok) throw new Error(pdata.error || 'Save failed.');
 

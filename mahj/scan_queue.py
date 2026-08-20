@@ -58,10 +58,30 @@ def discard_image(job_id):
 
 # ---- queue + results ------------------------------------------------------
 
+# What the server decided about a job, as opposed to what a client later claims.
+# Carried into the result so scan_prefill can read the target off the job instead of
+# trusting a request body — see the docstring there.
+JOB_FACTS = ('round_nb', 'table_nb', 'subdomain')
+
+
 def enqueue(job):
     """Push a job dict (must include 'job_id') and mark it pending."""
-    set_result(job['job_id'], {'status': 'pending'})
+    pending = {'status': 'pending'}
+    pending.update({k: job.get(k) for k in JOB_FACTS})
+    set_result(job['job_id'], pending)
     _redis().rpush(QUEUE_KEY, json.dumps(job))
+
+
+def carry_job_facts(job, result):
+    """Copy the server-decided fields from `job` onto a worker's `result`.
+
+    The worker builds the result from what it read off the image, which says nothing
+    about which table the photo was for. These come from the staging request's URL,
+    so they are the trustworthy half.
+    """
+    out = dict(result)
+    out.update({k: job.get(k) for k in JOB_FACTS})
+    return out
 
 
 def dequeue(timeout=5):
