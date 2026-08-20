@@ -84,6 +84,8 @@
     <span class="font-medium">1–4</span> = winner's seat ·
     <span class="font-medium">0</span> = draw ·
     <span class="font-medium">blank</span> = draw (or not played, if left blank at the end).
+    <br>A draw can equally be entered as <span class="font-medium">0</span> in
+    <span class="font-semibold text-gray-600">Value</span> — whichever cell you reach first.
   </p>
 
   <div class="sheet-layout">
@@ -452,7 +454,7 @@
     var first = last + 1;
     var rows = trailing === 1 ? ("Hand " + first + " is") : ("Hands " + first + "–16 are");
     var body = rows + " blank and will be recorded as not played. " +
-               "If any of these were draws, type 0 in the Win column first.";
+               "If any of these were draws, type 0 in Value or Win first.";
     var proceed = function() { send_ajax("17"); };
     var cancel  = function() { $("#valid_17").prop("checked", false); updateDisabledState(); };
     try {

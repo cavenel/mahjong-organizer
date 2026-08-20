@@ -103,12 +103,24 @@ def _parse_typed_hand(data, points_field, by_field, from_field):
     valid entry is a client bug, and coercing it would store a different result
     than the scorer entered: a mistyped winning seat lands as an unplayed row,
     which the round-completeness check then reports as still in progress. Reject it
-    and name the cell instead."""
-    return _parse_hand(
-        number_or_none(data, points_field),
-        _seat_cell(data, by_field),
-        _seat_cell(data, from_field),
-    )
+    and name the cell instead.
+
+    A drawn hand may be entered as 0 in *either* column — 0 in "Win" (no winning
+    seat) or 0 in "Value" (nobody scored). Value is the first cell the scorer
+    reaches, so typing the 0 there is the natural move, and the page's own
+    "last played hand" already counts a row with either cell filled. Both store the
+    same canonical draw.
+
+    That rule lives here rather than in :func:`_parse_hand`, which coerces anything
+    unreadable to 0 and so cannot tell a typed zero from an empty cell. Keeping it
+    here also leaves the OCR path alone: its prompt returns null for an unplayed
+    hand, which must stay unplayed rather than become a draw.
+    """
+    points = number_or_none(data, points_field)
+    by = _seat_cell(data, by_field)
+    if by is None and points == 0:
+        by = 0      # a draw, entered from the Value column
+    return _parse_hand(points, by, _seat_cell(data, from_field))
 
 
 def _row_payload(tenant, round_nb, table_nb):

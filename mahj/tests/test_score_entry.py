@@ -645,3 +645,77 @@ class TestFieldErrorsNameTheField:
             {'id': s.id, 'mp': mp, 'tp': tp}
             for s, mp, tp in zip(seats, [40, 10, -10, -40], [4, 2, 1, 0])])
         assert resp.status_code == 200
+
+
+class TestDrawFromEitherColumn:
+    """A drawn hand can be entered as 0 in Value or 0 in Win.
+
+    Value is the first cell the scorer reaches, so typing the 0 there is the natural
+    move — and the page's own "last played hand" already counted a row with either
+    cell filled, so the server was the one disagreeing.
+    """
+
+    def _post(self, client, hand, points, by, from_=''):
+        return client.post('/update_hand_points', {
+            'id': hand.id, 'version': hand.version,
+            'points': points, 'by': by, 'from': from_,
+        })
+
+    def test_zero_in_value_alone_is_a_draw(self, authed_client, hand):
+        assert self._post(authed_client, hand, points=0, by='').status_code == 200
+        hand.refresh_from_db()
+        assert (hand.points, hand.win_by, hand.win_from) == (0, 0, None)
+
+    def test_zero_in_win_alone_is_still_a_draw(self, authed_client, hand):
+        assert self._post(authed_client, hand, points='', by=0).status_code == 200
+        hand.refresh_from_db()
+        assert (hand.points, hand.win_by, hand.win_from) == (0, 0, None)
+
+    def test_zero_in_both_is_a_draw(self, authed_client, hand):
+        assert self._post(authed_client, hand, points=0, by=0).status_code == 200
+        hand.refresh_from_db()
+        assert (hand.points, hand.win_by, hand.win_from) == (0, 0, None)
+
+    def test_all_blank_is_still_unplayed(self, authed_client, hand):
+        """The line this change must not cross: an empty row is not a draw."""
+        assert self._post(authed_client, hand, points='', by='').status_code == 200
+        hand.refresh_from_db()
+        assert (hand.points, hand.win_by, hand.win_from) == (0, None, None)
+
+    def test_zero_value_with_a_named_winner_stays_incomplete(self, authed_client, hand):
+        """They named a winner, so it isn't a draw — it's a row still being filled in."""
+        assert self._post(authed_client, hand, points=0, by=3).status_code == 200
+        hand.refresh_from_db()
+        assert hand.win_by is None
+
+    def test_a_real_win_is_unaffected(self, authed_client, hand):
+        assert self._post(authed_client, hand, points=25, by=2, from_=4).status_code == 200
+        hand.refresh_from_db()
+        assert (hand.points, hand.win_by, hand.win_from) == (25, 2, 4)
+
+    def test_a_value_zero_draw_survives_a_reload(self, authed_client, hand, tournament):
+        """Stored canonically, so the sheet shows it as a draw however it was typed —
+        the 0 appears in Win and Value renders blank, like every other draw."""
+        import re
+        self._post(authed_client, hand, points=0, by='')
+        hand.refresh_from_db()
+        assert hand.win_by == 0
+
+        body = authed_client.get(
+            f'/scores_per_hand_{hand.round_nb}_{hand.table_nb}').content.decode()
+        cell = re.search(r"<input[^>]*id='by_1'[^>]*>", body)
+        assert cell, 'no Win cell for hand 1 in the rendered sheet'
+        # The Win cell comes back carrying the 0, which is what keeps it a draw on
+        # the next save. (Value renders 0 too, but the page blanks that on load —
+        # every draw therefore looks the same however it was typed.)
+        assert "value='0'" in cell.group(0)
+
+    def test_the_ocr_path_still_reads_null_as_unplayed(self):
+        """The tolerant parser is untouched: a hand the OCR reports as all-null must
+        stay unplayed, not become a draw, or a photographed blank sheet would import
+        as sixteen draws."""
+        from mahj.views.score_entry import _parse_hand
+        assert _parse_hand(None, None, None) == {
+            'points': 0, 'win_by': None, 'win_from': None}
+        # And an explicit zero from the OCR still reads as a draw via the Win column.
+        assert _parse_hand(None, 0, None) == {'points': 0, 'win_by': 0, 'win_from': None}
