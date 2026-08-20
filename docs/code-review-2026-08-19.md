@@ -243,21 +243,21 @@ An out-of-range discarder (`From = 5`, the classic typo for 4) is coerced to `wi
 
 The OCR scan flow is intentionally anonymous (players photograph their own sheets) — but it currently trusts callers with much more than a photo.
 
-### F13 · Medium · security — `scan_prefill` accepts arbitrary client-authored scores and can self-validate
+### ✅ DONE · F13 · Medium · security — `scan_prefill` accepts arbitrary client-authored scores and can self-validate
 `mahj/views/scan.py:371-440`
 
 The hand values written come from the request body, not from the server-stored OCR result, and `validate` defaults to true when present — so an anonymous caller needs no photo at all to fill any empty table *and mark its sheet validated*, skipping scorer review and feeding the stats. The only guard is that the table must be empty.
 
 **Fix:** Have the client send `job_id` and read the scores server-side from `scan_queue.get_result(job_id)`; ignore `validate` from anonymous callers.
 
-### Medium · security/cost — Anonymous scan upload is an unmetered paid-API and disk sink
+### ✅ DONE · Medium · security/cost — Anonymous scan upload is an unmetered paid-API and disk sink
 `mahj/views/scan.py:129-153`
 
 Every anonymous POST stages up to 20 MB (nginx cap; `file.read()` loads it fully into RAM first) and enqueues one Claude vision call — no rate limit, no per-tenant quota, no image validation. Failed-job files are only cleaned on success paths, so the `captures/scan_jobs` volume fills.
 
 **Fix:** Cap `file.size` in the view, verify the payload decodes as an image before staging, add a simple per-IP rate limit, and sweep stale job files.
 
-### Medium · robustness — `scan_worker` dies and orphans the job if Redis blips at result-write time
+### ✅ DONE · Medium · robustness — `scan_worker` dies and orphans the job if Redis blips at result-write time
 `mahj/management/commands/scan_worker.py:69` · same shape in `restore_worker.py:92-95`
 
 `set_result` sits outside the try/except that the "never let one bad job kill the loop" comment annotates — a `RedisError` there kills the process; compose restarts it, but the completed OCR result is lost and the client polls a stale `pending` until the 600 s TTL. In the restore worker the equivalent gap leaves the operator's page hanging on `pending` (the pool itself is safely resumed by the `finally`).
@@ -368,7 +368,7 @@ A recurring pattern: `int()` / `json.loads()` / `[...]` on raw client input with
 - ✅ DONE (S4) — `score_entry.py:377, 385-390` — `int(e['id'])`, `entry['mp']`/`entry['tp']`: KeyError/ValueError uncaught; a grid cell with a missing Seat renders `data-id=""` so a legitimate save 500s.
 - ✅ DONE (S4) — `score_entry.py:217` — `int(round_nb)` runs *after* the transaction commits: a malformed `create_hand_points` request writes 16 hands, then 500s.
 - ✅ DONE (S4) — `score_entry.py:227, 296-297, 327-328` — raw `int(POST[...])` on version/params → 500 instead of 400.
-- `scan.py:321-332, 405` — `int()` on raw GET params and client body keys → 500.
+- ✅ DONE (S5) — `scan.py:321-332, 405` — `int()` on raw GET params and client body keys → 500.
 - ✅ DONE (S2) — `admin_views.py` bare `json.loads(request.body)` in `admin_player_draw_assign`/`player_editor_save` now returns 400 on malformed input.
 - ✅ DONE (S2) — `remove_screen` guards an empty queryset; `rm_mode`/`set_mode` use `_screen_mode_or_404` (stale/non-numeric id → 404, not 500).
 

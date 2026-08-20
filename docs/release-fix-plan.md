@@ -10,7 +10,7 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 - Mark the covered findings **✅ DONE** in `code-review-2026-08-19.md` as you finish them, and tick the checklist boxes here.
 - Keep each session's diff self-contained so it's independently reviewable/revertable.
 
-**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S1-S4, then S6, S7, S8 — S5 was deferred at the user's request after S4 and is **still open** (see the note in its section). All other sessions complete; the only other open item is the `options()` decomposition (S8's notes explain why it was left). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
+**Recommended order:** S1 → S2 → S3 → S4 → S5 → S6 → S7 → S8. **Actual order:** S1-S4, then S6, S7, S8, then S5 (deferred at the user's request after S4, picked up last). **All eight sessions are complete and every finding in the review is resolved.** One item remains from the plan's own notes rather than the review: the `options()` decomposition (S8 explains why it was left). S1 is the release-critical leak; S2 and S3 share templates (do S2 first so S3 escapes the final markup); S4 is isolated and high-value; S5–S8 are independent and can be reordered freely.
 
 **Already done** (safe mechanical batch, 2026-08-19): dead imports, dead `_last_published_round`, `Schedule`/`Screen` `__str__`, Turkey in `EUROPE`, WS regex, two docstrings.
 
@@ -109,22 +109,24 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 
 ## Session 5 — Scan pipeline hardening
 
-**⏭️ DEFERRED** (2026-08-19, at the user's request) — taken out of order, still open. Nothing in S6–S8 depends on it. **Release note:** F13 below is the most severe item left in this plan — an anonymous caller can write scores to any empty table and mark its sheet validated, on a build where `SCAN_ENABLED` defaults to `True` (`apps/settings/base.py`; standalone sets it `False`). Setting `SCAN_ENABLED = False` neutralises this whole session's surface in one line, if the OCR scan feature isn't needed for the release. The `int_param` / `number_or_none` helpers added in S4 (`views/helpers.py`) now cover this session's `scan.py` 500-guards.
+**✅ SESSION COMPLETE** — full suite 671 passing (+15 tests). Deferred at the user's request after S4 and picked up last, after S6–S8. The most severe item in this plan (F13) was here: an anonymous caller could write scores to any empty table and mark its sheet validated, on a build where `SCAN_ENABLED` defaults to `True`. That is closed at the contract level rather than by a flag, so the scan feature can ship on.
 
 **Theme:** the anonymous OCR flow currently trusts callers with far more than a photo. All in `scan.py` + the queue/worker modules.
 
 **Findings:** F13, anonymous-upload metering, worker resilience (scan + restore), `scan.py` 500-guards.
 
-- [ ] **F13 — `scan_prefill` trusts client scores + self-validates** (`scan.py:371-440`) — have the client send `job_id`; read the scores server-side from `scan_queue.get_result(job_id)`; ignore `validate=true` from anonymous callers (require a role to validate).
-- [ ] **Anonymous upload metering** (`scan.py:129-153`) — cap `file.size` in the view, verify the payload decodes as an image before staging, add a simple per-IP/tenant rate limit, and sweep stale job files (they're only cleaned on success today).
-- [ ] **Worker resilience** — move `set_result` inside a guarded/retry block in `scan_worker.py:69` and `restore_worker.py:92-95` so a Redis blip at result-write time can't kill the loop or orphan the job. Refresh the `pending` marker's TTL on dequeue so a long backlog can't expire it (`scan_queue.py:22`).
-- [ ] **`scan.py` 500-guards** — guard `int()` on raw GET params and client body keys (`scan.py:321-332,405`).
+- [x] **F13 — `scan_prefill` trusts client scores + self-validates** — the endpoint now takes a `job_id` and nothing else that matters: scores come from `scan_queue.get_result(job_id)`, and the round, table and tenant come from the job, not the body. The staging URL is what fixes the target, so those three are recorded at upload time (`JOB_FACTS`, carried onto the worker's result). Unknown or another tenant's job → 404, still reading → 409. `validate=true` is now `and`-ed with `has_role(request, 'scorer')`, so an anonymous caller can prefill but never sign off. **Also needed, not in the plan:** the client had been uploading to a bare `scan` URL, which recorded no target at all — `scan.html` posts to `scan_{round}_{table}` now.
+- [x] **Anonymous upload metering** — 8 MB size cap, a decode check, and 6 uploads a minute per address. Both the decode check and the limit **fail open**: the imaging stack is an optional dependency on this deployment and the test settings run a cache that can't count, and neither is a reason to stop a venue scanning. Stale staged files are swept opportunistically when a new one is staged — tidied by the traffic that dirties it, no cron to forget.
+- [x] **Worker resilience** — both workers retry the result write and log rather than raise. The retry policy is shared (`queue_util.write_with_retry`) rather than written twice, and imports redis *inside* the function: `restore_queue` is reachable from the URLconf and the standalone build ships without redis. It matters more on the restore path, where these writes are the progress and the verdict of a job replacing the database — losing one left the operator watching a page that never changed. The `pending` marker's TTL is refreshed on dequeue; it was set at *enqueue* time, so a backlog longer than the TTL reported "timed out or lost" for a scan that then completed anyway.
+- [x] **`scan.py` 500-guards** — `scan_seats` coerces its query parameters once, inside a try/except returning 400. It was calling `int()` on them three times over.
 
-**Files:** `scan.py`, `scan_queue.py`, `management/commands/scan_worker.py`, `management/commands/restore_worker.py`.
+**Files:** `scan.py`, `scan_queue.py`, `restore_queue.py`, `queue_util.py` (new), `management/commands/scan_worker.py`, `management/commands/restore_worker.py`, `templates/mahj/scan.html`.
 
-**Tests:** anonymous `scan_prefill` cannot set `validated=True`; a body with hand values but a bogus `job_id` is rejected; oversized/non-image upload rejected (`test_scan.py`). Worker retry can be unit-tested by faking a `RedisError` on the first `set_result`.
+**Tests:** all in `test_scan.py` — prefill ignores client-supplied scores and reads the job's, refuses another tenant's job, refuses to self-validate anonymously, honours `validate` for a scorer; oversized → 413 without staging, non-image → 400, a burst → 429, and both fail-open paths pinned so a missing cv2 or an uncounting cache can't silently reject every upload; the sweep removes only files past the cutoff and treats a missing directory as empty; `write_with_retry` succeeds after a faked `RedisError` and gives up without raising; a worker whose write fails logs the loss and keeps its loop. Two `test_security.py` tests asserted the old prefill contract and were updated to the new one.
 
-**Risk:** moderate. The `job_id` contract change touches `scan.html`'s fetch — verify end to end.
+**Note on the fail-open choices:** a size cap that rejects is safe to get wrong in the strict direction; a *decode* check isn't. cv2 is imported lazily everywhere in `scan.py` precisely because the OCR stack is optional here, so a strict check would have turned every upload into a 400 on any host without it — the failure would look like "scanning is broken" with nothing in the log. Same for the rate limit against a cache backend with no `incr`. Both are cost controls, not authorization; the authorization is F13's.
+
+**Risk:** moderate. The `job_id` contract change touches `scan.html`'s fetch — verified end to end.
 
 ---
 
@@ -253,10 +255,10 @@ Derived from [code-review-2026-08-19.md](code-review-2026-08-19.md). Goal: clear
 | ✅ `scores_per_hand` phantom sheet | S4 |
 | ✅ `WINDS` dedup | S4 |
 | ✅ F8c Riichi standings/completeness (found in S4) | S4 |
-| F13 `scan_prefill` client scores | S5 |
-| anonymous upload metering | S5 |
-| scan/restore worker resilience + TTL | S5 |
-| `scan.py` 500-guards | S5 |
+| ✅ F13 `scan_prefill` client scores | S5 |
+| ✅ anonymous upload metering | S5 |
+| ✅ scan/restore worker resilience + TTL | S5 |
+| ✅ `scan.py` 500-guards | S5 |
 | ✅ F9 link-minting escalation | S6 |
 | ✅ F10 import temp-file race | S6 |
 | ✅ import atomicity | S6 |

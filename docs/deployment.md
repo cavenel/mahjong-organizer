@@ -93,6 +93,25 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build we
 
 Migrations run on the new container's start; no manual `migrate` step.
 
+### Reclaiming build-cache disk
+
+Every `--build` leaves layers in the builder cache, and they are never reclaimed on
+their own. On a small VPS with `/var/lib/docker` on the root filesystem this is what
+fills the disk — after a few dozen deploys the cache was 68 GB, none of it in use, and
+`/` had 216 MB free. Docker's own disk accounting is the fastest way to see it:
+
+```bash
+docker system df                                  # RECLAIMABLE is the number that matters
+docker builder prune -af --filter until=168h      # drop cache older than a week
+docker image prune                                # drop untagged images from old builds
+```
+
+Worth running every month or so, or whenever the disk gets tight. The `until` filter
+keeps the recent cache so the next deploy is still fast.
+
+**Never `docker volume prune`.** `postgres_data` is a named volume, and pruning takes
+the database with it. Use the backup/restore paths below instead.
+
 ## Backups & restore
 
 `scripts/backup_db.sh` dumps the database and (optionally) ships it to a remote
