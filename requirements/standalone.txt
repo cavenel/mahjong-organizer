@@ -1,5 +1,5 @@
 # Standalone single-binary profile (PyInstaller). Runs the same Django code as
-# the Docker stack but single-process on sqlite — see docs/STANDALONE.md and
+# the Docker stack but single-process on sqlite — see docs/hosting/STANDALONE.md and
 # apps/settings/standalone.py.
 -r base.txt
 

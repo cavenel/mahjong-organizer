@@ -599,7 +599,7 @@
         type: "POST",
         url: url,
         data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-        success: function() { console.log("success"); },
+        success: function() {},
         error: function(xhr) {
           // set_tournament returns a short plain-text reason on a 400; a 500 is an
           // HTML error page with no useful text, so fall back to a generic line.

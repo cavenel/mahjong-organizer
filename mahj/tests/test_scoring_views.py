@@ -572,7 +572,9 @@ class TestTeamsView:
 class TestSpectatorQr:
     """The public-site QR on the score displays is generated locally (segno),
     never fetched from an external service — so a projector behind a captive
-    portal / firewall still shows a scannable code (EVENT_REVIEW finding 🔴-1)."""
+    portal / firewall still shows a scannable code. (At a live event this
+    failed exactly that way: the venue network blocked the external QR API and
+    every display showed a broken image.)"""
 
     def test_detailed_view_renders_inline_svg_qr_not_cdn(self, request_):
         html = views.render_scores(request_, "detailed", 1).content.decode()
