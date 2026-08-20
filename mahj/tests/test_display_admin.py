@@ -793,3 +793,48 @@ class TestSettingsAutosaveIsVisible:
             '/admin?page=settings&action=set_tournament&tournament-city=' + 'x' * 200)
         assert resp.status_code == 400
         assert b'too long' in resp.content
+
+
+class TestScheduleReordering:
+    """The agenda's order is meaningful — the Nth round-row becomes Round N, and the
+    Schedule screen and printed handouts follow it — so the editor needs a way to
+    change it, and the save has to persist it."""
+
+    def test_the_editor_offers_move_up_and_down(self, client_, staff, tournament):
+        client_.force_login(staff)
+        body = client_.get('/admin?page=settings').content.decode()
+        assert 'moveRow(i, -1)' in body
+        assert 'moveRow(i, 1)' in body
+        # Disabled at the ends, via comparisons so the binding yields a real boolean.
+        assert ':disabled="i === 0"' in body
+        assert ':disabled="i === rows.length - 1"' in body
+
+    def test_saving_a_reordered_agenda_keeps_the_new_order(self, client_, staff, tournament):
+        import json as _json
+        from mahj.models import Schedule
+        client_.force_login(staff)
+        tenant = tournament['tenant']
+        # Post the fixture's agenda with the first two rounds swapped.
+        rows = [{'day': 'Sat', 'time': '11:00', 'name': 'Round 2', 'is_round': True},
+                {'day': 'Sat', 'time': '10:00', 'name': 'Round 1', 'is_round': True},
+                {'day': 'Sat', 'time': '12:00', 'name': 'Round 3', 'is_round': True}]
+        resp = client_.post('/admin?page=settings&action=save_schedule',
+                            {'schedule': _json.dumps(rows)})
+        assert resp.status_code == 200
+        stored = list(Schedule.objects.filter(tenant=tenant)
+                      .order_by('id').values_list('name', flat=True))
+        assert stored == ['Round 2', 'Round 1', 'Round 3']
+
+    def test_the_round_mapping_follows_the_new_order(self, client_, staff, tournament):
+        """The point of the reorder: round N is the Nth round-row, so moving a row
+        moves which agenda entry drives which playing round."""
+        import json as _json
+        from mahj.scoring import player_schedule
+        client_.force_login(staff)
+        rows = [{'day': 'Sun', 'time': '09:00', 'name': 'Early round', 'is_round': True},
+                {'day': 'Sun', 'time': '12:00', 'name': 'Lunch', 'is_round': False},
+                {'day': 'Sun', 'time': '13:00', 'name': 'Late round', 'is_round': True}]
+        client_.post('/admin?page=settings&action=save_schedule',
+                     {'schedule': _json.dumps(rows)})
+        rounds = [r for r in player_schedule(tournament['tenant']) if r.is_round]
+        assert [r.name for r in rounds] == ['Early round', 'Late round']

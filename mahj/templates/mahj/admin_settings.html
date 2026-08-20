@@ -128,7 +128,7 @@
             <th class="pb-2 pr-3 font-medium">Time</th>
             <th class="pb-2 pr-3 font-medium">Name</th>
             <th class="pb-2 pr-3 font-medium text-center w-16">Round</th>
-            <th class="pb-2 w-8"></th>
+            <th class="pb-2 w-24"></th>
           </tr>
         </thead>
         <tbody>
@@ -150,8 +150,18 @@
                 <input type="checkbox" x-model="row.is_round" @change="save()"
                        class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
               </td>
-              <td class="py-1 text-center">
-                <button type="button" @click="removeRow(i)" title="Delete row"
+              <td class="py-1 text-center whitespace-nowrap">
+                <!-- Order is meaningful: the Nth round-row is Round N, and the
+                     Schedule screen and handouts print the agenda in this order.
+                     Comparisons in the :disabled bindings, so they yield a real
+                     boolean — see the note on confirmBlocked in admin.html. -->
+                <button type="button" @click="moveRow(i, -1)" :disabled="i === 0"
+                        title="Move up" aria-label="Move up"
+                        class="text-gray-400 hover:text-amber-600 disabled:opacity-25 disabled:hover:text-gray-400 text-xs leading-none px-1">&#9650;</button>
+                <button type="button" @click="moveRow(i, 1)" :disabled="i === rows.length - 1"
+                        title="Move down" aria-label="Move down"
+                        class="text-gray-400 hover:text-amber-600 disabled:opacity-25 disabled:hover:text-gray-400 text-xs leading-none px-1">&#9660;</button>
+                <button type="button" @click="removeRow(i)" title="Delete row" aria-label="Delete row"
                         class="text-gray-300 hover:text-red-500 text-lg leading-none px-1">&times;</button>
               </td>
             </tr>
@@ -256,6 +266,17 @@
       get roundCount() { return this.rows.filter(function(r) { return r.is_round; }).length; },
       addRow() { this.rows.push({ key: this.nextKey++, day: '', time: '', name: '', is_round: false }); this.save(); },
       removeRow(i) { this.rows.splice(i, 1); this.save(); },
+      // Reordering is a real edit, not a display preference: the Nth round-row
+      // becomes Round N, so moving a row can change which agenda entry drives which
+      // playing round. Spliced out and back in rather than index-assigned, so x-for
+      // moves the keyed rows it already has (keeping focus and input state) instead
+      // of rebuilding them.
+      moveRow(i, delta) {
+        var to = i + delta;
+        if (to < 0 || to >= this.rows.length) return;
+        this.rows.splice(to, 0, this.rows.splice(i, 1)[0]);
+        this.save();
+      },
       save() {
         var self = this;
         // Send only the persisted fields, dropping the client-side `key`.
