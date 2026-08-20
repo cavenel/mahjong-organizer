@@ -95,9 +95,14 @@
 
   {% if subdomain == "test" %}
   <!-- Test-only fixtures toolbar (only rendered on the "test" tenant). Generates
-       random but valid data across EVERY round so the leaderboard / ceremony /
-       display views have something to show. Deliberately leaves ~1/3 of the last
-       round's tables blank to exercise the incomplete-round / partial-publish path. -->
+       random but valid data so the leaderboard / ceremony / display views have
+       something to show.
+
+       Two scopes. "All rounds" fills every round, deliberately leaving the last
+       round's final two tables blank to exercise the incomplete-round /
+       partial-publish path, then publishes what it can. "This round only" fills the
+       open tab and publishes nothing — for walking a tournament forward one round at
+       a time and watching the progress badges, publish gates and displays react. -->
   <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-sm">
     <span class="font-semibold text-amber-700">🧪 Test data</span>
     <button type="button" onclick="random_fill_score(true)"
@@ -108,7 +113,20 @@
             class="btn-sheet">Clear all rounds — scores</button>
     <button type="button" onclick="clear_score_sheets(true)"
             class="btn-sheet">Clear all rounds — score sheets</button>
-    <span class="text-xs italic text-amber-600">some last-round scores are left empty on purpose</span>
+    <span class="w-px self-stretch bg-amber-300"></span>
+    <span class="font-semibold text-amber-700">This round only</span>
+    <button type="button" onclick="random_fill_score(false)"
+            class="btn-sheet">Fill — scores</button>
+    <button type="button" onclick="random_fill_score_sheets(false)"
+            class="btn-sheet">Fill — score sheets</button>
+    <button type="button" onclick="clear_score(false)"
+            class="btn-sheet">Clear — scores</button>
+    <button type="button" onclick="clear_score_sheets(false)"
+            class="btn-sheet">Clear — score sheets</button>
+    <span class="text-xs italic text-amber-600">
+      all-rounds leaves some last-round scores empty on purpose, and publishes what it can;
+      this-round fills the open tab only and publishes nothing
+    </span>
   </div>
   {% endif %}
 
