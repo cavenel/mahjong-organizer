@@ -38,5 +38,7 @@ class Migration(migrations.Migration):
             name='last_name',
             field=models.CharField(blank=True, default='', max_length=70),
         ),
-        migrations.RunPython(backfill_real_names, migrations.RunPython.noop),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(backfill_real_names, migrations.RunPython.noop, elidable=True),
     ]

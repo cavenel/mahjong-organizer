@@ -25,5 +25,7 @@ class Migration(migrations.Migration):
             name='is_round',
             field=models.BooleanField(default=False),
         ),
-        migrations.RunPython(backfill_is_round, migrations.RunPython.noop),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(backfill_is_round, migrations.RunPython.noop, elidable=True),
     ]

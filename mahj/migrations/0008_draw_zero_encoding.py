@@ -32,5 +32,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(null_draws_to_zero, zero_draws_to_null),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(null_draws_to_zero, zero_draws_to_null, elidable=True),
     ]

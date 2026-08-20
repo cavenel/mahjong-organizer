@@ -7,24 +7,22 @@ should shrink to nothing.
 Everything here is **behaviour-preserving cleanup**, not bug-fixing — verify with
 the golden snapshots (byte-identical except intended field changes) + full suite.
 
-## Migration reset (do LAST, right before the public merge)
+## Migration squash follow-up (after the next prod deploy)
 
-Goal: a pristine single-migration baseline for fresh public installs without
-breaking the existing prod DB (which has 0001–00NN applied; deploy auto-runs
-`migrate --noinput` on container boot).
+The 0001–0015 history is squashed into
+`0001_initial_squashed_0015_seat_version`. Fresh installs run only the squash;
+prod recognises the originals as applied via its `replaces = […]` and records
+the squash as applied without re-running anything. The data backfills were
+marked `elidable=True` before squashing (they touch only rows that predate
+their own schema change), so the squash carries no `RunPython` at all.
 
-- **Use `python manage.py squashmigrations mahj 0001 00NN`**, not a manual wipe.
-  The squash carries `replaces=[…]`, so prod recognises the originals as applied
-  and skips re-running; fresh installs run only the squashed migration.
-- Sequence: land all remaining schema changes first, **then** squash once.
-  Don't squash mid-stream. (`0013` dropping the dead timestamp columns is in;
-  nothing else schema-touching is outstanding.)
-- After the next prod deploy applies the squash, delete the replaced migration
-  files (follow-up) → single clean `0001`.
-- A truly pristine `0001` with no `replaces` metadata is possible via a manual
-  reset, but needs a coordinated `migrate --fake` on prod — only if maximum
-  cleanliness is wanted and the prod step is done deliberately (not via blind
-  auto-migrate).
+Remaining, once the next prod deploy has run (i.e. every instance has the
+squash recorded as applied) — the standard Django procedure:
+
+- delete the 15 replaced migration files;
+- remove the `replaces = […]` attribute from the squashed migration
+  (that attribute is what marks it as a squash);
+- optionally rename it to a plain `0001_initial`.
 
 ## Deliberately NOT doing
 

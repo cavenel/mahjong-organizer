@@ -66,5 +66,7 @@ class Migration(migrations.Migration):
     operations = [
         # Irreversible seed: reversing would delete rows a tenant admin may have
         # since edited. Rows are cheap to recreate by hand if a rollback is needed.
-        migrations.RunPython(seed_memberships, migrations.RunPython.noop),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(seed_memberships, migrations.RunPython.noop, elidable=True),
     ]

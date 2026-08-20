@@ -29,5 +29,7 @@ class Migration(migrations.Migration):
             name='rules',
             field=models.CharField(default='MCR', max_length=70),
         ),
-        migrations.RunPython(set_has_teams_from_roster, migrations.RunPython.noop),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(set_has_teams_from_roster, migrations.RunPython.noop, elidable=True),
     ]

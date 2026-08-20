@@ -25,5 +25,7 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.RunPython(br_to_newlines, migrations.RunPython.noop),
+        # elidable: backfills rows that predate this migration; a fresh database
+        # built from the squashed baseline has none, so the squash may drop it.
+        migrations.RunPython(br_to_newlines, migrations.RunPython.noop, elidable=True),
     ]
