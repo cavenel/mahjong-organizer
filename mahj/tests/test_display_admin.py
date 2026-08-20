@@ -666,3 +666,77 @@ def test_dashboard_empty_tenant_does_not_claim_all_rounds(client_, staff, tenant
     # complete_round rendered as "0 / 7", never "7 / 7".
     assert '/ 7' in html
     assert '>7 <' not in html
+
+
+# --------------------------------------------------------------------------
+# Actions land the operator back on the panel they just changed
+# --------------------------------------------------------------------------
+
+def _details_is_open(html, element_id):
+    import re
+    m = re.search(rf'<details id="{element_id}"[^>]*>', html)
+    assert m, f'no <details id="{element_id}"> in the page'
+    return m.group(0).endswith(' open>')
+
+
+class TestPanelReopensAfterAScreenChange:
+    """Adding or removing a screen reloads the page. The screen grid lives in a
+    collapsed <details>, so without this the operator is dropped at the top of a long
+    page with the thing they just changed folded shut.
+
+    Carried as a query parameter rather than a URL fragment: a fragment never reaches
+    the server, so the panel could only be reopened by JS after it had already
+    rendered shut.
+    """
+
+    def _post(self, client, action):
+        return client.post(f'/admin?page=display&action={action}')
+
+    def test_add_screen_redirects_with_the_panel_flag(self, client_, staff, tournament):
+        client_.force_login(staff)
+        resp = self._post(client_, 'add_screen')
+        assert resp.status_code == 302
+        assert resp['Location'] == 'admin?page=display&open=screens'
+
+    def test_remove_screen_redirects_with_it_too(self, client_, staff, tournament):
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        resp = self._post(client_, 'remove_screen')
+        assert resp.status_code == 302
+        assert resp['Location'] == 'admin?page=display&open=screens'
+
+    def test_add_mode_redirects_with_it_too(self, client_, staff, tournament):
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        resp = client_.post('/admin?page=display&action=add_mode', {'mode_name': 'M'})
+        assert resp.status_code == 302
+        assert resp['Location'] == 'admin?page=display&open=screens'
+
+    def test_the_flag_renders_the_panel_open(self, client_, staff, tournament):
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        html = client_.get('/admin?page=display&open=screens').content.decode()
+        assert _details_is_open(html, 'configure-screens')
+        assert not _details_is_open(html, 'display-settings')
+
+    def test_the_settings_panel_has_its_own_flag(self, client_, staff, tournament):
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        html = client_.get('/admin?page=display&open=settings').content.decode()
+        assert _details_is_open(html, 'display-settings')
+        assert not _details_is_open(html, 'configure-screens')
+
+    def test_a_plain_visit_leaves_both_collapsed(self, client_, staff, tournament):
+        """The panels are collapsed by design — this must not open them for everyone."""
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        html = client_.get('/admin?page=display').content.decode()
+        assert not _details_is_open(html, 'configure-screens')
+        assert not _details_is_open(html, 'display-settings')
+
+    def test_an_unknown_flag_opens_nothing(self, client_, staff, tournament):
+        client_.force_login(staff)
+        Screen.objects.create(tenant=tournament['tenant'], name='S1', view='black')
+        html = client_.get('/admin?page=display&open=../../etc/passwd').content.decode()
+        assert not _details_is_open(html, 'configure-screens')
+        assert not _details_is_open(html, 'display-settings')

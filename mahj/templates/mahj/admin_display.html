@@ -373,19 +373,13 @@
     // lead/countdown elapses until the next 30s poll or a manual refresh.
     setInterval(updateButtons, 1000);
     setInterval(fetchStatus, 30000);
-
-    // Adding/removing a screen redirects to #configure-screens, but a URL fragment
-    // scrolls to the <details> without opening it. Expand it so the operator lands
-    // on the just-changed screen grid rather than a collapsed panel.
-    if (location.hash === '#configure-screens') {
-      var cfg = document.getElementById('configure-screens');
-      if (cfg) cfg.open = true;
-    }
   })();
   </script>
 
-  <!-- Configure individual screens — the setup/prep exception, collapsed by default. -->
-  <details id="configure-screens" class="group rounded-xl border border-gray-200 bg-white shadow-sm">
+  <!-- Configure individual screens — the setup/prep exception, collapsed by default.
+       Rendered open after an action that changed the screens, so the operator lands
+       back on the grid they just changed (see _display_redirect in admin_views). -->
+  <details id="configure-screens" class="group rounded-xl border border-gray-200 bg-white shadow-sm"{% if open_panel == "screens" %} open{% endif %}>
     <summary class="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer select-none list-none">
       <span class="flex items-center gap-2">
         <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -554,7 +548,7 @@
   </section>
 
   <!-- Display settings — tuning values, collapsed by default. -->
-  <details id="display-settings" class="group rounded-xl border border-gray-200 bg-white shadow-sm">
+  <details id="display-settings" class="group rounded-xl border border-gray-200 bg-white shadow-sm"{% if open_panel == "settings" %} open{% endif %}>
     <summary class="flex items-center justify-between gap-2 px-5 py-3 cursor-pointer select-none list-none">
       <span class="flex items-center gap-2">
         <svg class="w-4 h-4 text-gray-400 transition-transform group-open:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -882,20 +876,15 @@
   </script>
 
   <script>
-    // Adding a screen or saving a mode reloads the page (server redirect). Those
-    // redirects carry a #configure-screens hash so we can re-open the panel and
-    // scroll back to it — otherwise the reload would fold it shut and lose the
-    // operator's place between consecutive adds. A plain visit to the Display
-    // tab (no hash) leaves the panel collapsed as designed.
+    // The server already renders the relevant panel open (?open=screens|settings), so
+    // all that's left is to put it in view — otherwise a reload after adding a screen
+    // leaves the operator at the top of a long page. Scrolls to whichever panel came
+    // back open; a plain visit to the Display tab opens none and scrolls nowhere.
     (function() {
-      var sections = ['configure-screens', 'display-settings'];
-      var target = sections.indexOf(location.hash.slice(1)) !== -1
-        ? document.getElementById(location.hash.slice(1)) : null;
-      if (target) {
-        target.open = true;
-        // Offset clears the sticky top bar (h-14) with a little breathing room.
-        window.scrollTo(0, target.getBoundingClientRect().top + window.pageYOffset - 64);
-      }
+      var target = document.querySelector('details#configure-screens[open], details#display-settings[open]');
+      if (!target) return;
+      // Offset clears the sticky top bar (h-14) with a little breathing room.
+      window.scrollTo(0, target.getBoundingClientRect().top + window.pageYOffset - 64);
     })();
   </script>
 

@@ -33,6 +33,20 @@ from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
 logger = logging.getLogger(__name__)
 
+def _display_redirect(open_panel=None):
+    """Where a display-page action sends the operator back to.
+
+    `open_panel` names a collapsible panel to reopen — passed as a query parameter,
+    not a URL fragment. A fragment never reaches the server, so the panel could only
+    be reopened by JS after the page had already rendered it shut; a parameter lets
+    the template render it open in the first place, with no flicker and nothing to
+    depend on. Adding or removing a screen lands the operator back on the screen grid
+    they just changed rather than a collapsed panel.
+    """
+    url = 'admin?page=display'
+    return f'{url}&open={open_panel}' if open_panel else url
+
+
 def _reauth_gate(request, next_page=None):
     """The "confirm your password" panel shown in place of a sudo-gated page.
 
@@ -1549,13 +1563,13 @@ def options(request, error=None):
             # redraws for the new screen count. Existing per-screen displays are
             # unaffected: only the last position is ever added or removed.
             broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
-            return HttpResponseRedirect('admin?page=display#configure-screens')
+            return HttpResponseRedirect(_display_redirect('screens'))
         elif action == "remove_screen":
             last = Screen.objects.filter(tenant=tenant).order_by('id').last()
             if last is not None:
                 last.delete()
                 broadcast_display(tenant.subdomain, 'screen.update', {'event': 'screens_changed'})
-            return HttpResponseRedirect('admin?page=display#configure-screens')
+            return HttpResponseRedirect(_display_redirect('screens'))
         elif action == "identify_screens":
             # Flash each screen's positional number (/1, /2, …) as a corner badge
             # for a few seconds so an operator can match physical projectors to
@@ -1569,7 +1583,7 @@ def options(request, error=None):
             screens = Screen.objects.filter(tenant=tenant).order_by('id')
             views_list = [str(screen.view) for screen in screens]
             ScreenMode(tenant=tenant, name=mode_name, views=views_list).save()
-            return HttpResponseRedirect('admin?page=display#configure-screens')
+            return HttpResponseRedirect(_display_redirect('screens'))
         elif request.GET.get('rm_mode'):
             mode = _screen_mode_or_404(tenant, request.GET.get('rm_mode'))
             mode.delete()
@@ -1629,6 +1643,8 @@ def options(request, error=None):
             # the standalone build to http://<host>:<port>. A hardcoded
             # <BASE_DOMAIN> URL would be cross-origin — and unreachable — on a laptop.
             "screen_base": request.build_absolute_uri('/').rstrip('/'),
+            # Which collapsible panel to render already open (see _display_redirect).
+            "open_panel": request.GET.get('open', ''),
         }
         # Standalone (LAN-served) build: list the addresses other devices can use
         # to open a screen — loopback (this machine) + the LAN IP. The public IP is
