@@ -1,9 +1,9 @@
 # Prize-giving ceremony — how it works
 
-This is a one-page guide for the prize-giving. Roles:
+This is a one-page guide for the prize-giving. Two roles:
 
-- **Stefan** — announces the results out loud.
-- **Johan / Victor** — drive the software (the "console") on the laptop connected to the screens.
+- **The announcer** — announces the results out loud.
+- **The operator** — drives the software (the "console") on the laptop connected to the screens.
 
 ## Order of the ceremony
 
@@ -19,7 +19,7 @@ Until the very end, the **public website and the screens stay in suspense** (the
 the standings as they were during play). Nothing final is shown to everyone until the operator
 presses **Publish** at the end.
 
-## For the operator (Johan / Victor)
+## For the operator
 
 Open the console at **`/admin` → "Ceremony console"** (left menu, under *Prize-giving*).
 You need to be logged in as staff or a display operator.
@@ -29,11 +29,11 @@ Whatever you put on screen here **takes over all display screens** (`/1`, `/2`, 
 **Teams** and **Players** each have:
 
 - **Start** — puts that section up on the screens (empty, ready).
-- **Reveal next ▸** — reveals the next place (10th, then 9th, … down to 1st). Press once per place.
+- **Reveal next ▸** — reveals the next place, counting down to 1st. Press once per place.
 - **◂ Back** — undo the last reveal if you go too fast.
 
 A yellow **"Next to announce"** line always shows the upcoming place, name and score — read it to
-Stefan before you press *Reveal next*, so he knows who's coming.
+the announcer before you press *Reveal next*, so they know who's coming.
 
 **Stat highlights** — click any stat card to show it big on the screens.
 

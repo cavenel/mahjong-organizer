@@ -1,9 +1,9 @@
 # Known issues (developer notes)
 
 The risks this codebase knowingly carries, for maintainers — not user-facing.
-There is no "open" list: at release every known issue was either fixed (see the
-pre-release plan in `docs/pre-release-plan.md` and the git history) or accepted
-here, with the reasoning written down so it isn't re-opened as an oversight.
+There is no "open" list: at release every known issue was either fixed (the
+fixes and their reasoning are in the git history) or accepted here, with the
+reasoning written down so it isn't re-opened as an oversight.
 
 One severity floor frames everything below: standings are computed **only**
 from seat minipoints/tablepoints. Hand-level data feeds stats, badges and the
@@ -88,3 +88,10 @@ trade, and what would have to change to revisit it.
   (see the visibility policy in the scoring package). Raising `nb_rounds` during
   the ceremony-pending window un-hides the withheld final round — an operator
   hazard, not a code path to leave un-centralized.
+- **Two "position" spellings survive the `Position → Seat` rename on purpose.**
+  `cross_positions` (endpoint, template, `print_cross_positions.html`) keeps its
+  name: "cross positions" is the established who-meets-whom chart term, and
+  "cross seats" is not a thing. User-facing wording that means a physical place
+  at a table ("Table positions" print menu, wind positions) stays "position";
+  so do the rank-meaning `pos` / `pos_se` / `history_pos` keys and CSS
+  `position:`. None of these are missed renames.
