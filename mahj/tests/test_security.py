@@ -13,7 +13,7 @@ import pytest
 from django.contrib.auth.models import User
 from django.test import Client
 
-from mahj.models import Hand, TournamentSettings
+from mahj.models import Hand, ScoreSheet, TournamentSettings
 from mahj.tests.conftest import grant
 
 
@@ -199,10 +199,30 @@ class TestScanEndpointsPublic:
     """The /scan endpoints are public: anyone (no login) may scan an empty table,
     so data entry can be crowdsourced at the venue.
 
-    The one hard rule is no overwrite — a table that already has hands is refused
-    with a 409, for everyone, registered or not. Existing data can only be changed
-    on the score sheet.
+    Two hard rules. No overwrite — a table that already has hands is refused with a
+    409, for everyone, registered or not; existing data can only be changed on the
+    score sheet. And no writing without a photo: what gets written, and to which
+    table, comes from the OCR job the server staged, never from the request (F13).
     """
+
+    @pytest.fixture
+    def job(self, monkeypatch):
+        """A finished OCR job, as a real scan would leave it. The round and table are
+        on the job because the upload went to the table's own URL."""
+        jobs = {}
+
+        def stage(job_id, round_nb, table_nb, scores, subdomain='test'):
+            jobs[job_id] = {'status': 'done', 'round_nb': round_nb,
+                            'table_nb': table_nb, 'subdomain': subdomain,
+                            'scores': scores}
+            return job_id
+
+        monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: jobs.get(jid))
+        return stage
+
+    def _prefill(self, client, **body):
+        return client.post('/scan_prefill', data=json.dumps(body),
+                           content_type='application/json')
 
     def test_scan_page_anonymous_ok(self, client_, tournament):
         assert client_.get('/scan').status_code == 200
@@ -211,27 +231,51 @@ class TestScanEndpointsPublic:
         resp = client_.get('/scan_seats', {'round_nb': 1, 'table_nb': 1})
         assert resp.status_code == 200
 
-    def test_scan_prefill_empty_table_anonymous_writes(self, client_, tournament):
+    def test_scan_prefill_empty_table_anonymous_writes(self, client_, tournament, job):
+        """Still anonymous, still writes — crowdsourced entry is the point."""
         tenant = tournament['tenant']
         # Round 3 has seats but no hands seeded — an empty table, no conflict.
-        body = {'round_nb': 3, 'table_nb': 1, 'validate': False,
-                'scores': [{'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 0.5}]}
-        resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
+        job('j', 3, 1, [{'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2,
+                         'Confidence': 0.5}])
+        resp = self._prefill(client_, job_id='j')
         assert resp.status_code == 200 and resp.json()['ok'] is True
         h = Hand.objects.get(tenant=tenant, round_nb=3, table_nb=1, hand_nb=1)
         assert h.points == 20 and h.win_by == 1 and h.win_from == 2
 
-    def test_scan_prefill_filled_table_anonymous_conflicts(self, client_, tournament):
+    def test_scan_prefill_filled_table_anonymous_conflicts(self, client_, tournament, job):
         tenant = tournament['tenant']
         # Round 1 table 1 is fully seeded — must never be overwritten by a scan.
         before = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).points
-        body = {'round_nb': 1, 'table_nb': 1, 'validate': False,
-                'scores': [{'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2, 'Confidence': 1.0}]}
-        resp = client_.post('/scan_prefill', data=json.dumps(body), content_type='application/json')
+        job('j', 1, 1, [{'Hand': 1, 'Value': 999, 'Winner': 1, 'Discarder': 2,
+                         'Confidence': 1.0}])
+        resp = self._prefill(client_, job_id='j')
         assert resp.status_code == 409 and resp.json()['conflict'] is True
         # Original data is untouched.
         after = Hand.objects.get(tenant=tenant, round_nb=1, table_nb=1, hand_nb=1).points
         assert after == before
+
+    def test_scan_prefill_without_a_job_writes_nothing(self, client_, tournament):
+        """The F13 hole, from the security suite's side: a body full of scores and no
+        photo used to be written and validated."""
+        tenant = tournament['tenant']
+        resp = self._prefill(
+            client_, round_nb=3, table_nb=2, validate=True,
+            scores=[{'Hand': 1, 'Value': 88, 'Winner': 1, 'Discarder': 2,
+                     'Confidence': 1.0}])
+        assert resp.status_code == 400
+        assert not Hand.objects.filter(tenant=tenant, round_nb=3, table_nb=2,
+                                       win_by__isnull=False).exists()
+        assert not ScoreSheet.objects.filter(tenant=tenant, round_nb=3,
+                                             table_nb=2).exists()
+
+    def test_scan_prefill_anonymous_cannot_validate(self, client_, tournament, job):
+        """Validating takes a sheet out of the review queue, so it takes the role."""
+        tenant = tournament['tenant']
+        job('j', 3, 1, [{'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2,
+                         'Confidence': 1.0}])
+        assert self._prefill(client_, job_id='j', validate=True).status_code == 200
+        assert ScoreSheet.objects.get(
+            tenant=tenant, round_nb=3, table_nb=1).validated is False
 
 
 class TestCounterTimerGated:
