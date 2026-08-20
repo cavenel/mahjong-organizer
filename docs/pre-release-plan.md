@@ -4,6 +4,27 @@ The last work before `refactor` merges to `main`. Closes out
 `docs/dev/known-issues.md`: every item there is either fixed here or explicitly
 accepted, with the reasoning recorded. Nothing is left in the "open, someday" state.
 
+**Status: complete** (2026-08-20; P1 `74f1616`, P2 `f96154f`, P3 `039dc3c`, P4
+`ec09a80` + `8f38cfd`; full suite 702 green). Three places where execution
+deviated from the text below, each with the reason in its commit:
+
+- **#5**: `sendBeacon` cannot set the CSRF header and Django reads the token
+  only from form bodies, so "the endpoint needs no change" was wrong — the
+  flush posts FormData with the JSON body under a `payload` field, and
+  `update_seats_bulk` accepts that envelope alongside JSON.
+- **#6**: the pre-checks raise `TemplateImportError` rendered on the options
+  page, not `FieldError` — the import is a browser form POST, and the
+  middleware's JSON 400 would land as raw JSON in the organizer's browser.
+- **#4**: verified by an exhaustive equivalence sweep (a Python port of both
+  old dialects vs the shared function, all 600 input combinations) rather than
+  click-through alone; the sweep also showed the two dialects disagreed on a
+  typed 0 in "From" — unreachable on the modal, and the shared function keeps
+  the sheet's correct self-draw reading.
+
+The migration squash additionally marked the six data backfills
+`elidable=True` first, so the squashed baseline carries no `RunPython`; what
+remains post-deploy is in `docs/dev/cleanup-plan.md`.
+
 ## How each item was judged
 
 Not by how alarming it reads. By what it does to a tournament:
