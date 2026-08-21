@@ -321,6 +321,86 @@ class TestAssignMembershipCommand:
 # Data-migration seeding logic (single-tenant map of the old global roles)
 # --------------------------------------------------------------------------
 
+class TestOneSettingsRowPerTenant:
+    """get_tournament fetches "the" settings for a tenant, so a second row makes
+    which configuration is live arbitrary. CeremonyState has always made the same
+    one-row claim *with* a constraint; this one didn't."""
+
+    def test_a_second_row_is_refused(self, tenant):
+        from django.db import IntegrityError, transaction
+        from mahj.models import TournamentSettings
+        TournamentSettings.objects.create(tenant=tenant, nb_rounds=3)
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                TournamentSettings.objects.create(tenant=tenant, nb_rounds=9)
+
+    def test_another_tenant_gets_its_own(self, tenant, tenant_b):
+        from mahj.models import TournamentSettings
+        TournamentSettings.objects.create(tenant=tenant, nb_rounds=3)
+        TournamentSettings.objects.create(tenant=tenant_b, nb_rounds=9)
+        assert TournamentSettings.objects.count() == 2
+
+    def test_lazy_provisioning_yields_one_row(self, tenant):
+        """A fresh tenant is provisioned on first read and reused after.
+
+        This is the sequential path only — the concurrent one is what the constraint
+        above is for, and get_or_create is what makes the losing worker adopt the
+        winner's row instead of surfacing that constraint as a 500.
+        """
+        from django.contrib.auth.models import AnonymousUser
+        from django.test import RequestFactory
+
+        from mahj.models import TournamentSettings
+        from mahj.views.helpers import get_tournament
+
+        def request():
+            # A fresh request each time: get_tournament memoizes per request.
+            r = RequestFactory().get('/', HTTP_HOST=HOST_A)
+            r.user = AnonymousUser()
+            return r
+
+        assert not TournamentSettings.objects.filter(tenant=tenant).exists()
+        first = get_tournament(request())
+        second = get_tournament(request())
+        assert first.pk == second.pk
+        assert TournamentSettings.objects.filter(tenant=tenant).count() == 1
+
+    def test_the_dedupe_keeps_the_lowest_id_per_tenant(self):
+        """Migration 0017's repair decision. A duplicate can only come from the race
+        above, so it cleans up rather than stopping the deploy — and which row was
+        being read was already arbitrary, so it keeps the lowest id.
+
+        Tested on the decision itself: once the constraint exists its input can't be
+        created, and sqlite bakes the constraint into the table so it can't be lifted
+        for a test either.
+        """
+        import importlib
+        mod = importlib.import_module(
+            'mahj.migrations.0017_tournamentsettings_one_per_tenant')
+
+        # (id, tenant_id) in ascending id order, as the migration reads them.
+        rows = [(4, 1), (5, 1), (6, 2), (9, 1), (10, 3)]
+        assert mod.ids_to_keep(rows) == {4, 6, 10}
+        # Nothing to do when every tenant already has exactly one.
+        assert mod.ids_to_keep([(1, 1), (2, 2)]) == {1, 2}
+        assert mod.ids_to_keep([]) == set()
+
+    def test_the_dedupe_is_a_no_op_on_a_clean_database(self, tenant, tenant_b):
+        """End to end against the real models, which is the state every install
+        upgrading from a healthy database is actually in."""
+        import importlib
+
+        from django.apps import apps as django_apps
+        from mahj.models import TournamentSettings
+
+        rows = {t.pk: TournamentSettings.objects.create(tenant=t, nb_rounds=3).pk
+                for t in (tenant, tenant_b)}
+        mod = importlib.import_module(
+            'mahj.migrations.0017_tournamentsettings_one_per_tenant')
+        mod.drop_duplicate_settings(django_apps, None)
+        assert {t: TournamentSettings.objects.get(tenant_id=t).pk for t in rows} == rows
+
+
 class TestSeedMembershipsMigration:
     """Exercise the data-migration function directly (against the live models) so
     the single-tenant mapping and multi-tenant no-op are covered without spinning

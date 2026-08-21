@@ -338,6 +338,15 @@ class TournamentSettings(TenantAwareModel):
     logo         = models.BinaryField(null=True, blank=True, default=None, editable=True)
     logo_etag    = models.CharField(default="", max_length=32, blank=True)
 
+    class Meta:
+        # One row per tenant — the whole module treats it that way (get_tournament
+        # fetches "the" settings), and CeremonyState makes the same claim with the
+        # same constraint. Without it two workers hitting a fresh tenant at once
+        # could each provision a row, after which which one is read is arbitrary.
+        constraints = [
+            models.UniqueConstraint(fields=['tenant'], name='unique_settings_per_tenant'),
+        ]
+
     def __str__(self):
         return self.welcome + " ; " + str(self.nb_rounds) + " ; " + str(self.title) + \
                self.fullname + " ; " + str(self.city) + " ; " + str(self.period) + " ; " + str(self.zoom) + " ; " + str(self.score_lines) + " ; " + str(self.total_time)

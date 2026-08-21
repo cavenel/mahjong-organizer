@@ -306,15 +306,16 @@ def get_tournament(request):
     cache_key = f'tournament:{subdomain}'
     cached = cache.get(cache_key)
     if cached is None:
-        cached = TournamentSettings.objects.filter(tenant=tenant).first()
-        if cached is None:
-            cached = TournamentSettings(tenant=tenant, welcome="Welcome")
-            # Persist (and lazily provision) only for a real tenant. An unknown
-            # subdomain resolves to tenant=None; saving that hits the NOT NULL
-            # constraint and 500s every page on the subdomain (now reachable via
-            # the *.BASE_DOMAIN wildcard). Serve a transient default instead.
-            if tenant is not None:
-                cached.save()
+        if tenant is None:
+            # An unknown subdomain resolves to tenant=None; saving that hits the NOT
+            # NULL constraint and 500s every page on the subdomain (reachable via the
+            # *.BASE_DOMAIN wildcard). Serve a transient default instead.
+            cached = TournamentSettings(tenant=None, welcome="Welcome")
+        else:
+            # get_or_create, so two workers arriving on a fresh tenant together
+            # can't each provision a row — the loser of the race gets the winner's.
+            cached, _ = TournamentSettings.objects.get_or_create(
+                tenant=tenant, defaults={'welcome': "Welcome"})
         cache.set(cache_key, cached, TOURNAMENT_TTL)
     request._tournament = cached
     return cached
