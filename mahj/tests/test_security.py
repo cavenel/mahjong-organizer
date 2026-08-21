@@ -15,7 +15,7 @@ from django.contrib.auth.models import User
 from django.test import Client, override_settings
 
 from mahj.models import Hand, ScoreSheet, TournamentSettings
-from mahj.tests.conftest import HOST, grant
+from mahj.tests.conftest import HOST, grant, role_user
 from mahj.views import user_admin
 
 
@@ -1035,3 +1035,125 @@ class TestDjangoAdminIsSuperuserOnly:
         root = User.objects.create_superuser('root2', password='pw')
         client_.force_login(root)
         assert client_.get('/admin_db/mahj/player/').status_code == 200
+
+
+# --------------------------------------------------------------------------
+# Authorization on the endpoints that had none asserted (5.3).
+#
+# Each of these was covered only by a happy path, or by the 405-on-GET check —
+# which proves the method gate, not the role gate. A view whose decorator was
+# deleted would have kept every one of those tests green.
+# --------------------------------------------------------------------------
+
+SCORER_ENDPOINTS = [
+    ('/clear_score_sheet', {'round_nb': 1, 'table_nb': 1}),
+    ('/update_seat_penalty', {'id': 1, 'penalty': -10}),
+    ('/validate_score_sheet', {'round_nb': 1, 'table_nb': 1, 'validated': '1'}),
+]
+
+ADMIN_ENDPOINTS = [
+    ('/admin_upload_from_template', {}),
+    ('/admin_generate_seating', {}),
+    ('/update_logo', {}),
+]
+
+
+class TestScorerEndpointsRefuseTheWrongRole:
+    @pytest.mark.parametrize('url,payload', SCORER_ENDPOINTS)
+    def test_a_display_operator_is_refused(self, client_, tournament,
+                                           display_op_user, url, payload):
+        client_.force_login(display_op_user)
+        assert client_.post(url, payload).status_code == 403
+
+    @pytest.mark.parametrize('url,payload', SCORER_ENDPOINTS)
+    def test_a_non_member_is_refused(self, client_, tournament, anonymous_user,
+                                     url, payload):
+        client_.force_login(anonymous_user)
+        assert client_.post(url, payload).status_code == 403
+
+    @pytest.mark.parametrize('url,payload', SCORER_ENDPOINTS)
+    def test_anonymous_is_bounced_to_login(self, client_, tournament, url, payload):
+        resp = client_.post(url, payload)
+        assert resp.status_code == 302 and '/accounts/login/' in resp.url
+
+    @pytest.mark.parametrize('url,payload', SCORER_ENDPOINTS)
+    def test_a_scorer_of_another_tenant_is_refused(self, client_, tournament,
+                                                  tenant_b, url, payload):
+        """Holding the role somewhere else is not holding it here — the whole point
+        of scoping roles to a Membership."""
+        client_.force_login(role_user('scorer_of_b', tenant_b, scorer=True))
+        assert client_.post(url, payload).status_code == 403
+
+
+class TestAdminEndpointsRefuseTheWrongRole:
+    @pytest.mark.parametrize('url,payload', ADMIN_ENDPOINTS)
+    def test_a_scorer_is_refused(self, client_, tournament, scorer_group_user,
+                                url, payload):
+        """A scorer runs a table; importing a template, generating the seating or
+        replacing the logo is not part of that."""
+        client_.force_login(scorer_group_user)
+        assert client_.post(url, payload).status_code == 403
+
+    @pytest.mark.parametrize('url,payload', ADMIN_ENDPOINTS)
+    def test_a_publisher_is_refused(self, client_, tournament,
+                                   publisher_group_user, url, payload):
+        client_.force_login(publisher_group_user)
+        assert client_.post(url, payload).status_code == 403
+
+    @pytest.mark.parametrize('url,payload', ADMIN_ENDPOINTS)
+    def test_a_non_member_is_refused(self, client_, tournament, anonymous_user,
+                                     url, payload):
+        client_.force_login(anonymous_user)
+        assert client_.post(url, payload).status_code == 403
+
+    @pytest.mark.parametrize('url,payload', ADMIN_ENDPOINTS)
+    def test_an_admin_of_another_tenant_is_refused(self, client_, tournament,
+                                                  tenant_b, url, payload):
+        client_.force_login(role_user('admin_of_b', tenant_b, admin=True))
+        assert client_.post(url, payload).status_code == 403
+
+
+class TestDestructiveEndpointsAreTenantScoped:
+    """A refusal is only half the property: the endpoints that destroy data must
+    also be unable to reach across tenants when the caller *is* authorized."""
+
+    def test_clearing_a_sheet_does_not_touch_another_tenant(self, client_, tournament,
+                                                            tenant_b):
+        from mahj.models import Seat
+        tenant = tournament['tenant']
+        # Give tenant B a seat at the same coordinates, and a penalty to lose.
+        Seat.objects.create(tenant=tenant_b, round_nb=1, table_nb=1, wind=1,
+                            draw_number=1, minipoints=50, tablepoints=4.0, penalty=-20)
+        client_.force_login(role_user('scorer_a', tenant, scorer=True))
+
+        assert client_.post('/clear_score_sheet',
+                            {'round_nb': 1, 'table_nb': 1}).status_code == 200
+        b_seat = Seat.objects.get(tenant=tenant_b, round_nb=1, table_nb=1, wind=1)
+        assert b_seat.penalty == -20, "another tenant's penalty was reset"
+        assert b_seat.minipoints == 50
+
+    def test_a_penalty_write_cannot_name_another_tenants_seat(self, client_,
+                                                              tournament, tenant_b):
+        """The endpoint takes a bare seat id, so the only thing stopping a scorer
+        reaching into another tournament is the tenant in the lookup."""
+        from mahj.models import Seat
+        foreign = Seat.objects.create(tenant=tenant_b, round_nb=1, table_nb=1,
+                                      wind=1, draw_number=1, penalty=0)
+        client_.force_login(role_user('scorer_a2', tournament['tenant'], scorer=True))
+
+        resp = client_.post('/update_seat_penalty',
+                            {'id': foreign.id, 'penalty': -30})
+        assert resp.status_code == 404
+        foreign.refresh_from_db()
+        assert foreign.penalty == 0
+
+    def test_a_penalty_write_still_works_on_this_tenants_seat(self, client_, tournament):
+        """The other half, so the 404 above is scoping rather than a broken payload."""
+        from mahj.models import Seat
+        tenant = tournament['tenant']
+        own = Seat.objects.filter(tenant=tenant, round_nb=1, table_nb=1, wind=1).first()
+        client_.force_login(role_user('scorer_a3', tenant, scorer=True))
+        resp = client_.post('/update_seat_penalty', {'id': own.id, 'penalty': -30})
+        assert resp.status_code == 200
+        own.refresh_from_db()
+        assert own.penalty == -30

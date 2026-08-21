@@ -14,15 +14,18 @@ from mahj.models import (
     CeremonyState, Hand, Player, PublishTarget, PublishedRound, ScoreSheet,
     Schedule, Screen, ScreenMode, Seat, TournamentSettings,
 )
-from mahj.tests.conftest import grant, reauth
+from mahj.tests.conftest import client_for, grant, reauth, role_user
 
 
 @pytest.fixture
-def staff_client(tenant):
-    c = Client()
-    c.defaults['HTTP_HOST'] = 'test.example.com'  # -> subdomain 'test'
-    u = User.objects.create_superuser('staff', password='pw')
-    c.force_login(u)
+def admin_client_(tenant):
+    """A *tenant admin*, reauthed — the role that really resets a tournament.
+
+    Not a superuser: that bypasses Membership, so the per-tenant authorization
+    these endpoints actually enforce would go untested.
+    """
+    c = client_for()
+    c.force_login(role_user('resetter', tenant, admin=True))
     return reauth(c)
 
 
@@ -36,7 +39,7 @@ def scorer_client(tenant, django_user_model):
     return c
 
 
-def test_reset_wipes_everything(staff_client, tournament):
+def test_reset_wipes_everything(admin_client_, tournament):
     tenant = tournament['tenant']
     # Extras the base fixture doesn't create, so the reset must clear these too.
     Screen.objects.create(tenant=tenant, name='S1', view='black')
@@ -44,7 +47,7 @@ def test_reset_wipes_everything(staff_client, tournament):
     CeremonyState.objects.create(tenant=tenant, phase='teams', step=1)
     PublishTarget.objects.create(tenant=tenant, host='h', username='u')
 
-    resp = staff_client.post('/admin_reset')
+    resp = admin_client_.post('/admin_reset')
     assert resp.status_code == 200
 
     for model in (Player, Seat, Hand, ScoreSheet, PublishedRound, Schedule,
@@ -53,8 +56,8 @@ def test_reset_wipes_everything(staff_client, tournament):
         assert not model.objects.filter(tenant=tenant).exists(), model.__name__
 
 
-def test_reset_requires_post(staff_client):
-    resp = staff_client.get('/admin_reset')
+def test_reset_requires_post(admin_client_):
+    resp = admin_client_.get('/admin_reset')
     assert resp.status_code == 405
     assert resp.json()['error'] == 'POST required'
 

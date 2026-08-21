@@ -14,7 +14,7 @@ from django.test import Client
 from openpyxl import load_workbook
 
 from mahj.models import Player, Schedule, Seat, TournamentSettings, Tenant
-from mahj.tests.conftest import REPO_ROOT
+from mahj.tests.conftest import REPO_ROOT, client_for, role_user
 
 TEMPLATE = REPO_ROOT / 'mahj' / 'static' / 'MahjongTemplate.xlsx'
 
@@ -25,11 +25,15 @@ def imp_tenant(db):
 
 
 @pytest.fixture
-def staff_client(imp_tenant):
-    c = Client()
-    c.defaults['HTTP_HOST'] = 'imp.example.com'  # -> subdomain 'imp'
-    u = User.objects.create_superuser('imp_staff', password='pw')
-    c.force_login(u)
+def admin_client_(imp_tenant):
+    """A *tenant admin* of the import tenant — the role a real organizer holds.
+
+    Not a superuser: a superuser bypasses Membership entirely, so these tests would
+    pass without ever exercising the per-tenant authorization path every actual
+    operator goes through.
+    """
+    c = client_for('imp.example.com')       # -> subdomain 'imp'
+    c.force_login(role_user('imp_admin', imp_tenant, admin=True))
     return c
 
 
@@ -54,8 +58,8 @@ def _filled_workbook(n=16):
     return buf
 
 
-def test_import_creates_players_and_seats(staff_client, imp_tenant):
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+def test_import_creates_players_and_seats(admin_client_, imp_tenant):
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     assert resp.status_code in (200, 302)
 
     players = list(Player.objects.filter(tenant=imp_tenant))
@@ -79,7 +83,7 @@ def test_import_creates_players_and_seats(staff_client, imp_tenant):
 
 
 def test_a_cache_failure_after_a_good_import_keeps_the_tournament(
-        staff_client, imp_tenant, monkeypatch):
+        admin_client_, imp_tenant, monkeypatch):
     """The wipe-to-empty handler is deliberate policy for a *failed* import. But the
     cache bust and the display broadcast run after the transaction has committed, so a
     failure in either says nothing about the import — and while they sat inside the
@@ -91,7 +95,7 @@ def test_a_cache_failure_after_a_good_import_keeps_the_tournament(
 
     monkeypatch.setattr('mahj.views.admin_views.invalidate_leaderboard', boom)
 
-    resp = staff_client.post('/admin_upload_from_template',
+    resp = admin_client_.post('/admin_upload_from_template',
                              {'myfile': _filled_workbook(16)})
     assert resp.status_code in (200, 302)
     # The tournament is loaded, not wiped.
@@ -101,14 +105,14 @@ def test_a_cache_failure_after_a_good_import_keeps_the_tournament(
 
 
 def test_a_broadcast_failure_after_a_good_import_keeps_the_tournament(
-        staff_client, imp_tenant, monkeypatch):
+        admin_client_, imp_tenant, monkeypatch):
     """Same for the other post-commit call."""
     def boom(*a, **kw):
         raise RuntimeError('channel layer unavailable')
 
     monkeypatch.setattr('mahj.views.admin_views.broadcast_publish_state', boom)
 
-    resp = staff_client.post('/admin_upload_from_template',
+    resp = admin_client_.post('/admin_upload_from_template',
                              {'myfile': _filled_workbook(16)})
     assert resp.status_code in (200, 302)
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
@@ -131,11 +135,11 @@ def _snapshot(tenant):
     return players, seats, schedule
 
 
-def test_export_round_trips_through_import(staff_client, imp_tenant):
+def test_export_round_trips_through_import(admin_client_, imp_tenant):
     """Import a tournament, add a per-player team and a schedule, export via
     admin_export_to_template, then re-import: the player list (incl. team), the full
     seating chart and the schedule (incl. is_round) must match."""
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
 
     # Populate fields beyond name/EMA/draw so the round-trip is actually exercised.
     for i, p in enumerate(Player.objects.filter(tenant=imp_tenant).order_by('id')):
@@ -144,7 +148,7 @@ def test_export_round_trips_through_import(staff_client, imp_tenant):
 
     before = _snapshot(imp_tenant)
 
-    resp = staff_client.get('/admin_export_to_template')
+    resp = admin_client_.get('/admin_export_to_template')
     assert resp.status_code == 200
     assert resp['Content-Type'] == \
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
@@ -156,13 +160,13 @@ def test_export_round_trips_through_import(staff_client, imp_tenant):
     exported.seek(0)
     exported.name = 'template.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': exported})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': exported})
     assert resp.status_code in (200, 302)
 
     assert _snapshot(imp_tenant) == before
 
 
-def test_a_short_options_sheet_still_imports(staff_client, imp_tenant):
+def test_a_short_options_sheet_still_imports(admin_client_, imp_tenant):
     """The Options sheet holds six value rows; an older or hand-made file may carry
     fewer. read_only=True makes openpyxl yield only the rows that exist, so the parse
     used to raise IndexError on city/period/rules *after* the deletes — landing in the
@@ -187,7 +191,7 @@ def test_a_short_options_sheet_still_imports(staff_client, imp_tenant):
     buf.seek(0)
     buf.name = 'template.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code in (200, 302)
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
     t = TournamentSettings.objects.get(tenant=imp_tenant)
@@ -197,7 +201,7 @@ def test_a_short_options_sheet_still_imports(staff_client, imp_tenant):
     assert t.rules == 'MCR'
 
 
-def test_import_without_rand_leaves_players_undrawn(staff_client, imp_tenant):
+def test_import_without_rand_leaves_players_undrawn(admin_client_, imp_tenant):
     """No 'rand' column -> player list imported but not yet drawn (draw_number NULL);
     the seating chart still exists, to be filled by randomize/team-draw."""
     wb = load_workbook(TEMPLATE)
@@ -215,7 +219,7 @@ def test_import_without_rand_leaves_players_undrawn(staff_client, imp_tenant):
     buf.seek(0)
     buf.name = 'template.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code in (200, 302)
 
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
@@ -261,17 +265,17 @@ def _rows16(**overrides):
     return rows
 
 
-def test_blank_row_midlist_does_not_truncate(staff_client, imp_tenant):
+def test_blank_row_midlist_does_not_truncate(admin_client_, imp_tenant):
     """F-H9: a fully-blank spacer row in the middle of the player list is skipped, not
     treated as the end of the list (which used to drop everyone below it)."""
     rows = _rows16()
     rows.insert(8, (None, None, None, None, None, None))  # blank spacer mid-list
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
 
 
-def test_team_whitespace_collapsed_and_numeric_cell(staff_client, imp_tenant):
+def test_team_whitespace_collapsed_and_numeric_cell(admin_client_, imp_tenant):
     """F-M11 + F-M12a: internal whitespace is collapsed so "Team  A" and "Team A"
     are one team; a numeric team cell is coerced to a string instead of crashing;
     case is NOT folded ("sweden" and "Sweden" stay two distinct teams). Every team
@@ -279,7 +283,7 @@ def test_team_whitespace_collapsed_and_numeric_cell(staff_client, imp_tenant):
     teams = ['Team  A'] * 2 + ['Team A'] * 2 + [123] * 4 + ['sweden'] * 4 + ['Sweden'] * 4
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', teams[i], i + 1)
             for i in range(16)]
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
     stored = set(Player.objects.filter(tenant=imp_tenant).values_list('team', flat=True))
     assert stored == {'Team A', '123', 'sweden', 'Sweden'}
@@ -287,19 +291,19 @@ def test_team_whitespace_collapsed_and_numeric_cell(staff_client, imp_tenant):
     assert Player.objects.filter(tenant=imp_tenant, team='Team A').count() == 4
 
 
-def test_uneven_team_rejected(staff_client, imp_tenant):
+def test_uneven_team_rejected(admin_client_, imp_tenant):
     """F-M11: teams are always groups of four, so a team of a different size is
     rejected (and per F-C1 the import leaves the tournament empty). This is what
     surfaces a typo/case split like "Sweden"(3) vs "sweden"(1)."""
     teams = ['Sweden'] * 3 + ['sweden'] * 1 + ['Norway'] * 4 + ['Denmark'] * 4 + ['Finland'] * 4
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', teams[i], i + 1)
             for i in range(16)]
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
 
 
-def test_names_stored_raw_from_two_columns(staff_client, imp_tenant):
+def test_names_stored_raw_from_two_columns(admin_client_, imp_tenant):
     """The Last/First columns are stored raw (mixed case preserved, no title-casing)
     and full_name is the "First Last" join. Covers a mononym (blank surname), a
     multi-word surname kept whole, and casing that .title() used to mangle."""
@@ -307,7 +311,7 @@ def test_names_stored_raw_from_two_columns(staff_client, imp_tenant):
     rows[0] = ('', 'Cher', 90000, 'France', None, 1)               # mononym
     rows[1] = ('Van Der Berg', 'Chris', 90001, 'Sweden', None, 2)  # multi-word surname
     rows[2] = ('McDonald', 'chris', 90002, 'Scotland', None, 3)    # casing preserved
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
 
     cher = Player.objects.get(tenant=imp_tenant, draw_number=1)
@@ -322,7 +326,7 @@ def test_names_stored_raw_from_two_columns(staff_client, imp_tenant):
     assert mac.full_name == 'chris McDonald'
 
 
-def test_short_name_disambiguates_shared_first_name(staff_client, imp_tenant):
+def test_short_name_disambiguates_shared_first_name(admin_client_, imp_tenant):
     """short_name is the bare first name when unique, else first name + the shortest
     surname prefix that separates same-first-name competitors ("Chris D.", growing
     to "Chris Dere." when two share a prefix)."""
@@ -330,7 +334,7 @@ def test_short_name_disambiguates_shared_first_name(staff_client, imp_tenant):
     rows[0] = ('Derek', 'Chris', 90000, 'Sweden', None, 1)
     rows[1] = ('Dupont', 'Chris', 90001, 'Sweden', None, 2)
     rows[2] = ('Dervinson', 'Chris', 90002, 'Sweden', None, 3)
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
 
     def short(dn):
@@ -344,59 +348,59 @@ def test_short_name_disambiguates_shared_first_name(staff_client, imp_tenant):
     assert short(3) == 'Chris Derv.'
 
 
-def test_names_round_trip_through_export(staff_client, imp_tenant):
+def test_names_round_trip_through_export(admin_client_, imp_tenant):
     """A mononym and a multi-word surname survive export -> re-import byte-identical
     (they no longer depend on re-splitting full_name)."""
     rows = _rows16()
     rows[0] = ('', 'Cher', 90000, 'France', None, 1)
     rows[1] = ('Van Der Berg', 'Chris', 90001, 'Sweden', None, 2)
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     before = _snapshot(imp_tenant)
 
-    resp = staff_client.get('/admin_export_to_template')
+    resp = admin_client_.get('/admin_export_to_template')
     assert resp.status_code == 200
     exported = io.BytesIO(resp.content)
     exported.seek(0)
     exported.name = 'template.xlsx'
-    staff_client.post('/admin_upload_from_template', {'myfile': exported})
+    admin_client_.post('/admin_upload_from_template', {'myfile': exported})
 
     assert _snapshot(imp_tenant) == before
 
 
-def test_absent_ema_left_blank(staff_client, imp_tenant):
+def test_absent_ema_left_blank(admin_client_, imp_tenant):
     """F-M12c: a genuinely absent EMA id is silently blank (most players have none)."""
     rows = [(f'Last{i + 1}', f'First{i + 1}', None, 'Sweden', None, i + 1) for i in range(16)]
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code in (200, 302)
     players = Player.objects.filter(tenant=imp_tenant)
     assert players.count() == 16
     assert all(p.EMA_ID == '' for p in players)
 
 
-def test_invalid_ema_fails_whole_import(staff_client, imp_tenant):
+def test_invalid_ema_fails_whole_import(admin_client_, imp_tenant):
     """F-M12c: a present-but-unparseable EMA id fails the import (and per F-C1
     leaves the tournament empty) rather than silently blanking the id."""
     rows = _rows16()
     rows[4] = ('LastX', 'FirstX', 'not-a-number', 'Sweden', None, 5)
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
 
 
-def test_zero_draw_number_rejected(staff_client, imp_tenant):
+def test_zero_draw_number_rejected(admin_client_, imp_tenant):
     """F-M12d: draw number 0 collides with the empty-seat sentinel, so it is
     rejected (draw numbers are 1-based)."""
     rows = _rows16()
     rows[0] = ('Last1', 'First1', 90000, 'Sweden', None, 0)
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
 
 
-def test_blank_rounds_rejected(staff_client, imp_tenant):
+def test_blank_rounds_rejected(admin_client_, imp_tenant):
     """F-M12b: a blank/zero rounds count creates no seating and used to 'succeed'
     with nothing playable; it is now rejected."""
-    resp = staff_client.post(
+    resp = admin_client_.post(
         '/admin_upload_from_template', {'myfile': _workbook(_rows16(), nb_rounds=None)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
@@ -412,9 +416,9 @@ class TestPrecheckRejectsUntouched:
     the documented wipe-to-empty (see test_failed_import_leaves_tournament_empty)."""
 
     @pytest.fixture
-    def live_before(self, staff_client, imp_tenant):
+    def live_before(self, admin_client_, imp_tenant):
         """A populated tournament, and its snapshot to compare against."""
-        staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+        admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
         assert Player.objects.filter(tenant=imp_tenant).count() == 16
         return _snapshot(imp_tenant)
 
@@ -423,57 +427,57 @@ class TestPrecheckRejectsUntouched:
         assert 'nothing was changed' in resp.content.decode()
         assert _snapshot(imp_tenant) == live_before
 
-    def test_missing_required_sheet(self, staff_client, imp_tenant, live_before):
+    def test_missing_required_sheet(self, admin_client_, imp_tenant, live_before):
         wb = load_workbook(TEMPLATE)
         wb.remove(wb['Players'])
         buf = io.BytesIO()
         wb.save(buf)
         buf.seek(0)
         buf.name = 'template.xlsx'
-        resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+        resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
         assert 'Players' in resp.content.decode()  # the message names the sheet
 
-    def test_unreadable_rounds_count(self, staff_client, imp_tenant, live_before):
-        resp = staff_client.post(
+    def test_unreadable_rounds_count(self, admin_client_, imp_tenant, live_before):
+        resp = admin_client_.post(
             '/admin_upload_from_template',
             {'myfile': _workbook(_rows16(), nb_rounds=None)})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
 
-    def test_player_count_not_a_multiple_of_four(self, staff_client, imp_tenant,
+    def test_player_count_not_a_multiple_of_four(self, admin_client_, imp_tenant,
                                                  live_before):
-        resp = staff_client.post(
+        resp = admin_client_.post(
             '/admin_upload_from_template', {'myfile': _workbook(_rows16()[:15])})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
         assert '15 competitors' in resp.content.decode()
 
-    def test_empty_player_list(self, staff_client, imp_tenant, live_before):
-        resp = staff_client.post(
+    def test_empty_player_list(self, admin_client_, imp_tenant, live_before):
+        resp = admin_client_.post(
             '/admin_upload_from_template', {'myfile': _workbook([])})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
 
-    def test_duplicate_draw_numbers(self, staff_client, imp_tenant, live_before):
+    def test_duplicate_draw_numbers(self, admin_client_, imp_tenant, live_before):
         """Two competitors sharing a 'rand' value used to hit the per-tenant
         unique constraint mid-load — a traceback and a wiped tournament."""
         rows = _rows16()
         rows[7] = ('Last8', 'First8', 90007, 'Sweden', None, 5)  # 5 already taken
-        resp = staff_client.post(
+        resp = admin_client_.post(
             '/admin_upload_from_template', {'myfile': _workbook(rows)})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
         assert 'Draw number 5' in resp.content.decode()
 
-    def test_not_a_workbook(self, staff_client, imp_tenant, live_before):
+    def test_not_a_workbook(self, admin_client_, imp_tenant, live_before):
         buf = io.BytesIO(b'this is not an xlsx file')
         buf.name = 'notes.txt'
-        resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+        resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
         self._assert_rejected_untouched(resp, imp_tenant, live_before)
 
-    def test_a_good_workbook_still_imports(self, staff_client, imp_tenant, live_before):
+    def test_a_good_workbook_still_imports(self, admin_client_, imp_tenant, live_before):
         """The pre-checks must not reject what the app itself produces: a fresh
         import over the live tournament replaces it wholesale."""
         rows = [(f'New{i + 1}', f'Player{i + 1}', 80000 + i, 'Norway', None, i + 1)
                 for i in range(16)]
-        resp = staff_client.post(
+        resp = admin_client_.post(
             '/admin_upload_from_template', {'myfile': _workbook(rows)})
         assert resp.status_code in (200, 302)
         players = Player.objects.filter(tenant=imp_tenant)
@@ -481,15 +485,15 @@ class TestPrecheckRejectsUntouched:
         assert set(players.values_list('country', flat=True)) == {'Norway'}
 
 
-def test_failed_import_leaves_tournament_empty(staff_client, imp_tenant):
+def test_failed_import_leaves_tournament_empty(admin_client_, imp_tenant):
     """F-C1: a failed re-import over a live tournament wipes it to a clean empty
     state (no partial/ghost tournament, and not silently reverted to the old one)."""
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
 
     rows = _rows16()
     rows[3] = ('LastBad', 'FirstBad', 'garbage', 'Sweden', None, 4)  # bad EMA -> fails
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
 
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0
@@ -498,13 +502,13 @@ def test_failed_import_leaves_tournament_empty(staff_client, imp_tenant):
     assert ts.fullname == ''
 
 
-def test_import_evaluates_seating_formulas(staff_client, imp_tenant):
+def test_import_evaluates_seating_formulas(admin_client_, imp_tenant):
     """The shipped 28-player sheet mirrors its high half with formulas ("=14+8"
     -> draw 22). openpyxl drops Excel's cached formula results whenever the
     workbook is re-saved (as _filled_workbook does), so the importer must
     evaluate the formulas — otherwise half of every table would import as empty
     seats (draw number 0). Every seat must carry a real draw number 1..28."""
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(28)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(28)})
     assert resp.status_code in (200, 302)
 
     seats = Seat.objects.filter(tenant=imp_tenant)
@@ -515,7 +519,7 @@ def test_import_evaluates_seating_formulas(staff_client, imp_tenant):
         assert drawn == list(range(1, 29))  # each competitor seated once per round
 
 
-def test_broken_seating_chart_rejected(staff_client, imp_tenant):
+def test_broken_seating_chart_rejected(admin_client_, imp_tenant):
     """A seating sheet that doesn't seat every competitor exactly once per round
     (here a blanked cell) is rejected, leaving the tournament empty — rather than
     silently loading a chart with a ghost empty seat."""
@@ -534,7 +538,7 @@ def test_broken_seating_chart_rejected(staff_client, imp_tenant):
     buf.seek(0)
     buf.name = 'template.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0
@@ -542,16 +546,16 @@ def test_broken_seating_chart_rejected(staff_client, imp_tenant):
 
 # --- in-app seating generation (admin_generate_seating) --------------------
 
-def test_generate_seating_builds_chart_and_keeps_players(staff_client, imp_tenant):
+def test_generate_seating_builds_chart_and_keeps_players(admin_client_, imp_tenant):
     """Generating replaces the seating chart (a full chart for every round) and
     returns quality measures, while keeping the player list and draw."""
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     draws_before = sorted(Player.objects.filter(tenant=imp_tenant)
                           .values_list('draw_number', flat=True))
 
     # No body -> auto method, apply immediately (an empty test-client post would
     # otherwise encode a non-empty multipart body, which the JSON contract 400s).
-    resp = staff_client.post('/admin_generate_seating', content_type='application/json')
+    resp = admin_client_.post('/admin_generate_seating', content_type='application/json')
     assert resp.status_code == 200
     data = resp.json()
     assert data['ok'] is True
@@ -567,17 +571,17 @@ def test_generate_seating_builds_chart_and_keeps_players(staff_client, imp_tenan
         assert drawn == list(range(1, 17))
 
 
-def test_generate_seating_algebraic_infeasible_refuses_without_touching_chart(staff_client, imp_tenant):
+def test_generate_seating_algebraic_infeasible_refuses_without_touching_chart(admin_client_, imp_tenant):
     """Explicitly requesting the deterministic method where no rematch-free chart
     exists is refused (400) and the existing chart is left intact. (The default
     'auto'/best-effort still produces a chart — see the best-effort test.)"""
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
             for i in range(16)]  # 4 teams / 7 rounds -> algebraic infeasible
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     before = Seat.objects.filter(tenant=imp_tenant).count()
     assert before == 7 * 4 * 4
 
-    resp = staff_client.post('/admin_generate_seating',
+    resp = admin_client_.post('/admin_generate_seating',
                              data=json.dumps({'method': 'algebraic'}),
                              content_type='application/json')
     assert resp.status_code == 400
@@ -585,7 +589,7 @@ def test_generate_seating_algebraic_infeasible_refuses_without_touching_chart(st
     assert Seat.objects.filter(tenant=imp_tenant).count() == before  # untouched
 
 
-def test_import_without_seating_sheet_keeps_players_seatless(staff_client, imp_tenant):
+def test_import_without_seating_sheet_keeps_players_seatless(admin_client_, imp_tenant):
     """A workbook with no '<N> players' seating sheet imports the player list/schedule
     and leaves the tournament without a chart (to be generated later on the Seating
     page) instead of failing the whole import."""
@@ -606,24 +610,24 @@ def test_import_without_seating_sheet_keeps_players_seatless(staff_client, imp_t
     buf.seek(0)
     buf.name = 'template.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code in (200, 302)
     assert Player.objects.filter(tenant=imp_tenant).count() == 16      # player list imported
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0         # no chart yet
 
     # ...and a chart can then be generated for it.
-    resp = staff_client.post('/admin_generate_seating', content_type='application/json')
+    resp = admin_client_.post('/admin_generate_seating', content_type='application/json')
     assert resp.status_code == 200
     assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4
 
 
-def test_generate_seating_preview_does_not_write(staff_client, imp_tenant):
+def test_generate_seating_preview_does_not_write(admin_client_, imp_tenant):
     """A preview (apply=false) returns measures without changing the stored chart."""
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     before = {(s.round_nb, s.table_nb, s.wind, s.draw_number)
               for s in Seat.objects.filter(tenant=imp_tenant)}
 
-    resp = staff_client.post('/admin_generate_seating',
+    resp = admin_client_.post('/admin_generate_seating',
                              data=json.dumps({'method': 'greedy', 'seed': 3, 'apply': False}),
                              content_type='application/json')
     assert resp.status_code == 200
@@ -635,10 +639,10 @@ def test_generate_seating_preview_does_not_write(staff_client, imp_tenant):
     assert after == before  # nothing written
 
 
-def test_seating_page_renders(staff_client, imp_tenant):
+def test_seating_page_renders(admin_client_, imp_tenant):
     """The Seating admin page renders, showing the generate controls."""
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
-    resp = staff_client.get('/admin?page=seating')
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    resp = admin_client_.get('/admin?page=seating')
     assert resp.status_code == 200
     html = resp.content.decode()
     assert 'Generate a new seating' in html
@@ -648,41 +652,41 @@ def test_seating_page_renders(staff_client, imp_tenant):
     assert 'Variation (seed)' in html
 
 
-def test_cross_positions_before_draw_uses_placeholder(staff_client, imp_tenant):
+def test_cross_positions_before_draw_uses_placeholder(admin_client_, imp_tenant):
     """The cross-position sheet renders before any draw (no 500), labelling
     unclaimed draw slots 'Player N' instead of dereferencing a missing player."""
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', None, None)
             for i in range(16)]  # no 'rand' -> players undrawn, but the chart exists
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
     assert Seat.objects.filter(tenant=imp_tenant).exists()
     assert Player.objects.filter(tenant=imp_tenant, draw_number__isnull=True).count() == 16
 
-    resp = staff_client.get('/cross_positions')
+    resp = admin_client_.get('/cross_positions')
     assert resp.status_code == 200
     assert 'Player 1' in resp.content.decode()
     # Team variant must also not crash when nobody is drawn in.
-    resp = staff_client.get('/cross_positions?per_team=1')
+    resp = admin_client_.get('/cross_positions?per_team=1')
     assert resp.status_code == 200
 
 
-def test_dashboard_reports_seating_status(staff_client, imp_tenant):
+def test_dashboard_reports_seating_status(admin_client_, imp_tenant):
     """The dashboard's setup checklist shows whether a seating chart exists."""
     # No import yet -> no seating.
-    resp = staff_client.get('/admin?page=welcome')
+    resp = admin_client_.get('/admin?page=welcome')
     assert 'No seating chart' in resp.content.decode()
     # After importing a chart -> ready.
-    staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
-    resp = staff_client.get('/admin?page=welcome')
+    admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    resp = admin_client_.get('/admin?page=welcome')
     assert 'Seating chart ready' in resp.content.decode()
 
 
-def test_seating_page_team_infeasible_offers_best_effort(staff_client, imp_tenant):
+def test_seating_page_team_infeasible_offers_best_effort(admin_client_, imp_tenant):
     """For a team field where a perfect chart is impossible, the page still offers
     the best-effort method (with a teammate-clash caveat) rather than refusing."""
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
             for i in range(16)]  # 4 teams / 7 rounds -> algebraic infeasible
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
-    resp = staff_client.get('/admin?page=seating')
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.get('/admin?page=seating')
     assert resp.status_code == 200
     html = resp.content.decode()
     assert 'Best-effort search' in html
@@ -690,13 +694,13 @@ def test_seating_page_team_infeasible_offers_best_effort(staff_client, imp_tenan
     assert 'rematch-free' in html  # deterministic shown disabled with a reason
 
 
-def test_generate_seating_team_best_effort_when_infeasible(staff_client, imp_tenant):
+def test_generate_seating_team_best_effort_when_infeasible(admin_client_, imp_tenant):
     """Generating a team chart where a perfect one is impossible succeeds with the
     best-effort search and writes a full chart, rather than refusing."""
     rows = [(f'Last{i + 1}', f'First{i + 1}', 90000 + i, 'Sweden', f'Team{i // 4}', i + 1)
             for i in range(16)]
-    staff_client.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
-    resp = staff_client.post('/admin_generate_seating',
+    admin_client_.post('/admin_upload_from_template', {'myfile': _workbook(rows)})
+    resp = admin_client_.post('/admin_generate_seating',
                              data=json.dumps({'method': 'greedy', 'apply': True}),
                              content_type='application/json')
     assert resp.status_code == 200
@@ -708,7 +712,7 @@ def test_generate_seating_team_best_effort_when_infeasible(staff_client, imp_ten
 # Tenancy and atomicity of the import itself (F10 + import atomicity)
 # --------------------------------------------------------------------------
 
-def test_import_reads_the_upload_not_a_shared_path(staff_client, imp_tenant, tmp_path):
+def test_import_reads_the_upload_not_a_shared_path(admin_client_, imp_tenant, tmp_path):
     """F10: every import used to be staged at one fixed path, BASE_DIR/tmp/template.xlsx.
     Two tenants importing at once raced over it, and the loser could load the other's
     workbook — after deleting its own players. The upload is now read directly, so no
@@ -717,7 +721,7 @@ def test_import_reads_the_upload_not_a_shared_path(staff_client, imp_tenant, tmp
     staged = BASE_DIR / 'tmp' / 'template.xlsx'
     before = staged.stat().st_mtime if staged.exists() else None
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
     assert resp.status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
 
@@ -725,17 +729,15 @@ def test_import_reads_the_upload_not_a_shared_path(staff_client, imp_tenant, tmp
     assert after == before, 'the import still writes a shared staging file'
 
 
-def test_two_tenants_importing_do_not_cross(staff_client, imp_tenant, db):
+def test_two_tenants_importing_do_not_cross(admin_client_, imp_tenant, db):
     """The other half of F10: each tenant ends up with exactly its own player list.
     Sequential here — the shared-path race is what the test above rules out — but this
     pins the tenant scoping of the import itself."""
     other = Tenant.objects.create(name='Other import', subdomain='imp2')
-    other_client = Client()
-    other_client.defaults['HTTP_HOST'] = 'imp2.example.com'
-    u = User.objects.create_superuser('imp2_staff', password='pw')
-    other_client.force_login(u)
+    other_client = client_for('imp2.example.com')
+    other_client.force_login(role_user('imp2_admin', other, admin=True))
 
-    assert staff_client.post(
+    assert admin_client_.post(
         '/admin_upload_from_template', {'myfile': _filled_workbook(16)}).status_code == 200
     assert other_client.post(
         '/admin_upload_from_template', {'myfile': _filled_workbook(20)}).status_code == 200
@@ -746,14 +748,14 @@ def test_two_tenants_importing_do_not_cross(staff_client, imp_tenant, db):
     assert Seat.objects.filter(tenant=imp_tenant).exclude(draw_number__lte=16).count() == 0
 
 
-def test_a_failure_mid_import_leaves_nothing_behind(staff_client, imp_tenant):
+def test_a_failure_mid_import_leaves_nothing_behind(admin_client_, imp_tenant):
     """The import is one transaction, and a validation failure mid-parse wipes to
     empty by design — never a half-loaded tournament, and never the old one
     silently restored. The trigger must be a *deep* failure (here a broken
     seating chart, found after players and schedule are already written): the
     cheap mistakes are pre-checked before anything is deleted and reject with
     the tournament untouched instead (see TestPrecheckRejectsUntouched)."""
-    assert staff_client.post(
+    assert admin_client_.post(
         '/admin_upload_from_template', {'myfile': _filled_workbook(16)}).status_code == 200
     assert Player.objects.filter(tenant=imp_tenant).count() == 16
 
@@ -770,7 +772,7 @@ def test_a_failure_mid_import_leaves_nothing_behind(staff_client, imp_tenant):
     buf.seek(0)
     buf.name = 'broken.xlsx'
 
-    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    resp = admin_client_.post('/admin_upload_from_template', {'myfile': buf})
     assert resp.status_code == 200          # the page renders with an error banner
     assert Player.objects.filter(tenant=imp_tenant).count() == 0
     assert Seat.objects.filter(tenant=imp_tenant).count() == 0
