@@ -171,6 +171,17 @@ def _connect(cfg):
         password=cfg.password or None,
         pkey=_load_private_key(cfg.key_data) if cfg.key_data else None,
         timeout=15,
+        # Authenticate with exactly what the publish form configured, and nothing
+        # else. Both of these default to True in paramiko, which means offering the
+        # process's own SSH identities — the agent's keys and ~/.ssh/id_* — to
+        # whatever host the organizer typed in. That host then learns which keys we
+        # hold, and auth can succeed on an identity nobody configured, so the
+        # target's real access stops matching what the form says. Worst on the
+        # standalone laptop, where those are the organizer's personal keys.
+        # configuration.md documents a password *or* a private key as the config, so
+        # there is no supported setup that relied on the ambient ones.
+        allow_agent=False,
+        look_for_keys=False,
     )
     if not pinned:
         try:

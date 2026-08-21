@@ -42,6 +42,7 @@ class _FakeClient:
 
     def connect(self, **kwargs):
         self.connected = True
+        self.connect_kwargs = kwargs
 
     def get_transport(self):
         return types.SimpleNamespace(get_remote_server_key=lambda: SERVER_KEY)
@@ -152,3 +153,22 @@ class TestUnsavedFormValues:
         monkeypatch.setattr(sftp_upload, '_remember_host_key', boom)
         # Publishing must still go ahead; the next connect just learns it again.
         assert sftp_upload._connect(_cfg()) is fake_client
+
+
+class TestOnlyConfiguredCredentialsAreOffered:
+    """paramiko's allow_agent and look_for_keys default to True, so a publish would
+    offer the process's own SSH identities to whichever host the organizer named.
+    The form asks for a password or a private key; those are the only credentials
+    that may be used."""
+
+    def test_the_ambient_ssh_identities_are_not_offered(self, fake_client, target):
+        sftp_upload._connect(_cfg())
+        assert fake_client.connect_kwargs['allow_agent'] is False
+        assert fake_client.connect_kwargs['look_for_keys'] is False
+
+    def test_the_configured_credentials_still_are(self, fake_client, target):
+        sftp_upload._connect(_cfg(password='formpw'))
+        kw = fake_client.connect_kwargs
+        assert kw['hostname'] == 'example.org'
+        assert kw['username'] == 'u'
+        assert kw['password'] == 'formpw'
