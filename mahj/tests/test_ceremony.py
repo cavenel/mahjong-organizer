@@ -246,9 +246,8 @@ class TestControlEndpoint:
         # exiting the ceremony must not publish anything
         assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
 
-    def test_publish_reveals_all_rounds_and_ends(self, op_client, teamed):
+    def test_publish_reveals_the_scored_rounds_and_ends(self, op_client, teamed):
         tenant = teamed['tenant']
-        nb_rounds = teamed['settings'].nb_rounds
         op_client.post('/ceremony_control?phase=teams&step=2')
 
         resp = op_client.post('/ceremony_control?action=publish')
@@ -258,8 +257,46 @@ class TestControlEndpoint:
 
         state = CeremonyState.objects.get(tenant=tenant)
         assert state.phase == 'idle'
-        for rn in range(1, nb_rounds + 1):
+        # Rounds 1-2 are complete in the fixture, so they are revealed.
+        for rn in (1, 2):
             assert PublishedRound.objects.get(tenant=tenant, round_nb=rn).withheld is False
+
+    def test_publish_skips_a_round_nobody_scored(self, op_client, teamed):
+        """A published round locks score entry, so the ceremony must not publish a
+        round with unscored seats. Round 3 of the fixture has its 16 seats and no
+        points; publishing it froze entry until a publisher unpublished it."""
+        tenant = teamed['tenant']
+        op_client.post('/ceremony_control?action=publish')
+        assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
+
+    def test_publish_needs_the_publisher_role(self, teamed):
+        """Revealing results to everyone is a publish. A display operator drives
+        the slides, but set_round_published refuses them a publish and this path
+        must not be a way around that."""
+        tenant = teamed['tenant']
+        c = Client()
+        u = User.objects.create_user('screenop', password='pw')
+        grant(u, tenant, display_op=True)
+        c.force_login(u)
+        c.defaults['HTTP_HOST'] = 'test.example.com'
+
+        before = dict(PublishedRound.objects.filter(tenant=tenant)
+                      .values_list('round_nb', 'withheld'))
+        assert c.post('/ceremony_control?action=publish').status_code == 403
+        assert dict(PublishedRound.objects.filter(tenant=tenant)
+                    .values_list('round_nb', 'withheld')) == before
+        # ...while the slide actions that role does own still work.
+        assert c.post('/ceremony_control?phase=teams&step=1').status_code == 200
+
+    def test_publish_unwithholds_an_already_published_round(self, op_client, teamed):
+        """The withheld final round is the whole point of the ceremony."""
+        tenant = teamed['tenant']
+        PublishedRound.objects.update_or_create(
+            tenant=tenant, round_nb=2, defaults={'withheld': True})
+
+        op_client.post('/ceremony_control?action=publish')
+
+        assert PublishedRound.objects.get(tenant=tenant, round_nb=2).withheld is False
 
     def test_control_rejects_get(self, op_client, teamed):
         """ceremony_control mutates (and can publish results), so GET is 405 —

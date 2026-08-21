@@ -13,13 +13,20 @@ Nothing here changes the existing players-only withheld-podium logic; the final
 """
 import json
 
-from django.http import HttpResponse, HttpResponseNotAllowed, JsonResponse
+from django.http import (
+    HttpResponse, HttpResponseForbidden, HttpResponseNotAllowed, JsonResponse,
+)
 from django.template.defaultfilters import floatformat
 
-from ..models import CeremonyState, PublishedRound
-from ..scoring import _country_flag, _final_round_withheld, team_standings
-from ..signals import broadcast_display, invalidate_leaderboard
-from .helpers import get_tenant, get_tournament, tenant_role_required
+from ..models import CeremonyState, PublishedRound, Seat
+from ..scoring import (
+    _country_flag, _final_round_withheld, team_standings, unscored_seats_q,
+)
+from ..signals import (
+    broadcast_display, broadcast_publish_state, invalidate_leaderboard,
+)
+from .helpers import get_tenant, get_tournament, has_role, tenant_role_required
+from .score_entry import _published_rounds
 from .scoring import scores_per_player_rows, stat_all_rounds
 
 
@@ -219,6 +226,7 @@ def ceremony_control(request):
 
     POST only (it mutates state and publishes results). Params (query string):
       action=publish              -> reveal all results publicly and end ceremony
+                                     (publisher role, not just display_op)
       phase=idle|blank|teams|players|stat [&step=N] [&stat_key=KEY]
     """
     if request.method != 'POST':
@@ -229,14 +237,34 @@ def ceremony_control(request):
     state, _ = CeremonyState.objects.get_or_create(tenant=tenant)
 
     if request.GET.get('action') == 'publish':
-        # Reveal everything to everyone: publish all rounds fully.
+        # Revealing results to everyone is a publish, so it takes the publisher
+        # role. The slide actions below are display_op work — advancing a podium
+        # reveal is not — but `set_round_published` deliberately refuses a publish
+        # from anyone without the publisher role, and this path must not be a way
+        # around that.
+        if not has_role(request, 'publisher'):
+            return HttpResponseForbidden('forbidden')
+
+        # Reveal what is already published: the withheld final round is the whole
+        # point of the ceremony.
+        PublishedRound.objects.filter(tenant=tenant, withheld=True).update(withheld=False)
+        # Then publish any round that is complete but was never published, under
+        # the same rule `set_round_published` enforces (`unscored_seats_q` is the
+        # ORM half of `seat_is_scored`). Incomplete rounds are skipped rather than
+        # published: a published round locks score entry, so publishing
+        # 1..nb_rounds unconditionally froze every unscored round, recoverable only
+        # by a publisher unpublishing it again.
         for rnd in range(1, tournament.nb_rounds + 1):
-            PublishedRound.objects.update_or_create(
-                tenant=tenant, round_nb=rnd, defaults={'withheld': False})
+            seats = Seat.objects.filter(tenant=tenant, round_nb=rnd)
+            if seats.exists() and not seats.filter(unscored_seats_q(tournament)).exists():
+                PublishedRound.objects.get_or_create(
+                    tenant=tenant, round_nb=rnd, defaults={'withheld': False})
         state.phase, state.step, state.stat_key = 'idle', 0, ''
         state.save()
         invalidate_leaderboard(subdomain)  # busts caches + wakes desktop
         broadcast_display(subdomain, 'ceremony.update', {'event': 'ceremony', 'phase': 'idle'})
+        # Keep the scorer pages' publish toggles in step, as set_round_published does.
+        broadcast_publish_state(subdomain, {'published_rounds': _published_rounds(tenant)})
 
         # Only now — after the ceremony — push the full final standings to the
         # static spectator site. During play the last round is published with its
