@@ -77,6 +77,42 @@ def test_import_creates_players_and_seats(staff_client, imp_tenant):
     assert not hasattr(seat, 'player_id')  # Seat has no player FK column
 
 
+def test_a_cache_failure_after_a_good_import_keeps_the_tournament(
+        staff_client, imp_tenant, monkeypatch):
+    """The wipe-to-empty handler is deliberate policy for a *failed* import. But the
+    cache bust and the display broadcast run after the transaction has committed, so a
+    failure in either says nothing about the import — and while they sat inside the
+    try, a Redis hiccup emptied a tournament that had just loaded cleanly, minutes
+    before a round.
+    """
+    def boom(*a, **kw):
+        raise ConnectionError('Error 111 connecting to redis:6379. Connection refused.')
+
+    monkeypatch.setattr('mahj.views.admin_views.invalidate_leaderboard', boom)
+
+    resp = staff_client.post('/admin_upload_from_template',
+                             {'myfile': _filled_workbook(16)})
+    assert resp.status_code in (200, 302)
+    # The tournament is loaded, not wiped.
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+    assert Seat.objects.filter(tenant=imp_tenant).count() == 7 * 4 * 4
+    assert TournamentSettings.objects.get(tenant=imp_tenant).nb_rounds == 7
+
+
+def test_a_broadcast_failure_after_a_good_import_keeps_the_tournament(
+        staff_client, imp_tenant, monkeypatch):
+    """Same for the other post-commit call."""
+    def boom(*a, **kw):
+        raise RuntimeError('channel layer unavailable')
+
+    monkeypatch.setattr('mahj.views.admin_views.broadcast_publish_state', boom)
+
+    resp = staff_client.post('/admin_upload_from_template',
+                             {'myfile': _filled_workbook(16)})
+    assert resp.status_code in (200, 302)
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+
+
 def _snapshot(tenant):
     players = {
         (p.full_name, p.first_name, p.last_name, p.EMA_ID, p.country, p.team,

@@ -685,8 +685,6 @@ def admin_upload_from_template(request):
                             )
                     Seat.objects.bulk_create(seats_to_create, batch_size=500)
                 wb.close()
-            invalidate_leaderboard(tenant.subdomain)
-            broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
         except Exception as exc:
             # Import is a full replace by design (it clears scores even on success),
             # and a half-imported tournament is worse than none — so any failure
@@ -718,6 +716,20 @@ def admin_upload_from_template(request):
                     escape(traceback.format_exc())
                 )
             return options(request, error=message)
+
+        # Outside the try on purpose. Both of these run *after* the transaction has
+        # committed, so a failure in either says nothing about the import — but while
+        # they sat inside the try, a Redis hiccup in invalidate_leaderboard landed in
+        # the wipe handler above and emptied a tournament that had just imported
+        # cleanly. The cache and the displays are best-effort; the data is not.
+        try:
+            invalidate_leaderboard(tenant.subdomain)
+            broadcast_publish_state(tenant.subdomain, {'published_rounds': []})
+        except Exception:
+            logger.exception(
+                "Import of %r succeeded but the cache/display refresh failed; the "
+                "tournament is loaded and a later publish will resync the screens.",
+                tenant.subdomain)
 
         return options(request)
 
