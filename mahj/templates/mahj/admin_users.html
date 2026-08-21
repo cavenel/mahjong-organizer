@@ -12,7 +12,7 @@
   <!-- How links work -->
   <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 space-y-1">
     <p><strong>Login links are passwords.</strong> Share each one privately (over HTTPS) — anyone with the link is logged in as that user.</p>
-    <p>Links stay valid for <strong>{{ link_validity_days }} days</strong> (one global setting). <strong>Revoke links</strong> immediately invalidates <em>all</em> of that user's links at once.</p>
+    <p>Links stay valid for <strong>{{ link_validity_days }} days</strong> (one global setting). <strong>Revoke</strong> immediately invalidates <em>all</em> of that user's links at once <em>and</em> clears their password — so it is not offered on your own row.</p>
   </div>
 
   <!-- Add user -->
@@ -112,7 +112,9 @@
               <button type="button" class="remove-from-tenant rounded border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       {% if u.is_self %}disabled{% endif %}>Remove</button>
               {% else %}
-              <button type="button" class="revoke-links rounded border border-gray-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50">Revoke</button>
+              <button type="button" class="revoke-links rounded border border-gray-300 px-2 py-1 text-xs text-amber-700 hover:bg-amber-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        {% if u.is_self %}disabled{% endif %}
+                        title="Clears this user's password as well as their links">Revoke</button>
               <button type="button" class="delete-user rounded border border-gray-300 px-2 py-1 text-xs text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
                       {% if u.is_self %}disabled{% endif %}>Delete</button>
               {% endif %}
@@ -236,9 +238,11 @@
   $(document).on("click", ".revoke-links", function() {
     var $row = $(this).closest("tr");
     confirmAction({
-      title: "Invalidate login links",
-      body: "Invalidate ALL existing login links for this user?",
-      confirmLabel: "Invalidate links",
+      title: "Clear this user\u2019s credentials",
+      body: "This invalidates ALL of their existing login links AND clears "
+            + "their password, so the account becomes link-only. Generate a "
+            + "new link to let them back in.",
+      confirmLabel: "Clear credentials",
       onConfirm: function() {
         post("user_revoke_links", { user_id: $row.data("user-id") }).then(function(res) {
           if (res.handled) return;

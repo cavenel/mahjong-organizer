@@ -336,7 +336,17 @@ def user_revoke_links(request):
     """Rotate the target's password hash, invalidating every sesame token they
     hold. Containment-restricted: rotating a *shared* account's credentials would
     reach beyond this tenant, so it's refused for accounts that also belong to
-    another tenant (a superuser can still do it)."""
+    another tenant (a superuser can still do it).
+
+    This clears the *password* as well as the links, so it carries the same two
+    guards as ``user_delete``. The self-guard is the one that bites: without it a
+    single click left an admin with no usable password and no way back, because
+    ``reauth_ok`` refuses password-less accounts and so the sudo gate on this very
+    page became unreachable. The last-admin guard can't currently fire for a peer
+    admin — reaching here at all requires being a tenant admin, which makes the
+    count at least two whenever the target is one — but it mirrors ``user_delete``
+    so the two stay in step if that gating is ever loosened.
+    """
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     data = json_body(request)
@@ -344,12 +354,24 @@ def user_revoke_links(request):
     resolved = _target_in_tenant(request, data)
     if isinstance(resolved, JsonResponse):
         return resolved
-    user, tenant, _membership = resolved
+    user, tenant, membership = resolved
 
+    if user.id == request.user.id:
+        return JsonResponse(
+            {'status': 'error',
+             'error': 'this clears your own password as well as your links, leaving '
+                      'no way back in — ask another admin, or use a superuser'},
+            status=400)
     if not request.user.is_superuser and not _memberships_contained(user, tenant):
         return JsonResponse(
             {'status': 'error', 'error': 'shared account — only a superuser can revoke its links'},
             status=403)
+    if (membership.is_tenant_admin and not request.user.is_superuser
+            and _tenant_admin_count(tenant) <= 1):
+        return JsonResponse(
+            {'status': 'error',
+             'error': "cannot clear the credentials of this tenant's last admin"},
+            status=400)
 
     # Rotating the password hash invalidates every existing sesame token for this
     # user. It also clears any usable password, so the account becomes link-only.

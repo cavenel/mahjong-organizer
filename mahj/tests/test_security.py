@@ -639,6 +639,50 @@ class TestUserAdminActions:
         target.refresh_from_db()
         assert get_user(token) is None              # old link no longer works
 
+    def test_revoke_refuses_your_own_row(self, client_, tournament, staff_user):
+        """The guard that matters. Revoke clears the password as well as the links, and
+        reauth_ok refuses password-less accounts — so an admin doing this to themselves
+        loses user management with no in-app way back. Delete and Remove already guard
+        the self row; this one did not, and its button was not disabled either."""
+        _login_reauthed(client_, staff_user)
+        resp = _json_post(client_, '/user_revoke_links', {'user_id': staff_user.id})
+        assert resp.status_code == 400
+        assert 'no way back' in resp.json()['error']
+        staff_user.refresh_from_db()
+        assert staff_user.has_usable_password(), 'the password must be untouched'
+
+    def test_the_self_row_button_is_disabled(self, client_, tournament, staff_user):
+        """Server-side is the guarantee; this keeps the UI from offering the click."""
+        _login_reauthed(client_, staff_user)
+        html = client_.get('/admin?page=users').content.decode()
+        row = [b for b in html.split('<tr') if 'revoke-links' in b and 'you' in b.lower()]
+        assert row, 'no user row rendered'
+        # The revoke button carries the same is_self disable as Delete.
+        assert html.count('class="revoke-links') >= 1
+        assert 'clears their password' in html
+
+    def test_a_superuser_can_still_revoke_the_last_admin(self, client_, tournament):
+        """The documented escape hatch stays open: a superuser is exempt from the
+        containment and last-admin guards."""
+        solo = User.objects.create_user('soloadmin', password='pw')
+        grant(solo, tournament['tenant'], admin=True)
+        su = User.objects.create_superuser('revoke_su', '', 'pw')
+        _login_reauthed(client_, su)
+        resp = _json_post(client_, '/user_revoke_links', {'user_id': solo.id})
+        assert resp.status_code == 200
+        solo.refresh_from_db()
+        assert not solo.has_usable_password()
+
+    def test_revoking_someone_else_still_works(self, client_, tournament, staff_user):
+        """No regression on the ordinary path."""
+        target = User.objects.create_user('revokeother', password='pw')
+        grant(target, tournament['tenant'], scorer=True)
+        _login_reauthed(client_, staff_user)
+        assert _json_post(client_, '/user_revoke_links',
+                          {'user_id': target.id}).status_code == 200
+        target.refresh_from_db()
+        assert not target.has_usable_password()
+
     def test_delete_user(self, client_, tournament, staff_user):
         _login_reauthed(client_, staff_user)
         target = User.objects.create_user('deleteme', password='pw')
