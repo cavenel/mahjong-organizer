@@ -393,6 +393,10 @@
   var publishedRounds = new Set({{ published_rounds }});
   // Publishing/unpublishing needs the publisher role or tenant admin (the backend rejects plain scorers).
   var canPublish = {{ can_publish|yesno:"true,false" }};
+  // Every score mutation is scorer-only, so a non-scorer's cells are read-only
+  // whatever the publish state — see refreshPublishToggle, which would otherwise
+  // clear the attribute the moment it repainted an unpublished round.
+  var userIsScorer = {{ user_is_scorer|yesno:"true,false" }};
 
   // Save any edit still inside its debounce window before the page goes away.
   // sendBeacon (not fetch) and BOTH events, matching the per-hand sheet: mobile
@@ -438,7 +442,7 @@
     status.text(isPub ? "Published" : "Not published");
     // Lock score inputs while the round is published — editing requires
     // unpublishing first (the backend rejects edits to a published round).
-    pane.find("input[name='minipoints']").prop("readonly", isPub);
+    pane.find("input[name='minipoints']").prop("readonly", isPub || !userIsScorer);
     pane.find(".score-inputs").toggleClass("locked", isPub);
     pane.find(".lock-hint").toggleClass("hidden", !isPub);
   }

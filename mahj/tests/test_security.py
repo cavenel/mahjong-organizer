@@ -507,6 +507,29 @@ class TestAdminPageRoleIsolation:
         assert 'read-only for your role' not in body
         assert 'class="btn-sheet show_hands"' in body
 
+    def test_a_publisher_cannot_save_a_score(self, client_, tournament,
+                                             publisher_group_user):
+        """The read-only cells are a courtesy; this is the guarantee behind them."""
+        from mahj.models import Seat
+        seat = Seat.objects.filter(tenant=tournament['tenant'],
+                                   round_nb=3, table_nb=1).first()
+        client_.force_login(publisher_group_user)
+        resp = client_.post('/update_seats_bulk',
+                            data=json.dumps({'seats': [
+                                {'id': seat.id, 'version': seat.version, 'mp': 99, 'tp': 4}]}),
+                            content_type='application/json')
+        assert resp.status_code == 403
+
+    def test_the_publish_lock_script_cannot_unlock_a_non_scorer(
+            self, client_, tournament, publisher_group_user):
+        """The grid repaints its cells whenever the publish state changes, and that
+        repaint sets `readonly` outright. Unless it also carries the role, it hands a
+        publisher an editable cell on every *unpublished* round the moment it runs —
+        which the rendered markup alone doesn't show."""
+        body = self._body(client_, publisher_group_user, 'scoring').decode()
+        assert 'var userIsScorer = false;' in body
+        assert 'prop("readonly", isPub || !userIsScorer)' in body
+
     # --- import_template: tenant admin only -----------------------------------
     def test_import_hidden_from_scorer(self, client_, tournament, scorer_group_user):
         assert b'will erase' not in self._body(client_, scorer_group_user, 'import_template')
