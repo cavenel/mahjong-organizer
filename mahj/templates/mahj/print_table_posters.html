@@ -1,14 +1,13 @@
 {% load static %}
 {% load pagination_tags %} 
-{% load mathfilters %}
 
 <html>
 <head>
 <link rel="stylesheet" href="{% static "images/flags.css" %}">
 <style>
 body {
-  white;/*background: rgb(204,204,204); */
-    letter-spacing: 1.5;
+  background: white;
+  letter-spacing: 1.5px;
 }
 page {
   background: white;
@@ -213,9 +212,7 @@ h2 {
                     <tr>
                         {% for table in row %}
                         <td>
-                            {% with forloop_counter=forloop.parentloop.parentloop.counter0|mul:20|add:forloop.parentloop.counter0|mul:5|add:forloop.counter %}
-                                {% include "mahj/print_table_per_round.html" %}
-                            {% endwith %}
+                            {% include "mahj/print_table_per_round.html" %}
                         </td>
                         {% endfor %}
                     </tr>

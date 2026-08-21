@@ -192,10 +192,16 @@ def table_posters(request):
         round_max = max(round_max, seat.round_nb)
         table_max = max(table_max, seat.table_nb)
     # Store the Seat itself (not just its player) so the poster can label an
-    # unclaimed draw slot "Player <n>" via Seat.player_short_name.
-    grid = [[[None, None, None, None] for _ in range(table_max)] for _ in range(round_max)]
+    # unclaimed draw slot "Player <n>" via Seat.player_short_name. Each table
+    # carries its own number: the template chunks the round into pages and then
+    # into rows, and a number derived from those nested loop counters came out
+    # wrong past the first page.
+    grid = [
+        [{'number': t + 1, 'seats': [None, None, None, None]} for t in range(table_max)]
+        for _ in range(round_max)
+    ]
     for seat in seat_rows:
-        grid[seat.round_nb - 1][seat.table_nb - 1][seat.wind - 1] = seat
+        grid[seat.round_nb - 1][seat.table_nb - 1]['seats'][seat.wind - 1] = seat
 
     schedule = list(Schedule.objects.filter(tenant=tenant, is_round=True).order_by('id'))
     template = loader.get_template('mahj/print_table_posters.html')

@@ -5,6 +5,8 @@ print, so they have no JSON/wire surface of their own — a broken context key j
 renders a blank poster. Smoke-render them so a silent template variable miss is
 caught here rather than on paper.
 """
+import re
+
 import pytest
 from django.contrib.auth.models import User
 from django.test import Client
@@ -36,6 +38,24 @@ def test_table_posters_render_one_per_table_and_round(staff_client, tournament):
     assert 'Player1' in body
 
 
+def test_table_posters_number_tables_past_the_first_page(staff_client, tournament):
+    """Posters are chunked 20 to an A3 page. Numbering used to be derived from the
+    nested page/row/column loop counters, and Django filters chain left-to-right,
+    so page 2 came out numbered 101-120 instead of 21-40."""
+    tenant = tournament['tenant']
+    # Widen round 1 to 21 tables, so table 21 opens a second page on its own.
+    for table_nb in range(5, 22):
+        for wind in range(1, 5):
+            Seat.objects.create(tenant=tenant, round_nb=1, table_nb=table_nb,
+                                wind=wind, draw_number=1)
+
+    body = staff_client.get('/table_posters').content.decode()
+    numbers = re.findall(r'font-weight:bold;">(\d+)</td>', body)
+    # Round 1 now runs 1..21; rounds 2 and 3 still hold 4 tables each.
+    assert numbers[:21] == [str(n) for n in range(1, 22)]
+    assert '101' not in numbers
+
+
 def test_print_scores_masks_rounds_for_the_public(monkeypatch, tournament):
     """`/print_scores` renders whatever privilege the viewer has: an anonymous
     request must compute standings with full_view=False (published/non-withheld
@@ -60,6 +80,15 @@ def test_print_scores_masks_rounds_for_the_public(monkeypatch, tournament):
     admin.force_login(u)
     assert admin.get('/print_scores').status_code == 200
     assert captured[-1] is True
+
+
+def test_print_schedule_lists_every_round(staff_client, tournament):
+    """Smoke-render: the sheet groups the schedule by day, so a missing context key
+    or an unbalanced tag prints a blank page rather than raising."""
+    body = staff_client.get('/print_schedule').content.decode()
+    for i in range(1, 4):
+        assert f'Round {i}' in body
+    assert body.count('</div>') == body.count('<div')
 
 
 def test_player_cards_render_seat_wind_per_round(staff_client, tournament):

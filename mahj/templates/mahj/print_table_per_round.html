@@ -1,22 +1,22 @@
 {% load static %} 
-{% if table.1 %}
+{% if table.seats.1 %}
 <div style="width:100%; text-align:-webkit-center; vertical-align: middle; height:208px;">
     <table class="table_table" style="zoom:1.0;">
         <tr>
             <td></td>
-            <td colspan=4 class="name_top">{{ table.3.player_short_name }}</td>
+            <td colspan=4 class="name_top">{{ table.seats.3.player_short_name }}</td>
             <td></td>
         </tr>
         <tr>
-            <td rowspan=3 class="name_left"><p>{{ table.0.player_short_name }}</p></td>
+            <td rowspan=3 class="name_left"><p>{{ table.seats.0.player_short_name }}</p></td>
             <td class="carpet"></td>
             <td colspan=2 class="carpet" style="text-align:center;">N</td>
             <td class="carpet"></td>
-            <td rowspan=3 class="name_right"><p>{{ table.2.player_short_name }}</p></td>
+            <td rowspan=3 class="name_right"><p>{{ table.seats.2.player_short_name }}</p></td>
         </tr>
         <tr>
             <td class="carpet"><b>E</b></td>
-            <td colspan=2 class="carpet" style="height:60px;font-size:51px;font-weight:bold;">{{ forloop_counter }}</td>
+            <td colspan=2 class="carpet" style="height:60px;font-size:51px;font-weight:bold;">{{ table.number }}</td>
             <td class="carpet">W</td>
         </tr>
         <tr>
@@ -26,7 +26,7 @@
         </tr>
         <tr>
             <td></td>
-            <td colspan=4 class="name_bottom">{{ table.1.player_short_name }}</td>
+            <td colspan=4 class="name_bottom">{{ table.seats.1.player_short_name }}</td>
             <td></td>
         </tr>
     </table>
