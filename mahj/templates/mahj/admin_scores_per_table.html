@@ -70,7 +70,9 @@
   .score-inputs input::-webkit-outer-spin-button { -webkit-appearance: none; }
   .score-inputs input.mp-input { flex: 2; width: 60px; border-right: 1px solid rgba(148,163,184,.6); font-size: 18px; }
   .score-inputs input.tp-input { flex: 1; width: 36px; background: rgba(148,163,184,.18); color: var(--text-sub); }
-  /* Published rounds are locked — scores can only change after unpublishing. */
+  /* Not editable here: a published round (unpublish first), or a role that doesn't
+     enter scores at all. Same look either way — the reason is spelled out beside
+     the publish toggle. */
   .score-inputs.locked,
   .score-inputs.locked:focus-within {
     background: var(--bg-header); border-color: var(--border); box-shadow: none;
@@ -211,7 +213,7 @@
                   <td class="col-wind">
                     <div class="seat_cell" data-id="{{ s.seat.id }}" data-version="{{ s.seat.version }}">
                       <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>
-                      <div class="score-inputs">
+                      <div class="score-inputs{% if not user_is_scorer %} locked{% endif %}">
                         <input class="mp-input" type="number" name="minipoints"
                                value="{{ s.seat.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off"
                                {% if not user_is_scorer %}readonly tabindex="-1"{% endif %}>
@@ -443,7 +445,7 @@
     // Lock score inputs while the round is published — editing requires
     // unpublishing first (the backend rejects edits to a published round).
     pane.find("input[name='minipoints']").prop("readonly", isPub || !userIsScorer);
-    pane.find(".score-inputs").toggleClass("locked", isPub);
+    pane.find(".score-inputs").toggleClass("locked", isPub || !userIsScorer);
     pane.find(".lock-hint").toggleClass("hidden", !isPub);
   }
 
