@@ -1,4 +1,7 @@
-Django==4.2.30
+# 5.2 LTS: security-supported for years, where 4.2's extended support ended in
+# April 2026. Deliberately not the newest release — 6.x is non-LTS, so it would
+# mean another bump within about a year for no feature this app uses.
+Django==5.2.17
 
 # Async/WebSocket stack — pinned to a combination verified against the Redis
 # channel layer. While unpinned, builds resolved a redis-py whose blocking read
