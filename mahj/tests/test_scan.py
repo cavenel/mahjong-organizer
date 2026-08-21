@@ -527,10 +527,14 @@ class TestScanStatus:
 
     def test_status_reports_pending_done_and_expired(self, client_, scorer, monkeypatch):
         client_.force_login(scorer)
+        # Every result carries its job's subdomain: scan_queue.JOB_FACTS copies it
+        # onto the pending marker at enqueue and onto the finished result in
+        # carry_job_facts, so pending, done and error all have it.
         results = {
-            'p': {'status': 'pending'},
-            'd': {'status': 'done', 'scores': [{'Hand': 1, 'Value': 20}]},
-            'e': {'status': 'error', 'error': 'bad photo'},
+            'p': {'status': 'pending', 'subdomain': 'test'},
+            'd': {'status': 'done', 'subdomain': 'test',
+                  'scores': [{'Hand': 1, 'Value': 20}]},
+            'e': {'status': 'error', 'subdomain': 'test', 'error': 'bad photo'},
             'x': None,
         }
         monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: results[jid])
@@ -542,6 +546,40 @@ class TestScanStatus:
         assert err['ok'] is False and err['error'] == 'bad photo'
         expired = client_.get('/scan_status?job_id=x').json()
         assert expired['ok'] is False and expired['status'] == 'expired'
+
+    def test_another_tournaments_job_is_not_readable(self, client_, scorer, monkeypatch):
+        """Job ids are one flat namespace across every tenant and this endpoint is
+        open, so polling had to check the job belongs to the subdomain asking —
+        scan_prefill makes the same comparison before it writes. Without it, a job
+        id from another tournament handed back that tournament's scores."""
+        client_.force_login(scorer)
+        foreign = {'status': 'done', 'subdomain': 'other',
+                   'scores': [{'Hand': 1, 'Value': 88}]}
+        monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: foreign)
+
+        body = client_.get('/scan_status?job_id=someone-elses').json()
+        assert body['ok'] is False
+        assert 'scores' not in body
+        assert body['status'] == 'expired'
+
+    def test_a_foreign_job_looks_exactly_like_a_missing_one(self, client_, scorer,
+                                                            monkeypatch):
+        results = {'foreign': {'status': 'done', 'subdomain': 'other', 'scores': [1]},
+                   'missing': None}
+        monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: results[jid])
+        a = client_.get('/scan_status?job_id=foreign')
+        b = client_.get('/scan_status?job_id=missing')
+        assert a.status_code == b.status_code
+        assert a.json() == b.json()
+
+    def test_an_anonymous_poller_cannot_read_a_job_either(self, client_, tournament,
+                                                          monkeypatch):
+        """The endpoint is open by design (the scan page is usable unauthenticated),
+        so the tenant comes from the host, not from a login."""
+        foreign = {'status': 'done', 'subdomain': 'other', 'scores': [{'Value': 88}]}
+        monkeypatch.setattr('mahj.scan_queue.get_result', lambda jid: foreign)
+        body = client_.get('/scan_status?job_id=x').json()
+        assert body['ok'] is False and 'scores' not in body
 
 
 class TestScoreSheetQr:

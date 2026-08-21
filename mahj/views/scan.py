@@ -290,10 +290,23 @@ def scan_status(request):
         return JsonResponse({"ok": False, "error": "job_id required"}, status=400)
 
     result = scan_queue.get_result(job_id)
+    expired = JsonResponse({"ok": False, "status": "expired",
+                            "error": "Scan timed out or was lost. Re-take the photo."})
     if result is None:
         # Result TTL elapsed, or a worker crashed mid-job and never wrote one.
-        return JsonResponse({"ok": False, "status": "expired",
-                             "error": "Scan timed out or was lost. Re-take the photo."})
+        return expired
+    tenant = get_tenant(request)
+    if (result.get('subdomain') or '') != (tenant.subdomain if tenant else ''):
+        # Job ids are a flat namespace shared by every tenant, and this endpoint is
+        # open — so without this a job id from another tournament returned that
+        # tournament's scores. `scan_prefill` performs the same comparison before it
+        # writes; polling had no equivalent.
+        #
+        # Answered exactly like a job that does not exist, rather than with a
+        # distinct refusal: from this subdomain a foreign job *is* nothing, and one
+        # response for both cases leaves nothing to probe for. The scan page already
+        # handles this shape.
+        return expired
     status = result.get('status')
     if status == 'pending':
         return JsonResponse({"ok": True, "status": "pending"})
