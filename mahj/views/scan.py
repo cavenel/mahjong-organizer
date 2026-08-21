@@ -146,12 +146,17 @@ def _upload_allowed(request):
     without INCR support, or no cache at all, fails open rather than blocking the
     venue's scanning.
     """
-    # The LAST element, not the first. nginx sets X-Forwarded-For to $remote_addr,
-    # but it used `$proxy_add_x_forwarded_for`, which *appends* the real peer to
-    # whatever the client sent — so the header read `<attacker value>, <real ip>` and
-    # taking [0] handed the caller control of their own bucket key. Rotating it gave a
-    # fresh allowance every request, on an endpoint that is anonymous by design and
-    # spends money per upload. The last element is the one our own proxy wrote.
+    # The LAST element, not the first. nginx used `$proxy_add_x_forwarded_for`, which
+    # *appends* the real peer to whatever the client sent — so the header read
+    # `<attacker value>, <real ip>` and taking [0] handed the caller control of their
+    # own bucket key. Rotating it gave a fresh allowance every request, on an endpoint
+    # that is anonymous by design and spends money per upload.
+    #
+    # This is correct because our nginx is the outermost proxy and now sets the header
+    # to $remote_addr, so there is exactly one element and it is the real client. That
+    # assumption is declared in nginx/mahjong.conf.template, next to the header — put
+    # a CDN in front without restoring the client IP there (real_ip module) and every
+    # scan lands in one bucket, throttling the venue after six uploads.
     forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
     addr = (forwarded.split(',')[-1].strip()
             or request.META.get('REMOTE_ADDR') or 'unknown')
