@@ -381,6 +381,26 @@ def _player_row_has_name(last_name_raw, first_name_raw):
     return any(isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw))
 
 
+# The Options sheet's six value cells, in order: fullname, title, nb_rounds, city,
+# period, rules.
+_OPTIONS_ROWS = 6
+
+
+def _options_column(wb):
+    """The Options sheet's value column, always ``_OPTIONS_ROWS`` long.
+
+    The workbook is opened ``read_only=True``, so openpyxl yields only the rows that
+    exist rather than padding to ``max_row`` — a sheet with four rows gave a
+    four-element list. The pre-check guarded its own index and the main parse did not,
+    so a short Options sheet passed the pre-check and then raised IndexError *after*
+    the deletes, landing in the wipe-to-empty handler. Padding is the same answer a
+    blank cell already gets.
+    """
+    vals = [row[1] for row in wb['Options'].iter_rows(
+        min_row=1, max_row=_OPTIONS_ROWS, max_col=2, values_only=True)]
+    return vals + [None] * (_OPTIONS_ROWS - len(vals))
+
+
 def _precheck_template(wb):
     """The cheap checks that catch a wrong or old-format workbook, run BEFORE
     the import deletes anything: required sheets present, a readable rounds
@@ -398,13 +418,12 @@ def _precheck_template(wb):
                 f"template, to get a file in the expected format."
             )
 
-    opt_vals = [row[1] for row in wb['Options'].iter_rows(
-        min_row=1, max_row=6, max_col=2, values_only=True)]
+    opt_vals = _options_column(wb)
     # A blank/zero rounds count would create no seating at all and "succeed"
     # with nothing playable. int() also normalises Excel's float (5.0 -> 5).
     try:
         nb_rounds = int(opt_vals[2])
-    except (IndexError, TypeError, ValueError):
+    except (TypeError, ValueError):
         nb_rounds = 0
     if nb_rounds < 1:
         raise TemplateImportError(
@@ -503,8 +522,7 @@ def admin_upload_from_template(request):
                     for row in schedule_rows if row[0] is not None
                 ])
 
-                opt_sheet = wb['Options']
-                opt_vals = [row[1] for row in opt_sheet.iter_rows(min_row=1, max_row=6, max_col=2, values_only=True)]
+                opt_vals = _options_column(wb)
                 tournament = get_tournament(request)
                 tournament.fullname = opt_vals[0] or ""
                 tournament.title = opt_vals[1] or ""

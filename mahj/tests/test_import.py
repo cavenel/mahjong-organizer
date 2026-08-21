@@ -161,6 +161,41 @@ def test_export_round_trips_through_import(staff_client, imp_tenant):
     assert _snapshot(imp_tenant) == before
 
 
+def test_a_short_options_sheet_still_imports(staff_client, imp_tenant):
+    """The Options sheet holds six value rows; an older or hand-made file may carry
+    fewer. read_only=True makes openpyxl yield only the rows that exist, so the parse
+    used to raise IndexError on city/period/rules *after* the deletes — landing in the
+    wipe-to-empty handler and destroying the tournament over three cosmetic fields.
+    The missing rows now read the same as blank ones.
+    """
+    wb = load_workbook(TEMPLATE)
+    opts = wb['Options']
+    # Keep fullname/title/nb_rounds, drop city/period/rules entirely.
+    opts.delete_rows(4, 3)
+    ps = wb['Players']
+    for i in range(16):
+        r = i + 2
+        ps.cell(r, 1, f'Last{i + 1}')
+        ps.cell(r, 2, f'First{i + 1}')
+        ps.cell(r, 3, 30000 + i)
+        ps.cell(r, 4, 'France')
+        ps.cell(r, 5, '')
+        ps.cell(r, 6, i + 1)
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    buf.name = 'template.xlsx'
+
+    resp = staff_client.post('/admin_upload_from_template', {'myfile': buf})
+    assert resp.status_code in (200, 302)
+    assert Player.objects.filter(tenant=imp_tenant).count() == 16
+    t = TournamentSettings.objects.get(tenant=imp_tenant)
+    # The three absent fields fall back exactly as blank cells do.
+    assert t.city == ''
+    assert t.period == ''
+    assert t.rules == 'MCR'
+
+
 def test_import_without_rand_leaves_players_undrawn(staff_client, imp_tenant):
     """No 'rand' column -> player list imported but not yet drawn (draw_number NULL);
     the seating chart still exists, to be filled by randomize/team-draw."""
