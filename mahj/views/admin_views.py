@@ -1032,6 +1032,12 @@ def admin_team_draw_save(request):
             players[a['player_id']].draw_number = a['rand_id']
         Player.objects.bulk_update(players.values(), ['draw_number'])
 
+    # The draw decides who sits in which seat, so it changes what the standings,
+    # the seating grid and the desktop HTML all say. views/scoring names the draw
+    # in its invalidation contract; without this the projector serves the old
+    # names for up to SUB_CACHE_TTL while the desktop page (which passes its own
+    # seats) corrects immediately — two screens in one room disagreeing.
+    invalidate_leaderboard(tenant.subdomain)
     return HttpResponse('OK')
 
 
@@ -1114,6 +1120,7 @@ def admin_player_draw_assign(request):
         if draw_number is None:
             player.draw_number = None
             player.save(update_fields=['draw_number'])
+            invalidate_leaderboard(tenant.subdomain)  # the draw changed — see admin_team_draw_save
             return JsonResponse({'ok': True, 'player_id': player.id, 'draw_number': None})
 
         valid = set(Seat.objects.filter(tenant=tenant).values_list('draw_number', flat=True))
@@ -1144,6 +1151,7 @@ def admin_player_draw_assign(request):
                       .exclude(id=player.id)
                       .first())
             return _draw_number_taken(draw_number, winner.full_name if winner else '')
+        invalidate_leaderboard(tenant.subdomain)  # the draw changed — see admin_team_draw_save
         return JsonResponse({'ok': True, 'player_id': player.id, 'draw_number': draw_number})
 
 
@@ -1206,6 +1214,8 @@ def player_editor_save(request):
     if to_update:
         Player.objects.bulk_update(
             to_update, _PLAYER_EDITABLE_FIELDS + ['full_name', 'short_name'])
+        # Names, countries and teams are all rendered into the cached standings.
+        invalidate_leaderboard(tenant.subdomain)
     return HttpResponse('OK')
 
 

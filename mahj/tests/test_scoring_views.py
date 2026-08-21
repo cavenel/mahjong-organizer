@@ -4,10 +4,12 @@ The golden-file tests lock exact output. These tests assert the *properties* the
 UI and tournament rules depend on — rank ordering, tie-sharing, per-country
 Swedish ranking, hidden final cut-off, etc.
 """
+import json
 import re
 
 import pytest
 from django.contrib.auth.models import User
+from django.test import Client
 
 from mahj import views
 from mahj.models import Hand, Player, Seat, ScoreSheet, PublishedRound, TournamentSettings
@@ -959,3 +961,83 @@ class TestBypassIsNotCached:
         scores_per_player_rows(request_, full_view=True)
         real_cache.set('leaderboard:test:True', [{'sentinel': True}], 300)
         assert scores_per_player_rows(request_, full_view=True) == [{'sentinel': True}]
+
+
+class TestPlayerWritesBustTheCache:
+    """views/scoring states the invalidation contract: the paths that change what
+    the standings say must bust the cache, and it names the draw among them. The
+    draw decides who sits in which seat; the player editor changes the name,
+    country and team the standings render. Both were writing without busting, so
+    the projector served stale rows for up to SUB_CACHE_TTL while the desktop page
+    — which passes its own seats and bypasses the cache — corrected at once.
+    """
+
+    KEY = 'leaderboard:test:True'
+
+    @pytest.fixture
+    def admin_(self, tournament):
+        c = Client()
+        u = User.objects.create_user('cacheadmin', password='pw')
+        grant(u, tournament['tenant'], admin=True)
+        c.force_login(u)
+        c.defaults['HTTP_HOST'] = 'test.example.com'
+        return c
+
+    def _prime(self, request_, real_cache):
+        """Populate the standings cache and prove it took — so a missing
+        invalidation fails the assertion below instead of passing vacuously."""
+        rows = scores_per_player_rows(request_, full_view=True)
+        assert real_cache.get(self.KEY) == rows
+
+    def test_editing_a_player_busts_it(self, request_, tournament, real_cache, admin_):
+        self._prime(request_, real_cache)
+        player = tournament['players'][0]
+
+        resp = admin_.post(
+            '/player_editor_save',
+            data=json.dumps({'players': [{'id': player.id, 'first_name': 'Corrected'}]}),
+            content_type='application/json')
+
+        assert resp.status_code == 200
+        assert real_cache.get(self.KEY) is None
+
+    def test_assigning_a_draw_number_busts_it(self, request_, tournament, real_cache, admin_):
+        self._prime(request_, real_cache)
+        player = tournament['players'][0]
+        drawn = player.draw_number
+        player.draw_number = None
+        player.save(update_fields=['draw_number'])
+
+        resp = admin_.post(
+            '/admin_player_draw_assign',
+            data=json.dumps({'player_id': player.id, 'draw_number': drawn}),
+            content_type='application/json')
+
+        assert resp.status_code == 200
+        assert real_cache.get(self.KEY) is None
+
+    def test_clearing_a_draw_number_busts_it(self, request_, tournament, real_cache, admin_):
+        """The undo path of the live draw writes too, so it invalidates too."""
+        self._prime(request_, real_cache)
+        player = tournament['players'][0]
+
+        resp = admin_.post(
+            '/admin_player_draw_assign',
+            data=json.dumps({'player_id': player.id, 'draw_number': None}),
+            content_type='application/json')
+
+        assert resp.status_code == 200
+        assert real_cache.get(self.KEY) is None
+
+    def test_saving_the_team_draw_busts_it(self, request_, tournament, real_cache, admin_):
+        self._prime(request_, real_cache)
+        player = tournament['players'][0]
+
+        resp = admin_.post(
+            '/admin_team_draw_save',
+            data=json.dumps({'assignments': [
+                {'player_id': player.id, 'rand_id': player.draw_number}]}),
+            content_type='application/json')
+
+        assert resp.status_code == 200
+        assert real_cache.get(self.KEY) is None
