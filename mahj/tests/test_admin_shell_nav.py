@@ -11,7 +11,7 @@ with the server-side page gates in admin_views.py.
 """
 import pytest
 
-from mahj.tests.conftest import grant, role_user
+from mahj.tests.conftest import grant, has_testid, role_user
 
 
 
@@ -42,27 +42,26 @@ def _get_shell(client_, user):
     return resp.content.decode()
 
 
+ALL_GROUPS = ('configuration', 'players', 'scoring', 'displays',
+              'results', 'administration')
+
+
+def _groups(html):
+    """Which nav groups the shell rendered, by their data-testid."""
+    return {g for g in ALL_GROUPS if has_testid(html, f'nav-group-{g}')}
+
+
 def test_staff_sees_every_section(client_, staff, tournament):
     html = _get_shell(client_, staff)
-    for label in ('Configuration', 'Players', 'Scoring', 'Displays',
-                  'Results', 'Administration'):
-        assert f'>{label}</p>' in html, f'staff should see the {label} group'
-    # Print / Export lifted out of the nav into the topbar dropdown.
-    assert 'printMenuOpen=!printMenuOpen' in html   # the topbar button
+    assert _groups(html) == set(ALL_GROUPS)
+    # Print / Export lives in the topbar dropdown, not the nav.
+    assert has_testid(html, 'print-menu')
     assert "showPrintModal('player_names')" in html
-    # Accordion machinery is gone.
-    assert 'toggleSection' not in html
-    assert 'openSection' not in html
-    # Icon-rail state is present.
-    assert 'railCollapsed' in html
 
 
 def test_scorer_sees_only_scoring(client_, scorer, tournament):
     html = _get_shell(client_, scorer)
-    assert '>Scoring</p>' in html
-    for hidden in ('>Configuration</p>', '>Players</p>', '>Displays</p>',
-                   '>Results</p>', '>Administration</p>'):
-        assert hidden not in html
+    assert _groups(html) == {'scoring'}
     # Scorer is not a publisher: no publisher overview link.
     assert 'page=publisher_overview' not in html
     # Scorer can still reach the Scores print export.
@@ -73,20 +72,16 @@ def test_scorer_sees_only_scoring(client_, scorer, tournament):
 
 def test_display_op_sees_only_displays(client_, display_op, tournament):
     html = _get_shell(client_, display_op)
-    assert '>Displays</p>' in html
+    assert _groups(html) == {'displays'}
     assert 'page=display' in html and 'page=ceremony' in html
-    for hidden in ('>Configuration</p>', '>Players</p>', '>Scoring</p>',
-                   '>Results</p>', '>Administration</p>'):
-        assert hidden not in html
-    # Display op has no print exports → no print/export dropdown button.
-    assert 'printMenuOpen=!printMenuOpen' not in html
+    # Display op has no print exports → no print/export dropdown at all.
+    assert not has_testid(html, 'print-menu')
 
 
 def test_publisher_sees_scoring_and_overview(client_, publisher, tournament):
     html = _get_shell(client_, publisher)
-    assert '>Scoring</p>' in html
+    # The publisher overview link lives inside the Scoring group, so a publisher
+    # sees that one group and no Results group of their own.
+    assert _groups(html) == {'scoring'}
     assert 'page=publisher_overview' in html
-    for hidden in ('>Configuration</p>', '>Players</p>', '>Displays</p>',
-                   '>Results</p>', '>Administration</p>'):
-        assert hidden not in html
 

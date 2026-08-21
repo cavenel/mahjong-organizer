@@ -14,7 +14,7 @@ from django.test import Client
 from mahj import views
 from mahj.models import Hand, Player, Seat, ScoreSheet, PublishedRound, TournamentSettings
 from mahj.scoring import player_extra_stats, public_round_max, team_extra_stats
-from mahj.tests.conftest import client_for, grant
+from mahj.tests.conftest import client_for, grant, has_testid
 from mahj.views.scoring import scores_per_player_rows
 
 
@@ -701,22 +701,27 @@ class TestPublisherOverviewRiichiColumns:
             'subdomain': tenant.subdomain,
         }, req)
 
+    SHEET_COLUMNS = ('col-sheets-inprogress', 'col-sheets-validated')
+    ALWAYS = ('col-tables-scored', 'col-published')
+
     def test_mcr_shows_the_sheet_columns(self, tournament):
         html = self._render(tournament['tenant'], tournament['settings'])
-        assert '<th>Sheets in progress</th>' in html
-        assert '<th>Sheets validated</th>' in html
+        for testid in self.SHEET_COLUMNS + self.ALWAYS:
+            assert has_testid(html, testid), testid
+        # The cell classes the page's own JS fills in; asserted as text because
+        # that is the contract between this template and its script.
         assert 'class="cell-inprogress' in html
         assert 'class="cell-validated' in html
 
     def test_riichi_hides_the_sheet_columns(self, riichi_tournament):
         html = self._render(riichi_tournament['tenant'], riichi_tournament['settings'])
-        assert '<th>Sheets in progress</th>' not in html
-        assert '<th>Sheets validated</th>' not in html
+        for testid in self.SHEET_COLUMNS:
+            assert not has_testid(html, testid), testid
         assert 'class="cell-inprogress' not in html
         assert 'class="cell-validated' not in html
         # The columns that drive the Riichi workflow are still present.
-        assert '<th>Tables scored</th>' in html
-        assert '<th>Published</th>' in html
+        for testid in self.ALWAYS:
+            assert has_testid(html, testid), testid
 
 
 # --------------------------------------------------------------------------

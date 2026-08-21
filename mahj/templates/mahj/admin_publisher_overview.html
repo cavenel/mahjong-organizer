@@ -61,16 +61,16 @@
       <thead>
         <tr>
           <th class="left">Round</th>
-          <th>Tables scored</th>
+          <th data-testid="col-tables-scored">Tables scored</th>
           {% comment %}
           Sheets in progress / validated come from the hand-by-hand sheet, which
           only MCR has — Riichi enters a per-seat total, so both are always 0.
           {% endcomment %}
           {% if tournament.rules == "MCR" %}
-          <th>Sheets in progress</th>
-          <th>Sheets validated</th>
+          <th data-testid="col-sheets-inprogress">Sheets in progress</th>
+          <th data-testid="col-sheets-validated">Sheets validated</th>
           {% endif %}
-          <th>Published</th>
+          <th data-testid="col-published">Published</th>
         </tr>
       </thead>
       <tbody>

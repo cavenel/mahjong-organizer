@@ -17,7 +17,7 @@ from django.db import OperationalError
 
 from mahj.models import Schedule, Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import grant, has_testid
 
 
 
@@ -179,8 +179,9 @@ def test_display_page_marks_active_mode(client_, display_op, tournament):
     assert 'Tournament' in html and 'Break' in html
     assert 'Standings — detailed, all (rotating)' in html
     # Screens are labelled by their positional endpoint (/1, /2…), not "Screen N".
-    # Match the mode-breakdown row label markup so we don't trip on screen URLs.
-    assert '>/1</span>' in html and '>/2</span>' in html
+    # Asserted by testid: the label is "/1", which as a bare string also matches
+    # every screen URL on the page.
+    assert has_testid(html, 'mode-row-1') and has_testid(html, 'mode-row-2')
 
 
 def test_display_page_no_active_mode_when_nothing_matches(client_, display_op, tournament):

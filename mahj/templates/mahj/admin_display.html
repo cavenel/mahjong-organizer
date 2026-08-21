@@ -76,7 +76,7 @@
                 <ul class="space-y-1.5">
                   {% for row in mode.rows %}
                     <li class="flex items-baseline justify-between gap-3 text-xs">
-                      <span class="text-gray-500 shrink-0">{{ row.label }}</span>
+                      <span data-testid="mode-row-{{ row.label|slugify }}" class="text-gray-500 shrink-0">{{ row.label }}</span>
                       <span class="font-medium text-gray-700 text-right">{{ row.pretty }}</span>
                     </li>
                   {% endfor %}

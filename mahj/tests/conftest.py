@@ -1,3 +1,18 @@
+"""Shared fixtures and helpers for the suite.
+
+Assertion policy for anything that inspects a response body:
+
+    Assert on what the operator sees — text, links, status — or on a
+    ``data-testid`` (see ``has_testid``). Never on tag structure, utility
+    classes, or the source of an Alpine expression. Those break on a Tailwind
+    rename and pass through real regressions: `'>Scoring</p>' in html` is
+    happy with an empty section and unhappy with a `<div>`.
+
+    If an invariant lives only in a template expression, it belongs in
+    test_invariants.py as a static check on the source. If it depends on the
+    rendered response for a particular role, assert it here — and say in the
+    test why the markup alone cannot show it.
+"""
 import json
 import pathlib
 import re
@@ -90,6 +105,17 @@ def tenant_b(db):
 def admin_of(tournament):
     """A tenant admin of the `tournament` fixture's tenant."""
     return role_user('boss', tournament['tenant'], admin=True)
+
+
+def has_testid(html, testid):
+    """Whether ``html`` carries an element marked ``data-testid="<testid>"``.
+
+    Use this instead of matching tag structure or utility classes. A test that
+    asserts ``'>Scoring</p>'`` breaks when the heading becomes a ``<div>`` or the
+    Tailwind classes are reshuffled, and passes when the section is rendered but
+    empty — it pins the markup rather than the thing the operator gets.
+    """
+    return f'data-testid="{testid}"' in html
 
 
 def json_script_payload(body, element_id):
