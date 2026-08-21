@@ -633,6 +633,37 @@ def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):
     assert resp.status_code == 200
 
 
+@pytest.mark.parametrize('row', [
+    {'id': 'x', 'country': 'France'},
+    {'id': None, 'country': 'France'},
+    {'id': [], 'country': 'France'},
+    {'country': 'France'},
+])
+def test_player_editor_save_rejects_an_unreadable_id(client_, staff, tournament, row):
+    """An unreadable id names no competitor, so the batch is refused rather than
+    part-applied. It used to be a 500 out of the `id__in` lookup."""
+    client_.force_login(staff)
+    resp = client_.post(
+        '/player_editor_save', data=json.dumps({'players': [row]}),
+        content_type='application/json')
+    assert resp.status_code == 400
+    assert b'<html' not in resp.content.lower()
+
+
+def test_player_editor_save_accepts_a_numeric_string_id(client_, staff, tournament):
+    """A numeric string used to pass the lookup and then miss the int-keyed row
+    map — the edit was silently dropped while the editor reported it saved."""
+    client_.force_login(staff)
+    player = tournament['players'][0]
+    resp = client_.post(
+        '/player_editor_save',
+        data=json.dumps({'players': [{'id': str(player.id), 'country': 'Iceland'}]}),
+        content_type='application/json')
+    assert resp.status_code == 200, resp.content
+    player.refresh_from_db()
+    assert player.country == 'Iceland'
+
+
 def test_player_editor_save_requires_staff(client_, display_op, tournament):
     client_.force_login(display_op)
     resp = client_.post(

@@ -207,3 +207,54 @@ def test_race_409_still_names_someone_when_the_winner_vanished(client_, staff, u
 
     assert resp.status_code == 409
     assert resp.json()['error'] == '#6 is already taken by someone else'
+
+
+class TestMalformedAssignPayloads:
+    """The registration desk's page always sends numbers, so anything else is a
+    client bug — but it used to come back as a 500, and the page reads `error`
+    off a JSON body, so the operator got a dead button and no reason."""
+
+    @pytest.mark.parametrize('body', [
+        {'player_id': 'x', 'draw_number': 1},
+        {'player_id': None, 'draw_number': 1},
+        {'player_id': [], 'draw_number': 1},
+        {'draw_number': 1},
+    ])
+    def test_unreadable_player_id_is_a_named_400(self, client_, staff, undrawn, body):
+        client_.force_login(staff)
+        resp = client_.post('/admin_player_draw_assign', data=json.dumps(body),
+                            content_type='application/json')
+        assert resp.status_code == 400
+        assert resp.json()['error'].startswith('player_id')
+
+    @pytest.mark.parametrize('draw_number', ['x', [], {}, [1]])
+    def test_unreadable_draw_number_is_a_named_400(
+            self, client_, staff, undrawn, draw_number):
+        client_.force_login(staff)
+        player = undrawn['players'][0]
+        resp = client_.post(
+            '/admin_player_draw_assign',
+            data=json.dumps({'player_id': player.id, 'draw_number': draw_number}),
+            content_type='application/json')
+        assert resp.status_code == 400
+        assert resp.json()['error'].startswith('draw_number')
+        assert Player.objects.get(pk=player.id).draw_number is None
+
+    def test_a_numeric_string_still_assigns(self, client_, staff, undrawn):
+        """The coercion is a widening, not a new rejection: the page's own
+        payloads keep working, including a number that arrived as a string."""
+        client_.force_login(staff)
+        player = undrawn['players'][0]
+        resp = _assign(client_, str(player.id), '7')
+        assert resp.status_code == 200, resp.content
+        assert resp.json()['ok'] is True
+        assert Player.objects.get(pk=player.id).draw_number == 7
+
+    def test_clearing_still_works(self, client_, staff, undrawn):
+        """A null draw number is the undo path, not a malformed one."""
+        client_.force_login(staff)
+        player = undrawn['players'][0]
+        _assign(client_, player.id, 7)
+        resp = _assign(client_, player.id, None)
+        assert resp.status_code == 200, resp.content
+        assert Player.objects.get(pk=player.id).draw_number is None

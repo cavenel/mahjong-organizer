@@ -177,3 +177,39 @@ def test_team_rows_carry_an_index_not_a_name(client_, staff, tournament):
     assert 'onclick="confirmTeam(' not in body
     assert 'data-team-index=' in body
     assert 'js/browser_utils.js' in body
+
+
+class TestMalformedAssignmentPayloads:
+    """One request writes the whole draw, so a payload it can't read has to be
+    refused whole and in the plain text the page's banner prints."""
+
+    @pytest.mark.parametrize('assignments', [
+        [{'player_id': 1, 'rand_id': None}],
+        [{'player_id': 1, 'rand_id': 1}, {'player_id': 2, 'rand_id': None}],
+        [{'player_id': 1, 'rand_id': 'x'}],
+        [{'player_id': 1, 'rand_id': []}],
+        [{'player_id': 'x', 'rand_id': 1}],
+        [{'rand_id': 1}],
+        [{'player_id': 1}],
+        ['not a dict'],
+        'not a list',
+    ])
+    def test_unreadable_payload_is_a_400_and_writes_nothing(
+            self, client_, staff, tournament, assignments):
+        client_.force_login(staff)
+        before = _draw_map(tournament['tenant'])
+        resp = _save(client_, assignments)
+        assert resp.status_code == 400
+        assert b'<html' not in resp.content.lower()
+        assert _draw_map(tournament['tenant']) == before
+
+    def test_numeric_strings_still_save(self, client_, staff, tournament):
+        """The coercion widens what is accepted rather than narrowing it: an id
+        that arrived as a string used to pass the lookup and then miss the
+        int-keyed player map with a KeyError."""
+        client_.force_login(staff)
+        players = tournament['players']
+        resp = _save(client_, [{'player_id': str(p.id), 'rand_id': str(16 - i)}
+                               for i, p in enumerate(players)])
+        assert resp.status_code == 200, resp.content
+        assert Player.objects.get(pk=players[0].id).draw_number == 16

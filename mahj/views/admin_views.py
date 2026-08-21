@@ -23,7 +23,7 @@ from django.utils.html import escape
 from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
-    BASE_DIR, get_counter, get_tenant, get_tournament, has_role,
+    BASE_DIR, get_counter, get_tenant, get_tournament, has_role, int_param,
     is_tenant_admin, json_body, method_not_allowed, set_counter,
     tenant_admin_required, tenant_role_required,
 )
@@ -1003,11 +1003,18 @@ def admin_team_draw_save(request):
         return method_not_allowed()
 
     tenant = get_tenant(request)
+    assignments = json_body(request).get('assignments')  # [{player_id, rand_id}]
+    if not isinstance(assignments, list) or not all(isinstance(a, dict) for a in assignments):
+        return HttpResponse('Malformed request', status=400)
+    # Coerced before anything compares them. A null or non-numeric drawn number
+    # reached `sorted(set(draw_numbers) - valid)` below and raised TypeError
+    # ordering None against int; a numeric *string* id passed the ORM lookup and
+    # then missed the int-keyed `players` dict, a KeyError. Both 500s, on the one
+    # request that writes the whole draw.
     try:
-        assignments = json_body(request)['assignments']  # [{player_id, rand_id}]
-        player_ids = [a['player_id'] for a in assignments]
-        draw_numbers = [a['rand_id'] for a in assignments]  # rand_id = the drawn number
-    except (TypeError, KeyError):
+        player_ids = [int(a['player_id']) for a in assignments]
+        draw_numbers = [int(a['rand_id']) for a in assignments]  # the drawn number
+    except (KeyError, TypeError, ValueError):
         return HttpResponse('Malformed request', status=400)
 
     if len(set(player_ids)) != len(player_ids) or len(set(draw_numbers)) != len(draw_numbers):
@@ -1028,8 +1035,8 @@ def admin_team_draw_save(request):
     with transaction.atomic():
         Player.objects.filter(tenant=tenant, draw_number__in=draw_numbers).update(draw_number=None)
         Player.objects.filter(tenant=tenant, id__in=player_ids).update(draw_number=None)
-        for a in assignments:
-            players[a['player_id']].draw_number = a['rand_id']
+        for player_id, draw_number in zip(player_ids, draw_numbers):
+            players[player_id].draw_number = draw_number
         Player.objects.bulk_update(players.values(), ['draw_number'])
 
     # The draw decides who sits in which seat, so it changes what the standings,
@@ -1108,8 +1115,12 @@ def admin_player_draw_assign(request):
 
     tenant = get_tenant(request)
     data = json_body(request)
-    player_id = data.get('player_id')
-    draw_number = data.get('draw_number')  # int to assign, None to clear
+    # Coerced up front rather than handed to the ORM raw: a non-numeric id used to
+    # raise ValueError out of .get() below, and a non-scalar draw number a
+    # TypeError out of the `in valid` test, both as 500s. The page reads
+    # `error` off the JSON body, which is the shape FieldError renders.
+    player_id = int_param(data, 'player_id')
+    draw_number = int_param(data, 'draw_number', default=None)  # int to assign, None to clear
 
     with transaction.atomic():
         try:
@@ -1175,12 +1186,20 @@ def player_editor_save(request):
     if not isinstance(rows, list):
         return HttpResponse('Malformed request body', status=400)
     rows = [r for r in rows if isinstance(r, dict)]
-    by_id = {p.id: p for p in Player.objects.filter(
-        tenant=tenant, id__in=[r.get('id') for r in rows])}
+    # Coerced before the query: a non-numeric id raised ValueError out of the
+    # `id__in` lookup as a 500, and a numeric *string* id survived the lookup only
+    # to miss the int-keyed `by_id` below — the row was then skipped as unknown
+    # and the editor reported a save that never happened. An id we can't read
+    # names no competitor, so the batch is refused rather than part-applied.
+    try:
+        ids = [int(r.get('id')) for r in rows]
+    except (TypeError, ValueError):
+        return HttpResponse('Malformed request: every row needs a numeric id.', status=400)
+    by_id = {p.id: p for p in Player.objects.filter(tenant=tenant, id__in=ids)}
 
     to_update = []
-    for r in rows:
-        player = by_id.get(r.get('id'))
+    for r, player_id in zip(rows, ids):
+        player = by_id.get(player_id)
         if player is None:
             continue
         for field in _PLAYER_EDITABLE_FIELDS:
