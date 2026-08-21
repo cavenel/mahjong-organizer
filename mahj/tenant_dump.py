@@ -23,6 +23,7 @@ constraint error rolls the tenant back to its pre-restore state.
 """
 import base64
 import gzip
+import io
 import json
 from datetime import datetime, timezone
 
@@ -45,6 +46,12 @@ FORMAT = 1
 # list via wipe_tenant, so the "what is a tournament" answer lives here once.
 TENANT_MODELS = (Hand, ScoreSheet, Seat, PublishedRound, Player, Schedule,
                  Screen, ScreenMode, CeremonyState, TournamentSettings)
+
+# Ceiling on what an uploaded dump may inflate to. A real one is a few MB even
+# with a logo; this is generous enough never to refuse a genuine file and small
+# enough that a gzip bomb inside the request cap can't exhaust memory.
+MAX_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+_GUNZIP_CHUNK = 1024 * 1024
 
 
 class TenantDumpError(Exception):
@@ -140,12 +147,34 @@ def dump_tenant(tenant):
     return gzip.compress(json.dumps(payload).encode('utf-8'))
 
 
+def _gunzip_capped(data):
+    """Decompress `data`, refusing anything that expands past MAX_UNCOMPRESSED_BYTES.
+
+    gzip.decompress() inflates the whole stream into memory before anyone can look
+    at it, and gzip reaches ratios around 1000:1 — so an upload already inside the
+    50 MB request cap can ask for tens of gigabytes. Reading in chunks and stopping
+    at the cap keeps the refusal cheap. Reaching the cap is a rejection, not a
+    truncation: a real dump is orders of magnitude smaller.
+    """
+    out = bytearray()
+    with gzip.GzipFile(fileobj=io.BytesIO(data)) as fh:
+        while True:
+            chunk = fh.read(_GUNZIP_CHUNK)
+            if not chunk:
+                return bytes(out)
+            out += chunk
+            if len(out) > MAX_UNCOMPRESSED_BYTES:
+                raise TenantDumpError(
+                    "That file expands to far more than a tournament dump ever "
+                    "does; it was not read.")
+
+
 def parse_dump(data):
     """Gunzip, parse and validate an uploaded dump — all before anything is
     deleted, so a rejected file never costs the operator their data. Returns
     the payload dict; raises TenantDumpError with a message for the operator."""
     try:
-        raw = gzip.decompress(data)
+        raw = _gunzip_capped(data)
     except (OSError, EOFError):
         raise TenantDumpError("Not a tournament dump (expected a .json.gz file).")
     try:

@@ -12,10 +12,11 @@ import re
 
 import pytest
 from django.contrib.auth.models import User
-from django.test import Client
+from django.test import Client, override_settings
 
 from mahj.models import Hand, ScoreSheet, TournamentSettings
 from mahj.tests.conftest import grant
+from mahj.views import user_admin
 
 
 HOST = 'test.example.com'
@@ -711,6 +712,72 @@ class TestUserAdminReauth:
         resp = _json_post(client_, '/user_reauth', {'password': 'pw'})
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
+
+
+# The suite runs on DummyCache so cache-invalidation assertions stay honest, but a
+# counter needs somewhere to count. LocMem for these, cleared per test.
+LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                      'LOCATION': 'reauth-throttle'}}
+
+
+class TestReauthThrottle:
+    """The sudo gate exists for a borrowed or unattended admin session, and its only
+    secret is the password — so an unlimited retry loop hands that exact attacker a
+    password oracle. Counted per session, which is who is being defended against.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _locmem(self):
+        # override_settings can only decorate a Django TestCase, so it goes here.
+        from django.core.cache import cache
+        with override_settings(CACHES=LOCMEM):
+            cache.clear()
+            yield
+            cache.clear()
+
+    def _attempt(self, client, password):
+        return _json_post(client, '/user_reauth', {'password': password})
+
+    def test_wrong_passwords_are_cut_off(self, client_, tournament, staff_user):
+        client_.force_login(staff_user)
+        for i in range(user_admin.REAUTH_MAX_ATTEMPTS):
+            assert self._attempt(client_, 'wrong').status_code == 403, i
+        resp = self._attempt(client_, 'wrong')
+        assert resp.status_code == 429
+        assert 'Too many incorrect passwords' in resp.json()['error']
+
+    def test_the_right_password_is_refused_too_once_locked(self, client_, tournament,
+                                                           staff_user):
+        """Otherwise the throttle is no throttle: an attacker guessing correctly on
+        attempt six would still be let in."""
+        client_.force_login(staff_user)
+        for _ in range(user_admin.REAUTH_MAX_ATTEMPTS):
+            self._attempt(client_, 'wrong')
+        assert self._attempt(client_, 'pw').status_code == 429
+
+    def test_a_success_clears_the_count(self, client_, tournament, staff_user):
+        """A tournament admin who fat-fingers it twice and then gets it right must
+        not be carrying four-fifths of a lockout around."""
+        client_.force_login(staff_user)
+        self._attempt(client_, 'wrong')
+        self._attempt(client_, 'wrong')
+        assert self._attempt(client_, 'pw').status_code == 200
+        for i in range(user_admin.REAUTH_MAX_ATTEMPTS):
+            assert self._attempt(client_, 'wrong').status_code == 403, i
+
+    def test_another_session_is_counted_separately(self, client_, tournament,
+                                                   staff_user):
+        """Per session, not per account: one locked-out session must not lock the
+        admin out of the console from their own laptop."""
+        client_.force_login(staff_user)
+        for _ in range(user_admin.REAUTH_MAX_ATTEMPTS):
+            self._attempt(client_, 'wrong')
+        assert self._attempt(client_, 'wrong').status_code == 429
+
+        other = Client()
+        other.defaults['HTTP_HOST'] = HOST
+        other.force_login(staff_user)
+        assert self._attempt(other, 'pw').status_code == 200
 
 
 class TestSesameLinkLogin:

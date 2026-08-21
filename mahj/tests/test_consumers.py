@@ -29,6 +29,48 @@ def _scorers_communicator(user, subdomain='devsub'):
     return comm
 
 
+def test_the_websocket_branch_is_origin_checked():
+    """Structural, because this is what a future edit to apps/asgi.py could quietly
+    drop: a WebSocket handshake is not covered by CSRF, so the Origin header is all
+    that stands between a page on another site and a socket opened with the
+    visitor's cookies."""
+    from channels.security.websocket import OriginValidator
+
+    from apps.asgi import application
+
+    assert isinstance(application.application_mapping['websocket'], OriginValidator)
+
+
+def test_a_cross_site_origin_is_denied():
+    """Behavioural counterpart. Built the way apps/asgi.py builds it — the factory
+    reads ALLOWED_HOSTS once, at construction — under a realistic host list rather
+    than the suite's '*'."""
+    from channels.security.websocket import AllowedHostsOriginValidator
+    from django.test import override_settings
+
+    async def body():
+        with override_settings(ALLOWED_HOSTS=['test.example.com']):
+            guarded = AllowedHostsOriginValidator(TenantConsumer.as_asgi())
+
+        def comm(origin):
+            c = WebsocketCommunicator(guarded, '/ws/display/devsub/',
+                                      headers=[(b'origin', origin)])
+            c.scope['url_route'] = {'kwargs': {'subdomain': 'devsub'}}
+            return c
+
+        good = comm(b'https://test.example.com')
+        connected, _ = await good.connect()
+        assert connected, 'the tournament\'s own page must still connect'
+        await good.disconnect()
+
+        bad = comm(b'https://evil.example.net')
+        connected, _ = await bad.connect()
+        assert not connected
+        await bad.disconnect()
+
+    asyncio.run(body())
+
+
 def test_ping_gets_pong():
     async def body():
         comm = _display_communicator()

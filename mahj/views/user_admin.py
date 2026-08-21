@@ -26,6 +26,7 @@ from functools import wraps
 
 from django.conf import settings
 from django.contrib.auth.models import User
+from django.core.cache import cache
 from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from sesame.utils import get_token
@@ -41,6 +42,46 @@ TENANT_ROLES = ['scorer', 'display_op', 'publisher']
 # The confirmation is stamped in the session and only lasts this long.
 REAUTH_SESSION_KEY = 'users_reauth_at'
 USERS_REAUTH_MAX_AGE = 600  # seconds
+
+# The sudo gate defends against a borrowed or unattended admin session, and its
+# only secret is the password — so without a limit it is a password oracle for
+# exactly that attacker, who already holds the session. Counted per session (that
+# is who is being defended against), not per account or IP.
+REAUTH_MAX_ATTEMPTS = 5
+REAUTH_WINDOW_S = 15 * 60
+
+
+def _reauth_attempt_key(request):
+    """Cache key for this session's recent failed password confirmations."""
+    # session_key is None until the session is saved; an unsaved session can't have
+    # reached a gated page, so there is nothing to throttle in that case.
+    return f'users_reauth_fails:{request.session.session_key}'
+
+
+def reauth_throttled(request):
+    """True if this session has burned through its confirmation attempts.
+
+    Fails *open* if the cache is unreachable, like the scan upload limiter: the
+    password check itself still stands, and locking the operator out of user
+    management mid-tournament because Redis blipped is the worse failure.
+    """
+    if not request.session.session_key:
+        return False
+    try:
+        return (cache.get(_reauth_attempt_key(request)) or 0) >= REAUTH_MAX_ATTEMPTS
+    except Exception:
+        return False
+
+
+def _record_reauth_failure(request):
+    key = _reauth_attempt_key(request)
+    try:
+        # add() then incr(): add only wins the first time, so the window is measured
+        # from the first failure and doesn't slide with every later one.
+        if not cache.add(key, 1, REAUTH_WINDOW_S):
+            cache.incr(key)
+    except Exception:
+        pass
 
 
 def reauth_ok(request):
@@ -90,9 +131,20 @@ def user_reauth(request):
     """Confirm the current user's password and stamp the session."""
     if request.method != 'POST':
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
+    if reauth_throttled(request):
+        return JsonResponse(
+            {'status': 'error',
+             'error': 'Too many incorrect passwords. Wait 15 minutes, or sign out '
+                      'and sign in again.'}, status=429)
     data = json_body(request)
     if not request.user.check_password(data.get('password') or ''):
+        _record_reauth_failure(request)
         return JsonResponse({'status': 'error', 'error': 'incorrect password'}, status=403)
+    # A legitimate admin who mistypes and then gets it right starts clean.
+    try:
+        cache.delete(_reauth_attempt_key(request))
+    except Exception:
+        pass
     request.session[REAUTH_SESSION_KEY] = time.time()
     return JsonResponse({'status': 'ok'})
 

@@ -14,6 +14,7 @@ from mahj.models import (
     CeremonyState, Membership, Player, PublishTarget, PublishedRound, Schedule,
     ScoreSheet, Screen, ScreenMode, Seat, Tenant, TournamentSettings,
 )
+from mahj import tenant_dump
 from mahj.tenant_dump import (
     TENANT_MODELS, TenantDumpError, dump_filename, dump_tenant, parse_dump,
     restore_tenant, schema_version, wipe_tenant,
@@ -197,6 +198,30 @@ def test_parse_rejects_garbage(db):
     rejects(as_dump(valid_payload(models=[])), 'no model data')
     rejects(as_dump(valid_payload(models={'Nope': []})), 'unknown model')
     rejects(as_dump(valid_payload(models={'Player': [{'hacked': 1}]})), 'unknown field')
+
+
+def test_a_gzip_bomb_is_refused_without_inflating_it(db, monkeypatch):
+    """gzip reaches ~1000:1, so a file well inside the 50 MB request cap can ask for
+    tens of gigabytes — and gzip.decompress() inflates the whole stream before
+    anyone can look at it. The cap is lowered here so the test doesn't have to
+    build a real bomb; what it pins is that the refusal happens *during* the read
+    rather than after a full inflate.
+    """
+    monkeypatch.setattr(tenant_dump, 'MAX_UNCOMPRESSED_BYTES', 4 * 1024 * 1024)
+    monkeypatch.setattr(tenant_dump, '_GUNZIP_CHUNK', 64 * 1024)
+    bomb = gzip.compress(b'\0' * (32 * 1024 * 1024))
+    assert len(bomb) < 200 * 1024, 'the point is that the compressed file is small'
+
+    with pytest.raises(TenantDumpError) as exc:
+        parse_dump(bomb)
+    assert 'expands to far more' in str(exc.value)
+
+
+def test_a_real_dump_is_nowhere_near_the_cap(full_tournament):
+    """The counterpart: the cap must never be able to refuse a genuine file."""
+    data = dump_tenant(full_tournament['tenant'])
+    assert len(gzip.decompress(data)) < tenant_dump.MAX_UNCOMPRESSED_BYTES / 10
+    assert parse_dump(data)['subdomain'] == full_tournament['tenant'].subdomain
 
 
 def test_bad_file_never_wipes(full_tournament):
