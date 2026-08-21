@@ -1962,7 +1962,7 @@ def _page_backup(request, tenant, error=None):
             or Hand.objects.filter(tenant=tenant).exists()
         ),
         # When web publishing is configured, every publish also uploads a dump
-        # next to the static site — the page says so.
+        # (outside the served tree) — the page says so.
         'publish_configured': _static_publish_configured(tenant.subdomain if tenant else ''),
     }, request)
 

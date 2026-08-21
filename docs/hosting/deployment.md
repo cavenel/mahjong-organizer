@@ -120,11 +120,14 @@ cron: every web publish uploads a full tournament dump — settings, players,
 seating, all scores, published rounds, schedule, screens, the round timer — to
 the tenant's publish target over SFTP, next to the static site.
 
-- **Where they land**: a `mahj-backups/` directory *beside* the target's remote
-  site directory — not inside it, so the dumps aren't web-fetchable (a dump holds
-  every score, including a withheld final round the public site is still hiding).
-  Override it with **Backup directory** on *Administration → Publish target*. The
-  newest 20 per tenant are kept.
+- **Where they land**: a `mahj-backups/` directory in the SFTP user's **login
+  directory** — never under the remote site path, so the dumps aren't
+  web-fetchable (a dump holds every score, including a withheld final round the
+  public site is still hiding). It is not derived from the site path at all: for a
+  target like `public_html/2026` there is no way to tell the docroot from a
+  subfolder of it, so anything derived could end up served. To put them elsewhere,
+  set **Backup directory** on *Administration → Publish target*. The newest 20 per
+  tenant are kept.
 - **On demand**: *Administration → Backup & restore* downloads a dump any time.
   Tenants with no publish target configured have only this, so download one after
   each round.

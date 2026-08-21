@@ -47,21 +47,30 @@ class PublishConfig:
     key_data: str = ''      # inline private key PEM
     host_key: str = ''      # a single known_hosts line to pin the host (optional)
     subdomain: str = ''     # so a learned host key can be written back to the row
-    backup_path: str = ''   # where dumps go; blank → beside the site (see dump_dir)
+    backup_path: str = ''   # where dumps go; blank → the login dir (see dump_dir)
 
     def dump_dir(self):
         """The remote directory tournament dumps are uploaded to.
 
-        The operator's ``backup_path`` wins. Otherwise a sibling of the site
-        directory (``public_html`` → ``mahj-backups``), so the default is not
-        web-fetchable; with no site path to be a sibling of, it is relative to
-        the login directory, which is not served either.
+        The operator's ``backup_path`` wins. Otherwise the login directory, which is
+        not served — and deliberately *not* anything derived from ``path``.
+
+        A sibling of the site directory would read as the tidier default, and is
+        safe only when ``path`` is the docroot itself (``/srv/site`` →
+        ``/srv/mahj-backups``). For a subfolder target — ``public_html/2026``, the
+        natural layout for one tournament a year — the sibling is
+        ``public_html/mahj-backups``, *inside* the served tree, so every publish
+        would leave a dump anyone can fetch by guessing the name. A dump holds every
+        score, including a final round the public site is still withholding for the
+        ceremony.
+
+        The config cannot distinguish those cases: it never says where the docroot
+        begins, and ``path`` is equally absolute in both. So the default does not
+        guess, and an operator wanting a particular directory names it.
         """
         if self.backup_path:
             return self.backup_path.rstrip('/')
-        site = (self.path or '').rstrip('/')
-        parent = site.rsplit('/', 1)[0] if '/' in site else ''
-        return f'{parent}/{DUMP_DIR_NAME}' if parent else DUMP_DIR_NAME
+        return DUMP_DIR_NAME
 
 
 def resolve_config(subdomain):

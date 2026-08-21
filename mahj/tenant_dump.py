@@ -3,7 +3,7 @@
 A dump is a gzipped JSON snapshot of every row a tournament owns — settings
 (identity, format, round timer, logo), players, seating, hands, score sheets,
 published/withheld rounds, schedule, screens, screen modes and ceremony state.
-It is the disaster-recovery unit: one is uploaded next to the static site on
+It is the disaster-recovery unit: one is uploaded off the served tree on
 every publish (see publish.trigger), and the Backup & restore admin page can
 download one on demand and restore one into any tenant on any install —
 Postgres cloud or sqlite standalone — because rows are plain field values with

@@ -55,9 +55,10 @@
         <p class="text-xs text-gray-400 mt-1">
           Every publish also uploads a full tournament backup here, which
           <a class="text-amber-600 hover:underline" href="admin?page=backup">Backup &amp; restore</a> can
-          restore. Empty = a <code class="text-xs">mahj-backups</code> folder <em>beside</em> the remote
-          directory above, so it is not served to the public — keep it that way: a backup
-          contains every score, including a withheld final round.
+          restore. Empty = a <code class="text-xs">mahj-backups</code> folder in the SFTP
+          login directory, which is not served to the public. If you set a path here, keep it
+          outside the folder above: a backup contains every score, including a withheld
+          final round.
         </p>
       </div>
     </div>
