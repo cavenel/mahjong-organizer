@@ -813,6 +813,9 @@ app version — that is how a tournament moves onto a venue laptop (or back off
 it) when the server is unreachable. If the file was made for a different
 tenant, the confirm dialog says so before you commit.
 
+> ![Backup & restore](screenshots/41-backup-restore.png)<br>
+> 📸 **Screenshot — Backup & restore page.**
+
 
 ## 20. After the tournament — EMA export
 

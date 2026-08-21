@@ -54,6 +54,24 @@ def shoot(target, name, **kw):
         print(f'  ✗ {name}: {str(e)[:160]}')
 
 
+def clear_reauth(page):
+    """Get past the sudo gate on a page that has one, and wait until it is gone.
+
+    The Continue button POSTs and then reloads, so a fixed pause races the reload:
+    when it lost, the shot was of the password prompt rather than the page. Waiting
+    for the field to disappear is what actually says the gate is behind us.
+    """
+    main = page.locator('#admin-maincol')
+    field = main.locator('input[type=password]')
+    if not field.count():
+        return
+    field.fill(PW)
+    main.locator('button[type=submit]').first.click()
+    page.wait_for_selector('#admin-maincol input[type=password]',
+                           state='detached', timeout=15000)
+    page.wait_for_load_state('networkidle')
+
+
 def login(ctx, user):
     page = ctx.new_page()
     page.goto(f'{BASE}/admin')
@@ -216,22 +234,14 @@ def stage_admin(ctx):
     # User management (behind the password re-check)
     page.goto(f'{BASE}/admin?page=users')
     page.wait_for_load_state('networkidle')
-    main = page.locator('#admin-maincol')
-    if main.locator('input[type=password]').count():
-        main.locator('input[type=password]').fill(PW)
-        main.locator('button[type=submit]').first.click()
-        page.wait_for_load_state('networkidle')
+    clear_reauth(page)
     page.wait_for_timeout(500)
     shoot(page.locator('#admin-maincol main'), '02-assign-role.png')
 
     # Backup & restore — also behind the password re-check.
     page.goto(f'{BASE}/admin?page=backup')
     page.wait_for_load_state('networkidle')
-    main = page.locator('#admin-maincol')
-    if main.locator('input[type=password]').count():
-        main.locator('input[type=password]').fill(PW)
-        main.locator('button[type=submit]').first.click()
-        page.wait_for_load_state('networkidle')
+    clear_reauth(page)
     page.wait_for_timeout(500)
     shoot(page.locator('#admin-maincol main > div').first, '41-backup-restore.png')
 
