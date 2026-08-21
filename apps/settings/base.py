@@ -196,6 +196,16 @@ LOGGING = {
         'console': {'class': 'logging.StreamHandler'},
     },
     'loggers': {
+        # Django's own logger, or a 500 goes nowhere. DEFAULT_LOGGING survives
+        # (disable_existing_loggers is False), but its console handler carries
+        # require_debug_true and its mail_admins handler needs ADMINS/EMAIL_*, none of
+        # which are set anywhere — so under DEBUG=False an unhandled exception wrote
+        # nothing at all to `docker logs web`. The mahj.* warnings that did appear came
+        # from Python's last-resort handler, which is why this wasn't obvious.
+        'django': {'handlers': ['console'], 'level': 'INFO'},
+        # The app's own loggers, explicitly on the same handler rather than relying on
+        # the last-resort one.
+        'mahj': {'handlers': ['console'], 'level': 'INFO'},
         'mahj.views.scan': {'handlers': ['console'], 'level': 'INFO'},
         # Each projector screen holds a WebSocket and reconnects often, so the
         # per-connection "[accepted]" / "connection open" / "connection closed"
