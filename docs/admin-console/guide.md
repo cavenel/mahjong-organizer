@@ -836,9 +836,6 @@ sidebar shows two extra entries under Administration:*
 - **Database administration** — the raw Django admin (`/admin_db/`), for
   low-level data access.
 
-*(The standalone venue-laptop build shows a third, **Snapshot restore**, which
-rolls its whole local database back to an automatic snapshot.)*
-
 Setting up the server itself — Docker, DNS/TLS, environment variables, backups,
 the standalone venue-laptop build — is documented in
 [`docs/hosting/`](../hosting/deployment.md).

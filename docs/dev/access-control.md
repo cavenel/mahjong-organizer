@@ -20,8 +20,7 @@ decorators in `mahj/views/helpers.py` carry this:
 
 Decorators (use these on every view; do not re-derive the check inline):
 
-- `@superuser_required` — platform ops only: tenant CRUD, and the standalone
-  build's whole-database snapshot restore (`restore_admin.py`). Per-tenant
+- `@superuser_required` — platform ops only: tenant CRUD. Per-tenant
   backup/restore is a *tenant admin* action (`backup_admin.py`).
 - `@tenant_admin_required` — superuser OR `is_tenant_admin` for this tenant.
 - `@tenant_role_required('scorer', 'display_op', ...)` — superuser OR tenant admin

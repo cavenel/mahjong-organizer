@@ -60,10 +60,9 @@ via env — see Administration → Publish target.)
 |----------|----------|
 | Windows  | `%APPDATA%\Mahjong\` |
 | macOS    | `~/Library/Application Support/Mahjong/` |
-| Linux    | `~/.config/mahjong/Mahjong/` |
+| Linux    | `~/.config/Mahjong/` |
 
 - `mahj.sqlite3` — the whole tournament database (one file).
-- `snapshots/` — automatic backups.
 - `.env` — your configuration.
 
 Keep this on **local disk** — never on a network share / Dropbox / OneDrive
@@ -71,17 +70,16 @@ folder (that is the main cause of sqlite corruption).
 
 ## Backups & recovery
 
-The launcher takes an **online-backup snapshot** into `snapshots/` at startup and
-every few minutes while running (safe on a live database, unlike copying the file),
-keeping the most recent ones. It also runs an integrity check on startup and
-refuses to serve a corrupt database, pointing you at the snapshots.
+There is one backup mechanism, the same one the server build uses: a **tournament
+dump**, downloaded from *Administration → Backup & restore*. Download one at
+each break — it is the only copy of the event that exists off this machine.
 
-**To recover from the admin console:** open **Snapshot restore**
-(`/admin?page=database_restore`), pick a snapshot, and confirm. The restore is
-applied the next time you launch the app (a running process can't swap its own
-open database), so quit and relaunch to complete it. This rolls the *whole* local
-database back; to bring back a single tournament instead, use **Backup &
-restore** (below).
+The launcher runs an integrity check on the database at startup and refuses to
+serve a corrupt one rather than starting on a file that half-works and renders
+wrong standings. If that happens: quit, delete `mahj.sqlite3` from the data dir,
+and relaunch. A fresh database is created and a new admin password is written to
+`first-login.txt`; sign in and restore your most recent dump under **Backup &
+restore**.
 
 ## Running the tournament from this laptop (server fallback)
 
@@ -105,10 +103,12 @@ Both installs must be running the **same app version** — a dump records the
 schema it was made on and refuses to restore onto a different one rather than
 loading half of itself.
 
-**To recover by hand** (e.g. the app won't start): quit, go to the data dir,
-rename the newest `snapshots/mahj-*.sqlite3` to `mahj.sqlite3` (replacing the bad
-one), and relaunch. Last resort with no snapshot:
-`sqlite3 mahj.sqlite3 ".recover" | sqlite3 recovered.sqlite3`.
+**If the database is damaged and you have no dump**, it is worth one attempt
+before starting over: quit, and from the data dir run
+`sqlite3 mahj.sqlite3 ".recover" | sqlite3 recovered.sqlite3`, then rename
+`recovered.sqlite3` to `mahj.sqlite3`. Delete `mahj.sqlite3-wal` and
+`mahj.sqlite3-shm` alongside it — stale sidecars can replay onto the file you
+just recovered — and relaunch.
 
 Concurrent writes never corrupt sqlite — it serializes writers, and WAL mode plus
 a busy timeout (both set automatically) mean a rare collision waits rather than

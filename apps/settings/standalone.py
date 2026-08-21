@@ -80,9 +80,11 @@ LOCAL_TENANT = os.environ.get('LOCAL_TENANT', '').strip() or 'local'
 # entered manually. Gates the scorer QR and 404s the scan endpoints.
 SCAN_ENABLED = False
 
-# --- single-process backup/restore ------------------------------------------
-# Rolling sqlite snapshots + restore-on-relaunch, driven by the admin console's
-# "Snapshot restore" page (standalone-only; see mahj/standalone_backup.py).
+# --- single-process sqlite build ---------------------------------------------
+# Recovery here is the same as everywhere else: a tournament dump, restored from
+# Administration -> Backup & restore. The launcher quick_checks the file at
+# startup and refuses to serve a corrupt one, so the operator knows to delete it
+# and restore into the fresh database the next launch creates.
 STANDALONE = True
 
 # --- sqlite PRAGMAs on every connection --------------------------------------

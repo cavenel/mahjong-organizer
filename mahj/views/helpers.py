@@ -194,7 +194,7 @@ def _deny(request):
 
 
 def superuser_required(view):
-    """Platform-operator gate (tenant CRUD, whole-database snapshot restore)."""
+    """Platform-operator gate (tenant CRUD)."""
     @wraps(view)
     def inner(request, *args, **kwargs):
         if request.user.is_authenticated and request.user.is_superuser:

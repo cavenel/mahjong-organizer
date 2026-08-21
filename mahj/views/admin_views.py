@@ -1928,29 +1928,6 @@ def _page_tenants(request, tenant, error=None):
 
 
 
-def _page_database_restore(request, tenant, error=None):
-    """The standalone build's snapshot restore: roll the whole local database
-    back to one of the launcher's rolling sqlite snapshots.
-
-    Standalone-only (the gate hides it elsewhere). A cloud install restores one
-    tournament at a time from a dump instead — see the Backup & restore page.
-    """
-    from .. import standalone_backup
-    template2 = loader.get_template('mahj/admin_database_restore.html')
-    return template2.render({
-        "groups": standalone_backup.list_snapshot_groups(),
-        "db_name": standalone_backup.CONFIRM_TOKEN,
-        # Counts the confirm dialog shows as "what you're about to overwrite".
-        # Unscoped: a snapshot restore replaces the whole local database.
-        "db_counts": {
-            "players": Player.objects.count(),
-            "seats": Seat.objects.count(),
-            "hands": Hand.objects.count(),
-        },
-    }, request)
-
-
-
 def _page_import_template(request, tenant, error=None):
     # The upload confirm dialog names what it will erase, so tell the fragment
     # how big the current tournament is and whether any scores exist.
@@ -2125,14 +2102,6 @@ def _gate_publisher(request):
     return has_role(request, 'publisher')
 
 
-def _gate_snapshot_restore(request):
-    """Superuser, and only in the standalone build: rolling sqlite snapshots are
-    that build's mechanism. A cloud install restores one tournament at a time
-    from a dump (the Backup & restore page), so the page is hidden there rather
-    than left offering something that isn't there."""
-    return request.user.is_superuser and settings.STANDALONE
-
-
 def _gate_tenant_management(request):
     """Superuser, and meaningless in the single-tenant standalone build (the tenant
     is pinned via LOCAL_TENANT), so it's hidden there rather than left broken."""
@@ -2162,8 +2131,6 @@ ADMIN_PAGES = {
     "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True),
     "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
                                      reauth=True, reauth_next='tenants'),
-    "database_restore":   _AdminPage(_gate_snapshot_restore, _page_database_restore,
-                                     reauth=True, reauth_next='database_restore'),
 }
 
 

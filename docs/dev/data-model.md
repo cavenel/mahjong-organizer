@@ -32,8 +32,7 @@ it *defines* the scope (it names both the user and the tenant). Three tiers:
 
 - **Platform superuser** — Django `is_superuser`. Cross-tenant; bypasses
   Membership entirely (needs no row) and is the only cross-tenant actor. Creates
-  tenants; in the standalone build, also restores the whole local database from a
-  snapshot.
+  tenants.
 - **Tenant admin** — an `is_tenant_admin` Membership. Manages that tenant's users
   and roles (including co-admins). Can't reach other tenants or platform ops.
 - **Tenant role** — `Scorer` / `Display operator` / `Publisher`, scoped to one

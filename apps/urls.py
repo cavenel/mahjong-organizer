@@ -54,9 +54,6 @@ urlpatterns = [
     path('tenant_rename', views.tenant_rename, name='tenant_rename'),
     path('tenant_delete', views.tenant_delete, name='tenant_delete'),
 
-    # Snapshot restore (standalone build, superuser only)
-    path('restore_run', views.restore_run, name='restore_run'),
-
     # Per-tenant backup (tenant admin)
     path('tenant_dump', views.tenant_dump_download, name='tenant_dump'),
     path('tenant_restore', views.tenant_restore, name='tenant_restore'),

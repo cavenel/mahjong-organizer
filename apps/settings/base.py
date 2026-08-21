@@ -169,9 +169,8 @@ VENUE_TZ = env('VENUE_TZ', 'UTC')
 # without those heavy deps and enters scores manually.
 SCAN_ENABLED = True
 
-# Single-process sqlite build (see apps/settings/standalone.py). Switches
-# backup/restore from the Postgres worker path to sqlite snapshots + a
-# restore-on-relaunch applied by the launcher.
+# Single-process sqlite build (see apps/settings/standalone.py). Read by the
+# admin console to hide the pages a single-machine install has no use for.
 STANDALONE = False
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
