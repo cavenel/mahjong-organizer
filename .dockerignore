@@ -7,8 +7,12 @@ __pycache__
 
 # Secrets & local env. certbot/ holds the DNS-provider API credentials; the
 # certbot container reads them via a host bind mount (docker-compose.prod.yml),
-# so the app image must never carry them.
+# so the app image must never carry them. The *.env glob is deliberate: only
+# `.env` was listed, so scripts/backup_db.env rode into every image built while
+# it existed, carrying a real host, user and SSH port.
 .env
+*.env
+**/*.env
 certbot/
 
 # Generated at build time (tailwind + collectstatic), never copy stale copies in
