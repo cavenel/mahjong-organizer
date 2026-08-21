@@ -511,7 +511,12 @@ class TestBulkPayloadIntegrity:
         tenant = tournament['tenant']
         a = Seat.objects.filter(tenant=tenant, round_nb=3, table_nb=1).first()
         b = Seat.objects.filter(tenant=tenant, round_nb=3, table_nb=2).first()
+        before = (a.minipoints, b.minipoints)
         assert self._post(authed_client, [(a, 5), (b, 5)]).status_code == 400
+        # Rejected whole: a partial write here would leave one table scored and the
+        # scorer looking at a row that says otherwise.
+        a.refresh_from_db(); b.refresh_from_db()
+        assert (a.minipoints, b.minipoints) == before
 
     def test_unparseable_minipoints_is_rejected(self, authed_client, tournament):
         """It used to be stored as NULL, which reads downstream as "not played"
@@ -866,12 +871,18 @@ class TestFieldErrorsNameTheField:
         assert resp['Content-Type'].startswith('text/html')
 
     def test_a_valid_save_is_unaffected(self, authed_client, tournament):
+        """The control for the malformed-body cases above: the same endpoint still
+        stores what it is given. A 200 alone would also be returned by a handler
+        that parsed the payload and wrote nothing."""
         seats = list(Seat.objects.filter(
             tenant=tournament['tenant'], round_nb=3, table_nb=1).order_by('wind'))
         resp = self._bulk(authed_client, [
             {'id': s.id, 'mp': mp, 'tp': tp}
             for s, mp, tp in zip(seats, [40, 10, -10, -40], [4, 2, 1, 0])])
         assert resp.status_code == 200
+        for seat, mp, tp in zip(seats, [40, 10, -10, -40], [4, 2, 1, 0]):
+            seat.refresh_from_db()
+            assert (seat.minipoints, seat.tablepoints) == (mp, float(tp))
 
 
 class TestDrawFromEitherColumn:

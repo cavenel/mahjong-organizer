@@ -665,7 +665,13 @@ class TestUploadMetering:
         """The suite's DummyCache can't count. Scanning at the venue must not stop
         because the cache backend won't support it."""
         for _ in range(10):
-            assert self._upload(client_).status_code == 200
+            resp = self._upload(client_)
+            assert resp.status_code == 200
+            # 200 is not the same as served: a throttle that failed *closed* while
+            # still answering 200 would queue nothing, and the venue would see
+            # scans that never come back.
+            assert resp.json()['ok'] is True
+            assert resp.json()['job_id']
 
 
 class TestStaleImageSweep:

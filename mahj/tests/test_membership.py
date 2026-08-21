@@ -214,6 +214,13 @@ class TestConsoleScoping:
         resp = _json_post(c, '/user_update_roles',
                           {'user_id': admin.id, 'roles': [], 'is_tenant_admin': False})
         assert resp.status_code == 400
+        # And refused means unchanged. The whole point of the guard is that the
+        # tenant still has an admin afterwards — a 400 returned *after* the write
+        # would leave it stranded with nobody able to grant the role back.
+        m = Membership.objects.get(user=admin, tenant=tournament['tenant'])
+        assert m.is_tenant_admin
+        assert Membership.objects.filter(
+            tenant=tournament['tenant'], is_tenant_admin=True).count() == 1
 
     def test_superuser_may_remove_last_admin(self, tournament):
         # The guard protects a tenant from stranding itself; a superuser is the
@@ -585,6 +592,11 @@ class TestAddExistingUser:
     def test_the_account_now_works_on_this_tenant(self, tournament, outsider, su_client):
         _json_post(su_client, '/user_add_existing',
                    {'username': 'outsider', 'roles': ['scorer']})
+        # The roles granted are the ones asked for, and only those — reaching the
+        # scoring page proves *a* role landed, not which.
+        m = Membership.objects.get(user=outsider, tenant=tournament['tenant'])
+        assert m.is_scorer
+        assert not (m.is_tenant_admin or m.is_display_op or m.is_publisher)
         c = client_for(HOST_A)
         c.force_login(outsider)
         assert c.get('/admin?page=scoring').status_code == 200

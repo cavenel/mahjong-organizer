@@ -7,6 +7,7 @@ full-room snapshot: applying it sets every screen, padding with 'black' for
 screens added after the mode was saved. The admin shows that breakdown and
 marks the mode whose (padded) views match every screen's current view as active.
 """
+import io
 import types
 
 import pytest
@@ -349,6 +350,9 @@ def test_remove_screen_with_none_present_does_not_500(client_, display_op, tourn
     Screen.objects.filter(tenant=tenant).delete()
     client_.force_login(display_op)
     assert client_.post('/admin?page=display&action=remove_screen').status_code in (200, 302)
+    # A no-op means no row appeared either — a handler that "removed" by creating
+    # and deleting, or that fell through to the add path, would also not 500.
+    assert Screen.objects.filter(tenant=tenant).count() == 0
 
 
 def test_rm_mode_bad_id_is_404(client_, display_op, tournament):
@@ -642,6 +646,12 @@ def test_template_export_survives_a_legacy_non_numeric_ema_id(client_, staff, to
     client_.force_login(staff)
     resp = client_.get('/admin_export_to_template')
     assert resp.status_code == 200
+    # Surviving the row is not the same as exporting it: the competitor must still
+    # be in the workbook, with the unusable id left blank rather than guessed at.
+    from openpyxl import load_workbook
+    wb = load_workbook(io.BytesIO(resp.content))
+    names = [c.value for c in wb['Players']['A'] if c.value]
+    assert any('Lastname' in str(n) for n in names), names
 
 
 def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):
@@ -651,6 +661,11 @@ def test_player_editor_save_ignores_unknown_ids(client_, staff, tournament):
         data=json.dumps({'players': [{'id': 999999, 'full_name': 'Ghost'}]}),
         content_type='application/json')
     assert resp.status_code == 200
+    # "Ignored" has to mean no row was created and none was renamed — a 200 alone
+    # is also what an upsert would return.
+    from mahj.models import Player
+    assert not Player.objects.filter(full_name='Ghost').exists()
+    assert Player.objects.filter(tenant=tournament['tenant']).count() == 16
 
 
 @pytest.mark.parametrize('row', [

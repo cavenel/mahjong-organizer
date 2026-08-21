@@ -14,7 +14,7 @@ from django.test import Client
 from mahj import views
 from mahj.models import Hand, Player, Seat, ScoreSheet, PublishedRound, TournamentSettings
 from mahj.scoring import player_extra_stats, public_round_max, team_extra_stats
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import client_for, grant
 from mahj.views.scoring import scores_per_player_rows
 
 
@@ -862,14 +862,25 @@ class TestSparseScoresKeepTheirRound:
         assert '9999' in html
 
     def test_desktop_page_renders_with_a_gap(self, missing_round_two):
-        from django.test import Client
         tournament, player = missing_round_two
         # Staff view, so no publish masking hides the later rounds.
         u = User.objects.create_user('deskadmin', password='pw')
         grant(u, tournament['tenant'], admin=True)
-        c = Client()
+        c = client_for()
         c.force_login(u)
-        assert c.get('/', HTTP_HOST='test.example.com').status_code == 200
+        resp = c.get('/')
+        assert resp.status_code == 200
+        html = resp.content.decode()
+        # Not crashing is the weak half. The gap must still render as a gap: the
+        # round columns are drawn from the tournament's rounds, not from the
+        # shortest score list, and the competitor who missed round 2 is still on
+        # the page rather than dropped for having a short row.
+        # Not crashing is the weak half. The gap must render as a gap: the round
+        # columns come from the tournament's round count, so all three are drawn
+        # even though this competitor has scores for only one of them — and they
+        # are still listed, rather than dropped for having a short row.
+        assert '>R1<' in html and '>R2<' in html and '>R3<' in html
+        assert player.first_name in html
 
     def test_xlsx_round_columns_are_found_by_round_number(self, missing_round_two):
         """The direct unit: the export's accessor must read round N's score, not the

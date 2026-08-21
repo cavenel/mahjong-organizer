@@ -226,7 +226,19 @@ class TestDetailedScoresBoundedToTheChart:
         assert all(cache.get(k) is None for k in keys)
 
     def test_a_real_table_still_renders(self, client_, tournament):
-        assert client_.get('/detailed_scores_1_1').status_code == 200
+        """The control for the 404 cases above. A 200 says the view ran; the names
+        say it found the right table's four competitors."""
+        resp = client_.get('/detailed_scores_1_1')
+        assert resp.status_code == 200
+        html = resp.content.decode()
+        from mahj.models import Seat
+        seated = Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=1, table_nb=1)
+        draws = sorted(s.draw_number for s in seated)
+        assert len(draws) == 4
+        for p in tournament['players']:
+            if p.draw_number in draws:
+                assert p.first_name in html, f'{p.first_name} missing from the modal'
 
 
 class TestTeamModalRankHistory:
