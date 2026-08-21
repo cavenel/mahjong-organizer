@@ -211,6 +211,15 @@ def _require_seated_table(tenant, round_nb, table_nb):
 
 def scan_page(request, round_nb=None, table_nb=None):
     _require_scan_enabled()
+    # No tenant, nothing to scan for. The apex carries no subdomain (get_domain
+    # returns "") and neither does a bare-IP or localhost host, all three of which
+    # ALLOWED_HOSTS admits — and an untargeted POST /scan skips the seating check, so
+    # it used to stage an image and buy a vision call whose result could never be
+    # written anywhere: scan_prefill rejects it for having no round/table. Anonymous
+    # endpoint, paid per call, no tournament behind it. The standalone build is
+    # unaffected: LOCAL_TENANT pins its tenant.
+    if get_tenant(request) is None:
+        raise Http404('no tournament on this host')
     if request.method == "POST":
         # Stage the image and hand OCR off to a scan_worker via the queue, then
         # return immediately. The heavy OpenCV + LLM work never runs on a request

@@ -115,6 +115,47 @@ LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache'
                       'LOCATION': 'scan-limiter'}}
 
 
+class TestScanNeedsATenant:
+    """ALLOWED_HOSTS admits the apex, a bare LAN IP and localhost, none of which carry
+    a subdomain — so get_tenant returns None for all three. An untargeted POST /scan
+    skips the seating-chart check, so it staged an image and enqueued a paid OCR call
+    for a tournament that does not exist; scan_prefill then rejects the result for
+    having no round/table, so the spend buys nothing at all.
+    """
+
+    @pytest.fixture
+    def watched_queue(self, monkeypatch):
+        calls = {'staged': [], 'enqueued': []}
+        monkeypatch.setattr('mahj.scan_queue.stage_image',
+                            lambda raw: (calls['staged'].append(raw), 'jid')[1])
+        monkeypatch.setattr('mahj.scan_queue.enqueue',
+                            lambda job: calls['enqueued'].append(job))
+        monkeypatch.setattr('mahj.scan_queue.sweep_stale_images', lambda: 0)
+        return calls
+
+    def _post(self, host, path='/scan'):
+        c = Client()
+        img = SimpleUploadedFile('sheet.png', REAL_IMAGE, content_type='image/png')
+        return c.post(path, {'image': img}, HTTP_HOST=host)
+
+    @pytest.mark.parametrize('host', ['example.com', 'localhost', '192.168.0.116'])
+    def test_a_tenantless_host_stages_nothing(self, tournament, watched_queue, host):
+        resp = self._post(host)
+        assert resp.status_code == 404, f'{host} must not reach the queue'
+        assert watched_queue['staged'] == [], 'no image may be staged'
+        assert watched_queue['enqueued'] == [], 'and no OCR call may be bought'
+
+    def test_a_real_tenant_still_scans(self, tournament, watched_queue):
+        """No regression on the path that matters."""
+        resp = self._post('test.example.com', '/scan_3_1')
+        assert resp.status_code == 200
+        assert len(watched_queue['enqueued']) == 1
+        assert watched_queue['enqueued'][0]['subdomain'] == 'test'
+
+    def test_the_page_itself_is_also_404_without_a_tenant(self, tournament):
+        assert Client().get('/scan', HTTP_HOST='example.com').status_code == 404
+
+
 class TestUploadLimiterKeysOnTheRealPeer:
     """The limiter's bucket key must not be under the caller's control.
 
