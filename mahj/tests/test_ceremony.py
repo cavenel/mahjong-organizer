@@ -26,8 +26,29 @@ def teamed(tournament):
 
 @pytest.fixture
 def teamed_riichi(teamed, riichi_tournament):
-    """The teamed fixture re-ruled as Riichi (ranking on minipoints)."""
+    """The teamed fixture re-ruled as Riichi (ranking on minipoints, no table
+    points on any seat)."""
     return teamed
+
+
+def test_riichi_team_rounds_reach_the_desktop_table(teamed_riichi):
+    """End-to-end for the blank-cell bug: a Riichi team's per-round scores have to
+    survive the fold and reach the rendered table, not just its totals."""
+    from mahj.scoring import team_standings
+    from mahj.views.public import _desktop_rows
+    from mahj.views.scoring import scores_per_player_rows
+
+    req = _request()
+    tournament = teamed_riichi['settings']
+    rows = _desktop_rows(scores_per_player_rows(req, full_view=True), {},
+                         tournament.nb_rounds)
+    teams = team_standings(rows, tournament, tournament.nb_rounds)
+    assert teams, 'the fixture is a team tournament'
+    for t in teams:
+        # Rounds 1 and 2 are scored in the fixture; round 3 has seats but no points.
+        assert [c['mp'] for c in t['scores'][:2]] != [None, None]
+        assert t['scores'][2]['mp'] is None
+        assert sum(c['mp'] for c in t['scores'][:2]) == t['total']['mp']
 
 
 @pytest.fixture

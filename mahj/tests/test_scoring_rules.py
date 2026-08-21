@@ -82,6 +82,39 @@ class TestTeamStandings:
         assert (r1['round_nb'], r1['mp'], r1['tp']) == (1, 100, 4.0)
         assert (r2['round_nb'], r2['mp'], r2['tp']) == (2, 250, 4.0)
 
+    def test_riichi_rounds_fill_their_cells_without_table_points(self):
+        # A real Riichi sheet leaves table points NULL, so a fold that required them
+        # skipped every round and left the team's per-round cells blank (the totals
+        # are summed separately, so they looked right and hid it).
+        rows = [
+            {'team': 'X', 'flag': '', 'player_id': 1,
+             'total': {'tp': 0.0, 'mp': 300},
+             'scores': [{'tp': None, 'mp': 100, 'round_nb': 1},
+                        {'tp': None, 'mp': 200, 'round_nb': 2}]},
+            {'team': 'X', 'flag': '', 'player_id': 2,
+             'total': {'tp': 0.0, 'mp': 30},
+             'scores': [{'tp': None, 'mp': 10, 'round_nb': 1},
+                        {'tp': None, 'mp': 20, 'round_nb': 2}]},
+        ]
+        tournament = SimpleNamespace(rules='Riichi', nb_rounds=2)
+        team = team_standings(rows, tournament, 2)[0]
+        assert [c['mp'] for c in team['scores']] == [110, 220]
+        assert team['total']['mp'] == 330
+
+    def test_a_round_nobody_played_stays_empty(self):
+        # The counterpart: an empty cell carries neither score, so it must not fold
+        # in as a zero and make an unplayed round look played.
+        rows = [
+            {'team': 'X', 'flag': '', 'player_id': 1,
+             'total': {'tp': 4.0, 'mp': 100},
+             'scores': [{'tp': 4.0, 'mp': 100, 'round_nb': 1},
+                        {'tp': None, 'mp': None, 'round_nb': 2}]},
+        ]
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=2)
+        r1, r2 = team_standings(rows, tournament, 2)[0]['scores']
+        assert (r1['mp'], r1['tp']) == (100, 4.0)
+        assert (r2['mp'], r2['tp']) == (None, None)
+
     def test_non_mcr_ties_on_mp_alone_ignoring_tp(self):
         # Non-MCR (e.g. Riichi) ranks on MP only. Teams level on MP share a
         # position even if their (display-only) TP differs; TP must not split

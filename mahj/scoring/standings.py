@@ -146,7 +146,11 @@ def team_standings(rows, tournament, nb_rounds):
         slot['total']['tp'] += s['total'].get('tp') or 0
         slot['total']['mp'] += s['total'].get('mp') or 0
         for sc in s['scores']:
-            if sc.get('tp') is None:
+            # An empty cell — a round this player didn't play — carries neither
+            # score. Riichi carries only minipoints (it never fills table points at
+            # all), so requiring table points here left every Riichi team's per-round
+            # cells blank; the totals were summed separately and stayed right.
+            if sc.get('tp') is None and sc.get('mp') is None:
                 continue
             # Fold into the team's slot for this score's actual round, not its
             # position in the player's compact score list: a player who missed a
@@ -155,7 +159,7 @@ def team_standings(rows, tournament, nb_rounds):
             r_idx = sc['round_nb'] - 1
             if 0 <= r_idx < len(slot['scores']):
                 rslot = slot['scores'][r_idx]
-                rslot['tp'] = (rslot['tp'] or 0) + sc['tp']
+                rslot['tp'] = (rslot['tp'] or 0.0) + (sc.get('tp') or 0.0)
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
     team_rows = sorted(by_team.values(), key=_standings_sort_key(tournament))
     _assign_ranks(team_rows, _standings_rank_key(tournament), field='pos')

@@ -131,10 +131,15 @@ def request_(tournament):
 @pytest.fixture
 def riichi_tournament(tournament):
     """The standard fixture re-ruled as Riichi: ranking is on minipoints alone
-    (no table points), so it exercises the non-MCR scoring/standings path."""
+    (no table points), so it exercises the non-MCR scoring/standings path.
+
+    The seats are stripped of their table points too — a real Riichi sheet never
+    fills them in — so anything that wrongly treats them as required shows up here.
+    """
     settings = tournament['settings']
     settings.rules = 'Riichi'
     settings.save()
+    Seat.objects.filter(tenant=tournament['tenant']).update(tablepoints=None)
     return tournament
 
 
