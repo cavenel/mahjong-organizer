@@ -185,6 +185,23 @@ def _target_in_tenant(request, data):
     membership = Membership.objects.filter(user=user, tenant=tenant).first()
     if membership is None:
         return JsonResponse({'status': 'error', 'error': 'user not found'}, status=404)
+    # A platform operator is not a tenant's to manage. The containment rule below
+    # asks only "does this account hold a membership *outside* my tenant?", and a
+    # superuser seeded into one tenant — which is the documented way to bootstrap it,
+    # `manage.py assign_membership root <sub> --roles=tenant_admin` — answers no. So a
+    # tenant admin could mint that account a login link and open it to become a
+    # superuser themselves, with tenant CRUD and every other tenant. The same hole let
+    # them rotate the operator's credential or delete the account outright.
+    #
+    # Guarded here rather than at each endpoint so every caller of this resolver
+    # inherits it, including ones added later. Not 404: the row is already visible in
+    # their own user list, so there is nothing to hide — only to refuse.
+    if user.is_superuser and not request.user.is_superuser:
+        return JsonResponse(
+            {'status': 'error',
+             'error': 'that account belongs to a platform operator and can only be '
+                      'managed by another superuser'},
+            status=403)
     return user, tenant, membership
 
 

@@ -706,6 +706,87 @@ class TestUserAdminActions:
         assert not User.objects.filter(username='admin2').exists()
 
 
+class TestSuperuserTargetsAreOffLimits:
+    """The worst path in the console: a tenant admin minting themselves a platform
+    superuser session.
+
+    The containment rule asks only whether the target holds a membership *outside*
+    this tenant. A superuser seeded into one tenant — which is the documented
+    bootstrap, `manage.py assign_membership root <sub> --roles=tenant_admin` — answers
+    no, so every credential endpoint treated the operator's account as a local user.
+    """
+
+    @pytest.fixture
+    def seeded_superuser(self, tournament):
+        """A superuser whose only Membership is in this tenant, i.e. the documented
+        seeded state that made the account look contained."""
+        su = User.objects.create_superuser('platform_root', '', 'pw')
+        grant(su, tournament['tenant'], admin=True)
+        return su
+
+    @pytest.fixture
+    def admin_client(self, client_, tournament):
+        admin = User.objects.create_user('plain_admin', password='pw')
+        grant(admin, tournament['tenant'], admin=True)
+        _login_reauthed(client_, admin)
+        return client_
+
+    def test_a_tenant_admin_cannot_mint_a_superuser_login_link(
+            self, admin_client, seeded_superuser):
+        """The escalation itself: the minted link is a full credential for that
+        account, so opening it authenticates the tenant admin as the superuser."""
+        resp = _json_post(admin_client, '/user_generate_link',
+                          {'user_id': seeded_superuser.id})
+        assert resp.status_code == 403
+        assert 'platform operator' in resp.json()['error']
+        assert 'url' not in resp.json(), 'no link may be handed out at all'
+
+    def test_a_tenant_admin_cannot_rotate_a_superuser_credential(
+            self, admin_client, seeded_superuser):
+        resp = _json_post(admin_client, '/user_revoke_links',
+                          {'user_id': seeded_superuser.id})
+        assert resp.status_code == 403
+        seeded_superuser.refresh_from_db()
+        assert seeded_superuser.has_usable_password()
+
+    def test_a_tenant_admin_cannot_delete_a_superuser(
+            self, admin_client, seeded_superuser):
+        resp = _json_post(admin_client, '/user_delete',
+                          {'user_id': seeded_superuser.id})
+        assert resp.status_code == 403
+        assert User.objects.filter(pk=seeded_superuser.pk).exists()
+
+    def test_a_tenant_admin_cannot_change_a_superuser_role(
+            self, admin_client, seeded_superuser):
+        resp = _json_post(admin_client, '/user_update_roles',
+                          {'user_id': seeded_superuser.id, 'roles': [], 'is_admin': False})
+        assert resp.status_code == 403
+
+    def test_a_superuser_can_still_manage_another_superuser(
+            self, client_, tournament, seeded_superuser):
+        """The platform operator keeps the escape hatch — and this pins *why* the
+        guard matters: the minted link is a full credential for the target account,
+        so anyone holding it is that superuser."""
+        from sesame.utils import get_user
+        su = User.objects.create_superuser('other_root', '', 'pw')
+        _login_reauthed(client_, su)
+        resp = _json_post(client_, '/user_generate_link',
+                          {'user_id': seeded_superuser.id})
+        assert resp.status_code == 200
+        token = resp.json()['url'].split('sesame=')[1]
+        who = get_user(token)
+        assert who == seeded_superuser and who.is_superuser, (
+            'the link authenticates as the superuser — which is exactly what a tenant '
+            'admin must not be able to mint')
+
+    def test_ordinary_users_are_unaffected(self, admin_client, tournament):
+        """No regression: a plain member of the tenant is still fully manageable."""
+        target = User.objects.create_user('plain_member', password='pw')
+        grant(target, tournament['tenant'], scorer=True)
+        assert _json_post(admin_client, '/user_generate_link',
+                          {'user_id': target.id}).status_code == 200
+
+
 class TestUserAdminReauth:
     """User management asks staff to re-confirm their password ('sudo mode'),
     so a borrowed/unattended admin session can't reach it."""
