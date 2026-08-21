@@ -146,7 +146,14 @@ def _upload_allowed(request):
     without INCR support, or no cache at all, fails open rather than blocking the
     venue's scanning.
     """
-    addr = (request.META.get('HTTP_X_FORWARDED_FOR', '').split(',')[0].strip()
+    # The LAST element, not the first. nginx sets X-Forwarded-For to $remote_addr,
+    # but it used `$proxy_add_x_forwarded_for`, which *appends* the real peer to
+    # whatever the client sent — so the header read `<attacker value>, <real ip>` and
+    # taking [0] handed the caller control of their own bucket key. Rotating it gave a
+    # fresh allowance every request, on an endpoint that is anonymous by design and
+    # spends money per upload. The last element is the one our own proxy wrote.
+    forwarded = request.META.get('HTTP_X_FORWARDED_FOR', '')
+    addr = (forwarded.split(',')[-1].strip()
             or request.META.get('REMOTE_ADDR') or 'unknown')
     key = f'scan_uploads:{hashlib.sha256(addr.encode()).hexdigest()[:32]}'
     try:

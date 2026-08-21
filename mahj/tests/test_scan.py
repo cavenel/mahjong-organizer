@@ -9,7 +9,7 @@ import json
 import pytest
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
-from django.test import Client
+from django.test import Client, override_settings
 
 from mahj.models import Hand, ScoreSheet
 from mahj.tests.conftest import grant
@@ -109,6 +109,67 @@ class TestScanPrefill:
         # `force` is ignored; the original row is intact.
         h.refresh_from_db()
         assert h.points == 20
+
+
+LOCMEM = {'default': {'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+                      'LOCATION': 'scan-limiter'}}
+
+
+class TestUploadLimiterKeysOnTheRealPeer:
+    """The limiter's bucket key must not be under the caller's control.
+
+    nginx appended the real peer to whatever the client sent, so the header read
+    "<attacker value>, <real ip>" and the limiter took the first element. Rotating it
+    bought a fresh 6-per-minute allowance every request — on an endpoint that is
+    anonymous by design and queues a paid vision call per upload.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _locmem(self):
+        # The suite runs on DummyCache, which cannot count.
+        from django.core.cache import cache
+        with override_settings(CACHES=LOCMEM):
+            cache.clear()
+            yield
+            cache.clear()
+
+    def _allowed(self, spoof, peer='10.0.0.7'):
+        from django.test import RequestFactory
+        from mahj.views.scan import _upload_allowed
+        req = RequestFactory().post('/scan_3_1')
+        # Exactly what nginx used to produce: client value first, real peer appended.
+        req.META['HTTP_X_FORWARDED_FOR'] = f'{spoof}, {peer}'
+        req.META['REMOTE_ADDR'] = peer
+        return _upload_allowed(req)
+
+    def test_a_rotating_header_cannot_buy_a_fresh_allowance(self):
+        from mahj.views.scan import UPLOAD_MAX_PER_WINDOW
+        # A different spoofed value every time, same real peer.
+        results = [self._allowed(f'203.0.113.{i}') for i in range(UPLOAD_MAX_PER_WINDOW + 2)]
+        assert results[:UPLOAD_MAX_PER_WINDOW] == [True] * UPLOAD_MAX_PER_WINDOW
+        assert results[UPLOAD_MAX_PER_WINDOW:] == [False, False], (
+            'rotating the client half of X-Forwarded-For must not reset the bucket')
+
+    def test_two_real_peers_get_their_own_buckets(self):
+        """The limiter must still be per-device, not global."""
+        from mahj.views.scan import UPLOAD_MAX_PER_WINDOW
+        for _ in range(UPLOAD_MAX_PER_WINDOW + 1):
+            self._allowed('203.0.113.9', peer='10.0.0.7')
+        assert self._allowed('203.0.113.9', peer='10.0.0.7') is False
+        # A different phone is unaffected.
+        assert self._allowed('203.0.113.9', peer='10.0.0.8') is True
+
+    def test_no_forwarded_header_falls_back_to_remote_addr(self):
+        from django.test import RequestFactory
+        from mahj.views.scan import UPLOAD_MAX_PER_WINDOW, _upload_allowed
+        def req(peer):
+            r = RequestFactory().post('/scan_3_1')
+            r.META['REMOTE_ADDR'] = peer
+            return r
+        for _ in range(UPLOAD_MAX_PER_WINDOW):
+            assert _upload_allowed(req('192.0.2.5')) is True
+        assert _upload_allowed(req('192.0.2.5')) is False
+        assert _upload_allowed(req('192.0.2.6')) is True
 
 
 class TestScanPrefillGuardsTheChart:
