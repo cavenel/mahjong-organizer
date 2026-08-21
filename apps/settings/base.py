@@ -65,9 +65,21 @@ CACHES = {
         'LOCATION': REDIS_URL,
         'OPTIONS': {
             'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+            # Every request path touches the cache — get_tenant, get_tournament, the
+            # desktop HTML cache, the leaderboard generation counter, the scan
+            # limiter. django_redis raises by default, so without this a Redis
+            # restart or a full maxmemory on the noeviction bus doesn't degrade the
+            # site, it 500s all of it at once: public standings, projector screens
+            # and score entry. The cache is best-effort everywhere it is read — a
+            # miss falls through to the database — so a failure must read as a miss.
+            'IGNORE_EXCEPTIONS': True,
         },
     }
 }
+# Ignored, but not silently: paired with the `django`/`mahj` console loggers, a Redis
+# problem still shows up in `docker logs web` instead of only as stale pages.
+DJANGO_REDIS_IGNORE_EXCEPTIONS = True
+DJANGO_REDIS_LOG_IGNORED_EXCEPTIONS = True
 
 # Sessions live in the database, not the Redis cache: only staff (<=20) ever
 # authenticate, so the per-request indexed lookup is negligible, and keeping auth
