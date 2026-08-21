@@ -548,7 +548,10 @@ class TestTenantDelete:
         Player.objects.create(tenant=other, draw_number=1, full_name='Gone', first_name='G')
         Seat.objects.create(tenant=other, round_nb=1, table_nb=1, wind=1, draw_number=1)
         Schedule.objects.create(tenant=other, day='Sat', time='10:00', name='R1', is_round=True)
-        TournamentSettings.objects.create(tenant=other, nb_rounds=1)
+        # A logo is BinaryField bytes, not a file — the row itself is all there is
+        # to delete, and the delete must not try to reach into the field.
+        TournamentSettings.objects.create(tenant=other, nb_rounds=1,
+                                         logo=b'\x89PNG-not-really', logo_etag='abc')
         doomed = User.objects.create_user('doomed', password='pw')
         grant(doomed, other, scorer=True)
 

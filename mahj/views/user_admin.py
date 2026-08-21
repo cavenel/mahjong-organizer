@@ -30,7 +30,7 @@ from django.db import IntegrityError, transaction
 from django.http import JsonResponse
 from sesame.utils import get_token
 
-from ..models import Membership, Tenant, TournamentSettings
+from ..models import Membership, Tenant
 from .helpers import get_tenant, is_tenant_admin, json_body, superuser_required, tenant_admin_required
 
 # Tier-3 role flags the console toggles (tenant_admin is handled as its own flag).
@@ -465,12 +465,6 @@ def tenant_delete(request):
             {'status': 'error',
              'error': 'That is the tournament you are working in. Open another '
                       "tenant's admin and delete it from there."}, status=400)
-
-    # Django leaves FileField files on disk, so the uploaded logo has to go by hand
-    # or it outlives the tournament it belonged to.
-    for row in TournamentSettings.objects.filter(tenant=tenant):
-        if row.logo:
-            row.logo.delete(save=False)
 
     subdomain, name = tenant.subdomain, tenant.name
     tenant.delete()
