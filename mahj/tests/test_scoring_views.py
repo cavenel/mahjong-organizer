@@ -1131,3 +1131,57 @@ class TestWithdrawnCompetitorIsNotRanked:
         rows = views.scores_per_player_rows(request_, full_view=True)
         assert len(rows) == 15
         assert withdrawn.full_name not in {r['name'] for r in rows}
+
+
+class TestRatioCardsAreStable:
+    """The five ratio cards ("Gave most/least", "Luckiest", "Unluckiest", and the
+    two self-draw-rate cards) are each a top-5 cut of a sorted list.
+
+    Two things made that cut arbitrary. The sort had no final tiebreaker, over a
+    dict whose insertion order came from an unordered Seat query — so with the
+    20-second HTML cache the same data could show five different names on the
+    next render. And the tally was keyed by the Player *object*, which is None for
+    a draw slot no player holds, giving a row that renders as "Unknown 0.0%" and,
+    being the lowest possible percentage, sorts to the top of "Gave least".
+    """
+
+    CARDS = ('gave_most', 'gave_least', 'luckiest', 'unluckiest',
+             'sd_win_rate', 'sd_win_rate_low')
+
+    def _stats(self, tenant, seats):
+        from mahj.models import Hand
+        from mahj.scoring.stats import _table_stats_for, _validated_tables
+        from mahj.scoring import _attach_players
+        hands = list(Hand.objects.filter(tenant=tenant))
+        return _table_stats_for(_attach_players(tenant, seats), hands,
+                                _validated_tables(tenant, 3))
+
+    def test_cards_do_not_depend_on_seat_order(self, tournament):
+        tenant = tournament['tenant']
+        seats = list(Seat.objects.filter(tenant=tenant).order_by('id'))
+        forward = self._stats(tenant, seats)
+        backward = self._stats(tenant, list(reversed(seats)))
+        for card in self.CARDS:
+            names = [d['player'].full_name for d in forward[card]]
+            assert names == [d['player'].full_name for d in backward[card]], card
+
+    def test_an_unclaimed_slot_is_not_a_competitor(self, tournament):
+        """A slot with no player has no name to show and no business ranking."""
+        tenant = tournament['tenant']
+        Player.objects.filter(tenant=tenant, draw_number=5).delete()
+        seats = list(Seat.objects.filter(tenant=tenant).order_by('id'))
+        stats = self._stats(tenant, seats)
+        for card in self.CARDS:
+            assert all(d['player'] is not None for d in stats[card]), card
+
+    def test_ties_are_broken_by_a_stable_identity(self, tournament):
+        """The real-world trigger: everyone level on 0.0% because nobody dealt in.
+        With no tiebreaker the five shown were whichever five the dict yielded."""
+        tenant = tournament['tenant']
+        Hand.objects.filter(tenant=tenant).update(win_by=0, win_from=None, points=0)
+        seats = list(Seat.objects.filter(tenant=tenant).order_by('id'))
+        forward = self._stats(tenant, seats)
+        backward = self._stats(tenant, list(reversed(seats)))
+        assert [d['player'].id for d in forward['gave_least']] == \
+               [d['player'].id for d in backward['gave_least']]
+        assert all(d['pct'] == 0.0 for d in forward['gave_least'])

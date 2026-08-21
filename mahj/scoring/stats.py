@@ -95,7 +95,9 @@ def round_winners(tenant, tournament, full_view=False, seats=None, hands=None):
 
     if seats is None:
         seats = _attach_players(tenant, list(
-            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+            # Ordered so the tallies below are built in a fixed sequence: an
+            # unordered query lets Postgres return rows in any order it likes.
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max).order_by('id')
         ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
@@ -155,7 +157,9 @@ def table_stats(tenant, tournament, full_view=False, seats=None, hands=None):
 
     if seats is None:
         seats = _attach_players(tenant, list(
-            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+            # Ordered so the tallies below are built in a fixed sequence: an
+            # unordered query lets Postgres return rows in any order it likes.
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max).order_by('id')
         ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
@@ -173,7 +177,9 @@ def table_stats_rounds(tenant, tournament, full_view=False, seats=None, hands=No
 
     if seats is None:
         seats = _attach_players(tenant, list(
-            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max)
+            # Ordered so the tallies below are built in a fixed sequence: an
+            # unordered query lets Postgres return rows in any order it likes.
+            Seat.objects.filter(tenant=tenant, round_nb__lte=round_max).order_by('id')
         ))
     if hands is None:
         hands = list(Hand.objects.filter(tenant=tenant, round_nb__lte=round_max))
@@ -408,6 +414,12 @@ def _table_stats_for(seats, hands, valid):
     for p in seats:
         rt = (p.round_nb, p.table_nb)
         if rt in valid:
+            # A seat whose draw number no player holds has no competitor to credit.
+            # Keyed by the Player object, that seat's None became a row rendering as
+            # "Unknown 0.0%" — and 0.0% is the lowest possible rate, so it sorted to
+            # the top of "Gave least".
+            if p.player is None:
+                continue
             played[p.player] += hands_played[rt]
 
     def _ratio_items(tally):
@@ -417,11 +429,19 @@ def _table_stats_for(seats, hands, valid):
             for player, n in played.items() if n > 0
         ]
 
+    # Every card below is a top-5 cut, so the sort must be total: these are ties in
+    # a rate, which happen constantly (everyone on 0.0% early in an event), and
+    # without a final key the five shown were whichever five `played` yielded —
+    # reshuffling on each re-render behind the HTML cache with no data change.
+    # Sorting on the negated rate rather than reverse=True keeps the id ascending
+    # in a tie whichever direction the rate runs.
     deal_in_items = _ratio_items(deal_ins)
-    gave_most = sorted(deal_in_items, key=lambda d: d['pct'], reverse=True)[:5]
-    gave_least = sorted(deal_in_items, key=lambda d: d['pct'])[:5]
-    luckiest = sorted(_ratio_items(self_draws), key=lambda d: d['pct'], reverse=True)[:5]
-    unluckiest = sorted(_ratio_items(sd_victims), key=lambda d: d['pct'], reverse=True)[:5]
+    gave_most = sorted(deal_in_items, key=lambda d: (-d['pct'], d['player'].id))[:5]
+    gave_least = sorted(deal_in_items, key=lambda d: (d['pct'], d['player'].id))[:5]
+    luckiest = sorted(_ratio_items(self_draws),
+                      key=lambda d: (-d['pct'], d['player'].id))[:5]
+    unluckiest = sorted(_ratio_items(sd_victims),
+                        key=lambda d: (-d['pct'], d['player'].id))[:5]
 
     # Self-draw rate = share of a player's own wins that were self-drawn (denominator
     # is wins, not hands played). For the top card, ties on the rate are broken by the
@@ -432,8 +452,10 @@ def _table_stats_for(seats, hands, valid):
          'pct': round(100 * self_draws.get(player, 0) / w, 1)}
         for player, w in wins.items() if w > 0
     ]
-    sd_win_rate = sorted(sd_rate_items, key=lambda d: (d['pct'], d['count']), reverse=True)[:5]
-    sd_win_rate_low = sorted(sd_rate_items, key=lambda d: (d['pct'], -d['nb_hands']))[:5]
+    sd_win_rate = sorted(
+        sd_rate_items, key=lambda d: (-d['pct'], -d['count'], d['player'].id))[:5]
+    sd_win_rate_low = sorted(
+        sd_rate_items, key=lambda d: (d['pct'], -d['nb_hands'], d['player'].id))[:5]
 
     return {
         'tables_finished': tables_finished,
