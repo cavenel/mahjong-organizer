@@ -17,6 +17,14 @@ from mahj.tests.conftest import grant
 
 HOST = 'test.example.com'
 
+# A real 2x2 PNG. The upload path decodes the bytes to reject junk before it stages
+# the file and buys a vision call, so a placeholder like b'x' * 100 is refused — and
+# _looks_like_an_image fails *open* on ImportError, so tests posting junk passed only
+# where the imaging stack was absent, and failed in CI and in the built image.
+REAL_IMAGE = bytes.fromhex(
+    '89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a73'
+    '0000000e49444154789c63a807030608050029ba05f517f4e93a0000000049454e44ae426082')
+
 
 @pytest.fixture
 def client_():
@@ -360,14 +368,14 @@ class TestScanEnqueue:
         monkeypatch.setattr('mahj.scan_queue.stage_image', fake_stage)
         monkeypatch.setattr('mahj.scan_queue.enqueue', fake_enqueue)
 
-        img = SimpleUploadedFile('sheet.jpg', b'\xff\xd8\xffnot-a-real-jpeg', content_type='image/jpeg')
+        img = SimpleUploadedFile('sheet.png', REAL_IMAGE, content_type='image/png')
         resp = client_.post('/scan_2_3', {'image': img})
 
         assert resp.status_code == 200
         body = resp.json()
         assert body['ok'] is True and body['job_id'] == 'job-abc'
         # The view does no OCR itself — it only hands the bytes to the queue.
-        assert captured['bytes'] == b'\xff\xd8\xffnot-a-real-jpeg'
+        assert captured['bytes'] == REAL_IMAGE
         assert captured['job']['job_id'] == 'job-abc'
         assert captured['job']['round_nb'] == 2 and captured['job']['table_nb'] == 3
 
@@ -387,8 +395,7 @@ class TestScanEnqueue:
         monkeypatch.setattr('mahj.scan_queue.stage_image',
                             lambda raw: staged.append(raw) or 'job-x')
 
-        img = SimpleUploadedFile('sheet.jpg', b'\xff\xd8\xffnope',
-                                 content_type='image/jpeg')
+        img = SimpleUploadedFile('sheet.png', REAL_IMAGE, content_type='image/png')
         assert client_.post('/scan_99_99', {'image': img}).status_code == 404
         assert staged == []
 
@@ -431,10 +438,10 @@ class TestUploadMetering:
     call, and the endpoint is anonymous. So it needs its own ceiling — nginx's body
     limit is 20 MB and says nothing about how many."""
 
-    def _upload(self, client, content=b'x' * 100, name='sheet.jpg'):
+    def _upload(self, client, content=REAL_IMAGE, name='sheet.png'):
         from django.core.files.uploadedfile import SimpleUploadedFile
         return client.post('/scan_3_1',
-                           {'image': SimpleUploadedFile(name, content, 'image/jpeg')})
+                           {'image': SimpleUploadedFile(name, content, 'image/png')})
 
     @pytest.fixture
     def staged(self, monkeypatch):
