@@ -5,4 +5,6 @@
 services:
   web:
     ports:
-      - "8000:8000"
+      # Loopback only: this is the DEBUG stack, and 8000:8000 published it to every
+      # interface — i.e. to the venue's wifi.
+      - "127.0.0.1:8000:8000"

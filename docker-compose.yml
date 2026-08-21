@@ -57,7 +57,9 @@ services:
       retries: 10
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    # Pinned: this is the only third-party image that was floating, and 'latest'
+    # moving under a running tournament is the failure this prevents.
+    image: edoburu/pgbouncer:v1.25.2-p0
     restart: unless-stopped
     logging: *default-logging
     environment:
@@ -102,7 +104,10 @@ services:
         condition: service_healthy
       redis_bus:
         condition: service_healthy
-    command: sh -c "python manage.py migrate --noinput && exec gunicorn apps.asgi:application --bind 0.0.0.0:8000 --workers 3 --timeout 60"
+    # -k explicitly: gunicorn autoloads ./gunicorn.conf.py, so the ASGI worker
+    # class was arriving only by way of prod's config file. WebSockets break
+    # silently under the default sync worker, so it is named here.
+    command: sh -c "python manage.py migrate --noinput && exec gunicorn apps.asgi:application -k uvicorn.workers.UvicornWorker --bind 0.0.0.0:8000 --workers 3 --timeout 60"
 
   # Score-sheet OCR workers — consume the Redis scan queue off the request path.
   # Several replicas share one FIFO queue, so parallel scans are bounded here and
@@ -114,6 +119,7 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: apps.settings.dev
+      DB_HOST: pgbouncer
       REDIS_URL: redis://redis:6379/1
       REDIS_BUS_URL: redis://redis_bus:6379/0
     volumes:

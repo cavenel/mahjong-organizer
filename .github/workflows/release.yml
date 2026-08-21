@@ -30,18 +30,22 @@ jobs:
           - os: windows-latest
             target: windows-x64
             tw_suffix: windows-x64.exe
+            tw_sha256: 67f1c5e3f5a03406a7bf5badf5ada09b79f3ae78ec43450c15f7e983068da346
             tw_bin: tailwindcss.exe
           - os: macos-14        # Apple Silicon
             target: macos-arm64
             tw_suffix: macos-arm64
+            tw_sha256: a1d0c7985759accca0bf12e51ac1dcbf0f6cf2fffb62e6e0f62d091c477a10a3
             tw_bin: tailwindcss
           - os: macos-13        # Intel
             target: macos-x64
             tw_suffix: macos-x64
+            tw_sha256: 6cbdad74be776c087ffa5e9a057512c54898f9fe8828d3362212dfe32fc933a3
             tw_bin: tailwindcss
           - os: ubuntu-latest
             target: linux-x64
             tw_suffix: linux-x64
+            tw_sha256: 7d24f7fa191d2193b78cd5f5a42a6093e14409521908529f42d80b11fde1f1d4
             tw_bin: tailwindcss
     runs-on: ${{ matrix.os }}
     defaults:
@@ -58,6 +62,15 @@ jobs:
         run: |
           curl -sSL -o "${{ matrix.tw_bin }}" \
             "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${{ matrix.tw_suffix }}"
+          # Checksum from the release's sha256sums.txt (see the matrix). The binary
+          # is downloaded and then run, so without this every release build trusts
+          # whatever that URL serves on the day. sha256sum on Linux and Git-for-
+          # Windows, shasum on macOS.
+          if command -v sha256sum >/dev/null 2>&1; then
+            echo "${{ matrix.tw_sha256 }}  ${{ matrix.tw_bin }}" | sha256sum -c -
+          else
+            echo "${{ matrix.tw_sha256 }}  ${{ matrix.tw_bin }}" | shasum -a 256 -c -
+          fi
           chmod +x "${{ matrix.tw_bin }}"
 
       - name: Compile Tailwind CSS

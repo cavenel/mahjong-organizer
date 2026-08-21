@@ -14,13 +14,10 @@ certbot/
 # Generated at build time (tailwind + collectstatic), never copy stale copies in
 staticfiles
 
-# Local data / backups not needed at runtime
-databases/
-bakup/
+# Local data / backups not needed at runtime. old-results/ is 46 MB of real
+# past-event data — nothing reads it, and it has no business in a published image.
 captures/
-
-# Bundled WordPress plugin (hundreds of flag SVGs) — not used by the app
-plugins/
+old-results/
 
 # VCS / docker meta
 .git

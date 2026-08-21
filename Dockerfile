@@ -34,12 +34,18 @@ RUN pip install --no-cache-dir -r requirements/docs.txt
 # Standalone Tailwind CLI (no Node toolchain). Build-time only — kept under /opt
 # so it never lands on the runtime PATH.
 ARG TAILWIND_VERSION=v3.4.17
+# Checksums from the release's own sha256sums.txt. This binary is fetched over the
+# network and then run, so an unverified download makes every build trust whatever
+# that URL serves on the day. Bump these together with TAILWIND_VERSION.
+ARG TAILWIND_SHA256_AMD64=7d24f7fa191d2193b78cd5f5a42a6093e14409521908529f42d80b11fde1f1d4
+ARG TAILWIND_SHA256_ARM64=69b1378b8133192d7d2feb12a116fa12d035594f58db3eff215879e4ad8cf39b
 RUN ARCH=$(dpkg --print-architecture); \
-    if [ "$ARCH" = "amd64" ]; then SUFFIX=linux-x64; \
-    elif [ "$ARCH" = "arm64" ]; then SUFFIX=linux-arm64; \
+    if [ "$ARCH" = "amd64" ]; then SUFFIX=linux-x64; SHA=$TAILWIND_SHA256_AMD64; \
+    elif [ "$ARCH" = "arm64" ]; then SUFFIX=linux-arm64; SHA=$TAILWIND_SHA256_ARM64; \
     else echo "Unsupported architecture: $ARCH" >&2 && exit 1; fi && \
     curl -sLo /opt/tailwindcss \
       "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-${SUFFIX}" && \
+    echo "${SHA}  /opt/tailwindcss" | sha256sum -c - && \
     chmod +x /opt/tailwindcss
 
 COPY . .
