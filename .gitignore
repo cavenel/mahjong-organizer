@@ -48,3 +48,12 @@ mahj/static/docs/
 scripts/screenshots/.local/
 scripts/screenshots/.pixi/
 scripts/screenshots/pixi.lock
+
+# Working artefacts: review findings and staging plans. These live at the repo root
+# for clickable editor links, which is exactly how an unscoped `git add -A` keeps
+# catching them. A review file in particular must never ship — it is a curated
+# file-and-line index of this codebase's weak points, and it stays one in the history
+# even after every finding is fixed.
+CODE_REVIEW.md
+PRE_MERGE_PLAN.md
+BACKUP_REFACTOR_STATUS.md
