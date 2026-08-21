@@ -163,9 +163,17 @@ the PDFs are built from them.
 ```bash
 python -m pytest                                  # settings: apps.settings.test
 
+python -m coverage run --source=mahj,apps \
+    --omit='*/migrations/*,*/tests/*' -m pytest -q   # then: coverage report --sort=cover
+
 pip install -r requirements/standalone.txt        # run the laptop version from source
 python -m standalone.run
 ```
+
+The suite is ~85 seconds and runs on every push
+([`ci.yml`](.github/workflows/ci.yml)). `mahj/tests/test_invariants.py` is
+different from the rest: static checks on source and configuration, no database
+and no client, for the properties that are about something being *absent*.
 
 `manage.py` uses `apps.settings.dev` by default. That needs a local Postgres and
 Redis. The standalone settings need neither.
