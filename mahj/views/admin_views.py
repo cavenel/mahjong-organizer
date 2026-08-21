@@ -2104,7 +2104,13 @@ def _gate_tenant_admin(request):
 
 def _gate_display_op(request):
     """Display operators only. A scorer or publisher turned away here can't drive
-    the page's mutating actions either — they run behind the same gate."""
+    the page's mutating actions either — they run behind the same gate, with one
+    exception: ceremony_control's `action=publish` branch takes the *publisher*
+    role instead, because revealing results is a publish. A pure publisher is
+    therefore allowed to POST the reveal but is not admitted to this page or to
+    ceremony_data, so in practice the ceremony is run by someone holding both
+    roles (a tenant admin). The split is an authorization boundary, not a
+    usable role separation."""
     return has_role(request, 'display_op')
 
 

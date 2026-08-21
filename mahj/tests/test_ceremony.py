@@ -269,16 +269,21 @@ class TestControlEndpoint:
         op_client.post('/ceremony_control?action=publish')
         assert not PublishedRound.objects.filter(tenant=tenant, round_nb=3).exists()
 
+    @staticmethod
+    def _client_with(tenant, username, **roles):
+        c = Client()
+        u = User.objects.create_user(username, password='pw')
+        grant(u, tenant, **roles)
+        c.force_login(u)
+        c.defaults['HTTP_HOST'] = 'test.example.com'
+        return c
+
     def test_publish_needs_the_publisher_role(self, teamed):
         """Revealing results to everyone is a publish. A display operator drives
         the slides, but set_round_published refuses them a publish and this path
         must not be a way around that."""
         tenant = teamed['tenant']
-        c = Client()
-        u = User.objects.create_user('screenop', password='pw')
-        grant(u, tenant, display_op=True)
-        c.force_login(u)
-        c.defaults['HTTP_HOST'] = 'test.example.com'
+        c = self._client_with(tenant, 'screenop', display_op=True)
 
         before = dict(PublishedRound.objects.filter(tenant=tenant)
                       .values_list('round_nb', 'withheld'))
@@ -287,6 +292,43 @@ class TestControlEndpoint:
                     .values_list('round_nb', 'withheld')) == before
         # ...while the slide actions that role does own still work.
         assert c.post('/ceremony_control?phase=teams&step=1').status_code == 200
+
+    def test_a_publisher_may_reveal_but_not_drive_the_slides(self, teamed):
+        """The mirror of the case above. Each branch names the role it needs, so
+        a publisher does not inherit the slide controls."""
+        tenant = teamed['tenant']
+        c = self._client_with(tenant, 'pubonly', publisher=True)
+
+        assert c.post('/ceremony_control?phase=teams&step=1').status_code == 403
+        # The role check runs before the get_or_create, so a refused request
+        # leaves no ceremony row behind.
+        assert not CeremonyState.objects.filter(tenant=tenant).exists()
+        assert c.post('/ceremony_control?action=publish').status_code == 200
+
+    def test_a_tenant_admin_may_do_both(self, teamed):
+        """Admitting publishers at the decorator must not have narrowed it: a
+        tenant admin implicitly holds every role and runs the whole ceremony."""
+        c = self._client_with(teamed['tenant'], 'bothroles', admin=True)
+        assert c.post('/ceremony_control?phase=teams&step=1').status_code == 200
+        assert c.post('/ceremony_control?action=publish').status_code == 200
+
+    def test_publish_stops_at_the_first_unscored_round(self, op_client, teamed):
+        """No gaps. set_round_published refuses to publish a round while an
+        earlier one is unpublished, so the ceremony stops at the first incomplete
+        round rather than skipping past it — otherwise it would leave a state the
+        normal publish path would have rejected. Round 2 loses one seat's
+        minipoints and round 3 is scored in full; only round 1 may be published."""
+        tenant = teamed['tenant']
+        PublishedRound.objects.filter(tenant=tenant).delete()
+        gap = Seat.objects.filter(tenant=tenant, round_nb=2).first()
+        gap.minipoints = None
+        gap.save(update_fields=['minipoints'])
+        Seat.objects.filter(tenant=tenant, round_nb=3).update(minipoints=100, tablepoints=1.0)
+
+        op_client.post('/ceremony_control?action=publish')
+
+        assert set(PublishedRound.objects.filter(tenant=tenant)
+                   .values_list('round_nb', flat=True)) == {1}
 
     def test_publish_unwithholds_an_already_published_round(self, op_client, teamed):
         """The withheld final round is the whole point of the ceremony."""

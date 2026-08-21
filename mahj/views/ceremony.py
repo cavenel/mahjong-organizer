@@ -220,31 +220,34 @@ def ceremony_data(request):
 VALID_PHASES = frozenset({'idle', 'blank', 'teams', 'players', 'stat'})
 
 
-@tenant_role_required('display_op')
+@tenant_role_required('display_op', 'publisher')
 def ceremony_control(request):
     """Mutate ceremony state and broadcast the new slide to all screens.
 
     POST only (it mutates state and publishes results). Params (query string):
       action=publish              -> reveal all results publicly and end ceremony
-                                     (publisher role, not just display_op)
+                                     (publisher role)
       phase=idle|blank|teams|players|stat [&step=N] [&stat_key=KEY]
+                                  (display_op role)
     """
     if request.method != 'POST':
         return HttpResponseNotAllowed(['POST'])
     tenant = get_tenant(request)
     tournament = get_tournament(request)
     subdomain = tenant.subdomain if tenant else ''
+
+    is_publish = request.GET.get('action') == 'publish'
+    # Two jobs behind one endpoint. Revealing results is a publish and takes the
+    # publisher role; driving the slides is display-operator work. The decorator
+    # admits either, so each branch names the one it needs — a publisher must not
+    # inherit the slide controls, nor an operator the reveal. Checked before the
+    # get_or_create below, so a refused request writes nothing.
+    if not has_role(request, 'publisher' if is_publish else 'display_op'):
+        return HttpResponseForbidden('forbidden')
+
     state, _ = CeremonyState.objects.get_or_create(tenant=tenant)
 
-    if request.GET.get('action') == 'publish':
-        # Revealing results to everyone is a publish, so it takes the publisher
-        # role. The slide actions below are display_op work — advancing a podium
-        # reveal is not — but `set_round_published` deliberately refuses a publish
-        # from anyone without the publisher role, and this path must not be a way
-        # around that.
-        if not has_role(request, 'publisher'):
-            return HttpResponseForbidden('forbidden')
-
+    if is_publish:
         # Reveal what is already published: the withheld final round is the whole
         # point of the ceremony.
         PublishedRound.objects.filter(tenant=tenant, withheld=True).update(withheld=False)
@@ -256,9 +259,13 @@ def ceremony_control(request):
         # by a publisher unpublishing it again.
         for rnd in range(1, tournament.nb_rounds + 1):
             seats = Seat.objects.filter(tenant=tenant, round_nb=rnd)
-            if seats.exists() and not seats.filter(unscored_seats_q(tournament)).exists():
-                PublishedRound.objects.get_or_create(
-                    tenant=tenant, round_nb=rnd, defaults={'withheld': False})
+            if not seats.exists() or seats.filter(unscored_seats_q(tournament)).exists():
+                # Stop rather than skip: set_round_published refuses to publish a
+                # round while an earlier one is unpublished, so carrying on past a
+                # gap would leave a state the normal path would have rejected.
+                break
+            PublishedRound.objects.get_or_create(
+                tenant=tenant, round_nb=rnd, defaults={'withheld': False})
         state.phase, state.step, state.stat_key = 'idle', 0, ''
         state.save()
         invalidate_leaderboard(subdomain)  # busts caches + wakes desktop
