@@ -157,10 +157,21 @@ def _upload_allowed(request):
             or request.META.get('REMOTE_ADDR') or 'unknown')
     key = f'scan_uploads:{hashlib.sha256(addr.encode()).hexdigest()[:32]}'
     try:
-        if cache.add(key, 1, UPLOAD_WINDOW_S):
+        added = cache.add(key, 1, UPLOAD_WINDOW_S)
+        if added:
             return True
-        return cache.incr(key) <= UPLOAD_MAX_PER_WINDOW
+        if added is None:
+            # IGNORE_EXCEPTIONS turns an unreachable cache into None rather than an
+            # exception, so add() no longer distinguishes "someone else has the key"
+            # from "there is no cache". Without this the None fell through to incr(),
+            # whose None result then raised TypeError on the comparison and landed in
+            # the except below — the right outcome by accident. Say it directly.
+            return True
+        count = cache.incr(key)
+        return count is None or count <= UPLOAD_MAX_PER_WINDOW
     except Exception:
+        # A cache without INCR support, or none at all: fail open rather than
+        # blocking the venue's scanning.
         return True
 
 

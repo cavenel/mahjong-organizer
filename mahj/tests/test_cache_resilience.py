@@ -54,6 +54,52 @@ class TestUnreachableRedisReadsAsAMiss:
                 c.get('anything')
 
 
+class TestPagesRenderWithRedisDown:
+    """The positive case, and the one that actually proves the mechanism.
+
+    The tests above show cache.get returns None instead of raising. That alone does
+    not prove a *request* survives: django_redis implements IGNORE_EXCEPTIONS with an
+    omit_exception decorator around its own client, so whether a given redis error is
+    swallowed depends on it being raised inside a wrapped call. These drive real views
+    against a closed port instead.
+    """
+
+    def test_the_public_desktop_still_serves(self, tournament):
+        from django.test import Client
+        with override_settings(CACHES=_cache_settings(True),
+                               DJANGO_REDIS_IGNORE_EXCEPTIONS=True):
+            resp = Client().get('/', HTTP_HOST='test.example.com')
+        assert resp.status_code == 200, (
+            'the standings page must degrade to an uncached render, not 500')
+        assert b'Player1' in resp.content, 'and it must still contain real data'
+
+    def test_the_scoring_page_still_serves(self, tournament):
+        """Score entry is the one surface that must never go down mid-round."""
+        from django.contrib.auth.models import User
+        from django.test import Client
+
+        from mahj.tests.conftest import grant
+        u = User.objects.create_user('cacheadmin', password='pw')
+        grant(u, tournament['tenant'], admin=True)
+        c = Client()
+        c.force_login(u)
+        with override_settings(CACHES=_cache_settings(True),
+                               DJANGO_REDIS_IGNORE_EXCEPTIONS=True):
+            resp = c.get('/admin?page=scoring', HTTP_HOST='test.example.com')
+        assert resp.status_code == 200
+        assert b'Filter by table' in resp.content
+
+    def test_without_the_option_the_same_request_fails(self, tournament):
+        """The discriminator: without IGNORE_EXCEPTIONS the connection error escapes
+        the view, which is what took the whole site down together."""
+        from django.test import Client
+        with override_settings(CACHES=_cache_settings(False),
+                               DJANGO_REDIS_IGNORE_EXCEPTIONS=False):
+            with pytest.raises(Exception) as exc:
+                Client().get('/', HTTP_HOST='test.example.com')
+        assert 'Connection refused' in str(exc.value) or 'connect' in str(exc.value).lower()
+
+
 def test_the_project_configures_it():
     """Guard against the option being dropped from base.py in a later edit."""
     from apps.settings import base

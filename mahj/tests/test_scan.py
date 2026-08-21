@@ -159,6 +159,24 @@ class TestUploadLimiterKeysOnTheRealPeer:
         # A different phone is unaffected.
         assert self._allowed('203.0.113.9', peer='10.0.0.8') is True
 
+    def test_an_unreachable_cache_fails_open_without_a_typeerror(self):
+        """IGNORE_EXCEPTIONS makes add() return None rather than raise, so the limiter
+        has to recognise "no cache" explicitly. It used to reach the right answer only
+        because None fell through to incr() and the comparison raised TypeError."""
+        from django.test import RequestFactory
+        from mahj.views.scan import _upload_allowed
+        dead = {'default': {
+            'BACKEND': 'django_redis.cache.RedisCache',
+            'LOCATION': 'redis://127.0.0.1:6389/0',
+            'OPTIONS': {'CLIENT_CLASS': 'django_redis.client.DefaultClient',
+                        'IGNORE_EXCEPTIONS': True},
+        }}
+        req = RequestFactory().post('/scan_3_1')
+        req.META['REMOTE_ADDR'] = '192.0.2.9'
+        with override_settings(CACHES=dead, DJANGO_REDIS_IGNORE_EXCEPTIONS=True):
+            for _ in range(20):
+                assert _upload_allowed(req) is True
+
     def test_no_forwarded_header_falls_back_to_remote_addr(self):
         from django.test import RequestFactory
         from mahj.views.scan import UPLOAD_MAX_PER_WINDOW, _upload_allowed
