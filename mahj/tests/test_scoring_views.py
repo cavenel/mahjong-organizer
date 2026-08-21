@@ -4,6 +4,8 @@ The golden-file tests lock exact output. These tests assert the *properties* the
 UI and tournament rules depend on — rank ordering, tie-sharing, per-country
 Swedish ranking, hidden final cut-off, etc.
 """
+import re
+
 import pytest
 from django.contrib.auth.models import User
 
@@ -718,6 +720,51 @@ class TestPublisherOverviewRiichiColumns:
 # --------------------------------------------------------------------------
 # S8: per-round data keyed by round, never by list position
 # --------------------------------------------------------------------------
+
+class TestScoringGridAlwaysHasAnOpenTab:
+    """The panes are `x-show="activeRound === N"` with no fallback, so an
+    active_round outside 1..nb_rounds hides every one of them — an empty page where
+    the score grid should be."""
+
+    def _active_round(self, client):
+        html = client.get('/admin?page=scoring',
+                          HTTP_HOST='test.example.com').content.decode()
+        m = re.search(r'activeRound:\s*(\d+)', html)
+        assert m, 'the grid did not render at all'
+        return int(m.group(1)), html
+
+    def test_a_fully_scored_tournament_still_shows_a_round(self, tournament):
+        """The regression: with every round scored, active_round was nb_rounds + 1,
+        which matches no tab. This is the state a scorer is in while reconciling the
+        final round before the ceremony."""
+        from django.test import Client
+        tenant = tournament['tenant']
+        # Score the fixture's remaining round so every round is complete.
+        Seat.objects.filter(tenant=tenant, minipoints=None).update(
+            minipoints=25, tablepoints=1.0)
+
+        u = User.objects.create_user('gridadmin', password='pw')
+        grant(u, tenant, admin=True)
+        c = Client()
+        c.force_login(u)
+
+        active, html = self._active_round(c)
+        nb = tournament['settings'].nb_rounds
+        assert 1 <= active <= nb, f'active_round {active} has no tab (1..{nb})'
+        # And the pane it selects is really in the page.
+        assert f'x-show="activeRound === {active}"' in html
+
+    def test_a_partly_scored_tournament_opens_the_next_round(self, tournament):
+        """The normal case must not regress: the fixture has rounds 1-2 scored and 3
+        open, so the scorer lands on round 3."""
+        from django.test import Client
+        u = User.objects.create_user('gridadmin2', password='pw')
+        grant(u, tournament['tenant'], admin=True)
+        c = Client()
+        c.force_login(u)
+        active, _ = self._active_round(c)
+        assert active == 3
+
 
 class TestSparseScoresKeepTheirRound:
     """A player the seating chart doesn't seat in every round has a shorter score

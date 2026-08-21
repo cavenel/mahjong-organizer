@@ -2021,7 +2021,12 @@ def _page_scoring(request, tenant, error=None):
         'grid': grid,
         "players": all_players,
         "tournament": tournament,
-        "active_round": nb_rounds + 1,
+        # The round the scorer is most likely to want open: the first unscored one.
+        # Clamped to a round that actually has a tab — once the last round is fully
+        # scored this was nb_rounds + 1, which matched no tab, and since the panes are
+        # `x-show="activeRound === N"` with no fallback the whole grid rendered empty.
+        # That is exactly when the scorer is reconciling before the ceremony.
+        "active_round": min(nb_rounds + 1, max(1, tournament.nb_rounds)),
         "published_rounds": published_rounds,
         "subdomain": tenant.subdomain if tenant else '',
         "validated_keys": validated_keys,
