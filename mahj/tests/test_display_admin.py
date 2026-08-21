@@ -12,6 +12,7 @@ import types
 import pytest
 import json
 from django.contrib.auth.models import User
+from django.db import OperationalError
 from django.test import Client
 
 from mahj.models import Schedule, Screen, ScreenMode, TournamentSettings
@@ -499,6 +500,34 @@ def test_save_schedule_replaces_rows_and_reports_round_count(client_, staff, tou
     assert resp.json() == {'rounds': 1}
     rows = list(Schedule.objects.filter(tenant=tenant).order_by('id'))
     assert [(r.name, r.is_round) for r in rows] == [('Registration', False), ('Round 1', True)]
+
+
+def test_save_schedule_keeps_the_old_agenda_when_the_recreate_fails(
+        client_, staff, tournament, monkeypatch):
+    """The replace is a delete followed by a bulk_create. If the second half fails,
+    an unwrapped pair leaves the tenant with *no* schedule — and because the Nth
+    is_round row is round N, an empty agenda unaligns every round time in the app
+    without raising anywhere. So the pair must roll back together.
+    """
+    tenant = tournament['tenant']
+    client_.force_login(staff)
+    before = [(r.day, r.time, r.name, r.is_round)
+              for r in Schedule.objects.filter(tenant=tenant).order_by('id')]
+    assert before, 'fixture should seed an agenda'
+
+    def boom(*a, **kw):
+        raise OperationalError('connection lost mid-write')
+
+    monkeypatch.setattr(Schedule.objects.__class__, 'bulk_create', boom)
+    payload = json.dumps([{'day': 'Sun', 'time': '11:00', 'name': 'Round 1',
+                           'is_round': True}])
+    with pytest.raises(OperationalError):
+        client_.post('/admin?page=settings&action=save_schedule',
+                     {'csrfmiddlewaretoken': 'x', 'schedule': payload})
+
+    after = [(r.day, r.time, r.name, r.is_round)
+             for r in Schedule.objects.filter(tenant=tenant).order_by('id')]
+    assert after == before
 
 
 def test_save_schedule_forbidden_for_non_staff(client_, display_op, tournament):

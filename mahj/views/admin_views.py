@@ -1588,8 +1588,12 @@ def _save_schedule(request, tenant):
         objs.append(Schedule(tenant=tenant, day=day, time=time, name=name,
                              is_round=bool(row.get('is_round'))))
 
-    Schedule.objects.filter(tenant=tenant).delete()
-    Schedule.objects.bulk_create(objs)
+    # One transaction: a failure between the two would leave the tenant with no
+    # schedule at all, and since the Nth is_round row *is* round N, an empty agenda
+    # silently unaligns every round time in the app rather than raising anywhere.
+    with transaction.atomic():
+        Schedule.objects.filter(tenant=tenant).delete()
+        Schedule.objects.bulk_create(objs)
 
     # player_rounds (player modal) reads the schedule, and the projector Schedule
     # screen renders it — refresh both.
