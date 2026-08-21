@@ -9,8 +9,8 @@ from django.template import loader
 from ..models import Hand, Player, Seat
 from .helpers import get_tenant, get_tournament, is_tenant_admin
 from ..scoring import (
-    _assign_ranks, _attach_players, _standings_rank_key, _standings_sort_key,
-    player_extra_stats, public_round_max, team_extra_stats, team_standings,
+    _attach_players, player_extra_stats, public_round_max, rounds_played,
+    team_extra_stats, team_standings,
 )
 from ..signals import leaderboard_gen
 from .scoring import player_rounds_rows, scores_per_player_rows
@@ -92,31 +92,17 @@ def details_team(request, team_name):
         key=lambda s: s['pos'],
     )
 
-    # Team totals, rank, and per-round rank history.
-    # max_played = highest round index for which any team member has a real score.
-    max_played = max(
-        (sum(1 for sc in s['scores'] if sc.get('tp') is not None) for s in members),
-        default=0,
-    )
-    sort_key = _standings_sort_key(tournament)
-    rank_key = _standings_rank_key(tournament)
-    team_history_pos = []
-    for rnd in range(1, max_played + 1):
-        cumulative = {}
-        for s in leaderboard:
-            t = s.get('team') or ''
-            if not t:
-                continue
-            slot = cumulative.setdefault(t, {'team': t, 'total': {'tp': 0.0, 'mp': 0}})
-            for sc in s['scores'][:rnd]:
-                if sc.get('tp') is not None:
-                    slot['total']['tp'] += sc['tp']
-                    slot['total']['mp'] += sc.get('mp') or 0
-        ranked = sorted(cumulative.values(), key=sort_key)
-        _assign_ranks(ranked, rank_key, field='pos')
-        team_history_pos.append(
-            next((r['pos'] for r in ranked if r['team'] == team_name), None)
-        )
+    # Per-round rank history, one entry per round the team has played, ranked by
+    # the same `team_standings` the leaderboard's team table uses — so the chart's
+    # last point is the position shown beside it whatever the rules.
+    max_played = rounds_played(members)
+    team_history_pos = [
+        next((t['pos'] for t
+              in team_standings([_row_through_round(s, rnd) for s in leaderboard],
+                                tournament, rnd)
+              if t['team'] == team_name), None)
+        for rnd in range(1, max_played + 1)
+    ]
 
     # Final team rank and totals: tied teams share a position, like the leaderboard.
     team_rows = team_standings(leaderboard, tournament, tournament.nb_rounds)
@@ -140,6 +126,33 @@ def details_team(request, team_name):
     html = template.render(context, request)
     cache.set(cache_key, html, MODAL_CACHE_TTL)
     return HttpResponse(html)
+
+
+def _row_through_round(row, round_nb):
+    """One standings row cut back to rounds 1..round_nb, in the shape
+    ``team_standings`` reads — the per-round frame of the team rank chart.
+
+    Selected on each score's own ``round_nb``, never on its position in the list.
+    The lists are compact (one entry per round the competitor actually played), so
+    taking the first N entries folds a later round's score into an earlier frame
+    for anyone the chart doesn't seat every round — a bye, or a substitute given a
+    fresh draw number mid-tournament. ``rounds_played`` reads round numbers for
+    the same reason.
+
+    ``tp`` totals a number even under rules that never fill table points in, so
+    the row has the one shape every consumer expects (see ``_cumulative_row``).
+    """
+    scores = [sc for sc in row.get('scores') or () if sc['round_nb'] <= round_nb]
+    return {
+        'team': row.get('team') or '',
+        'player_id': row['player_id'],
+        'flag': row.get('flag') or '',
+        'scores': scores,
+        'total': {
+            'tp': sum(0 if sc.get('tp') is None else sc['tp'] for sc in scores),
+            'mp': sum(0 if sc.get('mp') is None else sc['mp'] for sc in scores),
+        },
+    }
 
 
 def detailed_scores(request, round_nb, table_nb):

@@ -47,6 +47,49 @@ def teamed_tournament(tournament):
 
 
 @pytest.fixture
+def gapped_teams(db):
+    """Two teams over two rounds, where one competitor sits out round 1.
+
+    A seating chart need not seat every draw number in every round (a bye, or a
+    substitute given a fresh number mid-tournament), so a standings row's score
+    list is compact — it has an entry only for the rounds that competitor played.
+
+    Team A trails after round 1 and wins on a huge round-2 score from the very
+    competitor who missed round 1, so crediting that score to round 1 puts Team A
+    top of a round it was actually second in.
+    """
+    from mahj.models import (Player, PublishedRound, Seat, Tenant,
+                             TournamentSettings)
+    tenant = Tenant.objects.create(name='Gapped', subdomain='test')
+    TournamentSettings.objects.create(
+        tenant=tenant, nb_rounds=2, rules='MCR', has_teams=True)
+    for draw in range(1, 9):
+        Player.objects.create(
+            tenant=tenant, draw_number=draw, full_name=f'P{draw}',
+            first_name=f'P{draw}', country='Sweden',
+            team='Team A' if draw <= 4 else 'Team B')
+
+    def seat(round_nb, table_nb, wind, draw, tp, mp):
+        Seat.objects.create(tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+                            wind=wind, draw_number=draw, tablepoints=tp, minipoints=mp)
+
+    # Round 1: draw 4 has no seat at all. Team A scores nothing, Team B leads.
+    for wind, draw in enumerate([1, 2, 3], start=1):
+        seat(1, 1, wind, draw, 0.0, 0)
+    for wind, draw in enumerate([5, 6, 7, 8], start=1):
+        seat(1, 2, wind, draw, 1.0, 10)
+    # Round 2: everyone plays, and draw 4 alone takes Team A to the top.
+    for wind, draw in enumerate([1, 2, 3, 4], start=1):
+        seat(2, 1, wind, draw, 100.0 if draw == 4 else 0.0, 1000 if draw == 4 else 0)
+    for wind, draw in enumerate([5, 6, 7, 8], start=1):
+        seat(2, 2, wind, draw, 0.0, 0)
+
+    for round_nb in (1, 2):
+        PublishedRound.objects.create(tenant=tenant, round_nb=round_nb, withheld=False)
+    return tenant
+
+
+@pytest.fixture
 def staff_user(tournament):
     u = User.objects.create_user('boss', password='pw')
     grant(u, tournament['tenant'], admin=True)
@@ -219,3 +262,44 @@ class TestTeamModalRankHistory:
         history = json.loads(block.group(1))
         assert isinstance(history, list)
         assert 'None' not in block.group(1)
+
+
+class TestTeamModalRankHistoryIsRoundAccurate:
+    """The chart plots one point per round, so each point has to be that round's
+    standing. Two ways the frames used to come out wrong."""
+
+    def _history(self, client_, team='Team A'):
+        from urllib.parse import quote
+        from mahj.tests.conftest import json_script_payload
+        resp = client_.get('/details_team_' + quote(team))
+        assert resp.status_code == 200
+        return json_script_payload(resp.content.decode(), 'team-history-pos')
+
+    def test_a_sat_out_round_does_not_shift_later_scores_forward(
+            self, client_, gapped_teams):
+        """Team A is second after round 1 and first after round 2. Reading the
+        compact score list positionally credited the round-2 score of the
+        competitor who missed round 1 to round 1, showing Team A top throughout."""
+        assert self._history(client_) == [2, 1]
+
+    def test_riichi_team_has_a_rank_history(self, client_, gapped_teams):
+        """Riichi ranks on minipoints and never fills table points in. Gating the
+        history on table points left every Riichi team's chart with no data at
+        all, so the modal rendered an empty panel."""
+        from mahj.models import Seat, TournamentSettings
+        TournamentSettings.objects.filter(tenant=gapped_teams).update(rules='Riichi')
+        Seat.objects.filter(tenant=gapped_teams).update(tablepoints=None)
+
+        # Same shape as MCR: Team A trails on minipoints, then takes the lead.
+        assert self._history(client_) == [2, 1]
+
+    def test_the_chart_ends_where_the_header_says_the_team_stands(
+            self, client_, gapped_teams):
+        """The final point and the position printed beside it come from the same
+        ranking, so they cannot disagree."""
+        from urllib.parse import quote
+        resp = client_.get('/details_team_' + quote('Team B'))
+        body = resp.content.decode()
+        from mahj.tests.conftest import json_script_payload
+        history = json_script_payload(body, 'team-history-pos')
+        assert history[-1] == 2  # Team B ends second, behind Team A's round-2 haul
