@@ -381,6 +381,18 @@ class PublishTarget(TenantAwareModel):
     password_enc    = models.BinaryField(null=True, blank=True, default=None, editable=False)
     private_key_enc = models.BinaryField(null=True, blank=True, default=None, editable=False)
 
+    class Meta:
+        # One target per tenant, like TournamentSettings and CeremonyState. The editor
+        # reads this row with get_or_create and the three resolution sites read it with
+        # .order_by('id').first() — which concedes duplicates are possible. Two
+        # concurrent saves (a double-clicked Save button) each inserted a row, after
+        # which every later save raised MultipleObjectsReturned and the publisher
+        # settings page 500'd permanently, with the tenant unable to publish.
+        constraints = [
+            models.UniqueConstraint(fields=['tenant'],
+                                    name='unique_publish_target_per_tenant'),
+        ]
+
     def __str__(self):
         return f'{self.username}@{self.host}:{self.path}'
 

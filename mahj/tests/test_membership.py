@@ -401,6 +401,57 @@ class TestOneSettingsRowPerTenant:
         assert {t: TournamentSettings.objects.get(tenant_id=t).pk for t in rows} == rows
 
 
+class TestOnePublishTargetPerTenant:
+    """The publisher settings editor reads its row with get_or_create and the three
+    resolution sites read it with .order_by('id').first() — which concedes duplicates
+    were possible. Two concurrent saves each inserted one, after which every save
+    raised MultipleObjectsReturned and the page 500'd permanently."""
+
+    def test_a_second_row_is_refused(self, tenant):
+        from django.db import IntegrityError, transaction
+        from mahj.models import PublishTarget
+        PublishTarget.objects.create(tenant=tenant, host='a.example.com')
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                PublishTarget.objects.create(tenant=tenant, host='b.example.com')
+
+    def test_another_tenant_gets_its_own(self, tenant, tenant_b):
+        from mahj.models import PublishTarget
+        PublishTarget.objects.create(tenant=tenant, host='a.example.com')
+        PublishTarget.objects.create(tenant=tenant_b, host='b.example.com')
+        assert PublishTarget.objects.count() == 2
+
+    def test_the_editor_is_idempotent(self, tenant):
+        from mahj.models import PublishTarget
+        first, created1 = PublishTarget.objects.get_or_create(tenant=tenant)
+        second, created2 = PublishTarget.objects.get_or_create(tenant=tenant)
+        assert created1 and not created2
+        assert first.pk == second.pk
+        assert PublishTarget.objects.filter(tenant=tenant).count() == 1
+
+    def test_the_dedupe_keeps_the_lowest_id(self):
+        """Migration 0018's decision, tested as a function for the same reason as
+        0017's: once the constraint exists its input cannot be created."""
+        import importlib
+        mod = importlib.import_module(
+            'mahj.migrations.0018_publishtarget_one_per_tenant')
+        assert mod.ids_to_keep([(3, 1), (4, 1), (5, 2), (9, 1)]) == {3, 5}
+        assert mod.ids_to_keep([]) == set()
+
+    def test_the_dedupe_is_a_no_op_on_a_clean_database(self, tenant, tenant_b):
+        import importlib
+
+        from django.apps import apps as django_apps
+        from mahj.models import PublishTarget
+
+        rows = {t.pk: PublishTarget.objects.create(tenant=t, host='h').pk
+                for t in (tenant, tenant_b)}
+        mod = importlib.import_module(
+            'mahj.migrations.0018_publishtarget_one_per_tenant')
+        mod.drop_duplicate_targets(django_apps, None)
+        assert {t: PublishTarget.objects.get(tenant_id=t).pk for t in rows} == rows
+
+
 class TestSeedMembershipsMigration:
     """Exercise the data-migration function directly (against the live models) so
     the single-tenant mapping and multi-tenant no-op are covered without spinning
