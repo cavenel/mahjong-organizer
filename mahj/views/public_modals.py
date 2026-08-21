@@ -39,8 +39,10 @@ def details_player(request, id):
     standings = scores_per_player_rows(request, full_view=is_admin)
     standings_row = next((s for s in standings if s["player_id"] == id), None)
     if standings_row is None:
-        # player_standings covers every player of the tenant, so this means the
-        # cached standings predate this player. Nothing to render a modal from.
+        # player_standings covers every competitor holding a draw number, so this is
+        # either someone with no number — a withdrawal, or a slot freed for a
+        # substitute — or a player newer than the cached standings. Neither has
+        # results to render a modal from.
         raise Http404('no standings row for this competitor yet')
     rounds = player_rounds_rows(request, id)
     # Cap the placement/hand cards to the same rounds the score grid shows, so a

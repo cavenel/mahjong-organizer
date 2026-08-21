@@ -20,7 +20,16 @@ TP_DP = 6
 
 def player_standings(tenant, tournament, full_view=False, seats=None):
     """Cumulative player totals with rank evolution across rounds."""
-    players = list(Player.objects.filter(tenant=tenant).order_by('id'))
+    # Only competitors holding a draw number are ranked. A Player without one holds
+    # no seat and so has no results, but would still be built a row totalling
+    # {mp: 0, tp: 0} and ranked among the people who played. Clearing the number is
+    # exactly how a withdrawal is recorded and how a substitute's old slot is freed,
+    # and under a zero-sum ruleset like Riichi that phantom 0 does not land at the
+    # bottom — it lands mid-table, above everyone negative, and pushes each of them
+    # down a place.
+    players = list(
+        Player.objects.filter(tenant=tenant, draw_number__isnull=False).order_by('id')
+    )
     # Resolve each seat's competitor from the players we already have (the draw
     # lives on Player.draw_number), so no extra query is needed to group seats.
     id_by_draw = {p.draw_number: p.id for p in players if p.draw_number is not None}

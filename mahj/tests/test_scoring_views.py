@@ -1041,3 +1041,93 @@ class TestPlayerWritesBustTheCache:
 
         assert resp.status_code == 200
         assert real_cache.get(self.KEY) is None
+
+
+class TestWithdrawnCompetitorIsNotRanked:
+    """A Player with no draw_number holds no seat, so it has no results — but it
+    was still built a standings row, totalling {mp: 0, tp: 0}, and ranked among
+    the competitors who played.
+
+    Clearing a draw number is how a withdrawal is recorded, and how a substitute's
+    old slot is freed. Under Riichi the damage is worst: minipoints are zero-sum
+    around zero and routinely negative, so a never-played 0 lands *mid-table* and
+    pushes everyone below it down a place.
+    """
+
+    def _rank_by_name(self, request_, **kwargs):
+        return {
+            r['name']: r['pos']
+            for r in views.scores_per_player_rows(request_, full_view=True, **kwargs)
+        }
+
+    def test_withdrawing_the_last_placed_leaves_every_rank_untouched(self, request_, tournament):
+        before = self._rank_by_name(request_)
+        last = max(before, key=lambda n: before[n])
+        withdrawn = next(p for p in tournament['players'] if p.full_name == last)
+        withdrawn.draw_number = None
+        withdrawn.save()
+
+        after = self._rank_by_name(request_)
+        assert withdrawn.full_name not in after
+        assert after == {n: p for n, p in before.items() if n != last}
+
+    def test_a_mid_table_withdrawal_promotes_only_those_below_it(self, request_, tournament):
+        """Clearing the number of someone who *had* results is a real change: the
+        seats are keyed by draw_number, so their scores leave with the slot and the
+        field closes up behind them. What must hold is that the order of everyone
+        else survives and the ranks stay dense — not that the numbers are identical.
+        """
+        before = self._rank_by_name(request_)
+        withdrawn = tournament['players'][7]
+        withdrawn.draw_number = None
+        withdrawn.save()
+        after = self._rank_by_name(request_)
+
+        assert withdrawn.full_name not in after
+        order_before = [n for n in sorted(before, key=lambda n: before[n])
+                        if n != withdrawn.full_name]
+        order_after = sorted(after, key=lambda n: after[n])
+        assert order_before == order_after
+        assert min(after.values()) == 1 and max(after.values()) == 15
+
+    def test_riichi_zero_does_not_displace_negative_scores(self, request_riichi, tournament):
+        """The case that actually moves a podium: with real Riichi minipoints the
+        withdrawal's 0 outranks everyone negative."""
+        tenant = tournament['tenant']
+        # Give the field scores straddling zero, as a zero-sum ruleset does.
+        for i, p in enumerate(tournament['players']):
+            Seat.objects.filter(tenant=tenant, draw_number=p.draw_number).update(
+                minipoints=(i - 8) * 1000)
+        TournamentSettings.objects.filter(tenant=tenant).update(zoom=1.0)  # bust cache
+
+        withdrawn = tournament['players'][0]      # the most negative competitor
+        assert withdrawn.draw_number is not None
+        before = self._rank_by_name(request_riichi)
+        withdrawn.draw_number = None
+        withdrawn.save()
+        after = self._rank_by_name(request_riichi)
+
+        assert withdrawn.full_name not in after
+        # Everyone who played keeps the position they earned. Without the draw
+        # filter the withdrawal's 0 sorts above every negative total, so all eight
+        # of them shift down one.
+        assert after == {n: p for n, p in before.items() if n != withdrawn.full_name}
+        assert max(after.values()) == 15
+
+    def test_team_totals_exclude_a_withdrawal(self, request_, tournament):
+        """The same row feeds team_standings, where a zero total drags the team's
+        aggregate — and a drawless player carries no team either."""
+        tenant = tournament['tenant']
+        for i, p in enumerate(tournament['players']):
+            p.team = 'Red' if i < 8 else 'Blue'
+            p.save()
+        rows = views.scores_per_player_rows(request_, full_view=True)
+        assert all(r['team'] for r in rows)
+        assert len(rows) == 16
+
+        withdrawn = tournament['players'][0]
+        withdrawn.draw_number = None
+        withdrawn.save()
+        rows = views.scores_per_player_rows(request_, full_view=True)
+        assert len(rows) == 15
+        assert withdrawn.full_name not in {r['name'] for r in rows}
