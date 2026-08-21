@@ -103,6 +103,39 @@ class TestScanPrefill:
         assert h.points == 20
 
 
+class TestScanPrefillGuardsTheChart:
+    """A scan writes 16 Hands and a ScoreSheet, so it needs the same seating-chart
+    guard the score sheet itself carries — and it must never undo a validation."""
+
+    def test_a_table_outside_the_chart_writes_nothing(self, client_, tournament,
+                                                      scorer, finished_job):
+        client_.force_login(scorer)
+        tenant = tournament['tenant']
+        finished_job('job_ghost', round_nb=99, table_nb=99, scores=[
+            {'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 'certain'},
+        ])
+        assert _prefill(client_, job_id='job_ghost').status_code == 404
+        # No phantom hands, and no sheet to show up in the publisher's overview.
+        assert not Hand.objects.filter(tenant=tenant, round_nb=99).exists()
+        assert not ScoreSheet.objects.filter(tenant=tenant, round_nb=99).exists()
+
+    def test_a_validated_sheet_survives_a_rescan(self, client_, tournament, scorer,
+                                                 finished_job):
+        """A table validated with nothing played passes the filled-table gate, so a
+        later scan reaches the sheet write. Validation is the scorer's review; the
+        scan must only ever raise that flag."""
+        tenant = tournament['tenant']
+        sheet = ScoreSheet.objects.create(tenant=tenant, round_nb=3, table_nb=1,
+                                          validated=True)
+        finished_job('job_rescan', round_nb=3, table_nb=1, scores=[
+            {'Hand': 1, 'Value': 20, 'Winner': 1, 'Discarder': 2, 'Confidence': 'certain'},
+        ])
+        # Anonymous, so `validate` could not be honoured even if it were asked for.
+        assert _prefill(client_, job_id='job_rescan').status_code == 200
+        sheet.refresh_from_db()
+        assert sheet.validated is True
+
+
 class TestScanGateAndVersionBump:
     """scan_prefill's emptiness gate and its writes are one transaction, with the
     table's hand rows locked — the gate is the whole of its conflict handling
@@ -343,6 +376,21 @@ class TestScanEnqueue:
         resp = client_.post('/scan', {})
         assert resp.status_code == 400
         assert resp.json()['ok'] is False
+
+    def test_scan_of_an_unseated_table_is_404(self, client_, tournament, scorer,
+                                              monkeypatch):
+        """A hand-typed /scan_99_99 must not stage the photo: the fixture's chart
+        stops at round 3 table 4, so those coordinates are nobody's table, and OCR
+        on them costs a vision call for a result that can never be written."""
+        client_.force_login(scorer)
+        staged = []
+        monkeypatch.setattr('mahj.scan_queue.stage_image',
+                            lambda raw: staged.append(raw) or 'job-x')
+
+        img = SimpleUploadedFile('sheet.jpg', b'\xff\xd8\xffnope',
+                                 content_type='image/jpeg')
+        assert client_.post('/scan_99_99', {'image': img}).status_code == 404
+        assert staged == []
 
 
 class TestScanStatus:

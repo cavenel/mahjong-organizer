@@ -178,6 +178,19 @@ def _looks_like_an_image(raw):
         return False
 
 
+def _require_seated_table(tenant, round_nb, table_nb):
+    """404 unless this (round, table) is in the seating chart.
+
+    The same guard ``admin_scores_per_hand`` carries, for the same reason: without
+    it a hand-typed /scan_99_99 plus a blank sheet writes 16 Hands and a ScoreSheet
+    for a table nobody ever played, which then shows up as an open sheet in the
+    publisher's round overview with nothing in the UI to explain it.
+    """
+    if not Seat.objects.filter(tenant=tenant, round_nb=round_nb,
+                               table_nb=table_nb).exists():
+        raise Http404('no such table in the seating chart')
+
+
 def scan_page(request, round_nb=None, table_nb=None):
     _require_scan_enabled()
     if request.method == "POST":
@@ -206,6 +219,12 @@ def scan_page(request, round_nb=None, table_nb=None):
                 {"ok": False, "error": "That file isn't a readable image. Take the photo again."},
                 status=400)
         tenant = get_tenant(request)
+        # Last check before the image is staged and a vision call is queued: a photo
+        # of a table that isn't in the chart has nowhere to land. `/scan` with no
+        # coordinates is a real route (the operator picks the table afterwards), so
+        # there is nothing to check for one of those.
+        if round_nb and table_nb:
+            _require_seated_table(tenant, round_nb, table_nb)
         try:
             scan_queue.sweep_stale_images()
             job_id = scan_queue.stage_image(raw)
@@ -501,6 +520,7 @@ def scan_prefill(request):
              "error": "That scan wasn't taken for a particular table. Use the QR code "
                       "or link on the score sheet, which carries the round and table."},
             status=400)
+    _require_seated_table(tenant, round_nb, table_nb)
     scores = result.get('scores') or []
 
     # A filled table is never overwritten by a scan: anyone (including
@@ -548,10 +568,17 @@ def scan_prefill(request):
     validate = bool(body.get('validate')) and has_role(request, 'scorer')
     if validate:
         _prune_to_played_hands(tenant, round_nb, table_nb)
-    ScoreSheet.objects.update_or_create(
+    # Only ever raises the flag. A scorer's review is what validates a sheet, so a
+    # later scan that didn't ask to validate must not quietly undo one — reachable
+    # for a table validated with nothing played, which the filled-table gate above
+    # lets through.
+    sheet, created = ScoreSheet.objects.get_or_create(
         tenant=tenant, round_nb=round_nb, table_nb=table_nb,
-        defaults={'validated': bool(validate)},
+        defaults={'validated': validate},
     )
+    if validate and not created and not sheet.validated:
+        sheet.validated = True
+        sheet.save(update_fields=['validated'])
 
     subdomain = tenant.subdomain if tenant else ''
     if validate:
