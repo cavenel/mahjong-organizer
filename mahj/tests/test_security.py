@@ -706,6 +706,43 @@ class TestUserAdminActions:
         assert not User.objects.filter(username='admin2').exists()
 
 
+class TestATenantKeepsAtLeastOneAdmin:
+    """The invariant the four `_tenant_admin_count` guards were written for.
+
+    Those guards turn out to be unreachable for a non-superuser actor — reaching any
+    of the endpoints requires being a tenant admin, so when the target is also an
+    admin the count is always at least two. What actually holds the invariant is the
+    self-guard at each site: the last admin cannot act on their own row. Pinned here
+    so the property survives independently of the redundant guards, and so removing
+    them later would not silently drop it.
+    """
+
+    @pytest.fixture
+    def solo(self, client_, tournament):
+        admin = User.objects.create_user('lonely_admin', password='pw')
+        grant(admin, tournament['tenant'], admin=True)
+        _login_reauthed(client_, admin)
+        return admin
+
+    def _admin_count(self, tenant):
+        from mahj.models import Membership
+        return Membership.objects.filter(tenant=tenant, is_tenant_admin=True).count()
+
+    @pytest.mark.parametrize('url,extra', [
+        ('/user_update_roles', {'roles': [], 'is_admin': False}),
+        ('/user_revoke_links', {}),
+        ('/user_delete', {}),
+        ('/user_remove_from_tenant', {}),
+    ])
+    def test_the_only_admin_cannot_strip_themselves(self, client_, tournament, solo,
+                                                    url, extra):
+        tenant = tournament['tenant']
+        assert self._admin_count(tenant) == 1
+        resp = _json_post(client_, url, dict(extra, user_id=solo.id))
+        assert resp.status_code == 400, f'{url} let the last admin act on themselves'
+        assert self._admin_count(tenant) == 1, f'{url} dropped the tenant to zero admins'
+
+
 class TestSuperuserTargetsAreOffLimits:
     """The worst path in the console: a tenant admin minting themselves a platform
     superuser session.

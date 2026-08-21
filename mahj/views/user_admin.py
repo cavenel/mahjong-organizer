@@ -167,6 +167,28 @@ def _memberships_contained(user, tenant):
 
 
 def _tenant_admin_count(tenant):
+    """How many tenant admins this tenant has.
+
+    Used by the four "don't strip the last admin" guards — in ``user_update_roles``,
+    ``user_revoke_links``, ``user_delete`` and ``user_remove_from_tenant``. Worth
+    knowing that three of those four guards cannot currently fire, and why:
+
+    Every one of those endpoints requires a tenant-admin actor (the decorator), exempts
+    superusers, and only tests the count when the *target* is an admin. So when actor
+    and target differ the count is always at least two — actor plus target — and when
+    they are the same, each site rejects that earlier with its own self-guard. Only
+    ``user_update_roles``' self-branch is reachable, because there the actor demoting
+    themselves *is* the last-admin case.
+
+    Verified by probe across all four sites and all four (actor-is-target,
+    target-is-admin) states: the branch never fires for a non-superuser.
+
+    The invariant they were written to protect still holds, though — a tenant cannot
+    reach zero admins, because the last admin cannot act on themselves. The guards are
+    redundant rather than broken, so they stay: they are the backstop if that actor
+    gating is ever loosened, and removing them would leave the four sites
+    inconsistent.
+    """
     return Membership.objects.filter(tenant=tenant, is_tenant_admin=True).count()
 
 
@@ -383,6 +405,7 @@ def user_revoke_links(request):
         return JsonResponse(
             {'status': 'error', 'error': 'shared account — only a superuser can revoke its links'},
             status=403)
+    # Redundant in practice — see _tenant_admin_count for why this cannot fire.
     if (membership.is_tenant_admin and not request.user.is_superuser
             and _tenant_admin_count(tenant) <= 1):
         return JsonResponse(
@@ -418,6 +441,7 @@ def user_delete(request):
             status=403)
     # Last-admin guard: a tenant can't delete its own last admin; a superuser can
     # (they can always re-seed one).
+    # Redundant in practice — see _tenant_admin_count for why this cannot fire.
     if (membership.is_tenant_admin and not request.user.is_superuser
             and _tenant_admin_count(tenant) <= 1):
         return JsonResponse({'status': 'error', 'error': 'cannot delete the last admin of this tenant'}, status=400)
@@ -441,6 +465,7 @@ def user_remove_from_tenant(request):
 
     if user.id == request.user.id:
         return JsonResponse({'status': 'error', 'error': 'you cannot remove yourself'}, status=400)
+    # Redundant in practice — see _tenant_admin_count for why this cannot fire.
     if (membership.is_tenant_admin and not request.user.is_superuser
             and _tenant_admin_count(tenant) <= 1):
         return JsonResponse({'status': 'error', 'error': 'cannot remove the last admin of this tenant'}, status=400)
