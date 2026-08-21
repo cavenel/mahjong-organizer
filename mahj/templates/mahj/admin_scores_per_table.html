@@ -641,9 +641,16 @@
     }
   })();
 
-  // The three helpers below are dev/test fixtures. By default they act on the
-  // visible round only (handy from the console); pass allRounds=true (the
-  // "test"-tenant toolbar buttons do) to fill every round at once. When filling
+  {% if subdomain == "test" and user_is_scorer %}
+  // Dev/test fixtures, behind the same gate as the toolbar that calls them. The
+  // toolbar was gated and this block was not, so random_fill_score, clear_score and
+  // friends were plain globals on the live Scoring page of every tenant — and
+  // `clear_score(true)` is one console line from erasing a tournament. No privilege
+  // escalation (they only call endpoints a scorer already holds), but ~140 lines of
+  // test scaffolding had no business in production either.
+  //
+  // By default they act on the visible round only (handy from the console); pass
+  // allRounds=true (the toolbar buttons do) to fill every round at once. When filling
   // all rounds we stagger the writes so we don't fire hundreds of requests in a
   // single tick, and we leave ~1/3 of the LAST round's tables blank so the
   // incomplete-round / partial-publish paths still have something to exercise.
@@ -780,4 +787,5 @@
       doClear();
     }
   }
+  {% endif %}
 </script>

@@ -521,6 +521,45 @@ class TestAdminPageRoleIsolation:
                             content_type='application/json')
         assert resp.status_code == 403
 
+    @pytest.fixture
+    def live_tenant_scoring(self, tournament):
+        """The Scoring page of a tenant whose subdomain is NOT 'test' — i.e. a real
+        tournament, which is where these fixtures must not appear."""
+        from mahj.models import Tenant
+        live = Tenant.objects.create(name='Live Cup', subdomain='live')
+        admin = User.objects.create_user('live_admin', password='pw')
+        grant(admin, live, admin=True)
+        c = Client()
+        c.defaults['HTTP_HOST'] = 'live.example.com'
+        c.force_login(admin)
+        return c.get('/admin?page=scoring').content.decode()
+
+    @pytest.mark.parametrize('fn', ['random_fill_score', 'random_fill_score_sheets',
+                                    'clear_score', 'clear_score_sheets'])
+    def test_the_destructive_fixtures_are_not_shipped(self, live_tenant_scoring, fn):
+        """The toolbar was gated on the test tenant; the <script> defining the
+        functions it calls was not, so they were plain globals on the live Scoring
+        page of every tenant. `clear_score(true)` is one console line from erasing a
+        tournament."""
+        assert f'function {fn}(' not in live_tenant_scoring, (
+            f"{fn} is defined on a real tenant's Scoring page")
+
+    def test_the_real_page_still_works(self, live_tenant_scoring):
+        """The gate must not take the page with it."""
+        assert 'Filter by table' in live_tenant_scoring
+        assert 'function send_ajax(' in live_tenant_scoring, 'score entry still wired'
+
+    def test_the_fixtures_are_still_there_on_the_test_tenant(self, tournament,
+                                                            staff_user):
+        """They exist to be used — the gate must not disable them where they belong.
+        The `tournament` fixture's tenant has subdomain 'test'."""
+        c = Client()
+        c.defaults['HTTP_HOST'] = HOST
+        c.force_login(staff_user)
+        body = c.get('/admin?page=scoring').content.decode()
+        assert 'function clear_score(' in body
+        assert 'Test data' in body, 'and the toolbar that calls them'
+
     def test_the_publish_lock_script_cannot_unlock_a_non_scorer(
             self, client_, tournament, publisher_group_user):
         """The grid repaints its cells whenever the publish state changes, and that
