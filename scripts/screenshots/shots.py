@@ -313,7 +313,6 @@ def stage_admin(ctx):
     page.wait_for_load_state('networkidle')
     page.wait_for_timeout(800)
     shoot(page.locator('.po-wrap'), '32-publisher-overview.png')
-    shoot(page.locator('.po-wrap'), '42-filled-data.png')
 
     # Display page: screens/views/modes are seeded via ORM (the UI keeps them in
     # collapsed <details> panels); open the panels before shooting.
