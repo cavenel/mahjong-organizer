@@ -223,3 +223,69 @@ class TestMeasureHandlesAnImportedChart:
         m = S.measure(rows, 16, 3)
         assert m['all_seated'] is True
         assert m['max_meetings'] == 1
+
+
+class TestGreedyIsBounded:
+    """One best-effort attempt must not be able to hold a request worker for as
+    long as the search feels like taking.
+
+    ``generate_greedy`` has a wall-clock budget, but it could only be checked
+    between whole attempts, so the first attempt ran unbounded: N=76/R=20 measured
+    22 s against a 6 s budget, having run exactly one try. The cost was not spread
+    evenly either — rounds 1-14 were free and round 20 alone took 10.9 s, because a
+    late round has no rematch-free answer and the backtracker had to exhaust its
+    budget to discover that.
+
+    The bound is deterministic on purpose; see the note in `_partition_no_repeat`
+    on why a clock cannot go inside the search.
+    """
+
+    HARD = (76, 20)   # the worst case found: small field, many rounds
+
+    def test_one_attempt_is_bounded_on_the_hardest_field(self):
+        import time
+        N, R = self.HARD
+        t = time.monotonic()
+        S._greedy_once(N, R, False, seed=0)
+        elapsed = time.monotonic() - t
+        # Measured ~2.1 s here and 22 s before the fix. The assertion is loose
+        # enough for a loaded CI box while still failing the old behaviour by 3x.
+        assert elapsed < 7, f'one attempt took {elapsed:.1f}s'
+
+    def test_the_whole_search_respects_its_budget(self):
+        import time
+        N, R = self.HARD
+        t = time.monotonic()
+        rows, meta = S.generate_greedy(N, R, False, seed=0, tries=400, budget=2.0)
+        elapsed = time.monotonic() - t
+        assert rows, 'a chart is still produced'
+        # The budget is checked between attempts, so the overshoot is at most one
+        # attempt's bounded cost — not one attempt's *unbounded* cost.
+        assert elapsed < 2.0 + 7
+        assert meta['tries_run'] >= 1
+
+    # Cheaper than HARD but still exhausts the budget in 2 of its 16 rounds, so the
+    # cutoff these two tests are about is genuinely exercised.
+    HITS_THE_BUDGET = (76, 16)
+
+    def test_a_seed_reproduces_its_chart_exactly(self):
+        """The property the bound must not cost: the seating page previews a chart
+        and then applies it by re-running with tries=1 and the winning seed. If the
+        search were bounded by wall-clock instead, a re-run on a differently loaded
+        machine would cut over to the relaxed builder at a different round and
+        apply a chart nobody previewed.
+        """
+        N, R = self.HITS_THE_BUDGET
+        first, meta = S.generate_greedy(N, R, False, seed=0, tries=2, budget=6.0)
+        again, _ = S.generate_greedy(N, R, False, seed=meta['seed'], tries=1,
+                                     budget=6.0)
+        assert again == first
+
+    def test_the_budget_is_work_not_time(self):
+        """Same seed, same chart, whatever wall-clock budget the caller passes —
+        because the per-attempt bound counts candidate tables, not seconds. This is
+        the regression guard against putting a clock back inside the search."""
+        N, R = self.HITS_THE_BUDGET
+        tight, _ = S.generate_greedy(N, R, False, seed=0, tries=1, budget=0.001)
+        loose, _ = S.generate_greedy(N, R, False, seed=0, tries=1, budget=60.0)
+        assert tight == loose

@@ -195,22 +195,29 @@ class _Timeout(Exception):
     pass
 
 
-def _partition_no_repeat(N, met, use_teams, rng, node_budget):
+def _partition_no_repeat(N, met, use_teams, rng, work_budget):
     """Backtracking partition of 1..N into tables of four with **no** already-met
     pair repeated and (when ``use_teams``) four distinct teams per table. Returns
-    the groups, or None if it can't within ``node_budget`` search nodes. Does not
-    mutate ``met`` — the caller folds the returned groups in on success. The budget
-    is a node count (not wall-clock) so a given rng seed always yields the same
-    result, which keeps whole charts reproducible from their seed."""
+    the groups, or None if it can't within ``work_budget``. Does not mutate ``met``
+    — the caller folds the returned groups in on success.
+
+    The budget counts *candidate tables examined*, and is deliberately not
+    wall-clock: a given rng seed must always yield the same result, because the
+    seating UI previews a chart and then reproduces it on apply from the returned
+    seed alone. A clock in here would apply a different chart than was shown.
+
+    Counting candidates rather than recursion nodes is what makes the budget mean
+    anything. One node iterates every triple of the remaining candidates — up to
+    ~50k of them in a late round — so a 40k *node* budget bounded a round to
+    anywhere between 0.00 s and 10.87 s, both measured in the same chart. The work
+    the loop does is the cost, so that is what is counted.
+    """
     used = set(met)
     remaining = set(range(1, N + 1))
     groups = []
-    nodes = [0]
+    work = [0]
 
     def bt():
-        nodes[0] += 1
-        if nodes[0] > node_budget:
-            raise _Timeout
         if not remaining:
             return True
         p = min(remaining)  # fixing the smallest cuts the search symmetrically
@@ -219,6 +226,9 @@ def _partition_no_repeat(N, met, use_teams, rng, node_budget):
                 and (not use_teams or _team_of(q) != _team_of(p))]
         rng.shuffle(base)
         for a, b, c in combinations(base, 3):
+            work[0] += 1
+            if work[0] > work_budget:
+                raise _Timeout
             grp = (p, a, b, c)
             if use_teams and len({_team_of(x) for x in grp}) < 4:
                 continue
@@ -307,7 +317,16 @@ _PERMS = [
 ]
 
 
-def _greedy_once(N, R, use_teams, seed, node_budget=40000):
+# Bounds one attempt's search, in candidate tables examined per round. 200k holds
+# the worst case in the whole plausible domain (N=76..200, R=12..20, teams on or
+# off) to ~2.4 s for a whole attempt, against the 10.9 s a *single round* could take
+# before. Raising it does not reliably buy a better chart — quality is not monotonic
+# in search effort here — while lowering the cost per attempt means more attempts
+# fit the caller's wall-clock budget, which does.
+GREEDY_WORK_BUDGET = 200_000
+
+
+def _greedy_once(N, R, use_teams, seed, work_budget=GREEDY_WORK_BUDGET):
     """One deterministic best-effort chart for the given ``seed``. Builds each
     round with the no-repeat backtracker, filling any round it can't place without
     a rematch via the relaxed builder. Returns
@@ -316,7 +335,7 @@ def _greedy_once(N, R, use_teams, seed, node_budget=40000):
     met = set()
     rounds = []
     for _ in range(R):
-        grp = _partition_no_repeat(N, met, use_teams, rng, node_budget)
+        grp = _partition_no_repeat(N, met, use_teams, rng, work_budget)
         if grp is None:
             grp = _build_round_relaxed(N, met, use_teams, rng)
         else:
