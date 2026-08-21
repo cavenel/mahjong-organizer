@@ -54,11 +54,12 @@ datas += collect_data_files('channels', include_py_files=False)
 datas += [(os.path.join(project_root, 'staticfiles'), 'staticfiles')]  # collectstatic output
 
 # --- hidden imports ----------------------------------------------------------
-# mahj: views, migrations, publish, management commands — minus the worker
-# commands, which pull in redis/OCR deps we deliberately drop (never run here).
+# mahj: views, migrations, publish, management commands — minus scan_worker,
+# which pulls in the redis/OCR deps we deliberately drop (never run here), and
+# minus the test suite, which would drag pytest into the binary uninstalled.
 mahj_mods = [
     m for m in walk_package('mahj')
-    if 'scan_worker' not in m and 'restore_worker' not in m
+    if 'scan_worker' not in m and not m.startswith('mahj.tests')
 ]
 # uvicorn ships optional server backends we don't use and don't bundle:
 # .workers (gunicorn worker class) and the wsproto websocket impl (we use the

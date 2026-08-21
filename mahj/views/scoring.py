@@ -5,7 +5,10 @@ from ..models import Player
 from .helpers import get_tenant, get_tournament
 
 
-LEADERBOARD_TTL = 20   # rendered HTML: how long the page can be served stale.
+LEADERBOARD_TTL = 20   # the public leaderboard's staleness budget, in seconds.
+                       # Set here beside SUB_CACHE_TTL to keep the two visible
+                       # together; views/public.py is the only consumer and
+                       # applies it to both its data and its rendered HTML.
 SUB_CACHE_TTL = 300    # the data pieces below.
 
 # The invalidation contract, stated exactly because it is easy to assume more than

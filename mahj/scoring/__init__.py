@@ -14,7 +14,6 @@ tests/test_scoring_golden.py lock the output shapes.
 from ._common import (
     WINDS,
     WIND_LETTERS,
-    _FLAG_ALIASES,
     _attach_players,
     _country_flag,
     _group_by,
@@ -32,9 +31,6 @@ from .visibility import (
 )
 from .standings import (
     _assign_ranks,
-    _cumulative_row,
-    _standings_rank_key,
-    _standings_sort_key,
     pad_scores,
     player_standings,
     rounds_played,
@@ -42,15 +38,9 @@ from .standings import (
     tournament_seating,
 )
 from .stats import (
-    _opponent_strength,
-    _placement_counts,
     _roll_up,
-    _rounds_for,
-    _table_stats_for,
     _top_by,
     _top_win_streaks,
-    _validated_tables,
-    _winners_for_round,
     all_slot_rounds,
     overall_winners,
     player_extra_stats,
