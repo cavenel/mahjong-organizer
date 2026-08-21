@@ -352,6 +352,35 @@ class TestCounterTimerGated:
         assert _counter(tournament) == -1
 
 
+class TestMutatingEndpointsRefuseGet:
+    """CSRF is never checked on a GET, so a mutating endpoint reachable by one can be
+    fired by a cross-site <img>. Every one of these answers the same JSON 405, which
+    is also the shape their front-ends know how to explain.
+    """
+
+    # Each was answering something else: a plain-text 405, a 400, a 403 — or, for
+    # publish_web, actually running an export + SFTP upload.
+    # /admin_reset answers the same way, but sits behind the sudo gate, which
+    # replies first — test_reset.py checks it with a reauthed client.
+    ENDPOINTS = [
+        '/publish_web',
+        '/update_logo',
+        '/admin_generate_seating',
+        '/player_editor_save',
+        '/admin_player_draw_assign',
+        '/publish_target_save',
+        '/publish_target_test',
+    ]
+
+    @pytest.mark.parametrize('url', ENDPOINTS)
+    def test_get_is_405_json(self, client_, staff_user, url):
+        client_.force_login(staff_user)
+        resp = client_.get(url)
+        assert resp.status_code == 405, url
+        assert resp['Content-Type'].startswith('application/json'), url
+        assert resp.json()['error'] == 'POST required', url
+
+
 class TestCsrfEnforcement:
     """POST endpoints must reject requests without a CSRF token."""
 

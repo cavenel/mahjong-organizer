@@ -6,7 +6,7 @@ from django.conf import settings
 from django.contrib.auth.views import redirect_to_login
 from django.core.cache import cache
 from django.core.exceptions import BadRequest
-from django.http import HttpResponseForbidden
+from django.http import HttpResponseForbidden, JsonResponse
 
 from ..models import Membership, Tenant, TournamentSettings
 
@@ -56,6 +56,17 @@ class FieldError(Exception):
         super().__init__(f"'{field}': {message}")
         self.field = field
         self.message = message
+
+
+def method_not_allowed():
+    """The one answer a mutating endpoint gives a non-POST request.
+
+    These are all XHR endpoints whose front-ends read ``responseJSON.error``, so a
+    plain-text body (or a 400/403 standing in for a wrong method) left the page
+    with an unexplained failure.
+    """
+    return JsonResponse(
+        {'status': 'method_not_allowed', 'error': 'POST required'}, status=405)
 
 
 def int_param(data, field, default=_REQUIRED):

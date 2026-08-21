@@ -1,7 +1,6 @@
 import json
 
 from django.conf import settings
-from django.core.exceptions import BadRequest
 from django.db import transaction
 from django.db.models import F
 from django.http import Http404, HttpResponse, JsonResponse
@@ -424,18 +423,31 @@ def update_seat_penalty(request):
     ceremony. Saving a penalty neither checks nor bumps the seat's version.
     """
     tenant = get_tenant(request)
+    # Both fields go through the module's coercion helpers: a garbage id used to
+    # raise out of Seat.objects.get() as a 500, and an unparseable penalty was
+    # silently stored as 0 — a figure the scorer never typed, on a sheet whose whole
+    # job is balancing.
+    seat_id = int_param(request.POST, 'id')
+    penalty = int_param(request.POST, 'penalty')
     try:
-        seat = Seat.objects.get(tenant=tenant, id=request.POST.get('id'))
+        seat = Seat.objects.get(tenant=tenant, id=seat_id)
     except Seat.DoesNotExist:
         return JsonResponse({'status': 'not_found'}, status=404)
 
-    try:
-        seat.penalty = int(request.POST.get('penalty'))
-    except (TypeError, ValueError):
-        seat.penalty = 0
+    seat.penalty = penalty
     seat.save(update_fields=['penalty'])
 
     return JsonResponse({'status': 'ok'})
+
+
+def _bad_request(message):
+    """A malformed grid payload, in the shape the grid's error handler reads.
+
+    Raising ``BadRequest`` here gets Django's generic 400 page, which the score
+    grid can only render as a bare red pip — the scorer is left with a cell that
+    looks saved and no idea why it wasn't.
+    """
+    return JsonResponse({'status': 'bad_request', 'error': message}, status=400)
 
 
 @tenant_role_required('scorer')
@@ -466,13 +478,13 @@ def update_seats_bulk(request):
         try:
             data = json.loads(request.POST.get('payload') or '{}')
         except ValueError:
-            raise BadRequest('Malformed JSON payload')
+            return _bad_request('Malformed JSON payload')
         if not isinstance(data, dict):
-            raise BadRequest('JSON payload must be an object')
+            return _bad_request('JSON payload must be an object')
 
     entries = data.get('seats') or []
     if not isinstance(entries, list) or not all(isinstance(e, dict) for e in entries):
-        raise BadRequest("'seats' must be a list of objects")
+        return _bad_request("'seats' must be a list of objects")
     ids = [int_param(e, 'id') for e in entries]
 
     with transaction.atomic():
@@ -525,7 +537,7 @@ def update_seats_bulk(request):
         # unpublished one — only the first seat's round was ever checked.
         rows = {(s.round_nb, s.table_nb) for s in to_update}
         if len(rows) > 1:
-            raise BadRequest('every seat must belong to the same round and table')
+            return _bad_request('every seat must belong to the same round and table')
         round_nb, table_nb = rows.pop()
 
         # Published rounds are locked: a score can only change after the round is

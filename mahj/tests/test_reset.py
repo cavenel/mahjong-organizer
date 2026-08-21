@@ -63,7 +63,8 @@ def test_reset_wipes_everything(staff_client, tournament):
 
 def test_reset_requires_post(staff_client):
     resp = staff_client.get('/admin_reset')
-    assert resp.status_code == 400
+    assert resp.status_code == 405
+    assert resp.json()['error'] == 'POST required'
 
 
 def test_reset_is_staff_only(scorer_client, tournament):

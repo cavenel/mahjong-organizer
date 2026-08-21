@@ -24,8 +24,8 @@ from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, 
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
     BASE_DIR, get_counter, get_tenant, get_tournament, has_role,
-    is_tenant_admin, json_body, set_counter, tenant_admin_required,
-    tenant_role_required,
+    is_tenant_admin, json_body, method_not_allowed, set_counter,
+    tenant_admin_required, tenant_role_required,
 )
 from .print_views import _country_flag
 from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
@@ -89,6 +89,7 @@ def _sheet_state_keys(tenant, as_strings=False):
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
+from ..scoring import rounds_played
 from .scoring import (
     scores_per_player_rows,
     scores_per_table_grid,
@@ -193,7 +194,7 @@ def _pretty_view(view):
         return "Schedule"
     if view.startswith("scores:"):
         parts = view.split(":")
-        density = "totals" if len(parts) > 1 and parts[1] == "totals" else "detailed"
+        density = parts[1] if len(parts) > 1 and parts[1] in ("totals", "teams") else "detailed"
         page = parts[2] if len(parts) > 2 else "all"
         page_label = "all (rotating)" if page in ("", "all") else "page " + page
         return f"Standings — {density}, {page_label}"
@@ -824,7 +825,7 @@ def admin_generate_seating(request):
     seat) but keeps the player list, draw and schedule: the chart is independent of who
     sits where. Returns the quality measures as JSON for the page to display."""
     if request.method != 'POST':
-        return HttpResponse('POST required', status=405)
+        return method_not_allowed()
 
     tenant = get_tenant(request)
     tournament = get_tournament(request)
@@ -969,7 +970,7 @@ def admin_team_draw_save(request):
     reassignment run, inside a single transaction, so a mid-write failure rolls
     back instead of leaving the draw half-wiped."""
     if request.method != 'POST':
-        return HttpResponse('POST required', status=405)
+        return method_not_allowed()
 
     tenant = get_tenant(request)
     try:
@@ -1067,7 +1068,7 @@ def admin_player_draw_assign(request):
     number: the request fails if the number isn't a real draw slot or is already
     held by someone else."""
     if request.method != 'POST':
-        return JsonResponse({'ok': False, 'error': 'POST required'}, status=405)
+        return method_not_allowed()
 
     tenant = get_tenant(request)
     data = json_body(request)
@@ -1129,7 +1130,7 @@ def player_editor_save(request):
     ``{"players": [{"id", <field>...}]}`` and bulk-updates the editable
     metadata; unknown ids are ignored, over-long values are rejected up front."""
     if request.method != 'POST':
-        return HttpResponse('POST required', status=405)
+        return method_not_allowed()
 
     tenant = get_tenant(request)
     rows = json_body(request).get('players', [])
@@ -1193,6 +1194,8 @@ def logo(request):
 
 @tenant_admin_required
 def update_logo(request):
+    if request.method != 'POST':
+        return method_not_allowed()
     tournament = get_tournament(request)
     if request.POST.get("reset") == "1":
         tournament.logo = None
@@ -1231,7 +1234,7 @@ def admin_reset(request):
     its post_delete signal busts the settings cache and refreshes public displays.
     """
     if request.method != 'POST':
-        return HttpResponseBadRequest("POST required")
+        return method_not_allowed()
     tenant = get_tenant(request)
     if tenant is None:
         return HttpResponseBadRequest("No tenant")
@@ -1253,7 +1256,13 @@ def admin_reset(request):
 def publish_web(request):
     """Manually regenerate + upload the public static site (the "Publish to web"
     button). Publish also happens automatically on each round publish; this is the
-    on-demand re-push. Runs in the background so the request returns at once."""
+    on-demand re-push. Runs in the background so the request returns at once.
+
+    POST only. CSRF is never checked on a GET, so while this answered one a
+    cross-site <img> pointed at it could fire an export and an SFTP upload.
+    """
+    if request.method != 'POST':
+        return method_not_allowed()
     tenant = get_tenant(request)
     subdomain = tenant.subdomain if tenant else ''
     from ..publish.sftp_upload import is_configured
@@ -1288,7 +1297,7 @@ def publish_target_save(request):
     untouched (so the form never has to echo it back), and clear_password /
     clear_key wipe it. Stored encrypted via publish.secrets."""
     if request.method != 'POST':
-        return HttpResponseForbidden('POST required')
+        return method_not_allowed()
     tenant = get_tenant(request)
     if tenant is None:
         return JsonResponse({'status': 'error', 'error': 'No tenant.'}, status=400)
@@ -1349,7 +1358,7 @@ def publish_target_test(request):
     role is trusted, so it stays — but each attempt is logged with the user and
     target, so the probing is at least attributable after the fact."""
     if request.method != 'POST':
-        return HttpResponseForbidden('POST required')
+        return method_not_allowed()
     tenant = get_tenant(request)
     from ..models import PublishTarget
     from ..publish import secrets as publish_secrets
@@ -1969,10 +1978,7 @@ def _page_scoring(request, tenant, error=None):
     tournament = get_tournament(request)
     grid = scores_per_table_grid(request)
     all_players = Player.objects.filter(tenant=tenant).order_by('full_name')
-    try:
-        nb_rounds = len(scores_per_player_rows(request, True)[0]["scores"])
-    except Exception:
-        nb_rounds = 6
+    nb_rounds = rounds_played(scores_per_player_rows(request, True))
     template2 = loader.get_template('mahj/admin_scores_per_table.html')
     published_rounds = list(
         PublishedRound.objects.filter(tenant=tenant)

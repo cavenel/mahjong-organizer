@@ -32,6 +32,12 @@ HOST = 'test.example.com'
     ('scores:detailed', 'Standings — detailed, all (rotating)'),
     ('scores:totals:2', 'Standings — totals, page 2'),
     ('scores:totals:all', 'Standings — totals, all (rotating)'),
+    # The teams density is a real screen view; it used to be labelled "detailed",
+    # disagreeing with the same function's JS twin on the display admin page.
+    ('scores:teams:all', 'Standings — teams, all (rotating)'),
+    ('scores:teams:3', 'Standings — teams, page 3'),
+    # An unknown density still falls back to detailed.
+    ('scores:nonsense:all', 'Standings — detailed, all (rotating)'),
     # Unknown grammar falls through to the raw string rather than blanking.
     ('something-else', 'something-else'),
 ])

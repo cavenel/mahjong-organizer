@@ -200,14 +200,27 @@ class TestUpdateSeatPenalty:
         seat.refresh_from_db()
         assert seat.penalty == -10
 
-    def test_invalid_penalty_defaults_to_zero(self, authed_client, tournament):
+    def test_an_unparseable_penalty_is_refused_not_zeroed(self, authed_client, tournament):
+        """The sheet's whole job is balancing, so storing 0 for a figure the scorer
+        never typed is the one answer that must not happen: the stored value stays
+        put and the client is told which field is wrong."""
         seat = self._seat(tournament)
         seat.penalty = 5
         seat.save(update_fields=['penalty'])
         resp = authed_client.post('/update_seat_penalty', {'id': seat.id, 'penalty': 'abc'})
-        assert resp.status_code == 200
+        assert resp.status_code == 400
+        assert resp.json()['field'] == 'penalty'
         seat.refresh_from_db()
-        assert seat.penalty == 0
+        assert seat.penalty == 5
+
+    def test_a_garbage_seat_id_is_a_400_not_a_500(self, authed_client, tournament):
+        resp = authed_client.post('/update_seat_penalty', {'id': 'abc', 'penalty': -10})
+        assert resp.status_code == 400
+        assert resp.json()['field'] == 'id'
+
+    def test_an_unknown_seat_id_is_404(self, authed_client, tournament):
+        resp = authed_client.post('/update_seat_penalty', {'id': 999999, 'penalty': -10})
+        assert resp.status_code == 404
 
     def test_penalty_does_not_touch_minipoints(self, authed_client, tournament):
         seat = self._seat(tournament)
@@ -680,10 +693,13 @@ class TestBeaconFlushEnvelope:
             assert s.minipoints == 10
 
     def test_malformed_payload_is_a_400(self, authed_client, tournament):
-        resp = authed_client.post('/update_seats_bulk', {'payload': 'not json'})
-        assert resp.status_code == 400
-        resp = authed_client.post('/update_seats_bulk', {'payload': '["a", "list"]'})
-        assert resp.status_code == 400
+        """In the grid's own error shape: it only knows how to explain a JSON 400, so
+        Django's generic 400 page reached the scorer as a bare red pip."""
+        for payload in ('not json', '["a", "list"]'):
+            resp = authed_client.post('/update_seats_bulk', {'payload': payload})
+            assert resp.status_code == 400
+            assert resp['Content-Type'].startswith('application/json')
+            assert resp.json()['error']
 
 
 class TestUnresolvedSeatId:
