@@ -248,9 +248,13 @@ class TestGreedyIsBounded:
         t = time.monotonic()
         S._greedy_once(N, R, False, seed=0)
         elapsed = time.monotonic() - t
-        # Measured ~2.1 s here and 22 s before the fix. The assertion is loose
-        # enough for a loaded CI box while still failing the old behaviour by 3x.
-        assert elapsed < 7, f'one attempt took {elapsed:.1f}s'
+        # ~2.1 s uninstrumented, against 22 s before the bound. The threshold has to
+        # absorb a 2-3x slowdown — `coverage run` traces every line of the search's
+        # hot loop, and at 7 s this failed there while passing on its own. 15 s still
+        # fails the old behaviour by a wide margin, and the property that the bound
+        # is *deterministic* is asserted by the two tests below, which no amount of
+        # instrumentation can perturb.
+        assert elapsed < 15, f'one attempt took {elapsed:.1f}s'
 
     def test_the_whole_search_respects_its_budget(self):
         import time
@@ -261,7 +265,7 @@ class TestGreedyIsBounded:
         assert rows, 'a chart is still produced'
         # The budget is checked between attempts, so the overshoot is at most one
         # attempt's bounded cost — not one attempt's *unbounded* cost.
-        assert elapsed < 2.0 + 7
+        assert elapsed < 2.0 + 15   # the budget plus at most one bounded attempt
         assert meta['tries_run'] >= 1
 
     # Cheaper than HARD but still exhausts the budget in 2 of its 16 rounds, so the

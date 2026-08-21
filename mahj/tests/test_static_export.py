@@ -518,3 +518,110 @@ class TestDumpUpload:
         progress = trigger.get_progress('test')
         assert progress['phase'] == 'done'
         assert 'remote disk full' in progress['error']
+
+
+class TestIncrementalUpload:
+    """`upload_dir` skips files whose size+mtime match the last upload, recorded in
+    a local manifest. Publishing runs on every score change during an event, so the
+    skip is what keeps a publish to a couple of seconds instead of re-sending every
+    flag SVG — and version.json must always go, since it is the signal that tells a
+    spectator's browser to refresh.
+    """
+
+    def _target(self, tenant, **kw):
+        from mahj.models import PublishTarget
+        fields = dict(enabled=True, host='web.example', username='u', path='/srv/site')
+        fields.update(kw)
+        return PublishTarget.objects.create(tenant=tenant, **fields)
+
+    def _site(self, tmp_path):
+        (tmp_path / 'index.html').write_text('<html>')
+        (tmp_path / 'assets').mkdir()
+        (tmp_path / 'assets' / 'flag.svg').write_text('<svg>')
+        (tmp_path / 'version.json').write_text('{"v": 1}')
+        return tmp_path
+
+    def test_the_first_upload_sends_everything(self, tournament, fake_sftp, tmp_path):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        sftp_upload.upload_dir(self._site(tmp_path), 'test')
+        assert set(fake_sftp.written) == {
+            '/srv/site/index.html', '/srv/site/assets/flag.svg',
+            '/srv/site/version.json'}
+
+    def test_version_json_lands_last(self, tournament, fake_sftp, tmp_path):
+        """Ordered on purpose: a client that saw a new version before the files it
+        points at would fetch a half-published site."""
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        sftp_upload.upload_dir(self._site(tmp_path), 'test')
+        assert list(fake_sftp.written)[-1] == '/srv/site/version.json'
+
+    def test_a_second_upload_skips_unchanged_files(self, tournament, fake_sftp,
+                                                   tmp_path):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        site = self._site(tmp_path)
+        sftp_upload.upload_dir(site, 'test')
+        fake_sftp.written.clear()
+        sftp_upload.upload_dir(site, 'test')
+        # Only the refresh signal, not the flag or the page.
+        assert set(fake_sftp.written) == {'/srv/site/version.json'}
+
+    def test_a_changed_file_is_sent_again(self, tournament, fake_sftp, tmp_path):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        site = self._site(tmp_path)
+        sftp_upload.upload_dir(site, 'test')
+        fake_sftp.written.clear()
+        (site / 'index.html').write_text('<html>changed and longer')
+        sftp_upload.upload_dir(site, 'test')
+        assert '/srv/site/index.html' in fake_sftp.written
+
+    def test_full_ignores_the_manifest(self, tournament, fake_sftp, tmp_path):
+        """The operator's escape hatch when a remote file was changed or lost
+        behind our back — the manifest would otherwise say it is still fine."""
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        site = self._site(tmp_path)
+        sftp_upload.upload_dir(site, 'test')
+        fake_sftp.written.clear()
+        sftp_upload.upload_dir(site, 'test', full=True)
+        assert len(fake_sftp.written) == 3
+
+    def test_a_corrupt_manifest_falls_back_to_a_full_upload(self, tournament,
+                                                            fake_sftp, tmp_path):
+        """Half-written by a killed publish. Re-sending everything is the safe
+        reading; refusing to publish is not."""
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        site = self._site(tmp_path)
+        sftp_upload.upload_dir(site, 'test')
+        (site / sftp_upload.MANIFEST_FILE).write_text('{not json')
+        fake_sftp.written.clear()
+        sftp_upload.upload_dir(site, 'test')
+        assert len(fake_sftp.written) == 3
+
+    def test_the_manifest_is_never_itself_uploaded(self, tournament, fake_sftp,
+                                                   tmp_path):
+        """It is local bookkeeping; on the server it would be a fetchable file
+        describing the whole site."""
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        site = self._site(tmp_path)
+        sftp_upload.upload_dir(site, 'test')
+        sftp_upload.upload_dir(site, 'test')
+        assert not any(sftp_upload.MANIFEST_FILE in r for r in fake_sftp.written)
+
+    def test_progress_is_reported_per_file(self, tournament, fake_sftp, tmp_path):
+        from mahj.publish import sftp_upload
+        self._target(tournament['tenant'])
+        seen = []
+        sftp_upload.upload_dir(self._site(tmp_path), 'test',
+                               progress=lambda d, t: seen.append((d, t)))
+        assert seen == [(1, 3), (2, 3), (3, 3)]
+
+    def test_no_target_is_a_noop_not_an_error(self, tournament, fake_sftp, tmp_path):
+        from mahj.publish import sftp_upload
+        sftp_upload.upload_dir(self._site(tmp_path), 'test')
+        assert fake_sftp.written == {}
