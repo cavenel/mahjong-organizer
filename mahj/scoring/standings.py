@@ -6,6 +6,17 @@ from ..models import Player, Seat
 from ._common import WINDS, _attach_players, _country_flag, seat_is_scored
 from .visibility import publish_state, final_withheld_now, _last_complete_round
 
+# Table points are not always representable in binary: a shared table place splits
+# its points evenly, so a three-way tie awards (4+2+1)/3 and a four-way 7/4. Summing
+# the same scores in a different order then lands on 11.0 for one competitor and
+# 11.000000000000002 for another — identical at two decimals, identical to any human
+# reading the sheet, but unequal to `==`, which is what decides whether two rows tie.
+#
+# So round every accumulated total before it is sorted or ranked. 6 dp is far below
+# any difference the rules can produce (denominators are 2, 3 and 4, so real totals
+# are at least 1/12 apart) and far above the ~1e-15 drift being erased.
+TP_DP = 6
+
 
 def player_standings(tenant, tournament, full_view=False, seats=None):
     """Cumulative player totals with rank evolution across rounds."""
@@ -161,6 +172,13 @@ def team_standings(rows, tournament, nb_rounds):
                 rslot = slot['scores'][r_idx]
                 rslot['tp'] = (rslot['tp'] or 0.0) + (sc.get('tp') or 0.0)
                 rslot['mp'] = (rslot['mp'] or 0) + (sc.get('mp') or 0)
+    for slot in by_team.values():
+        # This loop accumulates with `+=`, which has no compensation at all, so the
+        # drift TP_DP exists for is reachable here on every Python version.
+        slot['total']['tp'] = round(slot['total']['tp'], TP_DP)
+        for rslot in slot['scores']:
+            if rslot['tp'] is not None:
+                rslot['tp'] = round(rslot['tp'], TP_DP)
     team_rows = sorted(by_team.values(), key=_standings_sort_key(tournament))
     _assign_ranks(team_rows, _standings_rank_key(tournament), field='pos')
     for tr in team_rows:
@@ -283,6 +301,7 @@ def _cumulative_row(player, all_seats, up_to_round, flag):
             # shape whatever the rules. Tested with `is None` rather than falsiness:
             # 0.0 is a real MCR score — last place — and coercing it to int 0 would
             # flip the total's type.
-            'tp': sum(0 if p.tablepoints is None else p.tablepoints for p in played),
+            'tp': round(sum(0 if p.tablepoints is None else p.tablepoints
+                            for p in played), TP_DP),
         },
     }

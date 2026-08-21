@@ -10,6 +10,11 @@ from mahj.scoring import (
     _top_win_streaks,
     team_standings,
 )
+from mahj.scoring.standings import (
+    _cumulative_row,
+    _standings_rank_key,
+    _standings_sort_key,
+)
 
 
 def _player_row(team, tp, mp, pid):
@@ -294,3 +299,84 @@ class TestTopWinStreaks:
         result = _top_win_streaks(hands, self.SEATS)
         assert len(result) == 2
         assert {r['player'] for r in result} == {'P1', 'P3'}
+
+
+class TestFloatTotalsDoNotSplitTies:
+    """A three-way table tie awards (4+2+1)/3 table points, which is not
+    representable in binary. Summing the same four scores in a different round
+    order then gives 11.0 for one player and 11.000000000000002 for another —
+    both render as '11.00', and before the fix they received different positions,
+    with the order between them decided by nothing but input order.
+
+    21 four-round multisets of real MCR table points are affected.
+
+    One caveat worth knowing before reading a green result here: CPython 3.12
+    gave `sum()` compensated (Neumaier) summation, so the player path — which
+    sums — is accurate on every Python this project runs. `team_standings`
+    accumulates with `+=`, which has no compensation, so that half is the live
+    bug. Both paths round anyway: the invariant is that two competitors level on
+    the rules' values share a position, and that must not rest on which
+    summation algorithm the interpreter happens to ship.
+    """
+
+    THREE_WAY = (4 + 2 + 1) / 3
+
+    def test_the_float_hazard_is_real(self):
+        # Guards the premise, so this class still means something if the scoring
+        # rules ever stop producing thirds.
+        a = 0.0
+        for v in (4.0, self.THREE_WAY, self.THREE_WAY, self.THREE_WAY):
+            a += v
+        b = 0.0
+        for v in (self.THREE_WAY, self.THREE_WAY, self.THREE_WAY, 4.0):
+            b += v
+        assert a != b
+        assert f'{a:.2f}' == f'{b:.2f}' == '11.00'
+
+    def test_teams_level_on_tp_share_a_position(self):
+        # Same four table points per team, different player order. Under MCR this
+        # is the ranking value itself, so the drift decides the placings.
+        t = self.THREE_WAY
+        rows = [
+            _player_row('A', tp=4.0, mp=100, pid=1),
+            _player_row('A', tp=t, mp=100, pid=2),
+            _player_row('A', tp=t, mp=100, pid=3),
+            _player_row('A', tp=t, mp=100, pid=4),
+            _player_row('B', tp=t, mp=100, pid=5),
+            _player_row('B', tp=t, mp=100, pid=6),
+            _player_row('B', tp=t, mp=100, pid=7),
+            _player_row('B', tp=4.0, mp=100, pid=8),
+        ]
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=1)
+        by_team = {r['team']: r for r in team_standings(rows, tournament, 1)}
+        assert by_team['A']['pos'] == by_team['B']['pos'] == 1
+        # And the stored total is the clean value, not one carrying drift — so a
+        # consumer comparing totals itself gets the same answer.
+        assert by_team['A']['total']['tp'] == by_team['B']['total']['tp'] == 11.0
+
+    def test_players_level_on_tp_share_a_position(self):
+        # The same hazard one level down, where the sum runs over the player's own
+        # rounds: _cumulative_row accumulates in round order, so two players who
+        # took the same four results in a different order drift apart.
+        t = self.THREE_WAY
+        orders = {
+            10: [4.0, t, t, t],
+            11: [t, t, t, 4.0],
+        }
+        rows = []
+        for pid, tps in orders.items():
+            player = SimpleNamespace(
+                id=pid, EMA_ID='', first_name='P', last_name=f'L{pid}',
+                full_name=f'P L{pid}', country='', team='',
+            )
+            seats = [
+                SimpleNamespace(round_nb=i + 1, minipoints=100, tablepoints=tp)
+                for i, tp in enumerate(tps)
+            ]
+            rows.append(_cumulative_row(player, seats, up_to_round=4, flag=''))
+
+        tournament = SimpleNamespace(rules='MCR', nb_rounds=4)
+        rows.sort(key=_standings_sort_key(tournament))
+        _assign_ranks(rows, _standings_rank_key(tournament), field='pos')
+        assert [r['pos'] for r in rows] == [1, 1]
+        assert [r['total']['tp'] for r in rows] == [11.0, 11.0]
