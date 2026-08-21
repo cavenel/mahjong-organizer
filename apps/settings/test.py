@@ -47,3 +47,8 @@ STORAGES = {
         'BACKEND': 'django.contrib.staticfiles.storage.StaticFilesStorage',
     },
 }
+
+# Tests create ~90 users, and production PBKDF2 costs 668 ms per hash — 80% of the
+# suite's wall time went to key stretching. Nothing here asserts on hash strength;
+# test_invariants.py guards the boundary, so this cannot leak into a real profile.
+PASSWORD_HASHERS = ['django.contrib.auth.hashers.MD5PasswordHasher']
