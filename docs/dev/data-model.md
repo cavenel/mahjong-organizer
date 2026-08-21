@@ -41,8 +41,8 @@ it *defines* the scope (it names both the user and the tenant). Three tiers:
 Every runtime check is evaluated against the **current subdomain's** tenant
 (`current_membership(request)` in `mahj/views/helpers.py`), so a user's access on
 one tenant says nothing about another — cross-tenant isolation is just the
-membership row's absence. Django `is_staff` is reserved for the Django admin site
-and grants no app access. The unique constraint is one Membership per
+membership row's absence. Django `is_staff` grants no access at all: the
+Django admin site requires `is_superuser` (see `mahj/admin_site.py`). The unique constraint is one Membership per
 `(user, tenant)`; a user may hold several (e.g. a federation organiser running
 multiple events without being a superuser).
 

@@ -1000,3 +1000,46 @@ class TestSesameLinkLogin:
         resp = client_.get('/scores_per_hand_1_1')
         assert resp.status_code == 302
         assert '/accounts/login/' in resp.url
+
+
+class TestDjangoAdminIsSuperuserOnly:
+    """`/admin_db/` is mounted on every tenant subdomain and its models are
+    registered unscoped — a Player changelist there lists every tournament's
+    competitors, and Tenant/TournamentSettings are editable from it.
+
+    Django's own gate is `is_active and is_staff`. This deployment reserves
+    is_staff for the admin site and forbids keying any access decision on it
+    (docs/dev/access-control.md), so the site itself must require is_superuser —
+    otherwise the one flag nothing is supposed to grant on grants everything.
+    """
+
+    def test_a_staff_user_who_is_not_a_superuser_is_refused(self, client_, tournament):
+        staffer = User.objects.create_user('staffer', password='pw')
+        staffer.is_staff = True
+        staffer.save(update_fields=['is_staff'])
+        client_.force_login(staffer)
+        resp = client_.get('/admin_db/')
+        # Django answers a failed has_permission by bouncing to the admin login.
+        assert resp.status_code == 302
+        assert '/admin_db/login/' in resp['Location']
+
+    def test_a_tenant_admin_is_refused(self, client_, tournament):
+        """A tenant admin runs their own tournament; the cross-tenant model editor
+        is not part of that."""
+        admin_user = User.objects.create_user('tadmin', password='pw')
+        grant(admin_user, tournament['tenant'], admin=True)
+        client_.force_login(admin_user)
+        assert client_.get('/admin_db/').status_code == 302
+
+    def test_a_superuser_still_gets_in(self, client_, tournament):
+        root = User.objects.create_superuser('root', password='pw')
+        client_.force_login(root)
+        assert client_.get('/admin_db/').status_code == 200
+
+    def test_the_player_changelist_is_reachable_for_a_superuser(self, client_, tournament):
+        """Guards the wiring, not the gate: default_site is easy to get wrong in a
+        way that leaves the admin working but ungated, so assert a real registered
+        model renders through the narrowed site."""
+        root = User.objects.create_superuser('root2', password='pw')
+        client_.force_login(root)
+        assert client_.get('/admin_db/mahj/player/').status_code == 200

@@ -286,7 +286,9 @@ def get_tenant(request):
         tenant = Tenant.objects.filter(subdomain=subdomain).first()
         # Auto-provision a tenant only in dev. In prod a typo'd subdomain must not
         # silently create one — create tenants explicitly via the Django admin.
-        if tenant is None and settings.DEBUG and request.user.is_authenticated and request.user.is_staff:
+        # is_superuser, not is_staff: access-control.md reserves the staff flag for
+        # the Django admin site and forbids keying a decision on it.
+        if tenant is None and settings.DEBUG and request.user.is_authenticated and request.user.is_superuser:
             tenant = Tenant(subdomain=subdomain)
             tenant.save()
         if tenant is not None:

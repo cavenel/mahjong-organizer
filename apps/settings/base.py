@@ -19,7 +19,9 @@ INSTALLED_APPS = [
     'daphne',
     'channels',
     'mahj.apps.MahjConfig',
-    'django.contrib.admin',
+    # Not 'django.contrib.admin': the same app with the admin site narrowed to
+    # superusers. See mahj/admin_site.py.
+    'mahj.admin_site.MahjAdminConfig',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',

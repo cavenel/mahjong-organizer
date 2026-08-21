@@ -33,3 +33,32 @@ def test_fast_password_hasher_is_confined_to_the_test_profile(profile):
         f'apps/settings/{profile} sets PASSWORD_HASHERS. Only the test profile may, '
         'and only to speed up hashing — a real deployment must keep the Django default.'
     )
+
+
+def test_no_access_decision_reads_the_staff_flag():
+    """`docs/dev/access-control.md` reserves `is_staff` for the Django admin site
+    and forbids keying any access decision on it: a tenant admin is a `Membership`
+    row, and the admin site itself requires `is_superuser` (see
+    `mahj/admin_site.py`). That leaves the flag granting nothing.
+
+    Which is only true while nobody reintroduces a predicate on it. A stale
+    `is_staff=True` on an old account is harmless today and a privilege leak the
+    moment one comes back, and it comes back easily — it reads like the obvious
+    "is this person staff" check. So this asserts the flag is never read outside
+    the migration whose whole job was to convert it away.
+    """
+    offenders = []
+    for root in ('mahj', 'apps'):
+        for path in sorted((REPO_ROOT / root).rglob('*.py')):
+            rel = path.relative_to(REPO_ROOT)
+            # 0010_seed_memberships reads it to map retired global roles onto
+            # Memberships. That is history and must keep working as written.
+            if 'migrations' in rel.parts or 'tests' in rel.parts:
+                continue
+            for n, line in enumerate(path.read_text().splitlines(), 1):
+                if '.is_staff' in line:
+                    offenders.append(f'{rel}:{n}: {line.strip()}')
+    assert not offenders, (
+        'is_staff is read where an access decision is made. Use is_superuser for the '
+        'platform operator, or a Membership role for a tenant:\n  '
+        + '\n  '.join(offenders))

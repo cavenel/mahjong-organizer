@@ -34,11 +34,16 @@ access (public / 403). That 403-for-the-wrong-tenant is the isolation, not a bug
 
 ## Rules that aren't obvious from the code
 
-- **Django `is_staff` / `is_superuser` are platform-only.** `is_superuser` is the
-  cross-tenant platform operator; `is_staff` is reserved for the Django admin site
-  and grants **no** app access. App-level "tenant admin" is the `is_tenant_admin`
-  membership flag — never the Django staff flag. Don't reintroduce an `is_staff`
-  predicate in a view path.
+- **Django `is_staff` grants nothing; `is_superuser` is the platform operator.**
+  `/admin_db/` mounts unscoped models on every subdomain, so the admin site itself
+  requires `is_superuser` (`mahj/admin_site.py`, wired in through
+  `MahjAdminConfig.default_site`) rather than Django's default `is_staff`. That
+  leaves the staff flag granting nothing anywhere — a stale `is_staff=True` on an
+  old account is inert, and existing rows were left alone rather than migrated.
+  App-level "tenant admin" is the `is_tenant_admin` membership flag, never the
+  Django staff flag. Don't reintroduce an `is_staff` predicate in a view path:
+  `test_invariants.py::test_no_access_decision_reads_the_staff_flag` fails if one
+  appears outside migration `0010`, which reads it only to convert it away.
 - **Credential containment.** A tenant admin may add/remove a user's membership
   *in their own tenant* freely, but may only **mint** a login link, rotate
   credentials (revoke sesame links) or delete the account when the target's
