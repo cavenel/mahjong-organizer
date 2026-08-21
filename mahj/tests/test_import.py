@@ -14,8 +14,9 @@ from django.test import Client
 from openpyxl import load_workbook
 
 from mahj.models import Player, Schedule, Seat, TournamentSettings, Tenant
+from mahj.tests.conftest import REPO_ROOT
 
-TEMPLATE = 'mahj/static/MahjongTemplate.xlsx'
+TEMPLATE = REPO_ROOT / 'mahj' / 'static' / 'MahjongTemplate.xlsx'
 
 
 @pytest.fixture

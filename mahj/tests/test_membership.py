@@ -542,12 +542,6 @@ class TestForwardedHostSpoofing:
         resp = c.get('/admin', HTTP_X_FORWARDED_HOST=HOST_B)
         assert resp.status_code == 200
 
-    def test_setting_is_not_enabled_in_prod(self):
-        """Config, not code: assert the prod settings module leaves it off, since
-        nginx passes the real Host and never sets X-Forwarded-Host."""
-        import pathlib
-        prod = pathlib.Path('apps/settings/prod.py').read_text()
-        assert 'USE_X_FORWARDED_HOST = True' not in prod
 
 
 class TestPlayerRoundsTenantScope:

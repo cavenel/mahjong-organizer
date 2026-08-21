@@ -12,11 +12,11 @@ Two rules for anything added here:
   - Do not convert these into view tests. A test that renders a page cannot
     prove a setting is absent from a profile it never loads.
 """
-import pathlib
+import re
 
 import pytest
 
-REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
+from mahj.tests.conftest import REPO_ROOT
 
 
 @pytest.mark.parametrize('profile', ['base.py', 'prod.py', 'standalone.py', 'dev.py'])
@@ -62,3 +62,137 @@ def test_no_access_decision_reads_the_staff_flag():
         'is_staff is read where an access decision is made. Use is_superuser for the '
         'platform operator, or a Membership role for a tenant:\n  '
         + '\n  '.join(offenders))
+
+
+# ---------------------------------------------------------------------------
+# The shared confirm dialog. The invariant lives in an Alpine expression, so the
+# template source is the only place it can be checked — there is no browser here
+# to click the button.
+# ---------------------------------------------------------------------------
+
+ADMIN_SHELL = REPO_ROOT / 'mahj' / 'templates' / 'mahj' / 'admin.html'
+TEMPLATE_DIR = REPO_ROOT / 'mahj' / 'templates' / 'mahj'
+
+
+class TestConfirmDialogIsAlwaysEscapable:
+    """The shared modal can require typed confirmation, which disables its Confirm
+    button until the text matches. A one-button notice (no Cancel) must never be
+    subject to that — a disabled Confirm there traps the operator in the dialog with
+    no way out, which is what happened when a failed action raised a notice while the
+    modal still carried a prompt.
+    """
+
+    def _shell(self):
+        return ADMIN_SHELL.read_text()
+
+    def test_the_button_asks_one_shared_predicate(self):
+        shell = self._shell()
+        # Not an inline copy of the condition — the button, the Enter key and
+        # runConfirm must all consult the same one or they can disagree.
+        assert ':disabled="confirmBlocked()"' in shell
+        assert 'if (this.confirmBlocked()) return;' in shell
+        assert shell.count('confirmBlocked()') >= 3
+
+    def test_the_predicate_returns_a_real_boolean(self):
+        """Alpine removes a bound attribute only for null/undefined/false — anything
+        else is *set*, and for a boolean attribute the value becomes the attribute
+        name. An expression short-circuiting to '' therefore renders
+        disabled="disabled". Every branch here has to yield an actual boolean."""
+        body = self._shell().split('confirmBlocked() {')[1].split('},')[0]
+        assert 'return false;' in body          # the hideCancel branch
+        assert '!!m.prompt' in body             # coerced, not a bare string
+
+    def test_no_disabled_binding_short_circuits_on_a_non_boolean(self):
+        """The trap that broke every dialog: `:disabled="someString && …"`. A
+        comparison as the left operand is fine — it yields a real false."""
+        offenders = []
+        for path in sorted(TEMPLATE_DIR.glob('*.html')):
+            for expr in re.findall(r':disabled="([^"]*)"', path.read_text()):
+                if '&&' not in expr:
+                    continue
+                left = expr.split('&&')[0].strip()
+                # Safe if the left operand is itself a comparison or a call.
+                if any(op in left for op in ('===', '!==', '==', '!=', '>=', '<=', '>', '<')):
+                    continue
+                if left.endswith(')') or left.startswith('!'):
+                    continue
+                offenders.append(f'{path.name}: {expr}')
+        assert not offenders, (
+            'these :disabled bindings can short-circuit to a non-boolean, which '
+            f'Alpine renders as disabled="disabled": {offenders}')
+
+    def test_a_one_button_notice_can_never_be_blocked(self):
+        body = self._shell().split('confirmBlocked() {')[1].split('},')[0]
+        # The guard that makes it structural rather than incidental.
+        assert 'if (m.hideCancel) return false;' in body
+
+    def test_showalert_never_sets_a_prompt(self):
+        alert_body = self._shell().split('showAlert(opts) {')[1].split('},')[0]
+        assert "prompt: ''" in alert_body
+        assert 'opts.prompt' not in alert_body
+
+    def test_the_dialog_keeps_its_other_exits(self):
+        """Escape and the backdrop, so even a blocked Confirm is not a dead end."""
+        shell = self._shell()
+        assert 'keydown.escape.window="confirmModal.open && closeConfirm()"' in shell
+        assert 'bg-black/50 backdrop-blur-sm" @click="closeConfirm()"' in shell
+
+
+class TestCacheInvalidationContract:
+    """Every surface cached in views/scoring.py must be invalidated by signals.py.
+
+    They agree only by convention — the prefixes are string literals in two files —
+    and getting it wrong is silent: the surface just serves data up to SUB_CACHE_TTL
+    stale, with nothing to notice. So the convention is checked rather than trusted.
+    """
+
+    def _prefixes(self):
+        scoring = (REPO_ROOT / 'mahj' / 'views' / 'scoring.py').read_text()
+        signals = (REPO_ROOT / 'mahj' / 'signals.py').read_text()
+        written = set(re.findall(r"_cached\(\s*'([a-z_0-9]+)'", scoring))
+        deleted = set(re.findall(
+            r"cache\.delete\(f'([a-z_0-9]+):\{subdomain\}:\{full_view\}'\)", signals))
+        return written, deleted
+
+    def test_every_cached_surface_is_invalidated(self):
+        written, deleted = self._prefixes()
+        assert written, 'found no _cached() call sites — did the wrapper get renamed?'
+        assert written - deleted == set(), (
+            'these surfaces are cached but never invalidated: '
+            f'{sorted(written - deleted)} — add them to signals.invalidate_leaderboard'
+        )
+
+    def test_signals_does_not_clear_surfaces_that_no_longer_exist(self):
+        """The other direction, so the list doesn't rot into stale names."""
+        written, deleted = self._prefixes()
+        assert deleted - written == set(), (
+            f'signals clears keys nothing writes: {sorted(deleted - written)}')
+
+
+def test_x_forwarded_host_is_not_trusted_in_prod():
+    """USE_X_FORWARDED_HOST would let a client pick the tenant with a header.
+    Config, not code: nginx passes the real Host and never sets X-Forwarded-Host,
+    so the setting must stay off. The behavioural half of this lives in
+    test_membership.py's TestForwardedHostSpoofing.
+    """
+    prod = (REPO_ROOT / 'apps' / 'settings' / 'prod.py').read_text()
+    assert 'USE_X_FORWARDED_HOST = True' not in prod
+
+
+def test_no_test_reads_a_path_relative_to_the_working_directory():
+    """The suite must run from any directory, so a test that opens a project file
+    has to anchor it to REPO_ROOT. A bare relative path works only when pytest
+    happens to be invoked from the repo root — and fails as a missing file, which
+    reads like a broken test rather than a broken path.
+
+    Cheaper to keep than to rediscover: this started as 5 source reads plus one
+    relative *fixture* path, and that single fixture line failed 38 tests.
+    """
+    offenders = []
+    for path in sorted((REPO_ROOT / 'mahj' / 'tests').rglob('*.py')):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            if re.search(r"""(Path|open)\(\s*['"](mahj|apps|docs|scripts|standalone)/""", line):
+                offenders.append(f'{path.name}:{n}: {line.strip()}')
+    assert not offenders, (
+        'these read a project path relative to the working directory; anchor them '
+        'to conftest.REPO_ROOT:\n  ' + '\n  '.join(offenders))

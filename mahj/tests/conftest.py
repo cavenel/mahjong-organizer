@@ -1,4 +1,5 @@
 import json
+import pathlib
 import re
 import types
 
@@ -9,6 +10,12 @@ from django.db.models.query import QuerySet
 from django.test import RequestFactory
 
 from mahj.models import Tenant, Player, TournamentSettings, Schedule, Seat, ScoreSheet, Hand, PublishedRound, Membership
+
+# The repo root, for tests that read a source file or a fixture off disk. Anchored
+# to this file rather than the working directory so the suite runs from anywhere —
+# `pytest` invoked from outside the repo used to fail 38 tests on a relative
+# fixture path alone.
+REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 @pytest.fixture
