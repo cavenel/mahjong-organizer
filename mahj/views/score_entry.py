@@ -592,12 +592,14 @@ def set_round_published(request):
     tenant = get_tenant(request)
     data = json_body(request)
 
+    # JSON body only: json_body raises on a form-encoded one and answers {} for an
+    # empty one, so request.POST is always empty by the time we get here.
     try:
-        round_nb = int(data.get('round_nb', request.POST.get('round_nb')))
+        round_nb = int(data.get('round_nb'))
     except (TypeError, ValueError):
         return JsonResponse({'status': 'bad_request', 'error': 'round_nb required'}, status=400)
 
-    published = data.get('published', request.POST.get('published'))
+    published = data.get('published')
     if isinstance(published, str):
         published = published.lower() in ('1', 'true', 'yes', 'on')
     published = bool(published)

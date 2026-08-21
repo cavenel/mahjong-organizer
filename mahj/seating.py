@@ -286,7 +286,6 @@ def _assign_winds(groups_by_round, N, R, rng):
             perms = list(_PERMS)
             rng.shuffle(perms)
             for perm in perms:
-                cost = 0
                 for i, p in enumerate(grp):
                     wc[p][perm[i]] += 1
                 cost = sum(dev(p) for p in grp)
@@ -311,8 +310,8 @@ _PERMS = [
 def _greedy_once(N, R, use_teams, seed, node_budget=40000):
     """One deterministic best-effort chart for the given ``seed``. Builds each
     round with the no-repeat backtracker, filling any round it can't place without
-    a rematch via the relaxed builder. Returns ``(rounds, key)`` where ``key`` is
-    ``(teammate_clashes, opponent_repeats)`` — lower is better."""
+    a rematch via the relaxed builder. Returns
+    the groupings; the caller scores the finished chart with ``_greedy_score``."""
     rng = random.Random((seed + 1) * 100003)
     met = set()
     rounds = []
@@ -325,8 +324,7 @@ def _greedy_once(N, R, use_teams, seed, node_budget=40000):
                 for x, y in combinations(g, 2):
                     met.add((min(x, y), max(x, y)))
         rounds.append(grp)
-    repeats, tm = _grouping_defects(rounds, use_teams)
-    return rounds, (tm, repeats)
+    return rounds
 
 
 def _greedy_rows(rounds, N, R, seed):
@@ -373,7 +371,7 @@ def generate_greedy(N, R, use_teams, seed=0, tries=1, budget=6.0):
     deadline = time.monotonic() + budget
     best_rows, best_score, best_seed, ran = None, None, seed, 0
     for s in range(seed, seed + tries):
-        rounds, _ = _greedy_once(N, R, use_teams, s)
+        rounds = _greedy_once(N, R, use_teams, s)
         rows = _greedy_rows(rounds, N, R, s)
         score = _greedy_score(rows, N, R, use_teams)
         ran += 1
@@ -382,21 +380,6 @@ def generate_greedy(N, R, use_teams, seed=0, tries=1, budget=6.0):
         if time.monotonic() > deadline:
             break
     return best_rows, {"engine": "greedy", "seed": best_seed, "tries": tries, "tries_run": ran}
-
-
-def _grouping_defects(groups_by_round, use_teams):
-    """(opponent repeats, teammate clashes) for a set of rounds — the greedy
-    objective, computed from the groupings before winds are assigned."""
-    meet = Counter()
-    tm = 0
-    for groups in groups_by_round:
-        for grp in groups:
-            for a, b in combinations(grp, 2):
-                meet[(min(a, b), max(a, b))] += 1
-                if use_teams and _team_of(a) == _team_of(b):
-                    tm += 1
-    repeats = sum(c - 1 for c in meet.values() if c > 1)
-    return repeats, tm
 
 
 # --- public entry point ----------------------------------------------------
@@ -472,13 +455,10 @@ def measure(rows, N, R, has_teams=False):
     # whole quality panel with no clue why.
     by_round_table = {}
     east = Counter()
-    wind_counts = defaultdict(lambda: [0, 0, 0, 0])
     tables_of = defaultdict(set)
     wind_seq = defaultdict(dict)        # draw -> {round: wind}
     for (r, t, w, d) in rows:
         by_round_table.setdefault((r, t), []).append(d)
-        if 1 <= w <= 4:
-            wind_counts[d][w - 1] += 1
         if w == 1:
             east[d] += 1
         tables_of[d].add(t)

@@ -260,33 +260,37 @@ class TestCountryFlag:
 
 
 class TestTopWinStreaks:
+    # (round_nb, table_nb, wind) -> Player, the shape every caller builds from the
+    # round's seats so the winner resolves without a query per hand.
+    SEATS = {(1, 1, 1): 'P1', (1, 1, 2): 'P2', (1, 2, 3): 'P3'}
+
     def test_no_hands(self):
-        assert _top_win_streaks([]) == []
+        assert _top_win_streaks([], self.SEATS) == []
 
     def test_no_valid_seat_winners(self):
         # win_by=0 means "no winner" — function only groups seats 1..4, so these produce no streaks.
-        hands = [SimpleNamespace(table_nb=1, win_by=0, hand_nb=i, pts=0, win_by_player='') for i in range(3)]
-        assert _top_win_streaks(hands) == []
+        hands = [SimpleNamespace(table_nb=1, win_by=0, hand_nb=i, pts=0) for i in range(3)]
+        assert _top_win_streaks(hands, self.SEATS) == []
 
     def test_picks_max_group(self):
         hands = [
-            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, hand_nb=i, pts=10)
             for i in range(5)
         ] + [
-            SimpleNamespace(round_nb=1, table_nb=1, win_by=2, win_by_player='P2', hand_nb=i, pts=10)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=2, hand_nb=i, pts=10)
             for i in range(2)
         ]
-        result = _top_win_streaks(hands)
+        result = _top_win_streaks(hands, self.SEATS)
         assert len(result) == 1
         assert result[0]['nb_win'] == 5
         assert result[0]['player'] == 'P1'
 
     def test_keeps_all_ties(self):
         hands = [
-            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, win_by_player='P1', hand_nb=i, pts=10) for i in range(3)
+            SimpleNamespace(round_nb=1, table_nb=1, win_by=1, hand_nb=i, pts=10) for i in range(3)
         ] + [
-            SimpleNamespace(round_nb=1, table_nb=2, win_by=3, win_by_player='P3', hand_nb=i, pts=10) for i in range(3)
+            SimpleNamespace(round_nb=1, table_nb=2, win_by=3, hand_nb=i, pts=10) for i in range(3)
         ]
-        result = _top_win_streaks(hands)
+        result = _top_win_streaks(hands, self.SEATS)
         assert len(result) == 2
         assert {r['player'] for r in result} == {'P1', 'P3'}

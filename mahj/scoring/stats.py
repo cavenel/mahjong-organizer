@@ -815,11 +815,11 @@ def _top_by(items, key, exclude_zero=False):
     return [x for x in items if key(x) == top]
 
 
-def _top_win_streaks(hands, seat_lookup=None):
+def _top_win_streaks(hands, seat_lookup):
     """For each (table, winning-seat) pair, count wins; keep groups tying for max.
 
-    `seat_lookup` maps (round_nb, table_nb, wind) -> Player; when provided it
-    resolves the winning player without triggering Hand.win_by_player()'s N+1.
+    `seat_lookup` maps (round_nb, table_nb, wind) -> Player, so the winning player
+    resolves without triggering Hand.win_by_player()'s N+1.
     """
     if not hands:
         return []
@@ -831,12 +831,9 @@ def _top_win_streaks(hands, seat_lookup=None):
     max_wins = max(len(g) for g in ordered)
     if max_wins == 0:
         return []
-    def _player_of(h):
-        if seat_lookup is None:
-            return h.win_by_player
-        return seat_lookup.get((h.round_nb, h.table_nb, h.win_by))
     return [
-        {'nb_win': len(g), 'player': _player_of(g[0]),
+        {'nb_win': len(g),
+         'player': seat_lookup.get((g[0].round_nb, g[0].table_nb, g[0].win_by)),
          'round_nb': g[0].round_nb, 'table_nb': g[0].table_nb}
         for g in ordered if len(g) == max_wins
     ]

@@ -290,7 +290,6 @@ def render_scores(request, density, page_nb=None):
         "pages": pages,
         "rounds": range(1, 1 + nb_rounds),
         "show_rounds": show_rounds,
-        "col_span": 4 + (nb_rounds if show_rounds else 0),
         "rotate": page_nb is None and len(pages) > 1,
         "page_nb": page_nb,
         "nb_pages": nb_pages,
