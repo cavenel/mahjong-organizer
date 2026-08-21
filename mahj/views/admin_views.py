@@ -2000,6 +2000,11 @@ def _page_scoring(request, tenant, error=None):
         # endpoint is gated the same way, so keep the toggle disabled for plain
         # scorer accounts to avoid a dead control.
         "can_publish": has_role(request, 'publisher'),
+        # The same reasoning for the other direction: this is the publisher's
+        # landing page and they may see the grid, but every score mutation is
+        # scorer-only. Without this a publisher could type into a cell and watch
+        # the save die as an unexplained red pip.
+        "user_is_scorer": has_role(request, 'scorer'),
     }
     return template2.render(context, request)
 

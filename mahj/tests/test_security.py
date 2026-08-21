@@ -8,6 +8,7 @@ Covers:
 - CSRF is enforced on the POST endpoint update_hand_points.
 """
 import json
+import re
 
 import pytest
 from django.contrib.auth.models import User
@@ -482,6 +483,29 @@ class TestAdminPageRoleIsolation:
 
     def test_scoring_visible_to_publisher(self, client_, tournament, publisher_group_user):
         assert b'Filter by table' in self._body(client_, publisher_group_user, 'scoring')
+
+    def test_scoring_grid_is_read_only_for_a_publisher(self, client_, tournament,
+                                                       publisher_group_user):
+        """Scoring is the publisher's landing page and they may watch it, but every
+        score mutation is scorer-only — so the cells must not invite an edit whose
+        save can only fail. The publish toggle they *do* own stays."""
+        body = self._body(client_, publisher_group_user, 'scoring').decode()
+        for cell in re.findall(r'<input class="mp-input"[^>]*>', body):
+            assert 'readonly' in cell
+        assert 'read-only for your role' in body
+        # The score sheet behind it is scorer-gated too, so it isn't offered.
+        assert 'class="btn-sheet show_hands"' not in body
+        assert 'class="publish-toggle' in body
+
+    def test_scoring_grid_is_editable_for_a_scorer(self, client_, tournament,
+                                                  scorer_group_user):
+        body = self._body(client_, scorer_group_user, 'scoring').decode()
+        cells = re.findall(r'<input class="mp-input"[^>]*>', body)
+        assert cells, 'the fixture has seats to score'
+        for cell in cells:
+            assert 'readonly' not in cell
+        assert 'read-only for your role' not in body
+        assert 'class="btn-sheet show_hands"' in body
 
     # --- import_template: tenant admin only -----------------------------------
     def test_import_hidden_from_scorer(self, client_, tournament, scorer_group_user):

@@ -93,7 +93,7 @@
 {% with last_round=tournament.nb_rounds %}
 <div x-data="{ activeRound: {{ active_round }} }">
 
-  {% if subdomain == "test" %}
+  {% if subdomain == "test" and user_is_scorer %}
   <!-- Test-only fixtures toolbar (only rendered on the "test" tenant). Generates
        random but valid data so the leaderboard / ceremony / display views have
        something to show.
@@ -164,6 +164,9 @@
         {% if not can_publish %}
         <span class="text-xs italic text-gray-400">— staff or publisher only</span>
         {% endif %}
+        {% if not user_is_scorer %}
+        <span class="text-xs italic text-gray-400">— scores are read-only for your role</span>
+        {% endif %}
         <span class="lock-hint text-xs italic text-gray-400 {% if forloop.counter not in published_rounds %}hidden{% endif %}">— unpublish to edit scores</span>
         {% if forloop.counter == last_round %}
           <span class="text-xs text-gray-400">(last round: publishing keeps the final standings hidden — run the reveal from the Prize-giving console on the <a href="admin?page=ceremony" class="underline hover:text-amber-700">Ceremony admin page</a>)</span>
@@ -210,7 +213,8 @@
                       <div class="player-name" title="{{ s.seat.player_name }}">{{ s.seat.player_name }}</div>
                       <div class="score-inputs">
                         <input class="mp-input" type="number" name="minipoints"
-                               value="{{ s.seat.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off">
+                               value="{{ s.seat.minipoints|default_if_none:'' }}" placeholder="MP" autocomplete="off"
+                               {% if not user_is_scorer %}readonly tabindex="-1"{% endif %}>
                         {% if tournament.rules == "MCR" %}
                           <input class="tp-input" type="number" name="tablepoints"
                                  value="{{ s.seat.tablepoints|default_if_none:'' }}" placeholder="TP" readonly tabindex="-1">
@@ -222,9 +226,11 @@
                 <td class="col-sum"></td>
                 {% if tournament.rules == "MCR" %}
                   <td class="col-action">
+                    {% if user_is_scorer %}
                     <button class="btn-sheet show_hands"
                             data-link="scores_per_hand_{{ forloop.parentloop.counter }}_{{ forloop.counter }}"
                             tabindex="-1">Score sheet</button>
+                    {% endif %}
                     {% with rn=forloop.parentloop.counter|stringformat:"s" tn=forloop.counter|stringformat:"s" %}{% with vkey=rn|add:"-"|add:tn %}
                       <span class="valid-badge {% if vkey in validated_keys %}active{% elif vkey in filled_keys %}in-progress{% endif %}" title="Score sheet validated">✓</span>
                     {% endwith %}{% endwith %}
@@ -340,6 +346,16 @@
             title: 'That score wasn\u2019t saved',
             body: xhr.responseJSON.error + '. The cell still shows what you typed — '
                   + 'correct it and it will save.',
+          });
+          return;
+        }
+        if (xhr.status === 403) {
+          // Belt-and-braces behind the read-only inputs above: every score
+          // mutation is scorer-only, so say that rather than leave a red pip.
+          window.alertAction({
+            title: 'Your role can\u2019t change scores',
+            body: 'Scores are entered by a scorer. Nothing was saved \u2014 reload the '
+                  + 'page to see the current values.',
           });
           return;
         }
