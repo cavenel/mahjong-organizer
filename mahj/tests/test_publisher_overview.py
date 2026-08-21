@@ -7,20 +7,11 @@ seats but no scores and is unpublished.
 """
 import pytest
 from django.contrib.auth.models import User
-from django.test import Client
 
 from mahj.models import Seat, ScoreSheet
 from mahj.views.admin_views import publisher_overview_rows
 from mahj.tests.conftest import grant
 
-HOST = 'test.example.com'
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
 
 
 @pytest.fixture

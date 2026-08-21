@@ -10,45 +10,29 @@ Guards against the sidebar's `{% if %}` visibility guards drifting out of sync
 with the server-side page gates in admin_views.py.
 """
 import pytest
-from django.contrib.auth.models import User
-from django.test import Client
 
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import grant, role_user
 
-HOST = 'test.example.com'
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
-
-
-def _role_user(username, tenant, **roles):
-    u = User.objects.create_user(username, password='pw')
-    grant(u, tenant, **roles)
-    return u
 
 
 @pytest.fixture
 def staff(tournament):
-    return _role_user('boss', tournament['tenant'], admin=True)
+    return role_user('boss', tournament['tenant'], admin=True)
 
 
 @pytest.fixture
 def scorer(tournament):
-    return _role_user('sc', tournament['tenant'], scorer=True)
+    return role_user('sc', tournament['tenant'], scorer=True)
 
 
 @pytest.fixture
 def display_op(tournament):
-    return _role_user('op', tournament['tenant'], display_op=True)
+    return role_user('op', tournament['tenant'], display_op=True)
 
 
 @pytest.fixture
 def publisher(tournament):
-    return _role_user('pub', tournament['tenant'], publisher=True)
+    return role_user('pub', tournament['tenant'], publisher=True)
 
 
 def _get_shell(client_, user):

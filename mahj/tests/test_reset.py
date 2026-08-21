@@ -14,15 +14,7 @@ from mahj.models import (
     CeremonyState, Hand, Player, PublishTarget, PublishedRound, ScoreSheet,
     Schedule, Screen, ScreenMode, Seat, TournamentSettings,
 )
-from mahj.tests.conftest import grant
-
-
-def reauth(client, password='pw'):
-    """Stamp the session's "sudo mode" so re-auth-gated endpoints let it through."""
-    resp = client.post('/user_reauth', data=json.dumps({'password': password}),
-                        content_type='application/json')
-    assert resp.status_code == 200, resp.content
-    return client
+from mahj.tests.conftest import grant, reauth
 
 
 @pytest.fixture

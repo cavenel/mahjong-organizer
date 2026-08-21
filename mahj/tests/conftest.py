@@ -4,10 +4,10 @@ import re
 import types
 
 import pytest
-from django.contrib.auth.models import AnonymousUser
+from django.contrib.auth.models import AnonymousUser, User
 from django.db.models import ForeignKey, Model
 from django.db.models.query import QuerySet
-from django.test import RequestFactory
+from django.test import Client, RequestFactory
 
 from mahj.models import Tenant, Player, TournamentSettings, Schedule, Seat, ScoreSheet, Hand, PublishedRound, Membership
 
@@ -31,6 +31,65 @@ def grant(user, tenant, admin=False, scorer=False, display_op=False, publisher=F
     return Membership.objects.create(
         user=user, tenant=tenant, is_tenant_admin=admin,
         is_scorer=scorer, is_display_op=display_op, is_publisher=publisher)
+
+
+# --------------------------------------------------------------------------
+# The shared client / user harness.
+#
+# These were copy-pasted per file — `client_` byte-identical in 9 of them, HOST in
+# 10 — which is fine until the convention needs to change in one place. A file that
+# needs a genuinely different setup still defines its own; what lives here is only
+# what was already identical everywhere.
+# --------------------------------------------------------------------------
+
+HOST = 'test.example.com'     # the `tournament` fixture's tenant, subdomain 'test'
+HOST_B = 'other.example.com'  # a second tenant, subdomain 'other' (see `tenant_b`)
+
+
+def client_for(host=HOST):
+    """A test client whose every request carries ``host``, so tenant resolution
+    (which reads the subdomain off the Host header) works without repeating it."""
+    c = Client()
+    c.defaults['HTTP_HOST'] = host
+    return c
+
+
+def role_user(username, tenant, password='pw', **roles):
+    """A user holding ``roles`` on ``tenant`` — see ``grant`` for the role names."""
+    u = User.objects.create_user(username, password=password)
+    grant(u, tenant, **roles)
+    return u
+
+
+def reauth(client, password='pw'):
+    """Clear the re-authentication gate on ``client``'s session.
+
+    The destructive endpoints sit behind `tenant_admin_and_reauthed`, so a test
+    driving one has to pass this first or it reads as a permission failure.
+    """
+    resp = client.post('/user_reauth', data=json.dumps({'password': password}),
+                       content_type='application/json')
+    assert resp.status_code == 200, (
+        f'reauth failed ({resp.status_code}); is the client logged in with '
+        f'password {password!r}?')
+    return client
+
+
+@pytest.fixture
+def client_():
+    return client_for()
+
+
+@pytest.fixture
+def tenant_b(db):
+    """A second tenant, for cross-tenant isolation checks. Reached at HOST_B."""
+    return Tenant.objects.create(name='Other', subdomain='other')
+
+
+@pytest.fixture
+def admin_of(tournament):
+    """A tenant admin of the `tournament` fixture's tenant."""
+    return role_user('boss', tournament['tenant'], admin=True)
 
 
 def json_script_payload(body, element_id):

@@ -12,9 +12,8 @@ from django.contrib.auth.models import User
 from django.test import Client
 
 from mahj.models import Seat
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import HOST, grant
 
-HOST = 'test.example.com'
 
 
 @pytest.fixture
@@ -105,13 +104,6 @@ def test_player_cards_render_seat_wind_per_round(staff_client, tournament):
 # --------------------------------------------------------------------------
 # S8: setup states must not 500 a public page
 # --------------------------------------------------------------------------
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
-
 
 class TestPartialChartDoesNotCrash:
     """Both the grid builder and cross_positions assumed a complete, rectangular

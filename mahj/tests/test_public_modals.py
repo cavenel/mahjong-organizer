@@ -7,20 +7,11 @@ crowd load: it must not write rows on a read, and it must not N+1 on players.
 import pytest
 from django.contrib.auth.models import User
 from django.core.cache import cache
-from django.test import Client
 
 from mahj.models import Hand
 from mahj.tests.conftest import grant
 
 
-HOST = 'test.example.com'
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
 
 
 @pytest.fixture

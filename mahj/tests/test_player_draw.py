@@ -2,19 +2,10 @@ import json
 
 import pytest
 from django.contrib.auth.models import User
-from django.test import Client
 
 from mahj.models import Player, Seat
 from mahj.tests.conftest import grant, json_script_payload
 
-HOST = 'test.example.com'
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
 
 
 @pytest.fixture

@@ -13,13 +13,11 @@ import pytest
 import json
 from django.contrib.auth.models import User
 from django.db import OperationalError
-from django.test import Client
 
 from mahj.models import Schedule, Screen, ScreenMode, TournamentSettings
 from mahj.views.admin_views import _mode_breakdowns, _pretty_view
 from mahj.tests.conftest import grant
 
-HOST = 'test.example.com'
 
 
 @pytest.mark.parametrize('view, label', [
@@ -152,13 +150,6 @@ def test_mode_breakdown_label_includes_friendly_name():
 
 
 # ── Page rendering ──────────────────────────────────────────────────────────
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
-
 
 @pytest.fixture
 def display_op(tournament):

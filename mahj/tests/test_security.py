@@ -15,18 +15,10 @@ from django.contrib.auth.models import User
 from django.test import Client, override_settings
 
 from mahj.models import Hand, ScoreSheet, TournamentSettings
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import HOST, grant
 from mahj.views import user_admin
 
 
-HOST = 'test.example.com'
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
 
 
 @pytest.fixture

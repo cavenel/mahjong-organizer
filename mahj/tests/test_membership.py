@@ -5,32 +5,21 @@ import json
 
 import pytest
 from django.contrib.auth.models import Group, User
-from django.test import Client, override_settings
+from django.test import override_settings
 
 from mahj.models import Membership, Tenant
-from mahj.tests.conftest import grant
+from mahj.tests.conftest import (
+    HOST, HOST_B, client_for, grant, reauth,
+)
 
-HOST_A = 'test.example.com'      # the `tournament` fixture's tenant, subdomain 'test'
-HOST_B = 'other.example.com'     # a second tenant, subdomain 'other'
-
-
-@pytest.fixture
-def tenant_b(db):
-    return Tenant.objects.create(name='Other', subdomain='other')
-
-
-def client_for(host):
-    c = Client()
-    c.defaults['HTTP_HOST'] = host
-    return c
+HOST_A = HOST   # this file names the two tenants A and B throughout
 
 
 def _json_post(client, url, payload):
     return client.post(url, data=json.dumps(payload), content_type='application/json')
 
 
-def _reauth(client, password='pw'):
-    assert _json_post(client, '/user_reauth', {'password': password}).status_code == 200
+_reauth = reauth
 
 
 # --------------------------------------------------------------------------

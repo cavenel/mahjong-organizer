@@ -15,7 +15,6 @@ from mahj.models import Hand, ScoreSheet
 from mahj.tests.conftest import grant
 
 
-HOST = 'test.example.com'
 
 # A real 2x2 PNG. The upload path decodes the bytes to reject junk before it stages
 # the file and buys a vision call, so a placeholder like b'x' * 100 is refused — and
@@ -24,13 +23,6 @@ HOST = 'test.example.com'
 REAL_IMAGE = bytes.fromhex(
     '89504e470d0a1a0a0000000d4948445200000002000000020802000000fdd49a73'
     '0000000e49444154789c63a807030608050029ba05f517f4e93a0000000049454e44ae426082')
-
-
-@pytest.fixture
-def client_():
-    c = Client()
-    c.defaults['HTTP_HOST'] = HOST
-    return c
 
 
 @pytest.fixture
