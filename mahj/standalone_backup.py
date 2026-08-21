@@ -60,6 +60,19 @@ def integrity_ok(path):
         return False
 
 
+def sweep_orphan_staging():
+    """Delete leftover *.tmp staging files in snapshots/.
+
+    take_snapshot removes its own on failure, so one survives only a kill or a
+    power cut mid-backup — and each is a full copy of the database, so a few of
+    them fill a laptop's disk. Nothing else matches them (they are outside the
+    'mahj-*.sqlite3' glob), so nothing else would ever clean them up. Called at
+    boot, where no backup can be in flight.
+    """
+    for stale in snapshots_dir().glob('*.tmp'):
+        stale.unlink(missing_ok=True)
+
+
 def take_snapshot(prune=True):
     """Online-backup the live DB into snapshots/, optionally pruning to
     SNAPSHOT_KEEP.

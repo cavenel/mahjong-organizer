@@ -5,6 +5,7 @@ leaves it interceptable for its whole life. Now the first connect records the ke
 and each one after that is checked against it, so the trust-on-first-use window is
 a single connection — the same bargain ssh itself makes.
 """
+import io
 import types
 
 import paramiko
@@ -105,6 +106,34 @@ class TestPolicySelection:
         assert target.host_key
         sftp_upload._connect(_cfg(host_key=target.host_key))
         assert isinstance(fake_client.policy, paramiko.RejectPolicy)
+
+
+class TestPrivateKeyMessages:
+    """The operator pastes a key into a form and gets one line back, so the line has
+    to name the actual problem. A passphrase-protected key is a *supported* type
+    that just can't be used here (there is nowhere to type the passphrase), and
+    PasswordRequiredException subclasses SSHException — so it used to be swallowed
+    by the generic handler and reported as unsupported or invalid."""
+
+    @staticmethod
+    def _pem(passphrase=None):
+        """A real generated key, so paramiko's own parser decides the outcome."""
+        buf = io.StringIO()
+        paramiko.RSAKey.generate(2048).write_private_key(buf, password=passphrase)
+        return buf.getvalue()
+
+    def test_an_unencrypted_key_loads(self):
+        assert sftp_upload._load_private_key(self._pem()) is not None
+
+    def test_an_encrypted_key_says_so(self):
+        with pytest.raises(paramiko.SSHException) as exc:
+            sftp_upload._load_private_key(self._pem(passphrase='hunter2'))
+        assert 'passphrase-protected' in str(exc.value)
+
+    def test_junk_is_still_reported_as_invalid(self):
+        with pytest.raises(paramiko.SSHException) as exc:
+            sftp_upload._load_private_key('not a key at all')
+        assert 'Unsupported or invalid' in str(exc.value)
 
 
 class TestUnsavedFormValues:

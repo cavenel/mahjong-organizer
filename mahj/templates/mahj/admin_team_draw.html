@@ -570,6 +570,7 @@
     }
     gridHtml += '</div>';
 
+    document.removeEventListener('keydown', onDrawKeydown);
     document.body.innerHTML = `
       <div class="flex items-center justify-between px-8 py-3">
         <div>
@@ -695,7 +696,11 @@
 
   // ─── KEYBOARD HANDLER ─────────────────────────────────
 
-  document.addEventListener('keydown', function(e) {
+  // Named (and hoisted) so the recap screens below can detach it before they
+  // replace the body: it lives on `document`, so it survives the swap, and Ctrl+Z
+  // would then pop an event off the state and throw in render() looking for
+  // elements that are gone — a lost pick with nothing on screen to show it.
+  function onDrawKeydown(e) {
     if (state.paused) {
       if (e.key === 'Escape') togglePause();
       return;
@@ -735,7 +740,9 @@
         advanceToNextSlot();
       }
     }
-  });
+  }
+
+  document.addEventListener('keydown', onDrawKeydown);
 
   // ─── CLOCK ─────────────────────────────────────────────
 
@@ -795,6 +802,7 @@
     }
     gridHtml += '</div>';
 
+    document.removeEventListener('keydown', onDrawKeydown);
     document.body.className = 'h-screen bg-white text-gray-900 flex flex-col overflow-hidden';
     document.body.innerHTML = `
       <div class="flex items-center justify-between px-8 py-3">

@@ -15,8 +15,12 @@ from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
-# Serialize exports so two close-together publishes can't interleave writes into
-# the same output dir.
+# Serialize exports within this process, so two close-together publishes from the
+# same worker can't interleave writes into the same output dir. It is *not* a
+# cross-process lock: on a multi-worker cloud install two workers can still
+# publish at once. That is left as-is deliberately — the export is a full
+# regeneration, so the next publish overwrites whatever a collision left behind
+# and the site heals itself one publish later.
 _export_lock = threading.Lock()
 
 # Progress is written to the cache (shared between the daemon thread and the

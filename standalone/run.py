@@ -205,6 +205,7 @@ def main():
     call_command('migrate', '--noinput', verbosity=0)
     bootstrap(data_dir)
 
+    standalone_backup.sweep_orphan_staging()
     standalone_backup.take_snapshot()  # known-good snapshot at boot
     threading.Thread(target=_snapshot_loop, daemon=True).start()
 

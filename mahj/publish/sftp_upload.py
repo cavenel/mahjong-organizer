@@ -95,11 +95,21 @@ def is_configured(subdomain=None):
 
 def _load_private_key(pem):
     """Parse an inline PEM private key, trying each supported key type."""
+    encrypted = False
     for loader in (paramiko.Ed25519Key, paramiko.ECDSAKey, paramiko.RSAKey):
         try:
             return loader.from_private_key(io.StringIO(pem))
+        except paramiko.PasswordRequiredException:
+            # A key of a type we support, just locked. There is nowhere to type a
+            # passphrase (the key is stored, not typed per publish), so say that
+            # rather than let it fall through as "unsupported or invalid" — it
+            # subclasses SSHException, so it used to.
+            encrypted = True
         except paramiko.SSHException:
             continue
+    if encrypted:
+        raise paramiko.SSHException(
+            "This key is passphrase-protected; paste an unencrypted key.")
     raise paramiko.SSHException("Unsupported or invalid private key.")
 
 

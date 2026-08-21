@@ -199,6 +199,27 @@ class TestFailedSnapshotLeavesNothing:
         assert _value(snap) == 'original'
 
 
+class TestOrphanStagingIsSwept:
+    """take_snapshot removes its own staging file on failure, so one survives only
+    a kill or a power cut mid-backup. Each is a full copy of the database and
+    nothing else matches them, so without this they accumulate until the disk is
+    full — and on a laptop that is the tournament's disk."""
+
+    def test_boot_sweep_removes_leftovers_and_keeps_snapshots(self, db):
+        real = sb.take_snapshot()
+        orphan = sb.snapshots_dir() / 'mahj-20260101-000000-000000.sqlite3.tmp'
+        orphan.write_bytes(b'half a database')
+
+        sb.sweep_orphan_staging()
+
+        assert not orphan.exists()
+        assert real.exists(), 'a real snapshot must survive the sweep'
+
+    def test_the_sweep_is_fine_with_nothing_to_do(self, db):
+        sb.sweep_orphan_staging()
+        sb.sweep_orphan_staging()
+
+
 class TestRestoreDoesNotDestroyTheLiveDb:
     """The restore copies the snapshot aside before it touches the live DB's WAL
     sidecars. Dropping them first destroyed un-checkpointed commits before the copy

@@ -111,7 +111,15 @@ def _decode(field, value):
 
 
 def dump_tenant(tenant):
-    """Serialize every tournament row for `tenant` into gzipped JSON bytes."""
+    """Serialize every tournament row for `tenant` into gzipped JSON bytes.
+
+    The read runs in one transaction, but Postgres defaults to READ COMMITTED, so
+    that is not a snapshot: a write landing mid-dump can be included for a model
+    read after it and missing from one read before it. In practice a backup is
+    taken between rounds, not mid-entry, and the restore is all-or-nothing — so
+    the window is left open rather than pinned with SERIALIZABLE, which would
+    make the dump able to fail against live score entry.
+    """
     payload = {
         'format': FORMAT,
         'migration': schema_version(),
