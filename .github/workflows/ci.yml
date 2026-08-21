@@ -1,0 +1,50 @@
+name: Tests
+
+# The suite is the only thing standing between a refactor and a broken tournament, so
+# it runs on every push and pull request — and, via workflow_call below, as the gate on
+# the release build. Before this, 796 tests ran only when someone remembered to.
+#
+# No service containers: apps.settings.test uses sqlite in-memory (and DummyCache and
+# the in-memory channel layer), so the suite needs nothing but Python and the wheels.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_call:        # so release.yml can require this before it builds anything
+
+permissions:
+  contents: read
+
+env:
+  PYTHON_VERSION: '3.12'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+
+      # dev.txt pulls in base.txt, which includes opencv-python-headless. That matters:
+      # the scan upload path decodes images and fails *open* when cv2 is absent, so a
+      # runner without it would silently skip those assertions — which is exactly how
+      # five of them came to pass locally and fail everywhere else.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements/dev.txt
+
+      # Model state and the migration graph must agree. Invisible until it bites, and
+      # cheap to keep true mechanically.
+      - name: Check for missing migrations
+        env:
+          DJANGO_SETTINGS_MODULE: apps.settings.test
+        run: python manage.py makemigrations --check --dry-run
+
+      - name: Run the test suite
+        run: python -m pytest -q

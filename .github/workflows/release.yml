@@ -22,7 +22,14 @@ env:
   PYTHON_VERSION: '3.12'
 
 jobs:
+  # The suite gates the build, rather than running beside it: `git tag v1.2.3` used to
+  # publish binaries straight from whatever the tree happened to be, with no test job
+  # anywhere in the graph. Reuses ci.yml so there is one definition of "the tests".
+  test:
+    uses: ./.github/workflows/ci.yml
+
   build:
+    needs: test
     strategy:
       fail-fast: false
       matrix:
