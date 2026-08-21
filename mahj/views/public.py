@@ -12,7 +12,7 @@ from openpyxl.styles import Alignment, Font
 from openpyxl.utils import get_column_letter
 
 from ..models import Hand, ScoreSheet, Schedule, Seat
-from ..scoring import _attach_players, team_standings
+from ..scoring import _attach_players, pad_scores, team_standings
 from .helpers import can_access_admin, get_tenant, get_tournament, is_tenant_admin
 from .scoring import (
     LEADERBOARD_TTL, scores_per_player_rows, stat_all_rounds, stat_rounds,
@@ -120,7 +120,7 @@ def desktop(request):
         for r in seating
     ]
 
-    rows = _desktop_rows(standings, player_table)
+    rows = _desktop_rows(standings, player_table, nb_rounds)
 
     uses_teams = tournament.has_teams
     team_rows = team_standings(rows, tournament, nb_rounds) if uses_teams else []
@@ -182,7 +182,7 @@ def _color_scale(good='up'):
     )
 
 
-def _desktop_rows(standings, player_table):
+def _desktop_rows(standings, player_table, nb_rounds):
     """Standing rows for the desktop page, each score tagged with the round it was
     played in and the table it was played at.
 
@@ -190,8 +190,8 @@ def _desktop_rows(standings, player_table):
     chart doesn't seat in every round (a bye, or a substitute given a fresh draw
     number mid-tournament) has a shorter list, and reading it positionally shifts
     every later score into the wrong round and pairs it with the wrong table.
-    ``team_standings`` already folds scores in by ``round_nb`` for that reason, so it
-    was being handed labels that could disagree with the seat the score came from.
+    ``team_standings`` folds scores in by ``round_nb`` for the same reason. The list
+    is then padded to one cell per round so the table's round columns line up.
     """
     return [
         {
@@ -203,7 +203,7 @@ def _desktop_rows(standings, player_table):
             'pos_se': s.get('pos_se'),
             'total': s['total'],
             'team': s.get('team', ''),
-            'scores': [
+            'scores': pad_scores([
                 {
                     'tp': sc.get('tp'),
                     'mp': sc.get('mp'),
@@ -211,7 +211,7 @@ def _desktop_rows(standings, player_table):
                     'round_nb': sc['round_nb'],
                 }
                 for sc in s.get('scores', [])
-            ],
+            ], nb_rounds),
         }
         for s in standings
     ]

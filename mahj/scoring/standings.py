@@ -90,6 +90,34 @@ def player_standings(tenant, tournament, full_view=False, seats=None):
     return ranked
 
 
+def rounds_played(rows):
+    """Highest round any of these standing rows holds a score for, 0 for none.
+
+    The row lists are compact — one entry per round the player actually played —
+    so the length of any single row understates the tournament whenever that
+    player missed a round. This reads the round numbers instead.
+    """
+    return max((sc['round_nb'] for r in rows for sc in r.get('scores') or ()),
+               default=0)
+
+
+def pad_scores(scores, nb_rounds):
+    """Expand a compact score list into one cell per round 1..nb_rounds.
+
+    Rounds the player didn't play get an empty cell, so a template can iterate
+    the result straight against a round-numbered header and every score lands in
+    its own column. Rounds beyond nb_rounds are dropped (a masked public view
+    asks for fewer rounds than the rows may carry).
+
+    An empty cell is the one with ``mp`` None: minipoints are required of every
+    scored seat under every rule set (``seat_is_scored``), so that is what the
+    templates test to tell a sat-out round from a score of zero.
+    """
+    by_round = {sc['round_nb']: sc for sc in scores}
+    return [by_round.get(r, {'tp': None, 'mp': None, 'round_nb': r})
+            for r in range(1, nb_rounds + 1)]
+
+
 def team_standings(rows, tournament, nb_rounds):
     """Aggregate per-player standing rows into ranked team rows.
 

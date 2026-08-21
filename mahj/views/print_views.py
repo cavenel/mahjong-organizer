@@ -4,7 +4,7 @@ from django.http import HttpResponse
 from django.template import loader
 
 from ..models import Player, Seat, Schedule
-from ..scoring import _attach_players, _country_flag
+from ..scoring import _attach_players, _country_flag, pad_scores
 from .helpers import get_tenant, get_tournament, is_tenant_admin, tenant_admin_required
 from .. import scoring as _scoring
 from .scoring import scores_per_player_rows, scores_per_table_grid
@@ -88,6 +88,9 @@ def print_scores(request):
     # Without this the printable sheet leaked the withheld final during the
     # pre-ceremony suspense window.
     standings = scores_per_player_rows(request, full_view=is_tenant_admin(request))
+    # One cell per round column in the header, blank for a round the player sat out.
+    for row in standings:
+        row['scores'] = pad_scores(row['scores'], nb_rounds)
     template = loader.get_template('mahj/print_scores.html')
     context = {
         'standings': standings,

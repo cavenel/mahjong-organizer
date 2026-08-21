@@ -748,7 +748,9 @@ class TestSparseScoresKeepTheirRound:
 
     def test_desktop_rows_pair_each_score_with_its_own_round_and_table(self):
         """The direct unit. Positional lookup would put round 3's score under round 2
-        and hand it round 2's table."""
+        and hand it round 2's table. The row also comes back one cell per round, so
+        the table's round columns line up: the missed round is an empty cell, not a
+        gap that pulls round 3 leftwards."""
         from mahj.views.public import _desktop_rows
         standings = [{
             'player_id': 7, 'name': 'P', 'flag': '', 'pos': 1,
@@ -760,11 +762,55 @@ class TestSparseScoresKeepTheirRound:
         }]
         player_table = {(7, 1): 2, (7, 2): 5, (7, 3): 9}
 
-        scores = _desktop_rows(standings, player_table)[0]['scores']
-        assert [sc['round_nb'] for sc in scores] == [1, 3]
-        assert [sc['mp'] for sc in scores] == [11, 33]
+        scores = _desktop_rows(standings, player_table, 4)[0]['scores']
+        assert [sc['round_nb'] for sc in scores] == [1, 2, 3, 4]
+        assert [sc['mp'] for sc in scores] == [11, None, 33, None]
         # Round 3's score sits at round 3's table (9), not round 2's (5).
-        assert [sc['table_nb'] for sc in scores] == [2, 9]
+        assert [sc.get('table_nb') for sc in scores] == [2, None, 9, None]
+
+    def test_the_round_count_comes_from_round_numbers_not_list_length(self):
+        """The projector's column count, team_standings' bounds and the next-round
+        badge all read this. Any single row's length understates the tournament as
+        soon as that player missed a round."""
+        from mahj.scoring import pad_scores, rounds_played
+        rows = [
+            {'scores': [{'round_nb': 2, 'mp': 1, 'tp': 1.0}]},          # sat out R1
+            {'scores': [{'round_nb': 1, 'mp': 2, 'tp': 2.0},
+                        {'round_nb': 2, 'mp': 3, 'tp': 3.0}]},
+        ]
+        assert rounds_played(rows) == 2
+        assert rounds_played([]) == 0
+        assert rounds_played([{'scores': []}]) == 0
+        # Padding puts each score under its own round and leaves the gap blank.
+        padded = pad_scores(rows[0]['scores'], 2)
+        assert [c['round_nb'] for c in padded] == [1, 2]
+        assert [c['mp'] for c in padded] == [None, 1]
+
+    def test_projector_columns_survive_a_sparse_leader(self, tournament, request_):
+        """The leader sat out round 1, so their score list holds one entry while the
+        tournament has played two. Reading its length dropped a whole round column."""
+        tenant = tournament['tenant']
+        leader = tournament['players'][15]
+        # Make them an unambiguous leader on their single played round, then take
+        # their round-1 seat away entirely (a bye / late substitute).
+        Seat.objects.filter(tenant=tenant, round_nb=1,
+                            draw_number=leader.draw_number).delete()
+        Seat.objects.filter(tenant=tenant, round_nb=2,
+                            draw_number=leader.draw_number).update(
+            minipoints=9999, tablepoints=99.0)
+
+        rows = views.scores_per_player_rows(request_, full_view=True)
+        assert rows[0]['player_id'] == leader.id
+        assert len(rows[0]['scores']) == 1        # the shape that caused the bug
+
+        html = views.render_scores(request_, "detailed", None).content.decode()
+        # Both round headers are drawn...
+        assert '>R1<' in html and '>R2<' in html
+        assert '>R3<' not in html               # round 3 isn't scored yet
+        assert 'Scores after round 2' in html
+        # ...and the leader's own row has a cell per round, so their round-2 score
+        # sits under R2 rather than sliding under R1.
+        assert '9999' in html
 
     def test_desktop_page_renders_with_a_gap(self, missing_round_two):
         from django.test import Client

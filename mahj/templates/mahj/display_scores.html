@@ -95,7 +95,8 @@
                       {% if show_rounds %}
                         {% for r in s.scores %}
                           <td class="px-2 py-px">
-                            {% if tournament.rules == "MCR" %}
+                            {% if r.mp is None %}
+                            {% elif tournament.rules == "MCR" %}
                               <div class="flex items-baseline justify-between gap-2">
                                 <span class="text-slate-200">{{ r.tp|floatformat:-2 }}</span>
                                 <span class="text-[0.78em] italic text-slate-500">{{ r.mp }}</span>

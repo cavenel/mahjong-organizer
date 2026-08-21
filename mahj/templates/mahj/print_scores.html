@@ -121,7 +121,8 @@
                             </td>
                             {% for r in s.scores %}
                                 <td>
-                                    {% if tournament.rules == "MCR" %}
+                                    {% if r.mp is None %}
+                                    {% elif tournament.rules == "MCR" %}
                                         <span style="float:left;padding-right:10px;">{{ r.tp|floatformat:-2 }}</span>
                                         <span style="float:right;font-size: 0.8em;line-height: 14px;color:#777;"><i>{{ r.mp }}</i></span>
                                     {% else %}

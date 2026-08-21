@@ -400,7 +400,8 @@
                         </td>
                         {% for r in s.scores %}
                           <td class="px-0 py-0 text-right score-link">
-                            {% if r.table_nb %}
+                            {% if r.mp is None %}
+                            {% elif r.table_nb %}
                               {% if tournament.rules == "MCR" %}
                               <a href="detailed_scores_{{ r.round_nb }}_{{ r.table_nb }}"
                                  class="block px-3 py-2 text-gray-700 hover:text-amber-600 transition-colors">
@@ -474,7 +475,7 @@
                       </td>
                       {% for sc in tr.scores %}
                         <td class="px-3 py-2 text-right text-gray-700">
-                          {% if sc.tp is not None %}
+                          {% if sc.mp is not None %}
                             {% if tournament.rules == "MCR" %}
                               <span>{{ sc.tp|floatformat:-2 }}</span>
                               <span class="block text-xs text-gray-400">{{ sc.mp }}</span>

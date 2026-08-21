@@ -10,7 +10,8 @@ from django.utils import timezone
 
 from ..models import Schedule, Screen, ScreenMode
 from ..signals import broadcast_display
-from ..scoring import _final_round_withheld, player_schedule, team_standings
+from ..scoring import (_final_round_withheld, pad_scores, player_schedule,
+                       rounds_played, team_standings)
 from .admin_views import _mode_breakdowns
 from .ceremony import ceremony_active_payload
 from .helpers import get_tenant, get_tournament, has_role, tenant_role_required
@@ -242,10 +243,7 @@ def render_scores(request, density, page_nb=None):
     # During the withheld-final ceremony window it shows a holding message instead
     # of the table (see `awaiting_ceremony` below), so no reveal masking is needed.
     standings = scores_per_player_rows(request)
-    try:
-        nb_rounds = len(standings[0]["scores"])
-    except (IndexError, KeyError):
-        nb_rounds = 0
+    nb_rounds = rounds_played(standings)
 
     # No rounds scored yet: "Scores after round 0" with an all-zero table is
     # meaningless, so fall back to the schedule screen until results exist.
@@ -258,6 +256,11 @@ def render_scores(request, density, page_nb=None):
     # present, so a no-team tournament shows an unlabelled totals view. All pages
     # share one rotation loop in the template.
     team_rows = team_standings(standings, tournament, nb_rounds) if density == TEAMS else []
+    # One cell per round in the header, so a player who missed a round leaves a gap
+    # instead of pulling every later score a column to the left. Team rows are
+    # already one-cell-per-round.
+    for row in standings:
+        row['scores'] = pad_scores(row['scores'], nb_rounds)
     all_pages = _paginate(standings, columns, score_lines,
                           'players', 'Individuals' if team_rows else '')
     if team_rows:
