@@ -10,10 +10,11 @@ config is in place before Django loads:
   3. migrate, integrity-check, bootstrap a tenant + admin user.
   4. Serve with uvicorn and open the browser.
 
-Backups are the durability substitute for the Docker stack's Postgres: rolling
-a quick_check on startup. Recovery = quit, delete the .sqlite file, relaunch
-(a fresh database is created) and restore a tournament backup in the console,
-relaunch (see docs/hosting/STANDALONE.md).
+Durability is a quick_check on startup plus tournament dumps the operator
+downloads manually (Administration -> Backup & restore) — there is no automatic
+backup. Recovery = quit, delete the .sqlite file, relaunch (a fresh database is
+created), then restore a downloaded dump in the console
+(see docs/hosting/STANDALONE.md).
 """
 import os
 import secrets

@@ -64,9 +64,10 @@ Other devices on the same wifi can also use the app. Open the admin **Display**
 page: it shows the address to type on each tablet or projector machine. This also
 means other people on that network reach the login page, so change the password.
 
-Your tournament is one file on disk. The app makes backup copies of it by itself,
-at start and while it runs. Keep the file on the laptop. Do not put it in Dropbox,
-OneDrive or a network folder — that is what breaks these files.
+Your tournament is one file on disk. The app does **not** back it up for you:
+download a backup at every break from **Administration → Backup & restore**.
+Keep the file on the laptop. Do not put it in Dropbox, OneDrive or a network
+folder — that is what breaks these files.
 
 📖 [**docs/hosting/STANDALONE.md**](docs/hosting/STANDALONE.md): settings, where
 your files are, how to restore a backup, how to build the program yourself.
