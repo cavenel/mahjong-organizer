@@ -52,8 +52,9 @@ It's configured **per tenant**, not via env. Staff set a target under
 **Administration → Publish target**: host, port, user, remote path, and a
 password *or* private key (plus an optional host-key line to pin the host).
 Credentials are Fernet-encrypted at rest, keyed off `DJANGO_SECRET_KEY` — so
-rotating that key means re-entering them. A **Test connection** button verifies
-it. Leave a tenant's target disabled to not publish it; a multi-tenant instance
+rotating that key invalidates them: the target then shows as not configured
+until you re-enter the credentials on this page. A **Test connection** button
+verifies it. Leave a tenant's target disabled to not publish it; a multi-tenant instance
 publishes each enabled tenant to its own host.
 
 The same page has a **Spectator URL** field — the address advertised on screens

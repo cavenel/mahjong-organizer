@@ -302,6 +302,18 @@ class TestPublishTargetResolution:
                      password_enc=secrets.encrypt('s3cret'))
         assert resolve_config('acme').password == 's3cret'
 
+    def test_stale_secret_degrades_to_unconfigured(self, settings):
+        # A rotated DJANGO_SECRET_KEY makes stored secrets undecryptable
+        # (InvalidToken). The target must degrade to "not configured" so the
+        # admin console still renders — not 500 on every page.
+        from mahj.publish import secrets
+        from mahj.publish.sftp_upload import is_configured, resolve_config
+        self._target(enabled=True, host='db.example',
+                     password_enc=secrets.encrypt('s3cret'))
+        settings.SECRET_KEY = 'rotated-' + settings.SECRET_KEY
+        assert resolve_config('acme') is None
+        assert is_configured('acme') is False
+
 
 class TestPublishWebEndpoint:
     def test_requires_staff(self, tournament):

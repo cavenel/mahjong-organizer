@@ -74,9 +74,17 @@ class PublishConfig:
 
 
 def resolve_config(subdomain):
-    """The publish config for a tenant: its enabled PublishTarget, or None."""
+    """The publish config for a tenant: its enabled PublishTarget, or None.
+
+    Also None when the stored secrets no longer decrypt (DJANGO_SECRET_KEY was
+    rotated): the target degrades to "not configured" so the admin console —
+    which calls this on every render — stays up and the operator can re-enter
+    the credentials, instead of every page 500ing on InvalidToken.
+    """
     if not subdomain:
         return None
+    from cryptography.fernet import InvalidToken
+
     from ..models import PublishTarget
     from . import secrets
     target = (PublishTarget.objects
@@ -84,13 +92,23 @@ def resolve_config(subdomain):
               .order_by('id').first())
     if target is None:
         return None
+    try:
+        password = secrets.decrypt(target.password_enc)
+        key_data = secrets.decrypt(target.private_key_enc)
+    except InvalidToken:
+        logger.warning(
+            "The stored publish secrets for tenant %r no longer decrypt — "
+            "DJANGO_SECRET_KEY was probably rotated. Treating the publish "
+            "target as not configured; re-enter the credentials in the admin.",
+            subdomain)
+        return None
     return PublishConfig(
         host=target.host,
         port=target.port or 22,
         username=target.username,
         path=target.path or '.',
-        password=secrets.decrypt(target.password_enc),
-        key_data=secrets.decrypt(target.private_key_enc),
+        password=password,
+        key_data=key_data,
         host_key=target.host_key or '',
         subdomain=subdomain,
         backup_path=(target.backup_path or '').strip(),

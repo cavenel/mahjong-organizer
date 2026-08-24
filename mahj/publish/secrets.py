@@ -6,7 +6,9 @@ Encrypt them with Fernet, keying off ``DJANGO_SECRET_KEY`` so no extra env var
 is required.
 
 Rotating ``DJANGO_SECRET_KEY`` therefore invalidates every stored publish
-secret; re-enter them in the admin if you rotate it. ``cryptography`` is already
+secret: ``decrypt`` raises ``InvalidToken``, which ``resolve_config`` catches by
+treating the target as not configured — re-enter the credentials in the admin
+after a rotation. ``cryptography`` is already
 a dependency (paramiko pulls it in), so nothing new is added.
 """
 import base64
