@@ -20,7 +20,7 @@ requires `DJANGO_SETTINGS_MODULE=apps.settings.prod`** plus the variables below.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ALLOWED_HOSTS` | `BASE_DOMAIN` + subdomains | Extra allowed `Host` values (comma-separated). |
+| `ALLOWED_HOSTS` | `BASE_DOMAIN` + subdomains | Allowed `Host` values (comma-separated). Setting it **replaces** the default, so include `example.org,.example.org` yourself or every tenant subdomain answers 400. Extra hosts are not added to `CSRF_TRUSTED_ORIGINS` (derived from `BASE_DOMAIN` only), so logins POSTed from an extra host fail with a 403. |
 | `ANTHROPIC_API_KEY` | *(unset → scanning off)* | Enables score-sheet photo OCR. Manual entry is unaffected. |
 | `VENUE_TZ` | `UTC` | IANA timezone for the projector clock only; storage stays UTC. |
 | `LOCAL_TENANT` | *(unset)* | **Standalone build only** — pins every request to one tenant (that build is single-tenant, reached at localhost). Ignored elsewhere. |
