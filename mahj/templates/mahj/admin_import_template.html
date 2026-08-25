@@ -10,39 +10,29 @@
     (add players), then <a class="text-amber-600 hover:underline" href="admin?page=seating">Seating</a>.</span>
   </p>
 
-  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
+  <form method="get" action="admin_export_to_template" class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
     <p class="text-sm text-gray-600">
-      Or download the current tournament as an Excel file, in the same template
-      format, to back it up or edit offline and re-import later.
-      <span class="text-gray-500">The player list, schedule and seating are saved, but
-      <b>not the scores</b> — re-importing starts from empty score sheets.</span>
+      Or download the current tournament as an Excel file, in the same format, to
+      back it up, edit it offline, or re-import it later.
+      <span class="text-gray-500">Settings, the player list, the schedule and the
+      seating are always saved{% if existing_scores %}; tick the box to add the
+      scores, the score sheets hand by hand, and the standings table{% endif %}.
+      Whatever the file holds is what a re-import restores.</span>
     </p>
-    <a href="admin_export_to_template"
-       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
-              border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
+{% if existing_scores %}
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+      <input type="checkbox" name="scores" value="1" checked
+             class="rounded border-gray-300 text-amber-600 focus:ring-amber-500">
+      Include scores and score sheets
+    </label>
+{% endif %}
+    <button type="submit"
+            class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
+                   border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
       <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
       Export current tournament
-    </a>
-  </div>
-
-{% if existing_scores %}
-  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
-    <p class="text-sm text-gray-600">
-      Download the entered <b>scores</b> as an Excel workbook — one sheet for the
-      full scoring table, one for every hand of every score sheet, and one for the
-      per-seat totals as recorded (minipoints, penalty{% if is_mcr %}, table points{% endif %}).
-      <span class="text-gray-500">A snapshot for your records or for offline analysis;
-      it is an export only, so to move a tournament between installs use
-      <a class="text-amber-600 hover:underline" href="admin?page=backup">Backup &amp; restore</a>.</span>
-    </p>
-    <a href="admin_export_scores"
-       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
-              border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
-      Export scores &amp; score sheets
-    </a>
-  </div>
-{% endif %}
+    </button>
+  </form>
 
   <form method="post" enctype="multipart/form-data" action="admin_upload_from_template"
         onsubmit="return confirmImport(this);"
@@ -51,7 +41,9 @@
 
     <div class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 flex gap-2">
       <svg class="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
-      <span><b>Warning:</b> Importing from template will erase any scores previously filled.</span>
+      <span><b>Warning:</b> Importing replaces the whole tournament with the file's
+        contents, scores included — a file with score tabs restores them, a file
+        without leaves empty score sheets.</span>
     </div>
 
     <div class="flex flex-wrap items-center gap-2">
@@ -84,7 +76,7 @@
 </div>
 
 <script>
-  // Importing replaces the whole tournament (and clears scores). When one already
+  // Importing replaces the whole tournament, scores included. When one already
   // exists, confirm first — naming what will be erased so it isn't a click-through.
   function confirmImport(form) {
     var loading = document.getElementById('import-loading');
@@ -103,7 +95,8 @@
     var body = 'This replaces the current tournament (' + nbPlayers + ' competitor' +
                (nbPlayers === 1 ? '' : 's') +
                (hasScores ? ' and all entered scores' : '') +
-               ') with the uploaded file. This cannot be undone.';
+               ') with the uploaded file — the scores become whatever the file ' +
+               'holds, and empty score sheets if it holds none. This cannot be undone.';
     window.confirmAction({
       title: 'Replace current tournament?',
       body: body,

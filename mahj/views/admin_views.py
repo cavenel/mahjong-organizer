@@ -391,9 +391,10 @@ def _player_row_has_name(last_name_raw, first_name_raw):
     return any(isinstance(v, str) and v.strip() for v in (last_name_raw, first_name_raw))
 
 
-# The Options sheet's six value cells, in order: fullname, title, nb_rounds, city,
-# period, rules.
-_OPTIONS_ROWS = 6
+# The Options sheet's value cells, in order: fullname, title, nb_rounds, city,
+# period, rules, published rounds, withheld rounds. The last two belong to the
+# score half of the workbook and are blank in a setup-only export.
+_OPTIONS_ROWS = 8
 
 
 def _assign_short_names(players):
@@ -526,6 +527,11 @@ def admin_upload_from_template(request):
         try:
             wb = load_workbook(attached_file, data_only=False, read_only=True)
             _precheck_template(wb)
+            # Scores are optional: a workbook exported without them, or the blank
+            # template, has no Scores tab and imports as an empty tournament.
+            # Parsed here, before anything is deleted, so an unreadable score cell
+            # is rejected with the tournament untouched.
+            scores = _parse_score_tabs(wb)
         except TemplateImportError as exc:
             return options(request, error=(
                 "Import failed — nothing was changed.<br/>{0}".format(escape(str(exc)))))
@@ -670,8 +676,10 @@ def admin_upload_from_template(request):
                 Hand.objects.filter(tenant=tenant).delete()
                 ScoreSheet.objects.filter(tenant=tenant).delete()
                 Seat.objects.filter(tenant=tenant).delete()
-                # The new schedule starts with empty scores, so any rounds that were
-                # published for the previous tournament are now stale — unpublish them all.
+                # Every score is about to be replaced by the workbook's, so any round
+                # published for the previous tournament is stale — unpublish them all.
+                # A workbook carrying scores re-publishes what its Options sheet
+                # names (see _load_score_tabs).
                 PublishedRound.objects.filter(tenant=tenant).delete()
                 nb_players = len(player_objs)
                 nb_tables = nb_players // 4
@@ -679,6 +687,12 @@ def admin_upload_from_template(request):
                 # schedule and settings, leaving the tournament without a chart until
                 # one is built on the Seating page. When a "<N> players" sheet *is*
                 # present it is read (and validated) here.
+                # Consumed seat by seat as the chart is built; whatever is left
+                # over named a seat the chart hasn't got, which is checked below.
+                # Both stay defined when the workbook carries no seating sheet — an
+                # uploaded score tab then finds no seat at all and is rejected.
+                seat_scores = dict(scores['seats']) if scores else {}
+                seats_to_create = []
                 sheet_name = '{0} players'.format(nb_players)
                 if sheet_name in wb.sheetnames:
                     seating_sheet = wb[sheet_name]
@@ -697,14 +711,22 @@ def admin_upload_from_template(request):
                             for wind in range(4):
                                 draw_number = _seat_draw_number(row[wind + 5 * table_nb])
                                 round_draws.append(draw_number)
+                                # The score the Scores tab recorded for this
+                                # seat, if the workbook carries one. Applied as the
+                                # Seat is built rather than updated afterwards:
+                                # bulk_create is the only write, and an unscored
+                                # seat is simply one the tab left blank.
+                                recorded = seat_scores.pop(
+                                    (round_idx + 1, table_nb + 1, wind + 1), {})
                                 seats_to_create.append(Seat(
                                     tenant=tenant,
                                     draw_number=draw_number,
                                     round_nb=round_idx + 1,
                                     table_nb=table_nb + 1,
                                     wind=wind + 1,
-                                    minipoints=None,
-                                    tablepoints=None,
+                                    minipoints=recorded.get('minipoints'),
+                                    tablepoints=recorded.get('tablepoints'),
+                                    penalty=recorded.get('penalty', 0),
                                 ))
                         # A valid chart seats every competitor 1..N exactly once each
                         # round. A mismatch means the sheet is the wrong size, has blank
@@ -718,10 +740,28 @@ def admin_upload_from_template(request):
                                 f"cells, duplicate numbers, or the wrong field size."
                             )
                     Seat.objects.bulk_create(seats_to_create, batch_size=500)
+
+                # A score for a seat the chart doesn't have means the two halves of
+                # the workbook disagree — a score tab kept from a tournament of a
+                # different size, or a seating sheet that was edited out. Loading it
+                # would silently drop results, so reject the file instead.
+                if seat_scores:
+                    round_nb, table_nb, wind = sorted(seat_scores)[0]
+                    raise TemplateImportError(
+                        f"The Scores sheet has a score for round {round_nb}, table "
+                        f"{table_nb}, {WIND_LETTERS[wind - 1]}, which the seating "
+                        f"chart does not seat. Check that the score tabs and the "
+                        f"'{sheet_name}' sheet come from the same tournament."
+                    )
+                if scores:
+                    _load_score_tabs(
+                        tenant, scores, opt_vals,
+                        {(s.round_nb, s.table_nb) for s in seats_to_create})
                 wb.close()
         except Exception as exc:
-            # Import is a full replace by design (it clears scores even on success),
-            # and a half-imported tournament is worse than none — so any failure
+            # Import is a full replace by design (scores included, whether the
+            # workbook fills them in or leaves them empty), and a half-imported
+            # tournament is worse than none — so any failure
             # leaves the tournament fully empty rather than half-loaded or silently
             # reverted to the old one. Wipe every player/seating/score table and
             # reset the settings the parse may have touched, so no half-branded
@@ -772,23 +812,292 @@ def admin_upload_from_template(request):
     return options(request)
 
 
+def _export_filename(tournament, suffix=''):
+    """Download name for an export: the tournament's short name reduced to a safe
+    charset (the title is free text), falling back to "tournament"."""
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (tournament.title or ""))
+    return (safe.strip("_") or "tournament") + suffix
+
+
+def _xlsx_response(wb, filename):
+    buf = io.BytesIO()
+    wb.save(buf)
+    response = HttpResponse(
+        buf.getvalue(),
+        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    )
+    response['Content-Disposition'] = 'attachment; filename="{0}.xlsx"'.format(filename)
+    return response
+
+
+def _write_header(sheet, headers, freeze=None, header_row=1):
+    """Write a bold, wrapped header row and size each column to its label."""
+    for col, label in enumerate(headers, start=1):
+        cell = sheet.cell(row=header_row, column=col, value=label)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='bottom', wrap_text=True)
+        sheet.column_dimensions[get_column_letter(col)].width = max(9, min(len(label) + 2, 24))
+    if freeze:
+        sheet.freeze_panes = freeze
+
+
+def scoring_has_started(tenant):
+    """True once anything has been scored — a seat carrying minipoints, or any hand
+    row. What gates the export's "include scores" checkbox, and what the import
+    page's confirm dialog uses to name what an upload would replace."""
+    return (Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+            or Hand.objects.filter(tenant=tenant).exists())
+
+
+# What one played hand was: the three outcomes Hand.win_by encodes, as a label for
+# the export's Result column. Informational — the importer reads the winner's wind
+# (blank for a draw) and the discarder's, which is what the outcome is stored as.
+def _hand_result(hand):
+    if hand.is_draw:
+        return 'Draw'
+    return 'Self-draw' if hand.is_self_draw else 'Discard'
+
+
+# How far a score sheet got, as the Scores tab's "Sheet" column spells it. Blank is
+# a third state: no ScoreSheet row at all, i.e. a table nobody has opened.
+_SHEET_VALIDATED = 'validated'
+_SHEET_STARTED = 'started'
+
+# Wind names the Scores / Score sheets tabs accept, on top of the 'E'/'S'/'W'/'N'
+# the export writes and a plain 1-4: a hand-filled workbook is likely to spell them.
+_WIND_NAMES = {'east': 1, 'south': 2, 'west': 3, 'north': 4}
+
+
+def _tab_cell_error(tab, lineno, message):
+    return TemplateImportError(
+        "'{0}' sheet, row {1}: {2}".format(tab, lineno, message))
+
+
+def _tab_rows(wb, tab, required):
+    """Iterate a score tab as (row number, {column name: value}).
+
+    Columns are matched by their header text, not by position, so a workbook whose
+    rules leave out the TP column — or one an organizer has rearranged — still
+    reads. Yields data rows only; the header itself is consumed here.
+    """
+    rows = wb[tab].iter_rows(values_only=True)
+    header = next(rows, None) or ()
+    index = {cell.strip().casefold(): i
+             for i, cell in enumerate(header) if isinstance(cell, str)}
+    missing = [name for name in required if name not in index]
+    if missing:
+        raise TemplateImportError(
+            "The '{0}' sheet has no '{1}' column. Export the tournament again to "
+            "get a file in the expected format.".format(tab, missing[0]))
+    for lineno, row in enumerate(rows, start=2):
+        yield lineno, {name: (row[i] if i < len(row) else None)
+                       for name, i in index.items()}
+
+
+def _tab_number(raw, tab, lineno, label, cast=int, blank_ok=False):
+    """One numeric cell of a score tab. Blank is None when the column allows it."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        if blank_ok:
+            return None
+        raise _tab_cell_error(tab, lineno, "{0} is blank.".format(label))
+    try:
+        # via float so Excel's "4.0" reads as 4 for an integer column.
+        return cast(float(raw)) if cast is int else cast(raw)
+    except (TypeError, ValueError):
+        raise _tab_cell_error(
+            tab, lineno, "{0} is '{1}', which is not a number.".format(label, raw))
+
+
+def _tab_wind(raw, tab, lineno, label, blank_ok=False):
+    """One wind cell: E/S/W/N, East/South/West/North or 1-4, as 1-4."""
+    if raw is None or (isinstance(raw, str) and not raw.strip()):
+        if blank_ok:
+            return None
+        raise _tab_cell_error(tab, lineno, "{0} is blank.".format(label))
+    if isinstance(raw, str):
+        text = raw.strip().casefold()
+        if text in _WIND_NAMES:
+            return _WIND_NAMES[text]
+        letters = [w.casefold() for w in WIND_LETTERS]
+        if text in letters:
+            return letters.index(text) + 1
+    wind = _tab_number(raw, tab, lineno, label)
+    if not 1 <= wind <= 4:
+        raise _tab_cell_error(
+            tab, lineno,
+            "{0} is '{1}'; use E, S, W or N.".format(label, raw))
+    return wind
+
+
+def _parse_round_list(raw, label):
+    """A comma-separated round list from the Options sheet, e.g. "1,2,3"."""
+    if raw is None:
+        return []
+    rounds = []
+    for token in str(raw).replace(';', ',').split(','):
+        token = token.strip()
+        if not token:
+            continue
+        try:
+            rounds.append(int(float(token)))
+        except (TypeError, ValueError):
+            raise TemplateImportError(
+                "The Options sheet's '{0}' value is '{1}'; list round numbers "
+                "separated by commas, or leave it blank.".format(label, raw))
+    return rounds
+
+
+def _load_score_tabs(tenant, scores, opt_vals, chart_cells):
+    """Create the ScoreSheet, Hand and PublishedRound rows an imported workbook's
+    score tabs describe, for a tournament whose chart has just been loaded.
+
+    The per-seat numbers are not written here — they are applied as each Seat is
+    built (see admin_upload_from_template), so the chart stays one bulk_create.
+    ``chart_cells`` is the set of (round, table) pairs the chart actually has: a
+    hand or a sheet state for any other table means the workbook's halves disagree,
+    the same mismatch a stray seat score is rejected for.
+    """
+    for cell in sorted(set(scores['sheets']) | {(h['round_nb'], h['table_nb'])
+                                                for h in scores['hands']}):
+        if cell not in chart_cells:
+            raise TemplateImportError(
+                "The score tabs carry results for round {0}, table {1}, which the "
+                "seating chart does not have. Check that they come from the same "
+                "tournament.".format(*cell))
+
+    ScoreSheet.objects.bulk_create([
+        ScoreSheet(tenant=tenant, round_nb=round_nb, table_nb=table_nb,
+                   validated=state == _SHEET_VALIDATED)
+        for (round_nb, table_nb), state in sorted(scores['sheets'].items())
+    ])
+    Hand.objects.bulk_create([
+        Hand(tenant=tenant, **hand) for hand in scores['hands']
+    ], batch_size=500)
+
+    # Publication state travels with the scores: a workbook holding a finished
+    # tournament restores as a published one, so the public site shows what it
+    # showed before rather than needing every round re-published by hand.
+    withheld = set(_parse_round_list(opt_vals[7], 'Withheld rounds'))
+    PublishedRound.objects.bulk_create([
+        PublishedRound(tenant=tenant, round_nb=round_nb, withheld=round_nb in withheld)
+        for round_nb in sorted(set(_parse_round_list(opt_vals[6], 'Published rounds')))
+    ])
+
+
+def _parse_score_tabs(wb):
+    """Read the Scores / Score sheets tabs of an uploaded workbook, or None when it
+    carries no scores (a setup-only template).
+
+    Called before the import deletes anything, so an unreadable cell is rejected
+    with the tournament untouched. Returns plain dicts keyed the way the seating
+    chart is — (round, table, wind) and (round, table) — for the load to apply;
+    whether those seats actually exist is only knowable once the chart is built,
+    and is checked there. The Standings tab is derived and deliberately ignored.
+    """
+    if 'Scores' not in wb.sheetnames:
+        return None
+
+    seat_scores = {}
+    sheet_states = {}
+    for lineno, row in _tab_rows(wb, 'Scores', ('round', 'table', 'wind', 'mp')):
+        if all(row.get(c) is None for c in ('round', 'table', 'wind')):
+            continue    # blank spacer / trailing row
+        key = (
+            _tab_number(row['round'], 'Scores', lineno, 'Round'),
+            _tab_number(row['table'], 'Scores', lineno, 'Table'),
+            _tab_wind(row['wind'], 'Scores', lineno, 'Wind'),
+        )
+        if key in seat_scores:
+            raise _tab_cell_error(
+                'Scores', lineno,
+                "round {0} table {1} {2} is listed twice.".format(
+                    key[0], key[1], WIND_LETTERS[key[2] - 1]))
+        # A blank MP is an unscored seat — the state every seat starts in, and what
+        # a round the chart seats but nobody has played yet looks like.
+        seat_scores[key] = {
+            'minipoints': _tab_number(row['mp'], 'Scores', lineno, 'MP', blank_ok=True),
+            'tablepoints': _tab_number(row.get('tp'), 'Scores', lineno, 'TP',
+                                       cast=float, blank_ok=True),
+            'penalty': _tab_number(row.get('penalty'), 'Scores', lineno, 'Penalty',
+                                   blank_ok=True) or 0,
+        }
+        state = row.get('sheet')
+        state = str(state).strip().casefold() if state is not None else ''
+        if state in (_SHEET_VALIDATED, _SHEET_STARTED):
+            sheet_states[key[:2]] = state
+        elif state:
+            raise _tab_cell_error(
+                'Scores', lineno,
+                "Sheet is '{0}'; use '{1}', '{2}' or leave it blank.".format(
+                    row.get('sheet'), _SHEET_VALIDATED, _SHEET_STARTED))
+
+    hands = []
+    if 'Score sheets' in wb.sheetnames:
+        seen = set()
+        for lineno, row in _tab_rows(wb, 'Score sheets',
+                                     ('round', 'table', 'hand', 'value')):
+            if all(row.get(c) is None for c in ('round', 'table', 'hand')):
+                continue
+            cell = (
+                _tab_number(row['round'], 'Score sheets', lineno, 'Round'),
+                _tab_number(row['table'], 'Score sheets', lineno, 'Table'),
+                _tab_number(row['hand'], 'Score sheets', lineno, 'Hand'),
+            )
+            if cell in seen:
+                raise _tab_cell_error(
+                    'Score sheets', lineno,
+                    "round {0} table {1} hand {2} is listed twice.".format(*cell))
+            seen.add(cell)
+            # No winner's wind is how a draw is written (the Result column says so
+            # too, but the wind is what the outcome is stored as). A draw has no
+            # discarder, whatever the row claims.
+            win_by = _tab_wind(row.get('winner wind'), 'Score sheets', lineno,
+                               'Winner wind', blank_ok=True)
+            win_from = _tab_wind(row.get('dealt in wind'), 'Score sheets', lineno,
+                                 'Dealt in wind', blank_ok=True)
+            hands.append({
+                'round_nb': cell[0], 'table_nb': cell[1], 'hand_nb': cell[2],
+                'points': _tab_number(row['value'], 'Score sheets', lineno, 'Value',
+                                      blank_ok=True) or 0,
+                'win_by': win_by or 0,
+                'win_from': win_from if win_by else None,
+            })
+
+    return {'seats': seat_scores, 'sheets': sheet_states, 'hands': hands}
+
+
 @tenant_admin_required
 def admin_export_to_template(request):
-    """Export the current tournament as an Excel file in the import-template format.
+    """Export the whole tournament as one Excel workbook, in the format
+    admin_upload_from_template reads back.
 
-    The workbook is built from scratch (not from MahjongTemplate.xlsx) with exactly
-    the sheets admin_upload_from_template reads back: Options, Players, Schedule and
-    a single "<N> players" seating sheet for this tournament's field size. Every
-    field the importer restores is written, so staff can round-trip a tournament
-    (back it up, edit offline, re-upload) without losing data. Scores are not
-    included — re-importing intentionally clears them.
+    The workbook is built from scratch (not from MahjongTemplate.xlsx). Its setup
+    sheets are Options, Players, Schedule and a single "<N> players" seating sheet
+    for this tournament's field size; with ``?scores=1`` it also carries Scores
+    (what each seat recorded), Score sheets (every played hand) and Standings (the
+    ranked table). Everything the importer restores is written, so one file is a
+    full round-trip: back the tournament up, edit it offline, upload it again.
+
+    Standings is the exception — it is derived from the other two and the importer
+    ignores it. It is written because the ranked table is the sheet an organizer
+    actually reads, and its own first row says edits there do nothing.
     """
     tenant = get_tenant(request)
     tournament = get_tournament(request)
+    # The checkbox beside the download. Nothing to include before play starts, so
+    # an empty tournament exports its setup whatever the box says.
+    include_scores = request.GET.get('scores') == '1' and scoring_has_started(tenant)
 
     wb = Workbook()
 
     # Options: label in col A (for humans), value in col B (what the importer reads).
+    # The publication rows are part of the score half — a setup-only export leaves
+    # them blank, which reads back as "nothing published", matching its empty sheets.
+    published = withheld = ''
+    if include_scores:
+        rounds = list(PublishedRound.objects.filter(tenant=tenant).order_by('round_nb'))
+        published = ','.join(str(r.round_nb) for r in rounds)
+        withheld = ','.join(str(r.round_nb) for r in rounds if r.withheld)
     opt_sheet = wb.active
     opt_sheet.title = 'Options'
     for row, (label, value) in enumerate([
@@ -798,6 +1107,8 @@ def admin_export_to_template(request):
         ('City', tournament.city),
         ('Period', tournament.period),
         ('Rules', tournament.rules),
+        ('Published rounds', published),
+        ('Withheld rounds', withheld),
     ], start=1):
         opt_sheet.cell(row=row, column=1, value=label)
         opt_sheet.cell(row=row, column=2, value=value)
@@ -850,127 +1161,46 @@ def admin_export_to_template(request):
             col = 2 + (seat.wind - 1) + 5 * (seat.table_nb - 1)
             seating_sheet.cell(row=seat.round_nb + 2, column=col, value=seat.draw_number)
 
-    return _xlsx_response(wb, _export_filename(tournament))
+    if include_scores:
+        _write_score_sheets(wb, request, tenant, tournament, seats)
+
+    suffix = '_scores' if include_scores else ''
+    return _xlsx_response(wb, _export_filename(tournament, suffix))
 
 
+def _write_score_sheets(wb, request, tenant, tournament, seats):
+    """Add the score half of an export: Scores, Score sheets and Standings.
 
-def _export_filename(tournament, suffix=''):
-    """Download name for an export: the tournament's short name reduced to a safe
-    charset (the title is free text), falling back to "tournament"."""
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (tournament.title or ""))
-    return (safe.strip("_") or "tournament") + suffix
-
-
-def _xlsx_response(wb, filename):
-    buf = io.BytesIO()
-    wb.save(buf)
-    response = HttpResponse(
-        buf.getvalue(),
-        content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-    )
-    response['Content-Disposition'] = 'attachment; filename="{0}.xlsx"'.format(filename)
-    return response
-
-
-def _write_header(sheet, headers, freeze=None):
-    """Write a bold, wrapped header row and size each column to its label."""
-    for col, label in enumerate(headers, start=1):
-        cell = sheet.cell(row=1, column=col, value=label)
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal='center', vertical='bottom', wrap_text=True)
-        sheet.column_dimensions[get_column_letter(col)].width = max(9, min(len(label) + 2, 24))
-    if freeze:
-        sheet.freeze_panes = freeze
-
-
-def scoring_has_started(tenant):
-    """True once anything has been scored — a seat carrying minipoints, or any hand
-    row. The same test the import page uses to warn what an upload would erase, and
-    what gates the scores export: an empty tournament has nothing to export."""
-    return (Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
-            or Hand.objects.filter(tenant=tenant).exists())
-
-
-# What one played hand was: the three outcomes Hand.win_by encodes, as a label for
-# the export's Result column.
-def _hand_result(hand):
-    if hand.is_draw:
-        return 'Draw'
-    return 'Self-draw' if hand.is_self_draw else 'Discard'
-
-
-@tenant_admin_required
-def admin_export_scores(request):
-    """Export the entered scores as one Excel workbook, for a backup or for
-    offline analysis. Three sheets, admin-only and always full view (unlike the
-    public stats.xlsx, which is masked to the published rounds):
-
-      Scores        one row per competitor: the standings table, with the table
-                    they sat at and their MP/TP for every round.
-      Score sheets  one row per played hand: winner, discarder, value.
-      Table results one row per seat: the MP/TP/penalty recorded on each sheet.
-
-    Nothing is re-derived here — every number is what the scoring pages show. This
-    is an export only; there is no matching importer (a full round-trip is what
-    Backup & restore is for).
+    Nothing is re-derived on the way out — the first two sheets are the Seat and
+    Hand rows as stored, which is what makes them importable; Standings is the
+    scoring page's ranked table, for reading only.
     """
-    tenant = get_tenant(request)
-    tournament = get_tournament(request)
-    if not scoring_has_started(tenant):
-        # Nothing scored yet: the page hides the button, so this is a hand-typed
-        # URL or a stale tab.
-        return HttpResponseRedirect('admin?page=import_template')
-
     is_mcr = tournament.rules == 'MCR'
-    uses_teams = tournament.has_teams
-    seats = _attach_players(tenant, list(Seat.objects.filter(tenant=tenant)))
-    # Which table each competitor sat at in each round, so the Scores sheet can name
-    # it beside the score — keyed on (player, round), never on list position.
-    player_table = {(s.player_id, s.round_nb): s.table_nb for s in seats if s.player_id}
-    validated = {
-        (s.round_nb, s.table_nb)
-        for s in ScoreSheet.objects.filter(tenant=tenant, validated=True)
-    }
+    seats = _attach_players(tenant, seats)
+    # Which competitor sat where, and how far each sheet got: both are keyed on the
+    # (round, table) pair the importer matches on.
+    sheet_state = {}
+    for sheet in ScoreSheet.objects.filter(tenant=tenant):
+        sheet_state[(sheet.round_nb, sheet.table_nb)] = (
+            _SHEET_VALIDATED if sheet.validated else _SHEET_STARTED)
 
-    standings = scores_per_player_rows(request, True)
-    # A chart can run longer than the configured round count (an imported chart, a
-    # round added mid-tournament), so take whichever is further along.
-    nb_rounds = max(tournament.nb_rounds or 0, rounds_played(standings))
-
-    wb = Workbook()
-
-    # --- Scores: the standings table ---------------------------------------------
-    scores_sheet = wb.active
-    scores_sheet.title = 'Scores'
-    headers = ['Rank', 'Player', 'EMA number', 'Country']
-    if uses_teams:
-        headers.append('Team')
+    # --- Scores: the number recorded on every seat -------------------------------
+    scores_sheet = wb.create_sheet('Scores')
+    headers = ['Round', 'Table', 'Wind', 'Draw #', 'Player', 'MP', 'Penalty']
     if is_mcr:
-        headers.append('Total TP')
-    headers.append('Total MP')
-    for round_nb in range(1, nb_rounds + 1):
-        headers.append('R{0} table'.format(round_nb))
-        headers.append('R{0} MP'.format(round_nb))
+        headers.append('TP')
+    headers.append('Sheet')
+    _write_header(scores_sheet, headers, freeze='D2')
+    for seat in sorted(seats, key=lambda s: (s.round_nb, s.table_nb, s.wind)):
+        values = [
+            seat.round_nb, seat.table_nb,
+            WIND_LETTERS[seat.wind - 1] if 1 <= seat.wind <= 4 else '',
+            seat.draw_number, seat.player_name(),
+            seat.minipoints, seat.penalty,
+        ]
         if is_mcr:
-            headers.append('R{0} TP'.format(round_nb))
-    _write_header(scores_sheet, headers, freeze='C2')
-
-    for row in standings:
-        values = [row['pos'], row['name'], row['EMA_ID'], row['country']]
-        if uses_teams:
-            values.append(row['team'])
-        if is_mcr:
-            values.append(row['total']['tp'])
-        values.append(row['total']['mp'])
-        for score in pad_scores(row['scores'], nb_rounds):
-            # mp None is a round the competitor didn't play (pad_scores' empty
-            # cell) — leave the table blank there too rather than naming a seat
-            # they never took.
-            played = score['mp'] is not None
-            values.append(player_table.get((row['player_id'], score['round_nb'])) if played else None)
-            values.append(score['mp'])
-            if is_mcr:
-                values.append(score['tp'])
+            values.append(seat.tablepoints)
+        values.append(sheet_state.get((seat.round_nb, seat.table_nb), ''))
         scores_sheet.append(values)
 
     # --- Score sheets: one row per played hand -----------------------------------
@@ -1001,25 +1231,53 @@ def admin_export_scores(request):
             _seat_name(hand.round_nb, hand.table_nb, hand.win_from) if hand.win_from else '',
         ])
 
-    # --- Table results: the numbers recorded on each sheet ------------------------
-    seats_sheet = wb.create_sheet('Table results')
-    seat_headers = ['Round', 'Table', 'Validated', 'Wind', 'Draw #', 'Player', 'MP', 'Penalty']
-    if is_mcr:
-        seat_headers.append('TP')
-    _write_header(seats_sheet, seat_headers, freeze='D2')
-    for seat in sorted(seats, key=lambda s: (s.round_nb, s.table_nb, s.wind)):
-        values = [
-            seat.round_nb, seat.table_nb,
-            'yes' if (seat.round_nb, seat.table_nb) in validated else 'no',
-            WIND_LETTERS[seat.wind - 1] if 1 <= seat.wind <= 4 else '',
-            seat.draw_number, seat.player_name(),
-            seat.minipoints, seat.penalty,
-        ]
-        if is_mcr:
-            values.append(seat.tablepoints)
-        seats_sheet.append(values)
+    # --- Standings: the ranked table, for reading ---------------------------------
+    standings = scores_per_player_rows(request, True)
+    # A chart can run longer than the configured round count (an imported chart, a
+    # round added mid-tournament), so take whichever is further along.
+    nb_rounds = max(tournament.nb_rounds or 0, rounds_played(standings))
+    uses_teams = tournament.has_teams
 
-    return _xlsx_response(wb, _export_filename(tournament, '_scores'))
+    st_sheet = wb.create_sheet('Standings')
+    st_sheet.cell(row=1, column=1, value=(
+        'Computed from the Scores and Score sheets tabs — importing this workbook '
+        'ignores what is written here.'))
+    st_sheet.cell(row=1, column=1).font = Font(italic=True)
+    headers = ['Rank', 'Player', 'EMA number', 'Country']
+    if uses_teams:
+        headers.append('Team')
+    if is_mcr:
+        headers.append('Total TP')
+    headers.append('Total MP')
+    for round_nb in range(1, nb_rounds + 1):
+        headers.append('R{0} table'.format(round_nb))
+        headers.append('R{0} MP'.format(round_nb))
+        if is_mcr:
+            headers.append('R{0} TP'.format(round_nb))
+    _write_header(st_sheet, headers, freeze='C3', header_row=2)
+
+    # Which table each competitor sat at in each round, so a score can be read
+    # beside the table it was played at — keyed on (player, round), never on
+    # list position (a chart needn't seat everyone every round).
+    player_table = {(s.player_id, s.round_nb): s.table_nb for s in seats if s.player_id}
+    for row in standings:
+        values = [row['pos'], row['name'], row['EMA_ID'], row['country']]
+        if uses_teams:
+            values.append(row['team'])
+        if is_mcr:
+            values.append(row['total']['tp'])
+        values.append(row['total']['mp'])
+        for score in pad_scores(row['scores'], nb_rounds):
+            # mp None is a round the competitor didn't play (pad_scores' empty
+            # cell) — leave the table blank there too rather than naming a seat
+            # they never took.
+            played = score['mp'] is not None
+            values.append(player_table.get((row['player_id'], score['round_nb'])) if played else None)
+            values.append(score['mp'])
+            if is_mcr:
+                values.append(score['tp'])
+        st_sheet.append(values)
+
 
 @tenant_admin_required
 def admin_generate_seating(request):
@@ -2371,17 +2629,16 @@ def _page_tenants(request, tenant, error=None):
 
 
 def _page_import_template(request, tenant, error=None):
-    # The upload confirm dialog names what it will erase, so tell the fragment
+    # The upload confirm dialog names what it will replace, so tell the fragment
     # how big the current tournament is and whether any scores exist. The same
-    # flag offers the scores export, which has nothing to write until play starts.
+    # flag offers the export's "include scores" checkbox, which has nothing to
+    # write until play starts.
     existing_players = Player.objects.filter(tenant=tenant).count()
     existing_scores = scoring_has_started(tenant)
     template2 = loader.get_template('mahj/admin_import_template.html')
     return template2.render({
         'existing_players': existing_players,
         'existing_scores': existing_scores,
-        # Table points only exist under MCR, so only that ruleset's export mentions them.
-        'is_mcr': get_tournament(request).rules == 'MCR',
     }, request)
 
 

@@ -597,14 +597,19 @@ class TestAdminPageRoleIsolation:
         assert 'prop("readonly", isPub || !userIsScorer)' in body
 
     # --- import_template: tenant admin only -----------------------------------
+    # The upload form's action is the marker: it appears only when the page itself
+    # is rendered, and it is what actually replaces the tournament.
     def test_import_hidden_from_scorer(self, client_, tournament, scorer_group_user):
-        assert b'will erase' not in self._body(client_, scorer_group_user, 'import_template')
+        assert b'admin_upload_from_template' not in self._body(
+            client_, scorer_group_user, 'import_template')
 
     def test_import_hidden_from_display_op(self, client_, tournament, display_op_user):
-        assert b'will erase' not in self._body(client_, display_op_user, 'import_template')
+        assert b'admin_upload_from_template' not in self._body(
+            client_, display_op_user, 'import_template')
 
     def test_import_visible_to_staff(self, client_, tournament, staff_user):
-        assert b'will erase' in self._body(client_, staff_user, 'import_template')
+        assert b'admin_upload_from_template' in self._body(
+            client_, staff_user, 'import_template')
 
 
 class TestUserAdminGated:

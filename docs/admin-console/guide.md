@@ -841,18 +841,30 @@ There are two ways to get the player list in; everything after that is the same.
    the current tournament** in the same format to back it up / edit offline),
    fill it in, and upload. This creates the players, the seating chart for
    every round, the schedule, and the tournament options in one go.
-   - ⚠️ Importing **replaces the whole tournament** and clears any entered
-     scores — the console warns you, naming what will be erased.
+   - ⚠️ Importing **replaces the whole tournament** with what the file holds —
+     the console warns you, naming what will be replaced.
    - A wrong or old-format file (missing sheets, unreadable rounds count, a
-     player count that isn't a multiple of 4, duplicate draw numbers…) is
-     **rejected with the tournament untouched**.
-   - Once play has started the page also offers **Export scores & score
-     sheets** — one workbook with the full scoring table (rank, totals, and the
-     table/MP/TP for every round), one sheet per played hand (winner,
-     discarder, value), and the per-seat totals as recorded (minipoints,
-     penalty, and table points under MCR). It is a snapshot for your records or
-     for offline analysis — there is no importer for it, so to move a
-     tournament between installs use [Backup & restore](#19-backing-up-and-restoring-a-tournament).
+     player count that isn't a multiple of 4, duplicate draw numbers, an
+     unreadable score cell…) is **rejected with the tournament untouched**.
+   - **Export current tournament** always writes the setup — settings, players,
+     schedule, seating. Once play has started, **Include scores and score
+     sheets** (ticked by default) adds three more tabs: *Scores* (what every
+     seat recorded — MP, penalty, table points under MCR, and how far its sheet
+     got), *Score sheets* (every played hand: winner, discarder, value) and
+     *Standings* (the ranked table). Which rounds are published travels with
+     them.
+   - **The import reads all of that back**, so a workbook restores the
+     tournament it came from — scores, hands and published rounds included. A
+     file exported *without* the scores loads the setup and leaves empty score
+     sheets, and the *Standings* tab is derived: edits there are ignored (the
+     tab says so in its first row).
+   - Columns are matched by their header rather than their position, and winds
+     may be written `E`/`S`/`W`/`N`, `East`…`North` or `1`–`4`, so a workbook
+     you have edited by hand still imports.
+   - For moving a tournament between installs, [Backup &
+     restore](#19-backing-up-and-restoring-a-tournament) is still the exact
+     copy — it carries the screens, the timer and everything else Excel has no
+     column for.
 
 **Then, either way:**
 
