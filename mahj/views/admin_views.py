@@ -2207,6 +2207,10 @@ def _page_scoring(request, tenant, error=None):
         'grid': grid,
         "players": all_players,
         "tournament": tournament,
+        # Fed to connectScorerSocket for the live row sync. The helper silently
+        # skips the socket when this is empty, so leaving it out breaks sync with
+        # no error anywhere — every window shows only its own edits.
+        "subdomain": tenant.subdomain if tenant else '',
         # The round the scorer is most likely to want open: the first unscored one.
         # Clamped to a round that actually has a tab — once the last round is fully
         # scored this was nb_rounds + 1, which matched no tab, and since the panes are
