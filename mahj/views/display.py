@@ -21,16 +21,16 @@ from .scoring import scores_per_player_rows
 def _spectator_qr_svg(subdomain, public_url=''):
     """Inline SVG QR linking to the public spectator site. Generated locally
     (segno, a pinned dependency) so the projector never depends on an external
-    QR service at render time. Empty string if there's no subdomain or segno
-    isn't installed on this host."""
-    if not subdomain:
+    QR service at render time. Empty string if there's no site to advertise
+    (see public_site_url) or segno isn't installed on this host."""
+    from .helpers import public_site_url
+    url = public_site_url(subdomain, public_url)
+    if not url:
         return ''
     try:
         import segno
     except ImportError:
         return ''
-    from .helpers import public_site_url
-    url = public_site_url(subdomain, public_url)
     return segno.make(url, error='m').svg_inline(scale=3, border=2)
 
 
@@ -298,7 +298,8 @@ def render_scores(request, density, page_nb=None):
         "server_clock_ms": _venue_clock_ms(),
         "tournament": tournament,
         "subdomain": tenant.subdomain if tenant else '',
-        "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else ''),
+        "qr_svg": _spectator_qr_svg(tenant.subdomain if tenant else '',
+                                    tournament.public_url if tournament else ''),
         # Last round published but withheld for the ceremony: every row is masked,
         # so show a holding message instead of an all-blank table.
         "awaiting_ceremony": prepublish,

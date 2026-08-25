@@ -307,10 +307,16 @@ def public_site_url(subdomain, public_url=''):
     """Public spectator-site URL to advertise (projector QR + caption, printed
     cards). The tenant's configured ``public_url`` (TournamentSettings) wins —
     set when the static site is published to an external host — otherwise the
-    tenant's ``<subdomain>.<BASE_DOMAIN>``."""
+    tenant's ``<subdomain>.<BASE_DOMAIN>``.
+
+    In Standalone mode that fallback (``local.localhost``) is not reachable from
+    anyone's phone, so with no configured public_url there is no site to
+    advertise: returns '' and the screens/cards hide the URL and QR."""
     url = (public_url or '').strip().rstrip('/')
     if url:
         return url if '://' in url else f'https://{url}'
+    if settings.STANDALONE or not subdomain:
+        return ''
     return f'https://{subdomain}.{settings.BASE_DOMAIN}'
 
 

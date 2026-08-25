@@ -170,10 +170,12 @@
     })();
   </script>
 
-  <div class="fixed top-4 right-6 flex items-center gap-3">
-    <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
-    {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
-  </div>
+  {% if public_site_host %}
+    <div class="fixed top-4 right-6 flex items-center gap-3">
+      <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
+      {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
+    </div>
+  {% endif %}
 
   {% if not awaiting_ceremony %}
     <div id="fit-warning" style="display:none;"

@@ -17,7 +17,7 @@
     {% endif %}
 
     <!-- Tournament app URL + QR, pinned to the right edge -->
-    {% if subdomain %}
+    {% if public_site_host %}
         <div class="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
             <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
             {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}

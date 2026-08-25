@@ -60,6 +60,22 @@ class TestPublicSite:
         out = cp.public_site(_request())
         assert 'results.example.org' in out['public_site_url']
 
+    def test_standalone_with_no_public_url_advertises_nothing(self, tournament, settings):
+        """local.localhost is unreachable from a phone: no caption, no QR."""
+        settings.STANDALONE = True
+        out = cp.public_site(_request())
+        assert out['public_site_url'] == ''
+        assert out['public_site_host'] == ''
+
+    def test_standalone_with_a_public_url_still_advertises_it(self, tournament, settings):
+        settings.STANDALONE = True
+        t = tournament['settings']
+        t.public_url = 'results.example.org'
+        t.save()
+        out = cp.public_site(_request())
+        assert out['public_site_url'] == 'https://results.example.org'
+        assert out['public_site_host'] == 'results.example.org'
+
 
 class TestRoleFlags:
     def test_anonymous_holds_no_role(self, tournament):

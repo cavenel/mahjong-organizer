@@ -76,9 +76,11 @@
       </div>
     {% endfor %}
 
+    {% if public_site_url %}
     <div style="margin-top:5px; padding-top:1.3mm; text-align:right; border-top:0.2mm solid var(--line);">
       <span class="mono" style="font-size:6pt; color:var(--ink);">{{ public_site_url }}</span>
     </div>
+    {% endif %}
   </div>
 
 </div>
