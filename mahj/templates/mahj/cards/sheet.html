@@ -191,14 +191,16 @@ change.
   .country .code { font-family: var(--font-mono); font-size: 7pt; color: var(--ink); font-weight: 600; letter-spacing: 0.04em; }
   .country .value .flag { zoom: 0.8; display: block; }
 
-  /* ── Sheet: the A4 face, one grid of cards ── */
+  /* ── Sheet: the A4 face, one grid of cards ──
+     The padding is the margin no printer can reach (print_views.SHEET_MARGIN_MM);
+     the cards divide up what is left, so they are a little under a true A6/A7. */
   .sheet {
     width: 210mm;
     height: 297mm;
     display: grid;
     grid-template-columns: repeat({{ layout.cols }}, 1fr);
     grid-template-rows: repeat({{ layout.rows }}, 1fr);
-    padding: 5mm 0mm;
+    padding: {{ sheet_margin }}mm;
     overflow: hidden;
     background: white;
     border: 0px;
@@ -207,13 +209,15 @@ change.
 
   /* ── A7 landscape: half the height of an A6, so everything tightens ──
      The height budget, measured on the rendered card: compact header ~9mm,
-     column heads ~5mm, a day band ~3mm per day, the totals row ~7mm, and ~5mm per
-     round in 64mm of body. Measured: eight rounds reach the bottom and nine
-     overflow over one or two days, but a third day's band costs a round, so
-     8 rounds over 3 days overflows too. The card-design page warns above eight
-     regardless of days -- a three-day A7 is unlikely enough to leave to the
-     preview, which shows the rows running off the card. Do not shrink
-     .write-cell further without checking a score is still writable by hand. */
+     column heads ~5mm, a day band ~3mm per day, the totals row ~7mm and ~5mm per
+     round, in the ~61mm of body a 70.75mm card leaves. Measured at the shipped
+     7mm sheet margin: eight rounds fit over one day, seven over two, six over
+     three. The card-design page warns above eight regardless of days -- a
+     multi-day A7 is unlikely enough to leave to the preview, which shows the rows
+     running off the card. Two things cost a round here, so check the preview after
+     either: a larger SHEET_MARGIN_MM (8mm already does), and a taller
+     .write-cell -- which should not shrink without checking a score is still
+     writable by hand. */
   .format-a7_landscape .head-band { padding: 0.9mm 2.5mm 0; }
   .format-a7_landscape .head-row { align-items: center; gap: 2mm; margin-top: 0; }
   .format-a7_landscape .head-row .logo { max-height: 7mm; flex-shrink: 0; }

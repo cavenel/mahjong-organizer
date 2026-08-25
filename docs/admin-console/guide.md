@@ -185,12 +185,16 @@ real print page, so what you see is what comes out of the printer.
 - **Card format** — **A6 portrait** (4 per A4 sheet) is the full-size card with a
   tall header. **A7 landscape** (8 per sheet) is half that, for short tournaments:
   a compact one-line header, and the period, session count and ruleset along the
-  bottom edge where the A6 card carries them in its header. It holds up to eight
-  rounds — seven if they span three days, since each day adds a heading — and the
-  page warns you above eight. The preview is the real check either way: rows that
-  do not fit run off the bottom of the card there. Print **double-sided, flipping
-  on the long edge**; the back of each sheet is laid out for that, so every card
-  gets its own opponents on the back.
+  bottom edge where the A6 card carries them in its header. It holds eight rounds
+  over one day, seven over two and six over three (each day adds a heading), and
+  the page warns you above eight. The preview is the real check either way: rows
+  that do not fit run off the bottom of the card there. Print **double-sided,
+  flipping on the long edge**; the back of each sheet is laid out for that, so
+  every card gets its own opponents on the back.
+
+  Both formats keep a 7&nbsp;mm border clear on all four edges of the sheet, since
+  few printers can print right to the paper edge, so a card comes out a little
+  under a true A6 or A7 — 98&nbsp;×&nbsp;141.5&nbsp;mm and 98&nbsp;×&nbsp;70.75&nbsp;mm.
 - **Theme** — *classic* (colour bars and filled seat chips), *minimal* (ink on
   paper, no colour bars) or *bold* (a filled header band that reads across a
   room). Switching theme replaces the colours below; if you have edited the CSS

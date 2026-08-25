@@ -110,6 +110,16 @@ def print_schedule(request):
     return HttpResponse(template.render({'schedule': schedule, 'tournament': tournament}, request))
 
 
+# A4, and the margin kept clear of every edge. Consumer printers cannot print to
+# the paper edge — the unprintable strip is commonly 4-6mm and can reach 6.35mm
+# (a quarter inch) — and a sheet laid out edge-to-edge loses whatever falls in it,
+# which on the outer cards is their content. The cards are cut out anyway, so the
+# margin costs card size rather than correctness: raising it shrinks every card.
+# 7mm clears the quarter-inch worst case and is the most that still fits eight
+# rounds on a one-day A7; 8mm costs that round (measured, see cards/sheet.html).
+A4_W_MM, A4_H_MM = 210, 297
+SHEET_MARGIN_MM = 7
+
 # Sheet geometry per card format. Both sit on a portrait A4 and duplex with
 # "flip on long edge", so the back face mirrors the columns of the front.
 #   cols/rows -- the grid of cards on one A4 sheet
@@ -125,16 +135,22 @@ CARD_LAYOUTS = {
         cols=2, rows=2, back=[1, 0, 3, 2], rotate={0, 1},
         head="mahj/cards/head_a6.html", foot="mahj/cards/foot_a6.html",
         label="A6 portrait", per_sheet_label="4 per sheet",
-        card_w=105, card_h=143.5,
     ),
     "a7_landscape": dict(
         cols=2, rows=4, back=[1, 0, 3, 2, 5, 4, 7, 6], rotate=set(),
         head="mahj/cards/head_a7.html", foot="mahj/cards/foot_a7.html",
         label="A7 landscape", per_sheet_label="8 per sheet",
-        card_w=105, card_h=71.75,
     ),
 }
 DEFAULT_CARD_FORMAT = "a6_portrait"
+
+# The printed size of one card, derived rather than written down: it is whatever a
+# sheet's grid leaves once the margin is taken off, and the design page's preview
+# frame reads these so it always matches what comes out of the printer.
+for _layout in CARD_LAYOUTS.values():
+    _layout["card_w"] = round((A4_W_MM - 2 * SHEET_MARGIN_MM) / _layout["cols"], 2)
+    _layout["card_h"] = round((A4_H_MM - 2 * SHEET_MARGIN_MM) / _layout["rows"], 2)
+del _layout
 
 
 def _card_rounds(rounds, draw_number):
@@ -240,6 +256,7 @@ def player_cards(request):
         "layout": layout,
         "preview": preview,
         "card_format": tournament.card_format,
+        "sheet_margin": SHEET_MARGIN_MM,
         "theme": tournament.card_theme,
         "card_css": effective_card_css(tournament),
         "tournament": tournament,

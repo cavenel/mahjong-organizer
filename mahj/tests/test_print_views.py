@@ -264,14 +264,37 @@ def test_preview_renders_one_card_cropped_to_the_card(staff_client, tournament):
 
 
 def test_preview_crops_to_the_chosen_format(staff_client, tournament):
-    """The cropped page is card-sized, so it has to follow the format."""
-    body = staff_client.get('/player_cards?preview=1').content.decode()
-    assert 'width: 105mm' in body and 'height: 143.5mm' in body
-    s = tournament['settings']
-    s.card_format = 'a7_landscape'
-    s.save()
-    body = staff_client.get('/player_cards?preview=1').content.decode()
-    assert 'height: 71.75mm' in body
+    """The cropped page is card-sized, so it has to follow the format.
+
+    The expected millimetres come from CARD_LAYOUTS rather than being written out
+    here: they are derived from the sheet margin, so a literal would have to be
+    re-typed every time that margin is tuned.
+    """
+    from mahj.views.print_views import CARD_LAYOUTS
+
+    for fmt, layout in CARD_LAYOUTS.items():
+        s = tournament['settings']
+        s.card_format = fmt
+        s.save()
+        body = staff_client.get('/player_cards?preview=1').content.decode()
+        assert f'width: {layout["card_w"]}mm' in body, fmt
+        assert f'height: {layout["card_h"]}mm' in body, fmt
+
+
+def test_the_sheet_keeps_a_printable_margin_on_every_edge(staff_client, tournament):
+    """Printers cannot reach the paper edge, and the outer cards are what falls in
+    that strip — the sheet was laid out with no side margin at all, so their
+    content was being clipped. The cards divide up what is left, which is why they
+    are a little under a true A6/A7."""
+    from mahj.views.print_views import CARD_LAYOUTS, SHEET_MARGIN_MM
+
+    assert SHEET_MARGIN_MM >= 5, 'a smaller strip than this is inside what printers lose'
+    body = staff_client.get('/player_cards').content.decode()
+    assert f'padding: {SHEET_MARGIN_MM}mm;' in body
+    # Every card of a sheet fits inside the margins, in both directions.
+    for layout in CARD_LAYOUTS.values():
+        assert layout['card_w'] * layout['cols'] == 210 - 2 * SHEET_MARGIN_MM
+        assert round(layout['card_h'] * layout['rows'], 2) == 297 - 2 * SHEET_MARGIN_MM
 
 
 def test_wind_chip_letters_are_settable_and_fall_back(staff_client, tournament):
