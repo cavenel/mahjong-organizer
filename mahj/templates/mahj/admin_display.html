@@ -351,11 +351,19 @@
       onUpdate: function(msg) {
         if (msg.event === 'counter_update') applyCounter(msg);
         else if (msg.event === 'ceremony') setCeremonyWarning(msg.phase !== 'idle');
-        // A screen added/removed elsewhere (another admin tab/operator) leaves this
-        // page's server-rendered card grid stale, so "All screens" can't sync a card
-        // it has no id for. Reload to pick up the new grid — matches the full-page
-        // reload a same-session add already triggers.
-        else if (msg.event === 'screens_changed') location.reload();
+        // A screen was added/removed: the server-rendered card grid is stale, so
+        // "All screens" can't sync a card it has no id for. Navigate to the grid with
+        // the screens panel open (keeping any other query params, e.g. ?dsdebug).
+        // Deliberately the same URL the add/remove action redirects to: the broadcast
+        // reaches this tab before that redirect does, so a plain reload() here would
+        // cancel the pending redirect and land on the page with the panel collapsed.
+        // For another operator's tab it also shows what just changed.
+        else if (msg.event === 'screens_changed') {
+          var u = new URL(location.href);
+          u.searchParams.set('page', 'display');
+          u.searchParams.set('open', 'screens');
+          location.replace(u);
+        }
       },
       onReconnect: function() {
         fetchStatus();
