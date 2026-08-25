@@ -273,6 +273,21 @@ class TestTenantManagement:
             assert b'Create a tenant' not in page.content
         assert not Tenant.objects.filter(subdomain='x').exists()
 
+    def test_add_existing_account_unavailable_in_standalone(self, su_client, tenant_b):
+        # Sharing an account between tournaments needs more than one tournament:
+        # the form is hidden and the endpoint refuses, like the tenant CRUD.
+        outsider = User.objects.create_user('outsider', '', 'pw')
+        Membership.objects.create(user=outsider, tenant=tenant_b)
+        with override_settings(STANDALONE=True):
+            resp = _json_post(su_client, '/user_add_existing',
+                              {'username': 'outsider', 'roles': []})
+            assert resp.status_code == 404
+            page = su_client.get('/admin?page=users')
+            assert b'<form id="add-existing-form"' not in page.content
+        assert not Membership.objects.filter(user=outsider, tenant__subdomain=HOST_A.split('.')[0]).exists()
+        # Cloud build: superuser still sees the form.
+        assert b'<form id="add-existing-form"' in su_client.get('/admin?page=users').content
+
     def test_first_admin_seeded_via_own_user_page(self, su_client, tenant_b):
         # No bespoke seed endpoint: a superuser opens the new tenant's OWN user
         # management (they bypass membership there) and adds an admin normally.

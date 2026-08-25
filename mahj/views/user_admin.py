@@ -283,9 +283,15 @@ def user_add_existing(request):
 
     Idempotent: an account already here just has its roles set, so this doubles as
     "re-grant" without a separate endpoint.
+
+    Refused in the standalone build like the tenant endpoints: with a single tenant
+    there is nothing to share an account between, and the form is hidden there.
     """
     if request.method != 'POST':
         return method_not_allowed()
+    blocked = _standalone_blocked()
+    if blocked:
+        return blocked
     data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:

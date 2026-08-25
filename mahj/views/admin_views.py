@@ -2074,8 +2074,9 @@ def _page_users(request, tenant, error=None):
         "user_rows": user_rows,
         "role_defs": [{"name": n, "label": TENANT_ROLE_LABELS[n]} for n in TENANT_ROLES],
         # Gates the "add an existing account" form: making an account shared
-        # between tournaments is a superuser action (see user_add_existing).
-        "is_superuser": request.user.is_superuser,
+        # between tournaments is a superuser action (see user_add_existing), and
+        # there is nothing to share between in the single-tenant standalone build.
+        "can_add_existing": _gate_tenant_management(request),
         "link_validity_days": settings.SESAME_MAX_AGE // 86400,
     }, request)
 
