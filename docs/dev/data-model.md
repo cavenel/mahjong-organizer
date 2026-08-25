@@ -108,6 +108,15 @@ sheet-balance field already folded into `minipoints` — it is **not** re-added
 when ranking. `Hand` rows feed stats, badges and the hand-detail modal, never the
 ranking.
 
+**The scoring arithmetic itself is client-side and has no automated tests.** The
+score sheet's JavaScript turns a hand (value, winner, discarder) into per-seat
+points and the server stores whatever `mp` / `tp` the sheet sends
+(`views/score_entry.py`, a deliberate decision — the server stays tolerant of
+rule variants). The Python test suite covers *ranking, ties, badges and stats*
+over stored points; it never computes hand points. There is no JS test harness,
+so a change to the sheet's arithmetic is verified by hand in the browser. If you
+go looking for "the scoring tests", this is why they aren't where you expect.
+
 ## What "a tournament" is: dumps and wipes
 
 `mahj/tenant_dump.py` names the per-tenant model set once, in `TENANT_MODELS`,
