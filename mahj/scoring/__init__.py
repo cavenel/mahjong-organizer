@@ -38,9 +38,6 @@ from .standings import (
     tournament_seating,
 )
 from .stats import (
-    _roll_up,
-    _top_by,
-    _top_win_streaks,
     all_slot_rounds,
     overall_winners,
     player_extra_stats,

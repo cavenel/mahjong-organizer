@@ -63,7 +63,8 @@ def method_not_allowed():
 
     These are all XHR endpoints whose front-ends read ``responseJSON.error``, so a
     plain-text body (or a 400/403 standing in for a wrong method) left the page
-    with an unexplained failure.
+    with an unexplained failure. For a page a browser navigates to (not XHR), use
+    Django's ``HttpResponseNotAllowed`` instead — JSON is the wrong body there.
     """
     return JsonResponse(
         {'status': 'method_not_allowed', 'error': 'POST required'}, status=405)

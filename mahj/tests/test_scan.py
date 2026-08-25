@@ -709,8 +709,8 @@ class TestResultWriteSurvivesABusBlip:
 
     def test_it_retries_and_succeeds(self, monkeypatch):
         import redis as redis_mod
-        from mahj import queue_util
-        monkeypatch.setattr(queue_util.time, 'sleep', lambda s: None)
+        from mahj import scan_queue
+        monkeypatch.setattr(scan_queue.time, 'sleep', lambda s: None)
         attempts = {'n': 0}
 
         def flaky():
@@ -718,18 +718,18 @@ class TestResultWriteSurvivesABusBlip:
             if attempts['n'] < 3:
                 raise redis_mod.RedisError('bus restarting')
 
-        assert queue_util.write_with_retry(flaky) is True
+        assert scan_queue.write_with_retry(flaky) is True
         assert attempts['n'] == 3
 
     def test_it_gives_up_without_raising(self, monkeypatch):
         import redis as redis_mod
-        from mahj import queue_util
-        monkeypatch.setattr(queue_util.time, 'sleep', lambda s: None)
+        from mahj import scan_queue
+        monkeypatch.setattr(scan_queue.time, 'sleep', lambda s: None)
 
         def always_down():
             raise redis_mod.RedisError('bus gone')
 
-        assert queue_util.write_with_retry(always_down) is False
+        assert scan_queue.write_with_retry(always_down) is False
 
     def test_a_worker_logs_the_loss_instead_of_dying(self, monkeypatch, caplog):
         """The whole point: one unwritable result must not stop the loop."""

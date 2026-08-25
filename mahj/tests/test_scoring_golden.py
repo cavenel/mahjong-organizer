@@ -4,6 +4,10 @@ First run creates snapshots under snapshots/ and fails with a message.
 Subsequent runs compare against the saved snapshot.
 
 To regenerate after an intentional change: delete the file and re-run.
+
+A snapshot can also drift because the conftest ``tournament`` fixture changed
+(it is the data these views render), not only because a view changed — check
+the fixture diff before assuming the scoring code moved.
 """
 import json
 import os

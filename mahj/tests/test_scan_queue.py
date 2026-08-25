@@ -119,7 +119,7 @@ class TestResultWritesSurviveABusBlip:
     def test_a_transient_failure_is_retried(self, monkeypatch):
         fake = FakeRedis(fail_writes=2)
         monkeypatch.setattr(scan_queue, '_redis', lambda: fake)
-        monkeypatch.setattr('mahj.queue_util.time.sleep', lambda s: None)
+        monkeypatch.setattr('mahj.scan_queue.time.sleep', lambda s: None)
         assert scan_queue.set_result_with_retry('j6', {'status': 'done'}) is True
         assert scan_queue.get_result('j6') == {'status': 'done'}
 
@@ -128,7 +128,7 @@ class TestResultWritesSurviveABusBlip:
         this job and stall every scan queued behind it."""
         fake = FakeRedis(fail_writes=99)
         monkeypatch.setattr(scan_queue, '_redis', lambda: fake)
-        monkeypatch.setattr('mahj.queue_util.time.sleep', lambda s: None)
+        monkeypatch.setattr('mahj.scan_queue.time.sleep', lambda s: None)
         assert scan_queue.set_result_with_retry('j7', {'status': 'done'}) is False
 
 

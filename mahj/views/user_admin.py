@@ -32,7 +32,10 @@ from django.http import JsonResponse
 from sesame.utils import get_token
 
 from ..models import Membership, Tenant
-from .helpers import get_tenant, is_tenant_admin, json_body, superuser_required, tenant_admin_required
+from .helpers import (
+    get_tenant, is_tenant_admin, json_body, method_not_allowed, superuser_required,
+    tenant_admin_required,
+)
 
 # Tier-3 role flags the console toggles (tenant_admin is handled as its own flag).
 TENANT_ROLES = ['scorer', 'display_op', 'publisher']
@@ -129,7 +132,7 @@ def superuser_and_reauthed(view):
 def user_reauth(request):
     """Confirm the current user's password and stamp the session."""
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     if reauth_throttled(request):
         return JsonResponse(
             {'status': 'error',
@@ -234,7 +237,7 @@ def _target_in_tenant(request, data):
 def user_create(request):
     """Create an account and its Membership in the current tenant."""
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:
@@ -282,7 +285,7 @@ def user_add_existing(request):
     "re-grant" without a separate endpoint.
     """
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:
@@ -313,7 +316,7 @@ def user_add_existing(request):
 def user_update_roles(request):
     """Set the target's roles within the current tenant."""
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
@@ -349,7 +352,7 @@ def user_generate_link(request):
     account.
     """
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
@@ -386,7 +389,7 @@ def user_revoke_links(request):
     so the two stay in step if that gating is ever loosened.
     """
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
@@ -424,7 +427,7 @@ def user_delete(request):
     """Delete a user account. Containment-restricted: a shared account can't be
     deleted from one tenant (use *remove from tenant* instead)."""
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
@@ -454,7 +457,7 @@ def user_remove_from_tenant(request):
     """Remove the target's membership in this tenant, keeping the account (the
     containment-safe alternative to delete for shared accounts)."""
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
 
     resolved = _target_in_tenant(request, data)
@@ -498,7 +501,7 @@ def tenant_create(request):
     if blocked is not None:
         return blocked
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
     name = (data.get('name') or '').strip()
     subdomain = _clean_subdomain(data.get('subdomain'))
@@ -516,7 +519,7 @@ def tenant_rename(request):
     if blocked is not None:
         return blocked
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
     try:
         tenant = Tenant.objects.get(pk=data.get('tenant_id'))
@@ -556,7 +559,7 @@ def tenant_delete(request):
     if blocked is not None:
         return blocked
     if request.method != 'POST':
-        return JsonResponse({'status': 'method_not_allowed'}, status=405)
+        return method_not_allowed()
     data = json_body(request)
     try:
         tenant = Tenant.objects.get(pk=data.get('tenant_id'))

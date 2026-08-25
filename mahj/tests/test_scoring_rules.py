@@ -5,11 +5,9 @@ from mahj.scoring import (
     _assign_ranks,
     _country_flag,
     _group_by,
-    _roll_up,
-    _top_by,
-    _top_win_streaks,
     team_standings,
 )
+from mahj.scoring.stats import _roll_up, _top_by, _top_win_streaks
 from mahj.scoring.standings import (
     _cumulative_row,
     _standings_rank_key,

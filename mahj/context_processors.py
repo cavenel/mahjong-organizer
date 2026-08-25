@@ -1,3 +1,5 @@
+import logging
+
 from django.conf import settings
 from django.templatetags.static import static
 from django.urls import reverse
@@ -6,6 +8,12 @@ from .views.helpers import (
     can_access_admin, get_tenant, get_tournament, has_role, is_tenant_admin,
     public_site_host, public_site_url,
 )
+
+logger = logging.getLogger(__name__)
+
+# Each processor falls back to a harmless default rather than failing the whole
+# page render — but silently. A bug here renders every page role-less / logo-less
+# with no trace, which is nasty to debug at a venue, hence the logging.
 
 
 def site_logo(request):
@@ -17,6 +25,7 @@ def site_logo(request):
     try:
         tournament = get_tournament(request)
     except Exception:
+        logger.exception("site_logo context processor failed; using the default logo")
         tournament = None
     if tournament is not None and tournament.logo:
         return {"site_logo_url": f"{reverse('logo')}?v={tournament.logo_etag}"}
@@ -34,6 +43,7 @@ def public_site(request):
         tournament = get_tournament(request)
         public_url = tournament.public_url if tournament else ''
     except Exception:
+        logger.exception("public_site context processor failed; advertising the base domain")
         subdomain = ''
         public_url = ''
     return {
@@ -60,6 +70,7 @@ def role_flags(request):
             "user_can_access_admin": can_access_admin(request),
         }
     except Exception:
+        logger.exception("role_flags context processor failed; rendering the page role-less")
         return {
             "is_tenant_admin": False, "user_is_scorer": False,
             "user_is_display_op": False, "user_is_publisher": False,

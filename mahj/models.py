@@ -276,6 +276,8 @@ class ScoreSheet(TenantAwareModel):
 class Screen(TenantAwareModel):
     name = models.CharField(default="Unknown",max_length=70)
     view = models.CharField(default="",null=True,max_length=70)
+    # Creation timestamp. Vestigial: nothing reads it but __str__; kept because
+    # dropping a column is not worth a migration on every install.
     time = models.DateTimeField(auto_now_add=True, blank=False)
 
     # Legacy auto-assigned placeholders that should read as "no custom name" in the

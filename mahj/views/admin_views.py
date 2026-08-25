@@ -27,7 +27,6 @@ from .helpers import (
     is_tenant_admin, json_body, method_not_allowed, set_counter,
     tenant_admin_required, tenant_role_required,
 )
-from .print_views import _country_flag
 from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
 logger = logging.getLogger(__name__)
@@ -89,7 +88,7 @@ def _sheet_state_keys(tenant, as_strings=False):
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
-from ..scoring import rounds_played
+from ..scoring import _country_flag, rounds_played
 from .scoring import (
     scores_per_player_rows,
     scores_per_table_grid,
@@ -1473,8 +1472,8 @@ def publish_target_test(request):
 # Start = now + LEAD + COUNTDOWN. The LEAD is dead time during which every screen
 # has received the broadcast but nothing visible happens yet, so a screen whose
 # message is slightly delayed still catches the very first "3" — all rooms count
-# down (and gong) in lockstep. Both constants are mirrored in display_counter.html
-# and admin_display.html; keep them in sync.
+# down (and gong) in lockstep. Both constants are mirrored as LEAD_MS /
+# COUNTDOWN_MS in display_counter.html; keep them in sync.
 COUNTER_LEAD_MS = 1000
 COUNTER_COUNTDOWN_MS = 3000
 

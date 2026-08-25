@@ -11,13 +11,12 @@ so the OCR payload doesn't bloat the Redis instance that also holds the cache,
 sessions, and channel layer.
 """
 import json
+import time
 import uuid
 from pathlib import Path
 
 import redis
 from django.conf import settings
-
-from .queue_util import write_with_retry
 
 QUEUE_KEY = 'scan:queue'
 _RESULT_PREFIX = 'scan:result:'
@@ -143,11 +142,29 @@ def set_result(job_id, result):
     _redis().set(_RESULT_PREFIX + job_id, json.dumps(result), ex=RESULT_TTL)
 
 
+def write_with_retry(write, attempts=3, delay=0.5):
+    """Call `write`, retrying a `redis.RedisError` a few times. True if it landed.
+
+    Returns False rather than raising when it truly can't be written, so a worker
+    can log the loss and carry on to the next job instead of dying on this one.
+    """
+    for attempt in range(attempts):
+        try:
+            write()
+            return True
+        except redis.RedisError:
+            if attempt == attempts - 1:
+                return False
+            time.sleep(delay)
+    return False
+
+
 def set_result_with_retry(job_id, result):
     """``set_result``, retried across a brief Redis outage. True if it landed.
 
     The OCR call is already paid for by the time a worker gets here, so losing the
-    answer to a bus restart is the expensive failure. See queue_util.
+    answer to a bus restart is the expensive failure — an unguarded write would
+    also take the worker loop down with it, stalling every job queued behind.
     """
     return write_with_retry(lambda: set_result(job_id, result))
 
