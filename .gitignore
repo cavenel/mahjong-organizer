@@ -59,3 +59,6 @@ scripts/screenshots/pixi.lock
 CODE_REVIEW.md
 PRE_MERGE_PLAN.md
 BACKUP_REFACTOR_STATUS.md
+
+# Local Claude Code settings
+.claude/
