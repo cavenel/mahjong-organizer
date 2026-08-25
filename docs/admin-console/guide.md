@@ -122,33 +122,30 @@ toggle isn't shown to them. Once a round has been scored or published (or the
 round timer has been started), every Setup page carries a **"Tournament in
 progress"** banner: nothing is blocked, but edits there now affect a live event.
 
-The sidebar only shows the pages **your roles can use**:
+The sidebar only shows the pages **your roles can use**.
 
-```
-SETUP (admin)                        RUN
-┌─ Setup checklist                   ┌─ Dashboard                    (everyone)
-│                                    │
-│  TOURNAMENT                        │  SCORING           (admin, scorer, publisher)
-│  ├─ Tournament settings            │  ├─ Scoring
-│  └─ Excel import / export          │  └─ Publisher overview      (admin, publisher)
-│                                    │
-│  PLAYERS & SEATING                 │  DISPLAYS          (admin, display operator)
-│  ├─ Edit players                   │  ├─ Display on screens
-│  ├─ Seating                        │  └─ Ceremony console
-│  ├─ Randomize players (live) ↗     │
-│  └─ Team draw (live) ↗             │  RESULTS
-│                                    │  ├─ Print scores   (admin, scorer, publisher)
-│  PRINT                             │  └─ Generate EMA report ↗            (admin)
-│  ├─ Print materials                └─
-│  └─ Player card design
-│
-│  ADMINISTRATION
-│  ├─ User management
-│  ├─ Backup & restore
-│  └─ Publish target
-└─
-```
+**Setup** — tournament admins only. It opens on the **Setup checklist**, then
+these groups:
 
+| Group | Pages |
+|---|---|
+| Tournament | Tournament settings · Excel import / export |
+| Players & seating | Edit players · Seating · Randomize players (live) ↗ · Team draw (live) ↗ |
+| Print | Print materials · Player card design |
+| Administration | User management · Backup & restore · Publish target |
+
+**Run** — everyone's side. It opens on the **Dashboard**, which every role sees;
+the rest depends on your roles:
+
+| Group | Pages | Who sees it |
+|---|---|---|
+| Scoring | Scoring | admin, scorer, publisher |
+| | Publisher overview | admin, publisher |
+| Displays | Display on screens · Ceremony console | admin, display operator |
+| Results | Print scores | admin, scorer, publisher |
+| | Generate EMA report ↗ | admin |
+
+Pages marked ↗ open outside the console, in their own full-screen page.
 (Platform operators see one more entry under *Administration* — **Tenants** —
 see [Part VI](#part-vi-platform-operator).)
 
