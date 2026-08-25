@@ -1,7 +1,11 @@
 # OVH API credentials for certbot's DNS-01 challenge (certbot/dns-ovh image).
 # Copy to certbot/ovh.ini, fill in, then: chmod 600 certbot/ovh.ini
-# Create the keys at https://eu.api.ovh.com/createApp/ (or your OVH region),
-# granting GET/PUT/POST/DELETE on /domain/zone/<BASE_DOMAIN>/*.
+# Create the keys at https://eu.api.ovh.com/createToken/ (or your OVH region)
+# with UNLIMITED validity (cron renewals need it) and these four rights:
+#   GET /domain/zone/*   PUT /domain/zone/*   POST /domain/zone/*   DELETE /domain/zone/*
+# The wildcard must be on /domain/zone/* itself, not /domain/zone/<domain>/*:
+# certbot first LISTS zones (GET /domain/zone/), and a narrower token gets
+# "403 Forbidden ... Are your Application Key and Consumer Key values correct?".
 # Another DNS provider: swap the certbot image and this file — see the certbot
 # service in docker-compose.prod.yml.
 
