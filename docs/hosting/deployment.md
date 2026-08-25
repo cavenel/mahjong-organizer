@@ -20,18 +20,22 @@ on nginx, TLS and the production commands. Always deploy with both files:
 
 ```bash
 docker volume create mahj_postgres_data          # once, before the first up
+docker volume create mahj_letsencrypt            # once, before the first up
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
-The database lives in `mahj_postgres_data`, declared **external** in the compose
-file so that no compose command can delete it (see *Backups & restore*). It must
-exist before the first `up`; without it Compose stops with "external volume not
-found" rather than silently creating a throwaway one.
+The database lives in `mahj_postgres_data` and the TLS certificate in
+`mahj_letsencrypt`, both declared **external** in the compose files so that no
+compose command — in particular `docker compose down -v` — can delete them (see
+*Backups & restore*). They must exist before the first `up`; without them Compose
+stops with "external volume not found" rather than silently creating throwaway
+ones. The other named volumes (`static_files`, `certbot_www`, `nginx_cache`, the
+redis data) are rebuilt on start and may be deleted freely.
 
 Services: **web** (gunicorn/ASGI), **nginx** (TLS termination + static),
 **db** (PostgreSQL), **pgbouncer**, **redis** (cache), **redis_bus** (Channels +
 scan queue) and **scan_worker**. Named volumes persist
-`mahj_postgres_data`, `letsencrypt`, `static_files` and the redis data.
+`mahj_postgres_data`, `mahj_letsencrypt`, `static_files` and the redis data.
 
 nginx renders its vhost from `nginx/mahjong.conf.template` at start, substituting
 `${BASE_DOMAIN}` into `server_name` and the cert paths
@@ -125,10 +129,12 @@ Worth running every month or so, or whenever the disk gets tight. The `until` fi
 keeps the recent cache so the next deploy is still fast.
 
 **Never `docker volume prune`** (nor `docker system prune --volumes`). The
-database volume `mahj_postgres_data` is declared *external*, so `docker compose
-down -v` leaves it alone — but `volume prune` deletes any volume no running
-container uses, and nothing in this stack backs the database up. Stop the stack,
-prune, and every tenant is gone. Use the backup/restore paths below instead.
+database volume `mahj_postgres_data` and the certificate volume `mahj_letsencrypt`
+are declared *external*, so `docker compose down -v` leaves them alone — but
+`volume prune` deletes any volume no running container uses, and nothing in this
+stack backs the database up. Stop the stack, prune, and every tenant is gone. Use
+the backup/restore paths below instead. (A lost certificate volume is "only" an
+outage: nginx refuses to start until the cert is re-issued — see *TLS certificate*.)
 
 ## Backups & restore
 

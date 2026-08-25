@@ -115,6 +115,12 @@ services:
 volumes:
   gunicorn_sock:
   static_files:
+  # External for the same reason as the database volume: `docker compose down -v`
+  # must not delete the TLS certificate. Losing it is an outage (nginx refuses to
+  # start) and a re-issue counts against Let's Encrypt's 5-duplicates-per-week
+  # rate limit. Create once: `docker volume create mahj_letsencrypt`.
   letsencrypt:
+    external: true
+    name: mahj_letsencrypt
   certbot_www:
   nginx_cache:
