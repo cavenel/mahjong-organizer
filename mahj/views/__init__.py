@@ -31,6 +31,7 @@ from .admin_views import (
     admin_print_EMA,
     admin_reset,
     admin_upload_from_template,
+    admin_export_scores,
     admin_export_to_template,
     admin_generate_seating,
     counter_start,

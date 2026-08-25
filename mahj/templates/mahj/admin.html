@@ -88,10 +88,10 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="nav-label rail-hide">Tournament settings</span>
       </a>
-      <a href="admin?page=import_template" :title="railCollapsed ? 'Import from template' : ''"
+      <a href="admin?page=import_template" :title="railCollapsed ? 'Excel import / export' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'import_template' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'import_template' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-        <span class="nav-label rail-hide">Import from template</span>
+        <span class="nav-label rail-hide">Excel import / export</span>
       </a>
       <p data-testid="nav-group-players" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Players &amp; seating</p>
       <a href="admin?page=player_editor" :title="railCollapsed ? 'Edit players' : ''"

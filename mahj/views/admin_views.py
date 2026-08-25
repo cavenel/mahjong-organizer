@@ -10,6 +10,8 @@ from datetime import datetime
 
 import json
 from openpyxl import Workbook, load_workbook
+from openpyxl.styles import Alignment, Font
+from openpyxl.utils import get_column_letter
 from unidecode import unidecode
 
 from django.conf import settings
@@ -91,7 +93,7 @@ def _sheet_state_keys(tenant, as_strings=False):
 
 # Human labels for the tenant-role flags, shown in the user-management console.
 TENANT_ROLE_LABELS = {'scorer': 'Scorer', 'display_op': 'Display operator', 'publisher': 'Publisher'}
-from ..scoring import _country_flag, rounds_played
+from ..scoring import WIND_LETTERS, _attach_players, _country_flag, pad_scores, rounds_played
 from .scoring import (
     scores_per_player_rows,
     scores_per_table_grid,
@@ -848,11 +850,20 @@ def admin_export_to_template(request):
             col = 2 + (seat.wind - 1) + 5 * (seat.table_nb - 1)
             seating_sheet.cell(row=seat.round_nb + 2, column=col, value=seat.draw_number)
 
+    return _xlsx_response(wb, _export_filename(tournament))
+
+
+
+def _export_filename(tournament, suffix=''):
+    """Download name for an export: the tournament's short name reduced to a safe
+    charset (the title is free text), falling back to "tournament"."""
+    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (tournament.title or ""))
+    return (safe.strip("_") or "tournament") + suffix
+
+
+def _xlsx_response(wb, filename):
     buf = io.BytesIO()
     wb.save(buf)
-    # Keep the download name to a safe charset (the title is free text).
-    safe = "".join(c if c.isalnum() or c in "-_" else "_" for c in (tournament.title or ""))
-    filename = safe.strip("_") or "tournament"
     response = HttpResponse(
         buf.getvalue(),
         content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -860,6 +871,155 @@ def admin_export_to_template(request):
     response['Content-Disposition'] = 'attachment; filename="{0}.xlsx"'.format(filename)
     return response
 
+
+def _write_header(sheet, headers, freeze=None):
+    """Write a bold, wrapped header row and size each column to its label."""
+    for col, label in enumerate(headers, start=1):
+        cell = sheet.cell(row=1, column=col, value=label)
+        cell.font = Font(bold=True)
+        cell.alignment = Alignment(horizontal='center', vertical='bottom', wrap_text=True)
+        sheet.column_dimensions[get_column_letter(col)].width = max(9, min(len(label) + 2, 24))
+    if freeze:
+        sheet.freeze_panes = freeze
+
+
+def scoring_has_started(tenant):
+    """True once anything has been scored — a seat carrying minipoints, or any hand
+    row. The same test the import page uses to warn what an upload would erase, and
+    what gates the scores export: an empty tournament has nothing to export."""
+    return (Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
+            or Hand.objects.filter(tenant=tenant).exists())
+
+
+# What one played hand was: the three outcomes Hand.win_by encodes, as a label for
+# the export's Result column.
+def _hand_result(hand):
+    if hand.is_draw:
+        return 'Draw'
+    return 'Self-draw' if hand.is_self_draw else 'Discard'
+
+
+@tenant_admin_required
+def admin_export_scores(request):
+    """Export the entered scores as one Excel workbook, for a backup or for
+    offline analysis. Three sheets, admin-only and always full view (unlike the
+    public stats.xlsx, which is masked to the published rounds):
+
+      Scores        one row per competitor: the standings table, with the table
+                    they sat at and their MP/TP for every round.
+      Score sheets  one row per played hand: winner, discarder, value.
+      Table results one row per seat: the MP/TP/penalty recorded on each sheet.
+
+    Nothing is re-derived here — every number is what the scoring pages show. This
+    is an export only; there is no matching importer (a full round-trip is what
+    Backup & restore is for).
+    """
+    tenant = get_tenant(request)
+    tournament = get_tournament(request)
+    if not scoring_has_started(tenant):
+        # Nothing scored yet: the page hides the button, so this is a hand-typed
+        # URL or a stale tab.
+        return HttpResponseRedirect('admin?page=import_template')
+
+    is_mcr = tournament.rules == 'MCR'
+    uses_teams = tournament.has_teams
+    seats = _attach_players(tenant, list(Seat.objects.filter(tenant=tenant)))
+    # Which table each competitor sat at in each round, so the Scores sheet can name
+    # it beside the score — keyed on (player, round), never on list position.
+    player_table = {(s.player_id, s.round_nb): s.table_nb for s in seats if s.player_id}
+    validated = {
+        (s.round_nb, s.table_nb)
+        for s in ScoreSheet.objects.filter(tenant=tenant, validated=True)
+    }
+
+    standings = scores_per_player_rows(request, True)
+    # A chart can run longer than the configured round count (an imported chart, a
+    # round added mid-tournament), so take whichever is further along.
+    nb_rounds = max(tournament.nb_rounds or 0, rounds_played(standings))
+
+    wb = Workbook()
+
+    # --- Scores: the standings table ---------------------------------------------
+    scores_sheet = wb.active
+    scores_sheet.title = 'Scores'
+    headers = ['Rank', 'Player', 'EMA number', 'Country']
+    if uses_teams:
+        headers.append('Team')
+    if is_mcr:
+        headers.append('Total TP')
+    headers.append('Total MP')
+    for round_nb in range(1, nb_rounds + 1):
+        headers.append('R{0} table'.format(round_nb))
+        headers.append('R{0} MP'.format(round_nb))
+        if is_mcr:
+            headers.append('R{0} TP'.format(round_nb))
+    _write_header(scores_sheet, headers, freeze='C2')
+
+    for row in standings:
+        values = [row['pos'], row['name'], row['EMA_ID'], row['country']]
+        if uses_teams:
+            values.append(row['team'])
+        if is_mcr:
+            values.append(row['total']['tp'])
+        values.append(row['total']['mp'])
+        for score in pad_scores(row['scores'], nb_rounds):
+            # mp None is a round the competitor didn't play (pad_scores' empty
+            # cell) — leave the table blank there too rather than naming a seat
+            # they never took.
+            played = score['mp'] is not None
+            values.append(player_table.get((row['player_id'], score['round_nb'])) if played else None)
+            values.append(score['mp'])
+            if is_mcr:
+                values.append(score['tp'])
+        scores_sheet.append(values)
+
+    # --- Score sheets: one row per played hand -----------------------------------
+    # Seat winds resolve to names in memory: a Hand only stores the wind that won
+    # and the wind that dealt in, and Hand.win_by_player() would be a query each.
+    seat_by_cell = {(s.round_nb, s.table_nb, s.wind): s for s in seats}
+
+    def _seat_name(round_nb, table_nb, wind):
+        seat = seat_by_cell.get((round_nb, table_nb, wind))
+        return seat.player_name() if seat else ''
+
+    hands_sheet = wb.create_sheet('Score sheets')
+    _write_header(hands_sheet, [
+        'Round', 'Table', 'Hand', 'Result', 'Value',
+        'Winner wind', 'Winner', 'Dealt in wind', 'Dealt in by',
+    ], freeze='D2')
+    hands = Hand.objects.filter(tenant=tenant).order_by('round_nb', 'table_nb', 'hand_nb')
+    for hand in hands:
+        if hand.win_by is None:
+            continue    # unplayed placeholder row on a sheet still being entered
+        winner = '' if hand.is_draw else WIND_LETTERS[hand.win_by - 1]
+        dealt_in = WIND_LETTERS[hand.win_from - 1] if hand.win_from else ''
+        hands_sheet.append([
+            hand.round_nb, hand.table_nb, hand.hand_nb, _hand_result(hand), hand.points,
+            winner,
+            '' if hand.is_draw else _seat_name(hand.round_nb, hand.table_nb, hand.win_by),
+            dealt_in,
+            _seat_name(hand.round_nb, hand.table_nb, hand.win_from) if hand.win_from else '',
+        ])
+
+    # --- Table results: the numbers recorded on each sheet ------------------------
+    seats_sheet = wb.create_sheet('Table results')
+    seat_headers = ['Round', 'Table', 'Validated', 'Wind', 'Draw #', 'Player', 'MP', 'Penalty']
+    if is_mcr:
+        seat_headers.append('TP')
+    _write_header(seats_sheet, seat_headers, freeze='D2')
+    for seat in sorted(seats, key=lambda s: (s.round_nb, s.table_nb, s.wind)):
+        values = [
+            seat.round_nb, seat.table_nb,
+            'yes' if (seat.round_nb, seat.table_nb) in validated else 'no',
+            WIND_LETTERS[seat.wind - 1] if 1 <= seat.wind <= 4 else '',
+            seat.draw_number, seat.player_name(),
+            seat.minipoints, seat.penalty,
+        ]
+        if is_mcr:
+            values.append(seat.tablepoints)
+        seats_sheet.append(values)
+
+    return _xlsx_response(wb, _export_filename(tournament, '_scores'))
 
 @tenant_admin_required
 def admin_generate_seating(request):
@@ -2212,16 +2372,16 @@ def _page_tenants(request, tenant, error=None):
 
 def _page_import_template(request, tenant, error=None):
     # The upload confirm dialog names what it will erase, so tell the fragment
-    # how big the current tournament is and whether any scores exist.
+    # how big the current tournament is and whether any scores exist. The same
+    # flag offers the scores export, which has nothing to write until play starts.
     existing_players = Player.objects.filter(tenant=tenant).count()
-    existing_scores = (
-        Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
-        or Hand.objects.filter(tenant=tenant).exists()
-    )
+    existing_scores = scoring_has_started(tenant)
     template2 = loader.get_template('mahj/admin_import_template.html')
     return template2.render({
         'existing_players': existing_players,
         'existing_scores': existing_scores,
+        # Table points only exist under MCR, so only that ruleset's export mentions them.
+        'is_mcr': get_tournament(request).rules == 'MCR',
     }, request)
 
 

@@ -1,7 +1,8 @@
 {% load static %}
 <div class="max-w-2xl space-y-4">
-  <h2 class="text-xl font-bold text-gray-800">Import settings from Excel template</h2>
+  <h2 class="text-xl font-bold text-gray-800">Excel import / export</h2>
   <p class="text-sm text-gray-600">
+    Set the tournament up from the Excel template, or download it back out as Excel.
     Download the template <a class="text-amber-600 hover:underline" href="static/MahjongTemplate.xlsx">here</a>.
     <span class="text-gray-500">Importing is optional — a tournament can also be built entirely in the
     console: <a class="text-amber-600 hover:underline" href="admin?page=settings">Tournament settings</a>,
@@ -23,6 +24,25 @@
       Export current tournament
     </a>
   </div>
+
+{% if existing_scores %}
+  <div class="rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 space-y-2">
+    <p class="text-sm text-gray-600">
+      Download the entered <b>scores</b> as an Excel workbook — one sheet for the
+      full scoring table, one for every hand of every score sheet, and one for the
+      per-seat totals as recorded (minipoints, penalty{% if is_mcr %}, table points{% endif %}).
+      <span class="text-gray-500">A snapshot for your records or for offline analysis;
+      it is an export only, so to move a tournament between installs use
+      <a class="text-amber-600 hover:underline" href="admin?page=backup">Backup &amp; restore</a>.</span>
+    </p>
+    <a href="admin_export_scores"
+       class="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-lg border-2
+              border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3"/></svg>
+      Export scores &amp; score sheets
+    </a>
+  </div>
+{% endif %}
 
   <form method="post" enctype="multipart/form-data" action="admin_upload_from_template"
         onsubmit="return confirmImport(this);"

@@ -91,7 +91,7 @@ superuser bypasses membership, so they can:
 
 From then on each tenant admin manages their own tenant's users. Open
 `https://<tenant>.<BASE_DOMAIN>/admin`, then **Setup → Tournament settings**
-and **Import from template**. The **Setup checklist** tracks setup; the Run
+and **Excel import / export**. The **Setup checklist** tracks setup; the Run
 **Dashboard** tracks live progress.
 
 Accounts that predate memberships (old global `is_staff`/group roles) get no

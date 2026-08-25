@@ -14,6 +14,6 @@ and re-shoots every file here. See its README for the recipe.
 
 To capture something by hand instead, follow the same idea: use the **test
 tenant** so nothing touches a real event — sign in as an **admin**, run
-**Import from template**, then **Fill all rounds — scores / — score sheets**
+**Excel import / export**, then **Fill all rounds — scores / — score sheets**
 so every page has realistic data. Where a shot needs a specific role, sign in
 with an account holding that role.

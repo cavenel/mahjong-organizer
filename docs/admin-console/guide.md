@@ -130,7 +130,7 @@ SETUP (admin)                        RUN
 │                                    │
 │  TOURNAMENT                        │  SCORING           (admin, scorer, publisher)
 │  ├─ Tournament settings            │  ├─ Scoring
-│  └─ Import from template           │  └─ Publisher overview      (admin, publisher)
+│  └─ Excel import / export          │  └─ Publisher overview      (admin, publisher)
 │                                    │
 │  PLAYERS & SEATING                 │  DISPLAYS          (admin, display operator)
 │  ├─ Edit players                   │  ├─ Display on screens
@@ -837,7 +837,7 @@ There are two ways to get the player list in; everything after that is the same.
 
 **B. From the Excel template:**
 
-1. **Import from template** — download the blank Excel template (or **export
+1. **Excel import / export** — download the blank Excel template (or **export
    the current tournament** in the same format to back it up / edit offline),
    fill it in, and upload. This creates the players, the seating chart for
    every round, the schedule, and the tournament options in one go.
@@ -846,6 +846,13 @@ There are two ways to get the player list in; everything after that is the same.
    - A wrong or old-format file (missing sheets, unreadable rounds count, a
      player count that isn't a multiple of 4, duplicate draw numbers…) is
      **rejected with the tournament untouched**.
+   - Once play has started the page also offers **Export scores & score
+     sheets** — one workbook with the full scoring table (rank, totals, and the
+     table/MP/TP for every round), one sheet per played hand (winner,
+     discarder, value), and the per-seat totals as recorded (minipoints,
+     penalty, and table points under MCR). It is a snapshot for your records or
+     for offline analysis — there is no importer for it, so to move a
+     tournament between installs use [Backup & restore](#19-backing-up-and-restoring-a-tournament).
 
 **Then, either way:**
 
@@ -871,7 +878,7 @@ There are two ways to get the player list in; everything after that is the same.
    [Designing the player cards](#designing-the-player-cards).
 
 > ![Import](screenshots/40-import-template.png)<br>
-> 📸 **Screenshot — Import from template page.**
+> 📸 **Screenshot — Excel import / export page.**
 
 ## 18. Publishing the site to the web
 
@@ -985,7 +992,7 @@ production, so it's a faithful rehearsal.
 The fake-data buttons fill **scores** for the players and tables that already
 exist — they do **not** create players. So first set up a tournament structure,
 exactly like a real event: sign in as an **admin** and either build a roster on
-Edit players and generate a **Seating**, or run **Import from template** (see
+Edit players and generate a **Seating**, or run **Excel import / export** (see
 [§17](#17-setting-up-the-tournament)). On a test tournament, Edit players gains a
 **🧪 Add 4 random players** button next to **+ Add player**: each click appends
 four made-up competitors with names, a fake EMA number (always starting `99`, so
@@ -1038,7 +1045,7 @@ Once the test tournament has data you can exercise the full operator workflow:
    (requires the OCR service to be configured on the host).
 
 **Reset between rehearsals:** *Clear all rounds* wipes results but keeps the
-players/seating; re-running **Import from template** resets the whole tenant.
+players/seating; re-running the **Excel import / export** upload resets the whole tenant.
 
 ### Notes & caveats
 
@@ -1058,7 +1065,7 @@ players/seating; re-running **Import from template** resets the whole tenant.
 |---|---|---|
 | Create users / roles / login links | Setup → Administration → **User management** | Admin |
 | Set title, rules, rounds, schedule, logo | Setup → **Tournament settings** | Admin |
-| Set up the tournament | Setup → **Edit players** → Add player, then **Seating** → generate (or **Import from template**) | Admin |
+| Set up the tournament | Setup → **Edit players** → Add player, then **Seating** → generate (or **Excel import / export**) | Admin |
 | Add / remove / correct a player, assign draw numbers | Setup → **Edit players** | Admin |
 | Print player cards / positions / schedule | Setup → **Print materials** | Admin |
 | Change the player cards' size, colours or theme | Setup → **Player card design** | Admin |
