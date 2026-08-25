@@ -81,9 +81,14 @@
             <div class="text-4xl font-black w-16 text-center tabular-nums">${escapeHtml(e.pos)}</div>
             ${flagImg(e.flag)}
             <div class="flex-1 text-3xl font-bold truncate">${escapeHtml(e.name)}</div>
+            <!-- The total is TP under MCR and MP otherwise. MP goes on a second
+                 line only for MCR, where it is the tie-breaker behind the TP
+                 total; under Riichi the total already is MP and the second line
+                 printed the same number twice. -->
             <div class="text-right tabular-nums leading-tight">
-              <div class="text-3xl font-black">${escapeHtml(e.total)}${s.rules === 'MCR' ? ' <span class="text-2xl">TP</span>' : ''}</div>
-              <div class="text-lg opacity-70">${escapeHtml(e.mp)} MP</div>
+              <div class="text-3xl font-black">${escapeHtml(e.total)} <span class="text-2xl">${s.rules === 'MCR' ? 'TP' : 'MP'}</span></div>
+              ${s.rules === 'MCR'
+                ? `<div class="text-lg opacity-70">${escapeHtml(e.mp)} MP</div>` : ''}
             </div>
           </div>`;
       }).join('');

@@ -123,7 +123,10 @@
                 <span class="w-6 font-bold tabular-nums" x-text="p.pos"></span>
                 <span class="flex-1 whitespace-nowrap" x-text="p.name"></span>
                 <span class="tabular-nums font-semibold" x-text="p.total"></span>
-                <span class="tabular-nums text-xs text-gray-400 w-16 text-right whitespace-nowrap"><span x-text="p.mp"></span> MP</span>
+                <!-- MP is the MCR tie-breaker beside the TP total. Under Riichi the
+                     total already *is* MP, so this column would just repeat it. -->
+                <span class="tabular-nums text-xs text-gray-400 w-16 text-right whitespace-nowrap"
+                      x-show="data.rules === 'MCR'"><span x-text="p.mp"></span> MP</span>
               </li>
             </template>
           </ol>
