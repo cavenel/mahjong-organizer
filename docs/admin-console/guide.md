@@ -784,9 +784,12 @@ There are two ways to get the player list in; everything after that is the same.
    Applying a new seating clears any entered scores.
 3. **Edit players** — add or remove players, correct names, EMA ids, countries
    and teams in place, and assign **draw numbers** (which seat-slot each player
-   occupies) once seats exist. Removing a player who already holds a draw
-   number frees that slot; the seat shows as *Player #n* until someone else is
-   drawn into it.
+   occupies) once seats exist. Add and remove players **before** the seating
+   is generated: the chart is built for the list's size, and if the two later
+   differ the Dashboard and the Seating page show a red warning until you
+   regenerate the seating or fix the list. A player who withdraws
+   mid-tournament is *not* removed — their seat has to stay in the chart;
+   rename the row (e.g. to the substitute) or leave it as is.
 4. **Randomize players (live)** / **Team draw (live)** — full-screen draw pages
    to run the draw *as a show* in front of the players; each opens in its own
    tab.

@@ -66,7 +66,14 @@
         {% endif %}
       </li>
       <li class="flex items-center gap-3">
-        {% if has_seats %}
+        {% if chart_mismatch %}
+          <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold">!</span>
+          <span class="text-rose-700" data-testid="chart-mismatch">
+            <span class="font-bold">Seating chart is for {{ chart_players }} player{{ chart_players|pluralize }}, but the list has {{ nb_players }}</span>
+            — <a href="admin?page=seating" class="text-amber-600 hover:underline">regenerate the seating</a>
+            or <a href="admin?page=player_editor" class="text-amber-600 hover:underline">fix the player list</a>
+          </span>
+        {% elif has_seats %}
           <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
           <span class="text-gray-700">Seating chart ready</span>
         {% else %}

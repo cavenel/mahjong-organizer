@@ -310,3 +310,48 @@ def test_settings_page_toggles_the_test_flag(admin_client_, ed_tenant):
     admin_client_.post('/admin?page=settings&action=set_tournament&tournament-is_test=false')
     assert TournamentSettings.objects.get(tenant=ed_tenant).is_test is False
     assert 'data-testid="test-badge"' not in admin_client_.get('/admin?page=settings').content.decode()
+
+
+# --- chart size vs roster size ----------------------------------------------------
+
+def _chart(tenant, n):
+    Seat.objects.bulk_create([
+        Seat(tenant=tenant, draw_number=d, round_nb=1, table_nb=(d - 1) // 4 + 1, wind=(d - 1) % 4 + 1)
+        for d in range(1, n + 1)])
+
+
+def test_no_mismatch_warning_when_chart_fits_the_list(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    _chart(ed_tenant, 8)
+    assert 'chart-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()
+    dash = admin_client_.get('/admin?page=welcome').content.decode()
+    assert 'chart-mismatch' not in dash and 'Seating chart ready' in dash
+
+
+def test_mismatch_warning_when_players_were_added_after_the_chart(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    _chart(ed_tenant, 8)
+    _add(admin_client_, 4)
+    seating = admin_client_.get('/admin?page=seating').content.decode()
+    assert 'chart-mismatch' in seating
+    assert 'seats <strong>8</strong> draw slots' in seating and '<strong>12</strong> players' in seating
+    assert 'can never be drawn in' in seating
+    dash = admin_client_.get('/admin?page=welcome').content.decode()
+    assert 'chart-mismatch' in dash
+    assert 'Seating chart is for 8 players, but the list has 12' in dash
+    assert 'Seating chart ready' not in dash
+
+
+def test_mismatch_warning_when_a_player_was_removed(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    _chart(ed_tenant, 8)
+    victim = Player.objects.filter(tenant=ed_tenant).first()
+    _post(admin_client_, '/player_editor_delete', {'id': victim.id})
+    seating = admin_client_.get('/admin?page=seating').content.decode()
+    assert 'chart-mismatch' in seating and 'Some seats will stay empty' in seating
+
+
+def test_no_mismatch_warning_without_a_chart(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    assert 'chart-mismatch' not in admin_client_.get('/admin?page=welcome').content.decode()
+    assert 'chart-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()

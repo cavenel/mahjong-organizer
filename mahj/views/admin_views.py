@@ -1797,6 +1797,11 @@ def _page_welcome(request, tenant, error=None):
     # which also happens with no seats at all, a false "all complete". Guard on
     # the seating chart actually existing.
     has_seats = Seat.objects.filter(tenant=tenant).exists()
+    # The chart's own size (distinct draw slots). Players are added/removed only
+    # before play, so a chart of a different size than the list is a setup error
+    # the checklist must shout about — the extra people can never be drawn in.
+    chart_players = (Seat.objects.filter(tenant=tenant)
+                     .values('draw_number').distinct().count()) if has_seats else 0
     complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
     last_published, _ = publish_state(tenant, tournament)
     # Warn when a schedule exists but its playing rounds don't line up with
@@ -1815,6 +1820,8 @@ def _page_welcome(request, tenant, error=None):
             # Whether a seating chart exists at all (imported or generated) —
             # the player list can be drawn in only once there are seats to fill.
             "has_seats": has_seats,
+            "chart_players": chart_players,
+            "chart_mismatch": has_seats and chart_players != nb_players,
             # A player is "drawn in" once assigned a draw number; the player list is
             # ready to play when every player holds one.
             "draw_done": nb_players > 0 and nb_drawn == nb_players,
@@ -2140,6 +2147,9 @@ def _page_seating(request, tenant, error=None):
     seats = list(Seat.objects.filter(tenant=tenant)
                  .values_list('round_nb', 'table_nb', 'wind', 'draw_number'))
     current = current_headline = None
+    # Draw slots the chart seats — its "number of players". Kept beside the roster
+    # size so the page can flag a chart built for a different field.
+    n_chart = 0
     if seats:
         n_chart = len({s[3] for s in seats})
         r_chart = len({s[0] for s in seats})
@@ -2168,6 +2178,8 @@ def _page_seating(request, tenant, error=None):
         'nb_rounds': nb_rounds,
         'has_teams': tournament.has_teams,
         'has_seats': bool(seats),
+        'chart_players': n_chart,
+        'chart_mismatch': bool(seats) and n_chart != nb_players,
         'existing_scores': seating_scores,
         'current': current,
         'current_headline': current_headline,

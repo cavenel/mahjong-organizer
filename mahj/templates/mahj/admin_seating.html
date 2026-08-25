@@ -10,6 +10,23 @@
     </p>
   </div>
 
+  {% if chart_mismatch %}
+  <div class="rounded-lg border-2 border-rose-400 bg-rose-50 px-4 py-3 text-sm text-rose-800 flex gap-3"
+       data-testid="chart-mismatch">
+    <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v4m0 4h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+    <div>
+      <p class="font-bold">The seating chart does not match the player list.</p>
+      <p class="mt-1">
+        The chart seats <strong>{{ chart_players }}</strong> draw slot{{ chart_players|pluralize }}, but the
+        list has <strong>{{ nb_players }}</strong> player{{ nb_players|pluralize }}.
+        {% if nb_players > chart_players %}The extra players have no seat and can never be drawn in.{% else %}Some seats will stay empty ("Player #n").{% endif %}
+        Generate a new seating below{% if existing_scores %} (this clears the entered scores){% endif %},
+        or fix the list on <a href="admin?page=player_editor" class="font-medium underline hover:no-underline">Edit players</a>.
+      </p>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- Current seating status -->
   <section class="rounded-lg border border-gray-200 bg-white px-4 py-3 space-y-2">
     <h3 class="text-base font-bold text-gray-800">Current seating</h3>
