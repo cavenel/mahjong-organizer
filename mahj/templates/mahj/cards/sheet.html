@@ -1,0 +1,345 @@
+{% comment %}
+Printable player cards: one sheet per A4 face, front and back alternating.
+
+Everything about this page is data-driven from the view (print_views.player_cards):
+`layout` is the chosen format's geometry (grid, duplex mirroring, header partial),
+and `card_css` is the organiser's own CSS, emitted last so it wins the cascade.
+Card data is plain dicts — see _card_rounds — so editing a badge here needs no
+knowledge of the models.
+
+The stylesheet below is *geometry only*: millimetres, the sheet grid and the
+print rules. Colours and fonts live in `card_css` (defaults in card_themes.py),
+which is why nothing here hardcodes a colour that an organiser might want to
+change.
+{% endcomment %}
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Player Cards — {{ tournament.title }}</title>
+<link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+<link rel="stylesheet" href="{% static 'images/flags.css' %}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  /* ── Shades derived from the two accent colours, so a palette is two picks ── */
+  :root {
+    --accent-2-soft: color-mix(in srgb, var(--accent-2), white 15%);
+    --accent-2-deep: color-mix(in srgb, var(--accent-2), black 20%);
+  }
+
+  body {
+    font-family: var(--font-body);
+    color: var(--ink);
+    background: #1c1814;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .display    { font-family: var(--font-display); font-variation-settings: "opsz" 144; }
+  .mono       { font-family: var(--font-mono); font-feature-settings: "tnum" 1; }
+  .title-font {
+    font-family: var(--font-body); font-weight: 700; font-size: 11.4pt;
+    letter-spacing: 0.04em; color: var(--accent); text-align: right; line-height: 1.15;
+  }
+
+  /* ── Header band ── */
+  .head-band { padding: 0 4mm 2.1mm; }
+  .head-row { display: flex; align-items: flex-end; justify-content: space-between; margin-top: 1.7mm; }
+  .head-row .logo { max-height: 46px; }
+  .accent-2-rule { margin-top: 1.4mm; }
+  .card-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    overflow: hidden;
+    font-size: 5.4pt; letter-spacing: 0.22em; text-transform: uppercase;
+    color: var(--ink); margin-top: 1mm;
+  }
+  .card-meta .sep { color: var(--accent-2-deep); }
+  .accent-sep { margin-top: 1.2mm; }
+
+  /* ── Card shell ── */
+  .card {
+    width: 100%;
+    height: 100%;
+    background: var(--paper);
+    color: var(--ink);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+  }
+  /* No wrapping anywhere on a card: a two-line cell costs a row's height and
+     looks like a bug. Values that do not fit are cut off — a hard clip, not an
+     ellipsis, because a value that only just overflows loses two more characters
+     to the "..." than it would to the edge. */
+  .card { white-space: nowrap; }
+  .grid-row > *, .opp-grid > * { overflow: hidden; text-overflow: clip; }
+  .card-head { flex-shrink: 0; }
+  .card-main { flex: 1; display: flex; flex-direction: column; min-height: 0; padding: 0.8mm 4mm 0; }
+  .grid-row.round-row { padding: 0.5mm 0; }
+  .col-label.wide { grid-column: span 2; }
+
+  /* ── Header decorations ── */
+  .accent-bar { height: 1.2mm; background: var(--accent); flex-shrink: 0; }
+  .accent-2-rule {
+    height: 0.5mm; flex-shrink: 0;
+    background: linear-gradient(90deg, transparent 0%, var(--accent-2) 15%, var(--accent-2-soft) 50%, var(--accent-2) 85%, transparent 100%);
+  }
+  .accent-sep { height: 0.35mm; background: var(--accent); flex-shrink: 0; }
+  .name-rule  { margin: 0 4mm; height: 0.3mm; background: var(--accent); flex-shrink: 0; }
+
+  /* ── Wind chip ── */
+  .wind {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 4.4mm; height: 4.4mm; border-radius: 0.6mm;
+    font-family: var(--font-mono); font-size: 6.4pt; font-weight: 700;
+    line-height: 1; flex-shrink: 0;
+    /* The letter colours are their own variables — a chip's background and its
+       letter need different contrast, and East is the odd one out. The fallbacks
+       are the values these were hardcoded to, so a card_css written before they
+       existed still renders unchanged. */
+    color: var(--wind-ink, #FFFFFF);
+  }
+  .wind.E { background: var(--accent-2); color: var(--wind-east-ink, var(--accent)); }
+  .wind.S, .wind.W, .wind.N { background: var(--accent); }
+  .wind.sm { width: 3.6mm; height: 3.6mm; font-size: 5.4pt; border-radius: 0.4mm; }
+
+  /* ── Front: score grid ── */
+  .grid-row {
+    display: grid;
+    /* round no. | time | table+seat | four writing boxes */
+    grid-template-columns: 3mm 18.5mm 11.5mm 1fr 1fr 1fr 1fr;
+    align-items: center;
+    column-gap: 0.8mm;
+  }
+  .col-label { font-family: var(--font-mono); font-size: 4.8pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
+  .col-label.c { text-align: center; }
+  /* "Tbl · Seat" is the widest head over the narrowest column, so it wraps to two
+     lines unless its tracking is pulled in. Kept on one line: the wrap read as a
+     mistake, and on an A7 card the extra line costs a round's worth of height. */
+  .col-label.seat { white-space: nowrap; letter-spacing: 0.04em; }
+  .seat-head { white-space: nowrap; }
+  .seat-cell { display: flex; align-items: center; justify-content: center; gap: 0.8mm; }
+  .seat-cell .tbl { width: 30px; text-align: center; font-size: 8.2pt; color: var(--ink); font-weight: 700; line-height: 1; white-space: nowrap; }
+
+  .day-band { display: flex; align-items: center; gap: 2mm; padding-top: 0.75mm; padding-bottom: 0.3mm; }
+  .day-band .label { font-family: var(--font-mono); font-size: 5.6pt; letter-spacing: 0.22em; color: var(--accent-2-deep); text-transform: uppercase; white-space: nowrap; }
+  .day-band .rule  { flex: 1; height: 0.18mm; background: var(--line); }
+
+  .write-cell { height: 5.6mm; background: var(--paper); border: 0.25mm solid var(--write-border); border-radius: 0.5mm; }
+  .write-cell.total { border: 0.45mm solid var(--ink); }
+
+  /* The rule under the column heads and above the totals: bordered here rather
+     than inline, so a theme (or an organiser) can restyle them. */
+  .grid-row.head-rule { border-bottom: 0.18mm solid var(--ink); padding-bottom: 0.6mm; }
+  .grid-row.total-rule { border-top: 0.4mm solid var(--ink); padding-top: 1.2mm; margin-top: 0.5mm; padding-bottom: 0.4mm; }
+  .round-nb { font-family: var(--font-mono); font-size: 6pt; color: var(--muted); }
+  .round-time { font-family: var(--font-mono); font-size: 6.2pt; }
+  .total-label { font-family: var(--font-mono); font-size: 6pt; letter-spacing: 0.22em; font-weight: 700; color: var(--ink); text-transform: uppercase; }
+  .footer-url { margin-top: 5px; padding-top: 1.3mm; text-align: right; border-top: 0.2mm solid var(--line); }
+  .footer-url span { font-family: var(--font-mono); font-size: 6pt; color: var(--ink); }
+
+  /* ── Back: opponents grid ── */
+  .opp-grid {
+    display: grid;
+    grid-template-columns: 3mm 15mm 1fr 1fr 1fr 1fr;
+    column-gap: 0.8mm;
+    align-items: stretch;
+    padding-bottom: 0.85mm;
+  }
+  .opp-cell {
+    padding: 1.2mm 0.3mm 1.2mm 0.6mm; font-size: 6.7pt; line-height: 1.05;
+    border-bottom: 0.15mm solid var(--line-soft); position: relative; color: var(--ink-soft);
+    overflow: hidden; text-overflow: clip; white-space: nowrap;
+  }
+  .opp-cell.me { color: var(--ink); font-weight: 700; }
+  .opp-grid.opp-head { flex-shrink: 0; }
+  .round-nb.back-nb { padding-left: 0.4mm; align-self: center; }
+  .seat-back {
+    display: flex; align-items: center; justify-content: center; gap: 0.8mm;
+    border-bottom: 0.15mm solid var(--line-soft); padding: 1.2mm 0;
+  }
+  .seat-back .tbl { width: 30px; font-size: 8.2pt; text-align: center; font-weight: 700; color: var(--ink); line-height: 1; white-space: nowrap; }
+  .wind-head {
+    display: flex; align-items: center; gap: 1mm;
+    padding: 1.2mm 0 1.2mm 1.6mm;
+    border-bottom: 0.4mm solid var(--ink);
+    font-family: var(--font-mono); font-size: 5.8pt; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink);
+  }
+  .seat-head {
+    border-bottom: 0.4mm solid var(--ink);
+    font-family: var(--font-mono); font-size: 5.4pt; font-weight: 600;
+    letter-spacing: 0.16em; text-transform: uppercase; color: var(--ink);
+    text-align: center; padding: 1.2mm 0;
+  }
+
+  /* ── Identity block (tall A6 header) ── */
+  .id-block { padding: 1.4mm 4mm 1mm; flex-shrink: 0; }
+  .id-row { display: flex; align-items: center; justify-content: space-between; }
+  .player-name {
+    font-family: var(--font-display); font-size: 18pt; line-height: 1;
+    font-weight: 500; color: var(--ink);
+    overflow: hidden; text-overflow: clip; min-width: 0;
+  }
+  .country { text-align: right; line-height: 1.2; }
+  .country .label { font-family: var(--font-mono); font-size: 5.2pt; letter-spacing: 0.24em; text-transform: uppercase; color: var(--muted); }
+  .country .value { display: flex; align-items: center; gap: 1mm; margin-top: 0.6mm; justify-content: flex-end; }
+  .country .code { font-family: var(--font-mono); font-size: 7pt; color: var(--ink); font-weight: 600; letter-spacing: 0.04em; }
+  .country .value .flag { zoom: 0.8; display: block; }
+
+  /* ── Sheet: the A4 face, one grid of cards ── */
+  .sheet {
+    width: 210mm;
+    height: 297mm;
+    display: grid;
+    grid-template-columns: repeat({{ layout.cols }}, 1fr);
+    grid-template-rows: repeat({{ layout.rows }}, 1fr);
+    padding: 5mm 0mm;
+    overflow: hidden;
+    background: white;
+    border: 0px;
+    box-sizing: border-box;
+  }
+
+  /* ── A7 landscape: half the height of an A6, so everything tightens ──
+     The height budget, measured on the rendered card: compact header ~9mm,
+     column heads ~5mm, a day band ~3mm, the totals row ~7mm, and ~5mm per round
+     in 59mm of body — eight rounds reach the bottom, nine overflow. The
+     card-design page warns past that; do not shrink .write-cell further without
+     checking that a score is still writable by hand. */
+  .format-a7_landscape .head-band { padding: 0.9mm 2.5mm 0; }
+  .format-a7_landscape .head-row { align-items: center; gap: 2mm; margin-top: 0; }
+  .format-a7_landscape .head-row .logo { max-height: 7mm; flex-shrink: 0; }
+  .format-a7_landscape .title-font {
+    font-size: 7.4pt; line-height: 1.05; text-align: left;
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: clip; white-space: nowrap;
+  }
+  .format-a7_landscape .id-row { gap: 1mm; flex-shrink: 0; justify-content: flex-end; }
+  .format-a7_landscape .player-name { font-size: 11pt; }
+  .format-a7_landscape .id-row .flag { zoom: 0.62; display: block; }
+  .format-a7_landscape .card-meta {
+    gap: 1.4mm; justify-content: flex-start; font-size: 4.6pt;
+    letter-spacing: 0.16em; color: var(--muted); margin-top: 0.7mm;
+  }
+  .format-a7_landscape .card-meta .spacer { flex: 1; }
+  .format-a7_landscape .card-meta .head-url { color: var(--ink); }
+  .format-a7_landscape .accent-2-rule { margin-top: 0.8mm; }
+  .format-a7_landscape .id-block { padding: 0.8mm 3mm 0.6mm; }
+  .format-a7_landscape .card-main { padding: 0.6mm 2.5mm 0; }
+  .format-a7_landscape .grid-row.round-row { padding: 0.3mm 0; }
+  .format-a7_landscape .write-cell { height: 4.4mm; }
+  .format-a7_landscape .day-band { padding-top: 0.35mm; padding-bottom: 0.15mm; }
+  .format-a7_landscape .opp-cell, .format-a7_landscape .seat-back { padding-top: 0.7mm; padding-bottom: 0.7mm; }
+  .format-a7_landscape .opp-grid { padding-bottom: 0.4mm; }
+  .format-a7_landscape .wind-head, .format-a7_landscape .seat-head { padding-top: 0.7mm; padding-bottom: 0.7mm; }
+  /* One line at the very bottom carrying what the tall A6 header spreads over
+     three, pushed down by the auto margin so it sits on the card's edge. */
+  .format-a7_landscape .footer-url {
+    display: flex; align-items: center; gap: 1.4mm;
+    margin-top: auto; padding-top: 0.8mm; text-align: left;
+  }
+  .format-a7_landscape .footer-url .spacer { flex: 1; }
+  .format-a7_landscape .footer-url span { font-size: 4.6pt; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--muted); }
+  .format-a7_landscape .footer-url .head-url { color: var(--ink); }
+
+  @media screen {
+    .sheet { margin: 6mm auto; box-shadow: 0 4px 32px rgba(0,0,0,0.6); }
+  }
+
+  /* A card is 105mm ~ 397px, wider than a phone. The design page scales the
+     preview to its column, but this page can also be opened on its own, so shrink
+     it here too rather than making the reader scroll sideways. Screen only —
+     print keeps true millimetres. CSS cannot derive a scale() factor from the
+     viewport width, hence steps rather than a formula. */
+  @media screen and (max-width: 410px) { body.preview { zoom: 0.92; } }
+  @media screen and (max-width: 380px) { body.preview { zoom: 0.84; } }
+  @media screen and (max-width: 340px) { body.preview { zoom: 0.74; } }
+
+  /* ── Preview: crop to one card ──
+     The design page shows the card itself, at its printed size, rather than the
+     A4 sheet it is tiled onto — three empty slots tell an organiser nothing
+     about their design. Same page, same CSS, so it is still what will print. */
+  /* No background of its own: the page sits in an iframe on the design page, so
+     any surface colour here shows up as a grey margin around the card. */
+  body.preview { background: transparent; }
+  body.preview .sheet {
+    width: {{ layout.card_w }}mm;
+    height: {{ layout.card_h }}mm;
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    padding: 0;
+    margin: 1.5mm auto;
+    /* A hairline edge and a close shadow — enough to read as a card, without a
+       halo. Both are box-shadows rather than a border: a border would eat into
+       the card's width, and the preview has to stay true to size. */
+    box-shadow:
+      0 0 0 0.2mm rgba(24, 30, 36, 0.18),
+      0 1px 3px rgba(24, 30, 36, 0.12);
+  }
+
+  @media print {
+    @page { size: A4 portrait; margin: 0; }
+    body { background: white; }
+    .sheet { break-after: page; page-break-after: always; }
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+  }
+
+  /* ── Themes: rule bundles over the same markup ── */
+  /* minimal — ink on paper: no filled bars, hairlines, outlined wind chips. */
+  .theme-minimal .accent-bar, .theme-minimal .accent-2-rule { display: none; }
+  .theme-minimal .accent-sep { height: 0.2mm; background: var(--ink); }
+  .theme-minimal .name-rule { height: 0.2mm; background: var(--ink); }
+  .theme-minimal .wind {
+    background: none; border: 0.25mm solid var(--accent);
+    /* This chip has no fill, so the letter cannot fall back to white. */
+    color: var(--wind-ink, var(--accent));
+  }
+  .theme-minimal .wind.E {
+    border-color: var(--accent-2); background: none;
+    color: var(--wind-east-ink, var(--accent-2));
+  }
+  .theme-minimal .title-font { color: var(--ink); letter-spacing: 0.08em; }
+
+  /* bold — filled header band, reads across a room. */
+  .theme-bold .card-head { background: var(--accent); }
+  .theme-bold .card-head .title-font { color: white; }
+  .theme-bold .card-head .card-meta,
+  .theme-bold .card-head .card-meta .sep,
+  .theme-bold .card-head .card-meta .head-url { color: rgba(255,255,255,0.88); }
+  .theme-bold .card-head img.logo { background: white; border-radius: 1mm; padding: 0.6mm; }
+  .theme-bold .accent-bar { display: none; }
+  .theme-bold .accent-2-rule { height: 1mm; background: var(--accent-2); }
+  .theme-bold .accent-sep { display: none; }
+  .theme-bold .id-block { background: var(--accent); }
+  .theme-bold .card-head .player-name { color: white; }
+  .theme-bold .card-head .country .label,
+  .theme-bold .card-head .country .code { color: rgba(255,255,255,0.88); }
+  .theme-bold .name-rule { background: var(--accent-2); height: 0.5mm; }
+  .theme-bold .wind.E { background: var(--accent-2); }
+  .theme-bold .write-cell.total { border-color: var(--accent); }
+</style>
+{% comment %} The organiser's own CSS, last so it overrides the base and the theme.
+   Rendered with |safe (escaping would break `>` selectors); models.validate_card_css
+   is what makes that safe, and every stored value has passed it. {% endcomment %}
+<style id="card-css">{{ card_css|safe }}</style>
+</head>
+<body class="format-{{ card_format }} theme-{{ theme }}{% if preview %} preview{% endif %}">
+
+{% for sheet in sheets %}
+  {# ═══ FRONT face ═══ #}
+  <div class="sheet">
+    {% for slot in sheet.front %}{% include "mahj/cards/front.html" with card=slot.card rotate=slot.rotate %}{% endfor %}
+  </div>
+
+  {# ═══ BACK face — slots mirrored for duplex (flip on long edge) ═══ #}
+  <div class="sheet">
+    {% for slot in sheet.back %}{% include "mahj/cards/back.html" with card=slot.card rotate=slot.rotate %}{% endfor %}
+  </div>
+{% endfor %}
+</body>
+</html>

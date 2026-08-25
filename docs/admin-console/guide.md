@@ -139,7 +139,8 @@ SETUP (admin)                        RUN
 │  └─ Team draw (live) ↗             │  RESULTS
 │                                    │  ├─ Print scores   (admin, scorer, publisher)
 │  PRINT                             │  └─ Generate EMA report ↗            (admin)
-│  └─ Print materials                └─
+│  ├─ Print materials                └─
+│  └─ Player card design
 │
 │  ADMINISTRATION
 │  ├─ User management
@@ -167,11 +168,43 @@ Printable pages open in an in-app preview with **Close** and **Print** buttons �
   (also by team), and the schedule — the paper the room needs before play. The
   page tells you whether the draw is complete, since cards and positions depend
   on draw numbers.
+- **Setup → Player card design** *(admins)*: how the player cards look —
+  see [Designing the player cards](#designing-the-player-cards).
 - **Run → Results → Print scores** *(admins, scorers, publishers)*: the current
   standings, for posting paper results between rounds.
 
 > ![Print modal](screenshots/05-print-modal.png)<br>
 > 📸 **Screenshot — a print preview (e.g. player cards).**
+
+### Designing the player cards
+
+**Setup → Player card design** *(admins)* controls how the printed player cards
+look. Everything saves as you edit, and the preview beside the controls is the
+real print page, so what you see is what comes out of the printer.
+
+- **Card format** — **A6 portrait** (4 per A4 sheet) is the full-size card with a
+  tall header. **A7 landscape** (8 per sheet) is half that, with a compact
+  one-line header, for short tournaments; it fits up to eight rounds, and the page
+  warns you if your tournament has more. It prints the period, session count and
+  ruleset along the bottom edge, where the A6 card has them in its header. Either way, print **double-sided,
+  flipping on the long edge** — the back of each sheet is laid out for that, so
+  every card gets its own opponents on the back.
+- **Theme** — *classic* (colour bars and filled seat chips), *minimal* (ink on
+  paper, no colour bars) or *bold* (a filled header band that reads across a
+  room). Switching theme replaces the colours below; if you have edited the CSS
+  yourself, you are asked first.
+- **Colours** — pick a preset palette, or set any colour individually. The
+  controls are built from the stylesheet, so they always match what the card
+  actually uses.
+- **Advanced — edit the CSS** — the whole card stylesheet, if you want more than
+  colours: hide a field, change a font, restyle the seat chips. Your CSS is added
+  *after* the built-in one, so any rule you write wins, and the panel lists the
+  class names to target. Cards may not load anything from another site, so
+  `@import` and remote `url()` are rejected with a message; embed images as
+  `data:` URIs instead.
+
+The tournament logo and the spectator URL printed on the cards come from
+**Tournament settings**, not this page.
 
 ### Live updates
 
@@ -823,7 +856,9 @@ There are two ways to get the player list in; everything after that is the same.
    tab.
 5. **Print materials** — the paper for the room: player names, team names,
    player cards, table positions, cross positions (also by team), and the
-   schedule. See [Printing](#printing).
+   schedule. See [Printing](#printing). To change the look of the player cards
+   (size, colours, theme), see
+   [Designing the player cards](#designing-the-player-cards).
 
 > ![Import](screenshots/40-import-template.png)<br>
 > 📸 **Screenshot — Import from template page.**
@@ -1016,6 +1051,7 @@ players/seating; re-running **Import from template** resets the whole tenant.
 | Set up the tournament | Setup → **Edit players** → Add player, then **Seating** → generate (or **Import from template**) | Admin |
 | Add / remove / correct a player, assign draw numbers | Setup → **Edit players** | Admin |
 | Print player cards / positions / schedule | Setup → **Print materials** | Admin |
+| Change the player cards' size, colours or theme | Setup → **Player card design** | Admin |
 | Print the current standings | Run → Results → **Print scores** | Scorer |
 | Enter table MP | Scoring page → seat inputs (auto-saves) | Scorer |
 | Enter all 16 hands *(MCR)* | Scoring row → **Score sheet** | Scorer |

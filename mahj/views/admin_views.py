@@ -13,6 +13,7 @@ from openpyxl import Workbook, load_workbook
 from unidecode import unidecode
 
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.contrib.auth import logout
 from django.db import IntegrityError, transaction
 from django.db.models import F
@@ -21,7 +22,7 @@ from django.shortcuts import get_object_or_404
 from django.template import loader
 from django.utils.html import escape
 
-from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
+from ..models import CARD_CSS_MAX, CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
     BASE_DIR, VIEW_AS_SESSION_KEY, _TENANT_ROLES, acting_superuser, current_membership,
@@ -109,6 +110,9 @@ _TOURNAMENT_LABELS = {
     "rules": "Rules",
     "home_country": "Home nation",
     "countrycourt": "Federation code",
+    "card_format": "Card format",
+    "card_theme": "Card theme",
+    "card_css": "Card CSS",
 }
 
 # Which TournamentSettings fields each page's set_tournament may write. An
@@ -122,6 +126,9 @@ DISPLAY_SETTINGS_FIELDS = frozenset({
 TOURNAMENT_SETTINGS_FIELDS = frozenset({
     "city", "countrycourt", "fullname", "has_teams", "home_country", "is_test",
     "nb_rounds", "period", "rules", "title", "total_time",
+    # Printed player cards, edited on the card-design page (which posts to this
+    # same action, so the two pages share one handler and one allowlist).
+    "card_format", "card_theme", "card_css",
 })
 
 
@@ -1684,13 +1691,17 @@ def _apply_set_tournament(request, tournament, allowed_fields):
     so a display operator can't reach structural or identity fields and no page
     can touch the server-authoritative `counter`."""
     touched_fields = []
-    for var in request.GET.keys():
+    # Fields arrive in the query string historically, and in the POST body from
+    # the shared autosave — card CSS runs to kilobytes, which a URL cannot carry
+    # reliably. The body wins where both carry a field.
+    params = {**request.GET.dict(), **request.POST.dict()}
+    for var in params:
         if var.startswith("tournament-"):
             field = var[len("tournament-"):]
             if field not in allowed_fields:
                 continue
             if hasattr(tournament, field):
-                value = request.GET.get(var)
+                value = params[var]
                 # Coerce booleans: every GET value is a string, and a non-empty
                 # string ("false") is truthy — so a raw setattr would store True
                 # for both. Map the usual truthy spellings instead.
@@ -1704,14 +1715,26 @@ def _apply_set_tournament(request, tournament, allowed_fields):
         # UI showed silently. Returning a readable 400 instead lets the
         # page surface exactly which field was too long, and why.
         for field in touched_fields:
-            max_length = getattr(tournament._meta.get_field(field), "max_length", None)
+            model_field = tournament._meta.get_field(field)
+            label = _TOURNAMENT_LABELS.get(field, field)
+            max_length = getattr(model_field, "max_length", None)
             value = getattr(tournament, field)
             if max_length and isinstance(value, str) and len(value) > max_length:
-                label = _TOURNAMENT_LABELS.get(field, field)
                 return HttpResponse(
                     f"{label} is too long: {len(value)} characters "
                     f"(maximum {max_length}).",
                     status=400)
+            # Field validators (card format/theme/CSS today) — run_validators
+            # rather than full_clean or Field.validate: those also enforce
+            # blank=False, which would start rejecting the cleared text fields
+            # the console has always allowed. to_python first, because every
+            # value arrives as a string and a number field's range validators
+            # can't compare a string to an int.
+            try:
+                model_field.run_validators(model_field.to_python(value))
+            except ValidationError as exc:
+                return HttpResponse(f"{label}: {' '.join(exc.messages)}",
+                                    status=400)
         # Scope the write to the fields actually edited: a full-row save would
         # also persist this instance's `counter`, which could stop a running
         # round timer. signals.py still busts the cache on post_save.
@@ -1853,6 +1876,47 @@ def _page_print_materials(request, tenant, error=None):
          "nb_drawn": status["nb_drawn"], "nb_players": status["nb_players"]},
         request,
     )
+
+
+def _page_card_design(request, tenant, error=None):
+    """The printed-player-card design page: format, theme, colours and custom CSS.
+
+    Read-only: every control autosaves through the settings page's
+    set_tournament action (the fields are on its allowlist), so there is one
+    writer for tournament settings rather than two. The live preview is an iframe
+    on the real print page, reloaded after each save — what you see is what will
+    print, not a mock-up of it.
+    """
+    from ..card_themes import CARD_PALETTES, CARD_THEME_DEFAULT_CSS, effective_card_css
+    from ..models import CARD_THEMES
+    from .print_views import CARD_LAYOUTS
+
+    tournament = get_tournament(request)
+    formats = [
+        {"key": key,
+         "label": layout["label"],
+         "per_sheet": layout["per_sheet_label"],
+         "cols": layout["cols"],
+         "rows": layout["rows"],
+         # Card size in mm, so the preview frame matches the printed card.
+         "card_w": layout["card_w"],
+         "card_h": layout["card_h"]}
+        for key, layout in CARD_LAYOUTS.items()
+    ]
+    return loader.get_template('mahj/admin_card_design.html').render({
+        "tournament": tournament,
+        "formats": formats,
+        # In CARD_THEMES order (classic first, the default), not alphabetical.
+        "themes": [t for t in CARD_THEMES if t in CARD_THEME_DEFAULT_CSS],
+        "theme_defaults": CARD_THEME_DEFAULT_CSS,
+        "palettes": CARD_PALETTES,
+        "effective_css": effective_card_css(tournament),
+        "card_css_max": CARD_CSS_MAX,
+        # Measured against the rendered card: eight rounds reach the bottom of an
+        # A7, and nine overflow it. Past that the page warns rather than letting
+        # an operator discover the clipping on paper.
+        "a7_max_rounds": 8,
+    }, request)
 
 
 def _page_welcome(request, tenant, error=None):
@@ -2365,6 +2429,7 @@ ADMIN_PAGES = {
     "player_editor":      _AdminPage(_gate_tenant_admin, _page_player_editor, area='setup'),
     "seating":            _AdminPage(_gate_tenant_admin, _page_seating, area='setup'),
     "print_materials":    _AdminPage(_gate_tenant_admin, _page_print_materials, area='setup'),
+    "card_design":        _AdminPage(_gate_tenant_admin, _page_card_design, area='setup'),
     "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True, area='setup'),
     "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
                                      reauth=True, reauth_next='tenants', area='setup'),

@@ -1,0 +1,46 @@
+{% comment %}
+Back of one card: the same header, then who the player faces each round — the
+four seats of their table, with their own name in bold.
+
+Printed on the mirrored slot of the back face (see CARD_LAYOUTS "back"), so
+duplexing with a long-edge flip lands each back on its own front.
+{% endcomment %}
+{% if card %}
+<div class="card"{% if rotate %} style="transform: rotate(180deg);"{% endif %}>
+
+  {% include layout.head %}
+
+  <div class="card-main">
+
+    <div class="opp-grid opp-head">
+      <div></div>
+      <div class="seat-head">Tbl · Seat</div>
+      <div class="wind-head"><span class="wind sm E">E</span><span>EAST</span></div>
+      <div class="wind-head"><span class="wind sm S">S</span><span>SOUTH</span></div>
+      <div class="wind-head"><span class="wind sm W">W</span><span>WEST</span></div>
+      <div class="wind-head"><span class="wind sm N">N</span><span>NORTH</span></div>
+    </div>
+
+    {% for r in card.rounds %}
+      {% ifchanged r.day %}
+        <div class="day-band"><span class="label">{{ r.day }}</span><span class="rule"></span></div>
+      {% endifchanged %}
+      <div class="opp-grid">
+        <div class="round-nb back-nb">{{ r.n }}</div>
+        <div class="seat-back">
+          <span class="tbl">{{ r.table }}</span>
+          <span class="wind sm {{ r.wind }}">{{ r.wind }}</span>
+        </div>
+        {% for seat in r.seats %}
+          <div class="opp-cell{% if seat.is_me %} me{% endif %}">{{ seat.short_name }}</div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+
+    {% include layout.foot %}
+  </div>
+
+</div>
+{% else %}
+<div class="card"></div>
+{% endif %}

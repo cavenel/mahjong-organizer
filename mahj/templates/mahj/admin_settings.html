@@ -1,3 +1,4 @@
+{% load static %}
 <div class="max-w-3xl space-y-6">
   <div>
     <h2 class="text-2xl font-bold text-gray-800">Tournament settings</h2>
@@ -249,6 +250,7 @@
   {% endif %}
 </div>
 
+<script src="{% static 'js/tournament_autosave.js' %}"></script>
 <script>
   // Schedule editor: a dynamic agenda table that autosaves the whole list.
   function scheduleEditor() {
@@ -315,55 +317,9 @@
     };
   }
 
-  // Report the autosave the way the Schedule card does. These fields used to save
-  // silently — only a failure spoke up — so an operator had no way to tell a change
-  // had landed short of reloading the page.
-  var settingsSaveTimer = null;
-  // Report in the card being edited, not once at the top of the page: Format and
-  // Rounds sit below the fold, so a page-level status was invisible exactly when it
-  // was wanted. Only one card shows a status at a time — a single edit posts every
-  // field in one call, so two at once would imply two saves.
-  function settingsSaveState(text, $card) {
-    clearTimeout(settingsSaveTimer);
-    $(".settings-save-state").text('');
-    var $slot = ($card && $card.length ? $card : $(".settings-card").first())
-      .find(".settings-save-state");
-    $slot.text(text);
-    if (text === 'Saved') {
-      settingsSaveTimer = setTimeout(function() { $slot.text(''); }, 1500);
-    }
-  }
-
-  // Autosave each field on change — posts every tournament-* input in one call.
-  $(".tournament-input").on('change', function() {
-    var getTournament = $(".tournament-input").map(function() {
-      var el = $(this)[0];
-      // A checkbox's .value is always "on"; send its checked state instead so
-      // the boolean coercion server-side sees true/false.
-      var val = el.type === 'checkbox' ? (el.checked ? 'true' : 'false') : el.value;
-      return el.id + "=" + encodeURIComponent(val) + "&";
-    }).get().join("");
-    var $card = $(this).closest(".settings-card");
-    settingsSaveState('Saving…', $card);
-    $.ajax({
-      type: "POST",
-      url: "/admin?page=settings&action=set_tournament&" + getTournament,
-      data: { 'csrfmiddlewaretoken': '{{ csrf_token }}' },
-      success: function() { settingsSaveState('Saved', $card); },
-      error: function(xhr) {
-        // Clear the status rather than leaving "Saving…" up — the dialog below is
-        // what reports the failure.
-        settingsSaveState('', $card);
-        // set_tournament returns a short plain-text reason on a 400; a 500 is an
-        // HTML error page with no useful text, so fall back to a generic line.
-        var msg = (xhr && xhr.responseText) || '';
-        if (!msg || xhr.status >= 500 || /<html/i.test(msg)) {
-          msg = 'The server rejected the change (status ' + ((xhr && xhr.status) || '?') + ').';
-        }
-        window.alertAction({ title: 'Couldn’t save settings', body: msg });
-      }
-    });
-  });
+  // Field autosave lives in tournament_autosave.js — the card design page uses
+  // the same controls and the same endpoint.
+  window.initTournamentAutosave({ csrfToken: '{{ csrf_token }}' });
 
   {% if is_tenant_admin %}
   $("#logo-apply").on('click', function() {

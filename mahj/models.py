@@ -1,5 +1,61 @@
+import re
+
 from django.contrib.auth.models import User
+from django.core.exceptions import ValidationError
+from django.core.validators import RegexValidator
 from django.db import models
+
+# ── Printed player cards ──────────────────────────────────────────────────────
+# The card *geometry* is a fixed set of formats (each drives a sheet grid, the
+# duplex mirroring and its own header partial — see views/print_views.py
+# CARD_LAYOUTS), while everything *visual* is the organiser's CSS. Adding a
+# format means a new entry here, in CARD_LAYOUTS and a header partial.
+CARD_FORMATS = ("a6_portrait", "a7_landscape")
+# Themes are bundles of CSS rules on the card page (body.theme-<name>), each
+# shipping a default variable block in card_themes.py. No template branches.
+CARD_THEMES = ("classic", "minimal", "bold")
+CARD_CSS_MAX = 20_000
+
+# What custom CSS may not contain. The card page renders card_css with |safe
+# inside a <style> (escaping would break `>` selectors), so this validator is
+# what keeps that safe: closing the style element would open the door to markup
+# and script, and the remote-fetch forms would turn the public card page into a
+# beacon or let it pull in unreviewed styling. Anything else is fair game — it's
+# a tenant admin styling their own tournament's cards.
+_CARD_CSS_FORBIDDEN = (
+    ("</style", "may not close the <style> element"),
+    ("@import", "may not use @import"),
+    ("expression(", "may not use expression()"),
+    ("javascript:", "may not use javascript: URLs"),
+    ("behavior:", "may not use behavior:"),
+    ("-moz-binding", "may not use -moz-binding"),
+)
+# url(...) is allowed only for embedded data: URIs, so a card never fetches from
+# another host. Matches the opening quote (if any) then requires "data:".
+_CARD_CSS_URL = re.compile(r"""url\(\s*['"]?\s*(?!data:)""", re.IGNORECASE)
+
+
+def validate_card_css(value):
+    """Reject custom card CSS that could escape the <style> element or phone home.
+
+    Used both as a model field validator (so the admin autosave rejects a bad
+    value with a readable message) and as the guarantee behind rendering the
+    stored value with |safe.
+    """
+    if not value:
+        return
+    if len(value) > CARD_CSS_MAX:
+        raise ValidationError(
+            f"Custom CSS is too long: {len(value)} characters "
+            f"(maximum {CARD_CSS_MAX}).")
+    lowered = value.lower()
+    for needle, reason in _CARD_CSS_FORBIDDEN:
+        if needle in lowered:
+            raise ValidationError(f"Custom CSS {reason}.")
+    if _CARD_CSS_URL.search(value):
+        raise ValidationError(
+            "Custom CSS may only use url() with an embedded data: URI, "
+            "so cards never load from another site.")
 
 class Tenant(models.Model):
     # The fallback every tenant FK defaults to. Referenced by get_default_pk below
@@ -344,6 +400,22 @@ class TournamentSettings(TenantAwareModel):
     # the served URL so projector screens refresh when the logo changes.
     logo         = models.BinaryField(null=True, blank=True, default=None, editable=True)
     logo_etag    = models.CharField(default="", max_length=32, blank=True)
+    # Printed player cards. The format picks the sheet layout and header partial;
+    # the theme and card_css decide how the card looks. card_css blank means "use
+    # the theme's default variable block" (card_themes.effective_card_css).
+    # Validators rather than choices=: the settings autosave runs run_validators()
+    # only — Field.validate() would also enforce blank=False and start rejecting
+    # the cleared text fields that work today.
+    card_format  = models.CharField(
+        default="a6_portrait", max_length=16,
+        validators=[RegexValidator(r'^(%s)$' % '|'.join(CARD_FORMATS),
+                                   "Unknown card format.")])
+    card_theme   = models.CharField(
+        default="classic", max_length=16,
+        validators=[RegexValidator(r'^(%s)$' % '|'.join(CARD_THEMES),
+                                   "Unknown card theme.")])
+    card_css     = models.TextField(default="", blank=True,
+                                    validators=[validate_card_css])
 
     class Meta:
         # One row per tenant — the whole module treats it that way (get_tournament

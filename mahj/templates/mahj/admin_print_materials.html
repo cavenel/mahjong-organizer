@@ -25,7 +25,10 @@
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
       <h3 class="text-sm font-bold text-gray-800">Player cards</h3>
       <p class="text-xs text-gray-500 flex-1">One card per player: name, draw number and their table and seat for every round. Hand out at registration.</p>
-      <button type="button" onclick="showPrintModal('player_cards')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+      <div class="flex items-center gap-3">
+        <button type="button" onclick="showPrintModal('player_cards')" class="px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+        <a href="admin?page=card_design" class="text-xs text-gray-500 underline hover:no-underline">Design…</a>
+      </div>
     </div>
     <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
       <h3 class="text-sm font-bold text-gray-800">Table positions</h3>

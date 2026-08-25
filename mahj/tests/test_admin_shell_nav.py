@@ -64,7 +64,8 @@ def test_staff_setup_workspace(client_, staff, tournament):
     assert has_testid(html, 'workspace-switcher')
     assert _groups(html) == set(SETUP_GROUPS)
     for key in ('settings', 'import_template', 'player_editor', 'seating',
-                'print_materials', 'users', 'backup', 'publish_target'):
+                'print_materials', 'card_design', 'users', 'backup',
+                'publish_target'):
         assert f'page={key}' in html, key
     # Live draws are Setup's last step.
     assert 'admin_player_draw' in html and 'admin_team_draw' in html

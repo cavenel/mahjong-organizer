@@ -1,0 +1,28 @@
+{% comment %}
+The compact A7 header: one band holding everything the tall A6 header spreads
+over three. An A7 card is 105 × 74 mm — half an A6 — so the header has to cost
+~9 mm rather than ~30, or there is no room left for the rounds.
+
+Differences from head_a6.html, all for height: the logo is small, the tournament
+name and player name share one row, and the period/sessions/ruleset line moves to
+the foot of the card (cards/foot_a7.html). The sizes come from
+`.format-a7_landscape` rules in the stylesheet, so nothing here is inline (an
+inline declaration would outrank the themes and the organiser's own CSS).
+{% endcomment %}
+{% load static %}
+<div class="card-head compact">
+  <div class="accent-bar"></div>
+  <div class="head-band">
+    <div class="head-row">
+      <img class="logo" src="{{ site_logo_url }}" alt="">
+      <div class="title-font">{{ tournament.fullname }}</div>
+      <div class="id-row">
+        <span class="player-name">{{ card.name }}</span>
+        {% if card.has_player %}
+          <img src="{% static 'images/blank.png' %}" class="flag flag-{{ card.flag }}" alt="">
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="accent-2-rule"></div>
+</div>

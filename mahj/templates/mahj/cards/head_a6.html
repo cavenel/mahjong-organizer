@@ -1,0 +1,47 @@
+{% comment %}
+The tall A6 card header: logo and tournament name, the period · sessions · rules
+line, then the player's name and country. Used by both faces of an A6 card, so
+the two sides line up when the sheet is cut.
+
+Chosen per format via CARD_LAYOUTS[...]["head"] — a format with less vertical
+room supplies its own partial (see head_a7.html) rather than scaling this one.
+
+Everything here is styled by class, never by an inline `style` attribute: an
+inline declaration beats both the theme rules and the organiser's own CSS, so a
+colour set here would be one a theme could not restyle.
+{% endcomment %}
+{% load static %}
+<div class="card-head">
+  <div class="head-band">
+    <div class="accent-bar"></div>
+    <div class="head-row">
+      <img class="logo" src="{{ site_logo_url }}" alt="">
+      <div class="title-font">{{ tournament.fullname }}</div>
+    </div>
+    <div class="accent-2-rule"></div>
+    <div class="card-meta mono">
+      <span>{{ tournament.period }}</span>
+      <span class="sep">·</span>
+      <span>{{ tournament.nb_rounds }} Sessions</span>
+      <span class="sep">·</span>
+      <span>{{ tournament.rules }}</span>
+    </div>
+    <div class="accent-sep"></div>
+  </div>
+
+  <div class="id-block">
+    <div class="id-row">
+      <div class="player-name">{{ card.name }}</div>
+      {% if card.has_player %}
+      <div class="country">
+        <div class="label">Country</div>
+        <div class="value">
+          <img src="{% static 'images/blank.png' %}" class="flag flag-{{ card.flag }}" alt="">
+          {% if card.flag != "mi" %}<span class="code">{{ card.flag|upper }}</span>{% endif %}
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+<div class="name-rule"></div>

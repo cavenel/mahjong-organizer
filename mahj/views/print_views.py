@@ -3,6 +3,7 @@ import itertools
 from django.http import HttpResponse
 from django.template import loader
 
+from ..card_themes import effective_card_css
 from ..models import Player, Seat, Schedule
 from ..scoring import _attach_players, _country_flag, pad_scores
 from .helpers import get_tenant, get_tournament, is_tenant_admin, tenant_admin_required
@@ -109,6 +110,58 @@ def print_schedule(request):
     return HttpResponse(template.render({'schedule': schedule, 'tournament': tournament}, request))
 
 
+# Sheet geometry per card format. Both sit on a portrait A4 and duplex with
+# "flip on long edge", so the back face mirrors the columns of the front.
+#   cols/rows -- the grid of cards on one A4 sheet
+#   back      -- front slot index to print in each back slot, i.e. the mirroring
+#   rotate    -- slots drawn upside-down on both faces, so a sheet cut in half
+#                gives cards that read the same way up (kept for a6_portrait
+#                exactly as it has always printed)
+#   head/foot -- the header and footer partials this format's cards use; a
+#                compact format needs its own, not a scaled copy of the A6 ones
+# Adding a format = one entry here, its two partials, one CARD_FORMATS entry.
+CARD_LAYOUTS = {
+    "a6_portrait": dict(
+        cols=2, rows=2, back=[1, 0, 3, 2], rotate={0, 1},
+        head="mahj/cards/head_a6.html", foot="mahj/cards/foot_a6.html",
+        label="A6 portrait", per_sheet_label="4 per sheet",
+        card_w=105, card_h=143.5,
+    ),
+    "a7_landscape": dict(
+        cols=2, rows=4, back=[1, 0, 3, 2, 5, 4, 7, 6], rotate=set(),
+        head="mahj/cards/head_a7.html", foot="mahj/cards/foot_a7.html",
+        label="A7 landscape", per_sheet_label="8 per sheet",
+        card_w=105, card_h=71.75,
+    ),
+}
+DEFAULT_CARD_FORMAT = "a6_portrait"
+
+
+def _card_rounds(rounds, draw_number):
+    """The rounds of one card as plain dicts.
+
+    The card templates get data, not model instances: someone customising a badge
+    in a fork edits templates, and should not need to know the ORM or which
+    attribute of a Seat is safe to touch. Adding a printed field is one line here.
+    """
+    return [
+        {
+            "n": n,
+            "day": r["day"],
+            "time": r["time"],
+            "table": r["table_seats"][0].table_nb if r["table_seats"] else "",
+            "wind": r["player_wind"][:1],
+            "seats": [
+                {"draw_number": s.draw_number,
+                 "short_name": s.player_short_name,
+                 "is_me": s.draw_number == draw_number}
+                for s in r["table_seats"]
+            ],
+        }
+        for n, r in enumerate(rounds, start=1)
+    ]
+
+
 def player_cards(request):
     tenant = get_tenant(request)
     tournament = get_tournament(request)
@@ -123,15 +176,18 @@ def player_cards(request):
     # rounds for every slot from a constant number of queries, and _country_flag is
     # lru_cached so the ~10 distinct countries are resolved once each, not per card.
     rounds_by_draw = _scoring.all_slot_rounds(tenant)
-    cards = [
-        {
+    cards = []
+    for draw, rounds in sorted(rounds_by_draw.items()):
+        player = players_by_draw.get(draw)
+        cards.append({
             "draw_number": draw,
-            "player": players_by_draw.get(draw),
-            "rounds": rounds,
-            "flag": _country_flag(players_by_draw[draw].country) if draw in players_by_draw else "",
-        }
-        for draw, rounds in sorted(rounds_by_draw.items())
-    ]
+            "name": player.full_name if player else f"Player {draw}",
+            # A slot with no player shows no country block at all, rather than a
+            # blank flag: `flag` empty means "unknown", 'mi' means Independent.
+            "flag": _country_flag(player.country) if player else "",
+            "has_player": player is not None,
+            "rounds": _card_rounds(rounds, draw),
+        })
 
     # ?players=1,2,3 keeps only those draw slots plus anyone who shares a table
     # with them in some round (their opponents), so a card is printed for every
@@ -146,18 +202,48 @@ def player_cards(request):
             c for c in cards
             if c["draw_number"] in wanted
             or (not main_only
-                and any(seat.draw_number in wanted
-                        for rnd in c["rounds"] for seat in rnd["table_seats"]))
+                and any(seat["draw_number"] in wanted
+                        for rnd in c["rounds"] for seat in rnd["seats"]))
         ]
 
-    def grouper(n, iterable, fillvalue=None):
-        args = [iter(iterable)] * n
-        return itertools.zip_longest(*args, fillvalue=fillvalue)
+    layout = CARD_LAYOUTS.get(tournament.card_format, CARD_LAYOUTS[DEFAULT_CARD_FORMAT])
 
-    pages = list(grouper(4, cards))
+    # ?preview=1 -- what the card-design page shows beside its controls: one
+    # card, cropped to the card itself rather than the sheet it prints on, so the
+    # design is big enough to judge. Never rotated: the duplex flip is a property
+    # of the sheet, and an upside-down preview would just be hard to read.
+    preview = request.GET.get('preview', '').lower() in ('1', 'true', 'yes')
+    if preview:
+        card = cards[0] if cards else None
+        sheets = [{"front": [{"card": card, "rotate": False}],
+                   "back": [{"card": card, "rotate": False}]}]
+    else:
+        per_sheet = layout["cols"] * layout["rows"]
+        sheets = []
+        for start in range(0, max(len(cards), 1), per_sheet):
+            chunk = cards[start:start + per_sheet]
+            if not chunk:
+                break
+            # Pad the last sheet so the grid keeps its shape; an empty slot prints blank.
+            front = [
+                {"card": chunk[i] if i < len(chunk) else None, "rotate": i in layout["rotate"]}
+                for i in range(per_sheet)
+            ]
+            sheets.append({
+                "front": front,
+                "back": [front[i] for i in layout["back"]],
+            })
 
-    template = loader.get_template('mahj/print_player_cards.html')
-    return HttpResponse(template.render({"pages": pages, 'tournament': tournament}, request))
+    template = loader.get_template('mahj/cards/sheet.html')
+    return HttpResponse(template.render({
+        "sheets": sheets,
+        "layout": layout,
+        "preview": preview,
+        "card_format": tournament.card_format,
+        "theme": tournament.card_theme,
+        "card_css": effective_card_css(tournament),
+        "tournament": tournament,
+    }, request))
 
 
 def player_names(request):

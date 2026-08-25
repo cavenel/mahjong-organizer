@@ -1,0 +1,65 @@
+{% comment %}
+Front of one card: the header, then a row per round with empty boxes the player
+writes their table points and minipoints into, and a total row.
+
+`card` is a plain dict from print_views._card_rounds (name, draw_number, flag,
+has_player, rounds[]), and `rotate` says whether this slot prints upside-down so
+a cut sheet reads the same way up. An empty slot (a part-filled last sheet)
+prints a blank card, keeping the grid's shape.
+{% endcomment %}
+{% if card %}
+<div class="card"{% if rotate %} style="transform: rotate(180deg);"{% endif %}>
+
+  {% include layout.head %}
+
+  <div class="card-main">
+
+    <div class="grid-row">
+      <div></div>
+      <div class="col-label">Time</div>
+      <div class="col-label c seat">Tbl · Seat</div>
+      <div class="col-label c wide">Table Pts</div>
+      <div class="col-label c wide">Mini Pts</div>
+    </div>
+    <div class="grid-row head-rule">
+      <div></div><div></div><div></div>
+      <div class="col-label c">Round</div>
+      <div class="col-label c">Total</div>
+      <div class="col-label c">Round</div>
+      <div class="col-label c">Total</div>
+    </div>
+
+    {% for r in card.rounds %}
+      {% ifchanged r.day %}
+        <div class="day-band"><span class="label">{{ r.day }}</span><span class="rule"></span></div>
+      {% endifchanged %}
+      <div class="grid-row round-row">
+        <div class="round-nb">{{ r.n }}</div>
+        <div class="round-time">{{ r.time }}</div>
+        <div class="seat-cell">
+          <span class="tbl">{{ r.table }}</span>
+          <span class="wind {{ r.wind }}">{{ r.wind }}</span>
+        </div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+        <div class="write-cell"></div>
+      </div>
+    {% endfor %}
+
+    <div class="grid-row total-rule">
+      <div></div>
+      <div class="total-label">Total</div>
+      <div></div><div></div>
+      <div class="write-cell total"></div>
+      <div></div>
+      <div class="write-cell total"></div>
+    </div>
+
+    {% include layout.foot %}
+  </div>
+
+</div>
+{% else %}
+<div class="card"></div>
+{% endif %}

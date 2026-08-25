@@ -152,3 +152,198 @@ class TestPartialChartDoesNotCrash:
             p.save()
         Seat.objects.filter(tenant=tenant, round_nb=3, table_nb=4, wind__in=(3, 4)).delete()
         assert client_.get('/cross_positions?per_team=1').status_code == 200
+
+
+# ── Player cards: format, duplex mirroring and the organiser's own styling ─────
+#
+# The cards are the one printout an organiser can restyle (Setup -> Player card
+# design), so what is pinned here is the part they cannot see going wrong until
+# it is on paper: which card lands on which half of which face, and that a
+# stored design actually reaches the page.
+
+def _sheets(body):
+    """The card slots of each sheet, in print order, as their card labels."""
+    return [
+        re.findall(r'class="player-name"[^>]*>\s*([^<]*?)\s*<', sheet)
+        for sheet in body.split('<div class="sheet">')[1:]
+    ]
+
+
+def test_player_cards_default_to_a6_portrait_four_up(staff_client, tournament):
+    """The long-standing output: 4 cards per sheet, A6 portrait, classic theme."""
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'format-a6_portrait' in body and 'theme-classic' in body
+    # 16 players -> 4 front sheets, each followed by its back.
+    assert body.count('<div class="sheet">') == 8
+    assert len(_sheets(body)[0]) == 4
+
+
+def test_player_cards_back_face_mirrors_the_front_for_duplex(staff_client, tournament):
+    """Printing double-sided with a long-edge flip swaps the columns, so the back
+    face has to swap them back or every card gets someone else's opponents."""
+    sheets = _sheets(staff_client.get('/player_cards').content.decode())
+    front, back = sheets[0], sheets[1]
+    assert front == ['Player1 Lastname', 'Player2 Lastname',
+                     'Player3 Lastname', 'Player4 Lastname']
+    assert back == [front[1], front[0], front[3], front[2]]
+
+
+def test_a6_cards_rotate_the_top_row(staff_client, tournament):
+    """The top two cards print upside-down, so a sheet cut in half gives four
+    cards that read the same way up."""
+    body = staff_client.get('/player_cards').content.decode()
+    first_sheet = body.split('<div class="sheet">')[1]
+    assert first_sheet.count('rotate(180deg)') == 2
+
+
+def test_a7_landscape_prints_eight_up_with_the_compact_header(staff_client, tournament):
+    """A7 is half an A6, so it needs its own short header — not a scaled copy of
+    the tall one, which would leave no room for the rounds."""
+    s = tournament['settings']
+    s.card_format = 'a7_landscape'
+    s.save()
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'format-a7_landscape' in body
+    assert 'card-head compact' in body
+    # 16 players, 8 per sheet -> 2 front sheets + 2 backs.
+    assert body.count('<div class="sheet">') == 4
+    sheets = _sheets(body)
+    assert len(sheets[0]) == 8
+    # Mirrored in pairs, same as A6, and nothing is rotated.
+    assert sheets[1] == [sheets[0][i] for i in (1, 0, 3, 2, 5, 4, 7, 6)]
+    assert 'rotate(180deg)' not in body
+
+
+def test_an_unknown_stored_format_still_prints(staff_client, tournament):
+    """A format retired in a later version must not 500 the print page."""
+    s = tournament['settings']
+    s.card_format = 'a3_banner'
+    s.save(update_fields=['card_format'])
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'class="sheet"' in body
+
+
+def test_a_partly_filled_sheet_keeps_its_grid(staff_client, tournament):
+    """Fewer cards than a sheet holds still prints a full grid of slots, or the
+    remaining cards stretch to fill it and come out the wrong size."""
+    body = staff_client.get('/player_cards?players=1&main=1').content.decode()
+    first_sheet = body.split('<div class="sheet">')[1]
+    assert first_sheet.count('class="card"') == 4          # 1 card + 3 blanks
+    assert len(_sheets(body)[0]) == 1
+
+
+def test_theme_defaults_reach_the_page(staff_client, tournament):
+    """An organiser who never opened the design page still gets a full stylesheet:
+    the base CSS defines no colours, so a missing default block prints a blank card."""
+    body = staff_client.get('/player_cards').content.decode()
+    assert '--accent:' in body and '--ink:' in body
+
+
+def test_custom_css_is_emitted_last_so_it_wins(staff_client, tournament):
+    s = tournament['settings']
+    s.card_theme = 'bold'
+    s.card_css = ':root { --accent: #123456; }\n.wind.E { background: red; }'
+    s.save()
+    body = staff_client.get('/player_cards').content.decode()
+    assert '--accent: #123456' in body
+    assert '.wind.E { background: red; }' in body
+    # After the theme bundle, or the theme would override the organiser.
+    assert body.index('.theme-bold') < body.index('--accent: #123456')
+
+
+def test_preview_renders_one_card_cropped_to_the_card(staff_client, tournament):
+    """The design page shows the card, not the A4 sheet it is tiled onto: three
+    empty slots say nothing about a design. Same page and CSS, so it still
+    matches what prints — and nothing is rotated, which would only be hard to
+    read on screen."""
+    body = staff_client.get('/player_cards?preview=1').content.decode()
+    assert body.count('<div class="sheet">') == 2      # front and back
+    assert len(_sheets(body)[0]) == 1                  # one card, no blanks
+    assert ' preview"' in body                         # the crop-to-card class
+    assert 'rotate(180deg)' not in body
+
+
+def test_preview_crops_to_the_chosen_format(staff_client, tournament):
+    """The cropped page is card-sized, so it has to follow the format."""
+    body = staff_client.get('/player_cards?preview=1').content.decode()
+    assert 'width: 105mm' in body and 'height: 143.5mm' in body
+    s = tournament['settings']
+    s.card_format = 'a7_landscape'
+    s.save()
+    body = staff_client.get('/player_cards?preview=1').content.decode()
+    assert 'height: 71.75mm' in body
+
+
+def test_wind_chip_letters_are_settable_and_fall_back(staff_client, tournament):
+    """The chip letter colours are variables, not hardcoded.
+
+    They were literals (white, and the accent for East) until an organiser asked
+    where to change them. The base rules carry the old literals as var()
+    fallbacks, so a card_css saved before the variables existed still prints the
+    same rather than losing its letters.
+    """
+    body = staff_client.get('/player_cards').content.decode()
+    assert '--wind-ink:' in body and '--wind-east-ink:' in body   # in the defaults
+    assert 'var(--wind-ink, #FFFFFF)' in body                     # fallback kept
+
+    s = tournament['settings']
+    s.card_css = ':root { --accent: #006AA7; --accent-2: #FECC02; }'  # pre-variable block
+    s.save()
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'var(--wind-ink, #FFFFFF)' in body
+
+    s.card_css = ':root { --wind-ink: #FF00AA; }'
+    s.save()
+    assert '--wind-ink: #FF00AA' in staff_client.get('/player_cards').content.decode()
+
+
+def test_card_cells_never_wrap_and_boxes_take_the_slack(staff_client, tournament):
+    """Two rules the eye catches on paper but no other test would.
+
+    A cell that wraps costs a whole row of card height and reads as a bug, so
+    nothing on a card wraps — and it is cut at the edge rather than ellipsised,
+    because a value that only just overflows would lose two more characters to
+    the "...". The writing boxes are fr columns so they absorb every millimetre
+    the labels do not need: they were fixed-width, which left a strip of dead
+    paper down the right of every card.
+    """
+    body = staff_client.get('/player_cards').content.decode()
+    assert '.card { white-space: nowrap; }' in body
+    assert 'text-overflow: clip' in body and 'text-overflow: ellipsis' not in body
+    assert '3mm 18.5mm 11.5mm 1fr 1fr 1fr 1fr' in body
+
+
+def test_each_format_supplies_its_own_header_and_footer(staff_client, tournament):
+    """A compact card needs its own header and footer, not scaled copies: the A7
+    prints the period/sessions/ruleset line at its foot because its one-band
+    header has no room for it, while the A6 carries that in the header and prints
+    only the spectator URL at the foot."""
+    s = tournament['settings']
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'Sessions' in body                      # A6: in the header
+    a6_foot = body.count('class="footer-url mono"')
+
+    s.card_format = 'a7_landscape'
+    s.save()
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'card-head compact' in body
+    # A7: the same line, now in the foot — one per card face, not in the header.
+    assert body.count('class="footer-url mono"') > 0 and a6_foot > 0
+    head = body.split('class="footer-url mono"')[0]
+    assert 'Sessions' not in head.rsplit('card-head compact', 1)[-1]
+
+
+def test_the_preview_page_shrinks_on_a_phone_but_prints_true_to_size(staff_client, tournament):
+    """A card is ~397px wide, wider than a phone screen.
+
+    The preview page can be opened on its own (not only inside the design page's
+    frame), so it scales itself down on a narrow screen rather than scrolling
+    sideways — but only on screen: the print rules must keep true millimetres, or
+    cards would come out of the printer undersized.
+    """
+    body = staff_client.get('/player_cards?preview=1').content.decode()
+    screen_zoom = '@media screen and (max-width: 380px) { body.preview { zoom:'
+    assert screen_zoom in body
+    # The zoom steps are screen-only: nothing inside the print block scales.
+    print_block = body.split('@media print')[1].split('</style>')[0]
+    assert 'zoom' not in print_block

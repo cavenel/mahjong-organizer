@@ -768,6 +768,7 @@ class TestAdminPageTable:
                   'import_template': 'page', 'seating': 'page', 'scoring': 'page',
                   'ceremony': 'page', 'publisher_overview': 'page',
                   'setup': 'page', 'print_materials': 'page',
+                  'card_design': 'page',
                   'users': 'reauth', 'backup': 'reauth', 'tenants': 'empty'},
         'superuser': {'welcome': 'page', 'display': 'page', 'settings': 'page',
                       'player_editor': 'page', 'publish_target': 'page',
@@ -775,6 +776,7 @@ class TestAdminPageTable:
                       'scoring': 'page', 'ceremony': 'page',
                       'publisher_overview': 'page', 'users': 'reauth',
                       'setup': 'page', 'print_materials': 'page',
+                      'card_design': 'page',
                       'backup': 'reauth', 'tenants': 'reauth'},
     }
 

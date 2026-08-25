@@ -122,6 +122,11 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
         <span class="nav-label rail-hide">Print materials</span>
       </a>
+      <a href="admin?page=card_design" :title="railCollapsed ? 'Player card design' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'card_design' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'card_design' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H13a2 2 0 0 1 0-4h5a3 3 0 0 0 3-3 8 8 0 0 0-9-7z"/><circle cx="8" cy="10" r="1.2"/><circle cx="12" cy="7" r="1.2"/><circle cx="16" cy="10" r="1.2"/></svg>
+        <span class="nav-label rail-hide">Player card design</span>
+      </a>
       <p data-testid="nav-group-administration" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Administration</p>
       <a href="admin?page=users" :title="railCollapsed ? 'User management' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'users' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'users' %} data-active{% endif %}>

@@ -855,12 +855,25 @@ class TestSettingsAutosaveIsVisible:
         assert 'tournament-input' not in head
 
     def test_the_autosave_reports_success_and_failure(self, client_, staff, tournament):
+        """The page wires up the shared autosave, and that script reports each state.
+
+        The handler moved to a static file when the card-design page started
+        sharing it, so the page is checked for the wiring and the script for the
+        wording — asserting the wording against the page would pass on a page
+        that never loads the script.
+        """
+        from mahj.tests.conftest import REPO_ROOT
+
         client_.force_login(staff)
         body = client_.get('/admin?page=settings').content.decode()
+        assert 'js/tournament_autosave.js' in body
+        assert 'initTournamentAutosave(' in body
+
+        js = (REPO_ROOT / 'mahj' / 'static' / 'js' / 'tournament_autosave.js').read_text()
         # Same wording and fade as the Schedule card, so the page reads as one thing.
-        assert "settingsSaveState('Saving…', $card)" in body
-        assert "settingsSaveState('Saved', $card)" in body
-        assert "settingsSaveState('', $card)" in body
+        assert "saveState('Saving…', $card)" in js
+        assert "saveState('Saved', $card)" in js
+        assert "saveState('', $card)" in js
 
     def test_a_field_still_saves(self, client_, staff, tournament):
         """The indicator must not have disturbed the save it reports on."""
@@ -922,3 +935,147 @@ class TestScheduleReordering:
                      {'schedule': _json.dumps(rows)})
         rounds = [r for r in player_schedule(tournament['tenant']) if r.is_round]
         assert [r.name for r in rounds] == ['Early round', 'Late round']
+
+
+class TestCardDesign:
+    """The player-card design page (Setup -> Player card design).
+
+    It has no endpoint of its own: the controls autosave through the settings
+    page's set_tournament, so what needs pinning is that the card fields are on
+    that allowlist, that a bad value is refused with a reason the page can show,
+    and that the page itself is admin-only.
+
+    The custom-CSS rules matter beyond tidiness: the card page renders the stored
+    value with |safe inside a <style>, so the validator is the boundary.
+    """
+
+    def _save(self, client_, **fields):
+        return client_.post('/admin?page=settings&action=set_tournament',
+                            {f'tournament-{k}': v for k, v in fields.items()})
+
+    def test_the_design_fields_save(self, client_, staff, tournament):
+        client_.force_login(staff)
+        css = ':root { --accent: #112233; }'
+        resp = self._save(client_, card_format='a7_landscape',
+                          card_theme='minimal', card_css=css)
+        assert resp.status_code in (200, 302), resp.content
+        s = tournament['settings']
+        s.refresh_from_db()
+        assert (s.card_format, s.card_theme, s.card_css) == ('a7_landscape', 'minimal', css)
+
+    def test_css_arrives_in_the_post_body(self, client_, staff, tournament):
+        """Custom CSS runs to kilobytes — past what a URL carries reliably — so the
+        autosave posts the fields in the body rather than the query string."""
+        client_.force_login(staff)
+        css = ':root { --ink: #010203; } /* %s */' % ('x' * 4000)
+        resp = self._save(client_, card_css=css)
+        assert resp.status_code in (200, 302)
+        tournament['settings'].refresh_from_db()
+        assert tournament['settings'].card_css == css
+
+    @pytest.mark.parametrize('field,value', [
+        ('card_format', 'a3_banner'),
+        ('card_theme', 'neon'),
+    ])
+    def test_an_unknown_format_or_theme_is_refused(self, client_, staff, tournament,
+                                                   field, value):
+        client_.force_login(staff)
+        resp = self._save(client_, **{field: value})
+        assert resp.status_code == 400
+        assert b'Unknown' in resp.content
+        tournament['settings'].refresh_from_db()
+        assert getattr(tournament['settings'], field) != value
+
+    @pytest.mark.parametrize('css,reason', [
+        ('</style><script>alert(1)</script>', b'close'),
+        ('@import url(data:text/css,body{})', b'@import'),
+        ('.card { background: url(https://example.com/x.png); }', b'data:'),
+        ('.card { width: expression(alert(1)); }', b'expression'),
+        ('.card { background: url("http://evil/x") }', b'data:'),
+    ])
+    def test_css_that_could_escape_or_phone_home_is_refused(self, client_, staff,
+                                                            tournament, css, reason):
+        client_.force_login(staff)
+        resp = self._save(client_, card_css=css)
+        assert resp.status_code == 400, css
+        assert b'Card CSS' in resp.content and reason in resp.content
+        tournament['settings'].refresh_from_db()
+        assert tournament['settings'].card_css == ''
+
+    def test_an_embedded_image_is_allowed(self, client_, staff, tournament):
+        """A data: URI carries the bytes with the page, so it fetches nothing."""
+        client_.force_login(staff)
+        css = '.card-head { background-image: url(data:image/gif;base64,R0lGODlhAQABAAAAACw=); }'
+        resp = self._save(client_, card_css=css)
+        assert resp.status_code in (200, 302), resp.content
+        tournament['settings'].refresh_from_db()
+        assert tournament['settings'].card_css == css
+
+    def test_over_long_css_is_refused(self, client_, staff, tournament):
+        from mahj.models import CARD_CSS_MAX
+        client_.force_login(staff)
+        resp = self._save(client_, card_css='a{}' * CARD_CSS_MAX)
+        assert resp.status_code == 400
+        assert b'too long' in resp.content
+
+    def test_the_display_page_cannot_reach_the_card_fields(self, client_, staff,
+                                                           tournament):
+        """The display allowlist is layout-only; card design is a Setup concern."""
+        client_.force_login(staff)
+        resp = client_.post('/admin?page=display&action=set_tournament',
+                            {'tournament-card_format': 'a7_landscape'})
+        assert resp.status_code in (200, 302)
+        tournament['settings'].refresh_from_db()
+        assert tournament['settings'].card_format == 'a6_portrait'
+
+    def test_the_page_is_admin_only(self, client_, tournament):
+        from mahj.tests.conftest import role_user
+        scorer = role_user('sc_cards', tournament['tenant'], scorer=True)
+        client_.force_login(scorer)
+        resp = client_.get('/admin?page=card_design')
+        # Not admitted: the shell renders without the page's controls.
+        assert b'tournament-card_css' not in resp.content
+
+    def test_the_page_offers_every_format_and_theme(self, client_, staff, tournament):
+        client_.force_login(staff)
+        html = client_.get('/admin?page=card_design').content.decode()
+        for needle in ('tournament-card_format', 'tournament-card_theme',
+                       'tournament-card_css', 'card-preview',
+                       'A6 portrait', 'A7 landscape',
+                       'classic', 'minimal', 'bold'):
+            assert needle in html, needle
+
+    @pytest.mark.parametrize('css', [
+        '',                                        # never designed
+        ':root { --accent: #006AA7; }',
+        '.card { border: 1px solid black }',
+        '@media print { .card { border: 0 } }',    # nested at-rules are fine
+    ])
+    def test_the_validator_passes_ordinary_stylesheets(self, css):
+        from mahj.models import validate_card_css
+        validate_card_css(css)                     # must not raise
+
+    @pytest.mark.parametrize('css', [
+        '</STYLE><script>x</script>',              # case doesn't help
+        '@IMPORT url(data:text/css,a{})',
+        '.a { background: URL( "//evil/x" ) }',    # spacing doesn't help
+        '.a { -moz-binding: url(data:x) }',
+        '.a { background: url(javascript:alert(1)) }',
+    ])
+    def test_the_validator_is_not_fooled_by_case_or_spacing(self, css):
+        from django.core.exceptions import ValidationError
+        from mahj.models import validate_card_css
+        with pytest.raises(ValidationError):
+            validate_card_css(css)
+
+    def test_the_preview_is_fitted_to_the_column(self, client_, staff, tournament):
+        """The frame is card-sized in pixels, which is wider than a phone screen, so
+        the page scales it to the room available instead of scrolling sideways —
+        and re-fits when the window or the chosen format changes."""
+        client_.force_login(staff)
+        html = client_.get('/admin?page=card_design').content.decode()
+        assert 'fitPreview()' in html
+        assert "window.addEventListener('resize'" in html
+        assert 'transform:scale(${this.previewScale})' in html
+        # Measured without the panel's padding, or max-width:100% clips the card.
+        assert 'paddingLeft' in html and 'paddingRight' in html

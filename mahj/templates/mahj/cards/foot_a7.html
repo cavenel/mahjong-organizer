@@ -1,0 +1,14 @@
+{% comment %}
+The A7 card's foot: period, sessions, ruleset and the spectator site on one line
+at the bottom edge. The compact header has no room for them, and at the foot they
+stay out of the way of the name and the score grid.
+{% endcomment %}
+<div class="footer-url mono">
+  <span>{{ tournament.period }}</span>
+  <span class="sep">·</span>
+  <span>{{ tournament.nb_rounds }} Sessions</span>
+  <span class="sep">·</span>
+  <span>{{ tournament.rules }}</span>
+  <span class="spacer"></span>
+  <span class="head-url">{{ public_site_url }}</span>
+</div>

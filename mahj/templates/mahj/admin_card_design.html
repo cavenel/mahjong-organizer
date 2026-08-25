@@ -1,0 +1,338 @@
+{% comment %}
+Player card design: format, theme, colours and custom CSS, with a live preview.
+
+The controls are hidden `tournament-input`s (the contract the shared autosave
+expects) driven by the Alpine component below, so this page writes through the
+settings page's set_tournament action rather than an endpoint of its own.
+
+The colour pickers are *derived from the CSS text*: whatever `--name: value;`
+lines the stylesheet holds become controls. That is why adding a new knob to a
+theme in card_themes.py needs no change here.
+{% endcomment %}
+{% load static %}
+{{ theme_defaults|json_script:"theme-defaults" }}
+{{ effective_css|json_script:"card-css-initial" }}
+<div class="max-w-6xl space-y-6" x-data="cardDesigner()" x-init="init()">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">Player card design</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      How the printed player cards look. Changes save as you edit, and the preview shows the real print page.
+    </p>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-[24rem_1fr] gap-6 items-start">
+
+    <!-- Controls ------------------------------------------------------------->
+    <div class="settings-card rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-6">
+      <div class="flex items-start justify-between gap-4">
+        <h3 class="text-sm font-bold text-gray-800">Design</h3>
+        <span class="settings-save-state text-xs text-gray-400 shrink-0"></span>
+      </div>
+
+      {# The three fields the server actually reads. #}
+      <input type="hidden" class="tournament-input" id="tournament-card_format" :value="format" x-ref="fmt">
+      <input type="hidden" class="tournament-input" id="tournament-card_theme" :value="theme" x-ref="thm">
+      <input type="hidden" class="tournament-input" id="tournament-card_css" :value="css" x-ref="cssField">
+
+      <!-- Format -->
+      <div>
+        <p class="text-xs font-medium text-gray-600 mb-2">Card format</p>
+        <div class="space-y-2">
+          {% for f in formats %}
+          <button type="button" @click="setFormat('{{ f.key }}')"
+                  class="w-full flex items-center gap-3 p-2.5 rounded-lg border text-left transition-colors"
+                  :class="format === '{{ f.key }}' ? 'border-sky-400 bg-sky-50 ring-1 ring-sky-300' : 'border-gray-200 hover:bg-gray-50'">
+            {# Proportional sketch of the sheet: cols x rows cards on one A4. #}
+            <span class="shrink-0 grid gap-px bg-gray-300 border border-gray-300 rounded-sm overflow-hidden"
+                  style="width:20px;height:28px;grid-template-columns:repeat({{ f.cols }},1fr);grid-template-rows:repeat({{ f.rows }},1fr);">
+              {% for _ in ""|ljust:f.cols %}{% for _ in ""|ljust:f.rows %}<span class="bg-white"></span>{% endfor %}{% endfor %}
+            </span>
+            <span class="min-w-0">
+              <span class="block text-sm font-medium text-gray-800">{{ f.label }}</span>
+              <span class="block text-xs text-gray-500">{{ f.per_sheet }}{% if f.key == 'a7_landscape' %} · compact header · up to {{ a7_max_rounds }} rounds{% endif %}</span>
+            </span>
+          </button>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-gray-400 mt-2">Print double-sided, flip on long edge.</p>
+        {% if tournament.nb_rounds > a7_max_rounds %}
+        <p x-show="format === 'a7_landscape'" x-cloak
+           class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
+          This tournament has {{ tournament.nb_rounds }} rounds. An A7 card fits about
+          {{ a7_max_rounds }} — check the preview for rows running off the card.
+        </p>
+        {% endif %}
+      </div>
+
+      <!-- Theme -->
+      <div>
+        <p class="text-xs font-medium text-gray-600 mb-2">Theme</p>
+        <div class="grid grid-cols-3 gap-2">
+          {% for t in themes %}
+          <button type="button" @click="setTheme('{{ t }}')"
+                  class="p-2 rounded-lg border text-center transition-colors"
+                  :class="theme === '{{ t }}' ? 'border-sky-400 bg-sky-50 ring-1 ring-sky-300' : 'border-gray-200 hover:bg-gray-50'">
+            <span class="block text-xs font-medium text-gray-800 capitalize">{{ t }}</span>
+          </button>
+          {% endfor %}
+        </div>
+        <p class="text-xs text-gray-400 mt-2">
+          A theme sets the colours and the look of the bars and chips. Switching it replaces the colours below.
+        </p>
+      </div>
+
+      <!-- Colours & variables, parsed out of the CSS -->
+      <div>
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-xs font-medium text-gray-600">Colours</p>
+          <button type="button" @click="resetToTheme()" class="text-xs text-gray-500 underline hover:no-underline">
+            Reset to theme defaults
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-1.5 mb-3">
+          {% for p in palettes %}
+          <button type="button" @click="applyPalette('{{ p.accent }}', '{{ p.accent_2 }}')"
+                  title="{{ p.name }}"
+                  class="flex items-center gap-1 px-2 py-1 rounded-md border border-gray-200 hover:bg-gray-50 text-xs text-gray-700">
+            <span class="w-3 h-3 rounded-sm border border-black/10" style="background:{{ p.accent }}"></span>
+            <span class="w-3 h-3 rounded-sm border border-black/10" style="background:{{ p.accent_2 }}"></span>
+            {{ p.name }}
+          </button>
+          {% endfor %}
+        </div>
+        <div class="space-y-2">
+          <template x-for="v in variables" :key="v.name">
+            <div class="flex items-center gap-2">
+              <label class="flex-1 min-w-0 text-xs text-gray-600 truncate" :title="v.comment || v.name">
+                <span x-text="v.comment || v.name"></span>
+              </label>
+              <template x-if="v.isColor">
+                <span class="flex items-center gap-1.5 shrink-0">
+                  <span class="text-[10px] font-mono text-gray-400" x-text="v.value"></span>
+                  <input type="color" :value="v.value" @input="setVariable(v.name, $event.target.value)"
+                         class="w-8 h-8 rounded border border-gray-200 bg-white p-0.5 cursor-pointer">
+                </span>
+              </template>
+              <template x-if="!v.isColor">
+                <input type="text" :value="v.value" @change="setVariable(v.name, $event.target.value)"
+                       class="w-40 shrink-0 text-xs font-mono border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+              </template>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <!-- Advanced: the whole stylesheet -->
+      <details class="border-t border-gray-100 pt-4">
+        <summary class="text-xs font-medium text-gray-600 cursor-pointer">Advanced — edit the CSS</summary>
+        <p class="text-xs text-gray-400 mt-2">
+          Added after the built-in stylesheet, so any rule here wins. Cards may not load
+          anything from another site: <span class="font-mono">@import</span> and remote
+          <span class="font-mono">url()</span> are rejected.
+        </p>
+        <textarea x-model="css" @input.debounce.800ms="pushCss()" rows="18" spellcheck="false"
+                  class="mt-2 w-full text-xs font-mono border border-gray-200 rounded-lg px-3 py-2 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-amber-300"></textarea>
+        <p class="text-xs text-right" :class="css.length > {{ card_css_max }} ? 'text-rose-600 font-medium' : 'text-gray-400'">
+          <span x-text="css.length"></span> / {{ card_css_max }}
+        </p>
+
+        <p class="text-xs font-medium text-gray-600 mt-3 mb-1">Classes you can target</p>
+        <div class="text-xs text-gray-500 space-y-0.5 font-mono">
+          <div><span class="text-gray-700">.card</span> — one whole card</div>
+          <div><span class="text-gray-700">.card-head</span> / <span class="text-gray-700">.card-main</span> — header band, body</div>
+          <div><span class="text-gray-700">.accent-bar</span> / <span class="text-gray-700">.accent-2-rule</span> / <span class="text-gray-700">.accent-sep</span> — the rules</div>
+          <div><span class="text-gray-700">.title-font</span> / <span class="text-gray-700">.player-name</span> / <span class="text-gray-700">.country</span></div>
+          <div><span class="text-gray-700">.grid-row</span> / <span class="text-gray-700">.col-label</span> / <span class="text-gray-700">.seat-cell</span></div>
+          <div><span class="text-gray-700">.wind</span>, <span class="text-gray-700">.wind.E|S|W|N</span> — seat chips</div>
+          <div><span class="text-gray-700">.write-cell</span> / <span class="text-gray-700">.write-cell.total</span> — writing boxes</div>
+          <div><span class="text-gray-700">.day-band</span> — the day separator</div>
+          <div><span class="text-gray-700">.footer-url</span> — the line at the card's foot</div>
+          <div><span class="text-gray-700">.opp-grid</span> / <span class="text-gray-700">.opp-cell</span> / <span class="text-gray-700">.opp-cell.me</span> — back side</div>
+        </div>
+      </details>
+    </div>
+
+    <!-- Preview -------------------------------------------------------------->
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
+      <div class="flex items-center justify-between gap-3 mb-3">
+        <div>
+          <h3 class="text-sm font-bold text-gray-800">Preview</h3>
+          <p class="text-xs text-gray-500">One card at printed size, front and back — rendered by the real print page.</p>
+        </div>
+        <button type="button" onclick="showPrintModal('player_cards')"
+                class="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">
+          Preview &amp; print all
+        </button>
+      </div>
+      {% comment %}
+        The preview page is card-sized (see print_views: ?preview=1), so the frame is
+        too — one card wide, two cards plus their margins tall. 1mm = 3.7795px at
+        96 dpi, which is the scale the print page lays itself out in.
+      {% endcomment %}
+      <div class="mx-auto overflow-hidden" x-ref="previewWrap" :style="wrapBox">
+        <iframe id="card-preview" x-ref="preview" src="player_cards?preview=1"
+                scrolling="no" tabindex="-1" :style="frameBox"
+                style="border:0;display:block;"></iframe>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{% static 'js/tournament_autosave.js' %}"></script>
+<script>
+  function cardDesigner() {
+    return {
+      format: '{{ tournament.card_format }}',
+      theme: '{{ tournament.card_theme }}',
+      // Seeded in init() from #card-css-initial: the *effective* CSS, not the
+      // stored field, so a tournament that has never been designed (card_css "")
+      // opens on its theme's defaults rather than an empty editor.
+      css: '',
+      themeDefaults: {},
+      variables: [],
+      previewScale: 1,
+
+      init() {
+        this.css = JSON.parse(document.getElementById('card-css-initial').textContent);
+        this.themeDefaults = JSON.parse(document.getElementById('theme-defaults').textContent);
+        this.parseVariables();
+        // Re-render the preview once the save has landed, so it shows what the
+        // print page will actually serve rather than an optimistic guess.
+        document.addEventListener('tournament-saved', () => this.reloadPreview());
+        // Fit it to the column now, and again whenever the column changes width
+        // (rotating a phone, collapsing the sidebar, switching format).
+        this.$nextTick(() => this.fitPreview());
+        window.addEventListener('resize', () => this.fitPreview());
+      },
+
+      // ── Reading the stylesheet ────────────────────────────────────────────
+      // Whatever `--name: value;` lines the text holds become controls, with the
+      // trailing comment as the label when there is one.
+      parseVariables() {
+        const re = /^[ \t]*(--[\w-]+)[ \t]*:[ \t]*([^;]+);(?:[ \t]*\/\*([^*]*)\*\/)?/gm;
+        const found = [];
+        let m;
+        while ((m = re.exec(this.css)) !== null) {
+          const value = m[2].trim();
+          found.push({
+            name: m[1],
+            value: value,
+            comment: (m[3] || '').trim(),
+            isColor: /^#[0-9a-f]{3,8}$/i.test(value),
+          });
+        }
+        this.variables = found;
+      },
+
+      // Rewrite one variable's line in place, so comments and custom rules survive.
+      setVariable(name, value) {
+        const re = new RegExp('^([ \\t]*' + name + '[ \\t]*:[ \\t]*)([^;]+)(;)', 'm');
+        this.css = this.css.replace(re, '$1' + value + '$3');
+        this.parseVariables();
+        this.pushCss();
+      },
+
+      applyPalette(accent, accent2) {
+        const re1 = /^([ \t]*--accent[ \t]*:[ \t]*)([^;]+)(;)/m;
+        const re2 = /^([ \t]*--accent-2[ \t]*:[ \t]*)([^;]+)(;)/m;
+        this.css = this.css.replace(re1, '$1' + accent + '$3')
+                           .replace(re2, '$1' + accent2 + '$3');
+        this.parseVariables();
+        this.pushCss();
+      },
+
+      // ── Saving ────────────────────────────────────────────────────────────
+      // The hidden inputs are what the shared autosave reads; :value keeps them
+      // in step, and a dispatched change is what triggers the save.
+      save(ref) {
+        this.$nextTick(() => this.$refs[ref].dispatchEvent(new Event('change')));
+      },
+      pushCss() { this.save('cssField'); },
+      setFormat(key) {
+        if (key === this.format) return;
+        this.format = key;
+        this.$nextTick(() => this.fitPreview());   // a different card, a different fit
+        this.save('fmt');
+      },
+
+      setTheme(name) {
+        if (name === this.theme) return;
+        const customised = this.css.trim() !== (this.themeDefaults[this.theme] || '').trim();
+        const apply = () => {
+          this.theme = name;
+          this.css = this.themeDefaults[name] || this.css;
+          this.parseVariables();
+          // One save carries both fields — the autosave posts every input.
+          this.save('thm');
+        };
+        if (!customised) { apply(); return; }
+        window.confirmAction({
+          title: 'Replace your CSS?',
+          body: 'You have edited the card CSS. Switching theme can replace it with the '
+              + name + ' defaults, or keep your CSS and only change the theme’s bars and chips.',
+          danger: false,
+          confirmLabel: 'Use ' + name + ' defaults',
+          onConfirm: apply,
+          cancelLabel: 'Keep my CSS',
+          onCancel: () => { this.theme = name; this.save('thm'); },
+        });
+      },
+
+      resetToTheme() {
+        this.css = this.themeDefaults[this.theme] || this.css;
+        this.parseVariables();
+        this.pushCss();
+      },
+
+      // ── Preview frame ───────────────────────────────────────────────────
+      // The frame is sized from the chosen format, so the card shows at its
+      // printed size. On a screen too narrow for that — a phone — it is scaled
+      // down to fit rather than pushing the page sideways: an admin page that
+      // scrolls horizontally is worse than a slightly smaller card.
+      get frameSize() {
+        const mm = 3.7795;
+        const sizes = {
+          {% for f in formats %}'{{ f.key }}': [{{ f.card_w }}, {{ f.card_h }}],
+          {% endfor %}
+        };
+        const [w, h] = sizes[this.format] || sizes['a6_portrait'];
+        // Two cards (front, back) plus the page's 1.5mm margins around each, and
+        // a hair more so the shadow is not clipped at the frame edge.
+        return {w: Math.round((w + 4) * mm), h: Math.round((h * 2 + 9) * mm)};
+      },
+      get frameBox() {
+        const {w, h} = this.frameSize;
+        return `width:${w}px;height:${h}px;transform:scale(${this.previewScale});`
+             + 'transform-origin:top left;';
+      },
+      get wrapBox() {
+        // The wrapper takes the scaled size, so the panel below it does not get a
+        // gap where the unscaled frame used to be.
+        const {w, h} = this.frameSize;
+        return `width:${Math.round(w * this.previewScale)}px;`
+             + `height:${Math.round(h * this.previewScale)}px;max-width:100%;`;
+      },
+      fitPreview() {
+        const wrap = this.$refs.previewWrap;
+        if (!wrap || !wrap.parentElement) return;
+        // Measure the space the wrapper may occupy, not the wrapper itself (that
+        // is what we are sizing). clientWidth includes the panel's padding, so
+        // take it off — leaving it in over-scales the card and max-width:100%
+        // then clips its right edge.
+        const panel = wrap.parentElement, cs = getComputedStyle(panel);
+        const room = panel.clientWidth
+                   - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+        const {w} = this.frameSize;
+        this.previewScale = room > 0 && room < w ? +(room / w).toFixed(4) : 1;
+      },
+
+      reloadPreview() {
+        const frame = this.$refs.preview;
+        // Same URL each time, so cache-bust to force the re-render.
+        frame.src = 'player_cards?preview=1&_=' + Date.now();
+      },
+    };
+  }
+
+  window.initTournamentAutosave({ csrfToken: '{{ csrf_token }}' });
+</script>
