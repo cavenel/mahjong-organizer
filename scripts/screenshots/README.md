@@ -50,11 +50,14 @@ export DJANGO_SETTINGS_MODULE=shots_settings PYTHONPATH=$PWD/scripts/screenshots
 | `bootstrap` | Migrates the throwaway sqlite DB, creates the `test` tenant and one user per role (`anna.admin`, `sam.scorer`, `pia.publisher`, `dana.display`) |
 | `seed` | Imports `docs/dev/clickthrough-fixtures/click-through-MCR-16p-3r.xlsx` through the real import view, runs the test toolbar's *Fill all rounds*, then ORM fixups (presentable names for the fixtures' XSS-probe players, green cross-check sheets, confidence tints) |
 | `admin` `scorer` `login` `mobile` | The captures, one browser context per role |
+| `hero` | The README's hero image — screen `/1` showing the live standings, at projector size — into `docs/screenshots/` |
 | `post` | Crops the tall page captures — the PDF caps figure height, so skyscraper shots would render unreadably small |
 
 Shots land directly in `docs/admin-console/screenshots/` under the filenames
-`guide.md` references. Rebuild the PDFs to eyeball the result:
-`manage.py build_docs_pdf` (needs WeasyPrint's native libraries).
+`guide.md` references, except the `hero` stage's, which goes to
+`docs/screenshots/standings-screen.png` (the README's hero image). Rebuild the
+PDFs to eyeball the result: `manage.py build_docs_pdf` (needs WeasyPrint's
+native libraries).
 
 ## Notes
 

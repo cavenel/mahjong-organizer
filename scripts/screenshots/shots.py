@@ -2,7 +2,8 @@
 
 Drives a throwaway single-process instance (sqlite + in-memory channels, tenant
 'test') with one browser context per role, and writes element shots into
-docs/admin-console/screenshots/ under the filenames guide.md references.
+docs/admin-console/screenshots/ under the filenames guide.md references, plus
+the README's hero image into docs/screenshots/.
 See README.md in this directory for the full recipe (environment, server,
 browser libraries).
 
@@ -14,6 +15,7 @@ Usage:
         scorer      the scorer's sidebar
         login       the logged-out login page
         mobile      the phone scan page
+        hero        the README's projector-screen hero image
         post        crop the tall captures to guide-friendly heights
 Run with no arguments for all stages. Stages are re-runnable; `seed` re-imports
 (wiping the test tenant) and can be re-run if sqlite lock contention from the
@@ -30,6 +32,7 @@ from playwright.sync_api import sync_playwright
 REPO = Path(__file__).resolve().parents[2]
 HERE = Path(__file__).resolve().parent
 OUT = REPO / 'docs/admin-console/screenshots'
+HERO_OUT = REPO / 'docs/screenshots'
 FIXTURE = REPO / 'docs/dev/clickthrough-fixtures/click-through-MCR-16p-3r.xlsx'
 BASE = os.environ.get('SHOTS_BASE', 'http://127.0.0.1:8123')
 PW = 'shots-pw'
@@ -44,9 +47,9 @@ ENV = dict(os.environ,
 done, failed = [], []
 
 
-def shoot(target, name, **kw):
+def shoot(target, name, out=None, **kw):
     try:
-        target.screenshot(path=str(OUT / name), **kw)
+        target.screenshot(path=str((out or OUT) / name), **kw)
         done.append(name)
         print(f'  ✓ {name}')
     except Exception as e:
@@ -406,6 +409,35 @@ def stage_mobile(pw_browser):
     ctx.close()
 
 
+def stage_hero(pw_browser):
+    """The README's hero image: a projector screen showing the live standings.
+
+    720p rather than 1080p: the standings table is a fixed width anchored to the
+    top, so a 1080p capture leaves a wide empty band under it. A projector-sized
+    viewport frames the table, the logo and the clock footer with no dead space.
+    """
+    print('== hero shot ==')
+    orm('''
+from mahj.models import Tenant, Screen
+t = Tenant.objects.get(subdomain="test")
+sc = Screen.objects.filter(tenant=t).order_by("id").first()
+if sc is None:
+    sc = Screen.objects.create(tenant=t, name="", view="black")
+sc.name, sc.view = "Main hall", "scores:detailed"
+sc.save()
+print("screen 1 shows the standings")
+''')
+    ctx = pw_browser.new_context(viewport={'width': 1280, 'height': 720},
+                                 device_scale_factor=2)
+    page = ctx.new_page()
+    page.goto(f'{BASE}/1')
+    # The screen renders empty and fills itself over the websocket.
+    page.wait_for_timeout(6000)
+    HERO_OUT.mkdir(parents=True, exist_ok=True)
+    shoot(page, 'standings-screen.png', out=HERO_OUT)
+    ctx.close()
+
+
 def stage_post():
     """Crop the tall captures: the PDF caps image height, so a skyscraper shot
     renders unreadably small. Keep each page shot's informative top, and trim
@@ -442,7 +474,7 @@ def stage_post():
 
 def main():
     stages = sys.argv[1:] or ['bootstrap', 'seed', 'admin', 'scorer', 'login',
-                              'mobile', 'post']
+                              'mobile', 'hero', 'post']
     if 'bootstrap' in stages:
         stage_bootstrap()
     browser_stages = [s for s in stages if s != 'bootstrap' and s != 'post']
@@ -463,6 +495,8 @@ def main():
                 stage_login(fresh())
             if 'mobile' in stages:
                 stage_mobile(browser)
+            if 'hero' in stages:
+                stage_hero(browser)
             browser.close()
     if 'post' in stages:
         stage_post()

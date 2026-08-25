@@ -13,7 +13,7 @@ You do not have to run it yourself. One instance is already online at
 [mahj.ovh](https://mahj.ovh). Write to cavenel@gmail.com to get a subdomain for
 your event, like `mytournament.mahj.ovh`.
 
-![The tournament dashboard](docs/admin-console/screenshots/00-welcome-dashboard.png)
+![Standings on the screen in the room](docs/screenshots/standings-screen.png)
 
 ## What it does
 
