@@ -46,7 +46,9 @@ class Membership(models.Model):
         there.
       - tenant role — ``is_scorer`` / ``is_display_op`` / ``is_publisher``, scoped
         to this one tenant. Plain booleans on the membership row, so a role check
-        is one indexed row read, no extra join table.
+        is one indexed row read, no extra join table. ``is_publisher`` implies the
+        scorer role at check time (views/helpers.has_role); the row records only
+        what was granted.
     """
     user   = models.ForeignKey(User, on_delete=models.CASCADE, related_name='memberships')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='memberships')

@@ -169,11 +169,19 @@ def is_tenant_admin(request):
 def has_role(request, *roles):
     """True if the user holds any of ``roles`` on the current tenant. Tenant
     admins (and superusers) implicitly hold every app role, mirroring the old
-    "staff implies scorer/display/publisher"."""
+    "staff implies scorer/display/publisher".
+
+    Publisher also implies scorer: a publisher already sees every unpublished
+    score and can lock or reopen the scorers' work, so withholding score *edits*
+    protected nothing and only forced them to fetch a scorer for a typo they'd
+    spotted while reconciling. The implication lives here, not in the row, so a
+    membership stays an honest record of what was granted."""
     m = current_membership(request)
     if not m:
         return False
     if m.is_tenant_admin:
+        return True
+    if 'scorer' in roles and m.is_publisher:
         return True
     return any(getattr(m, f'is_{r}', False) for r in roles)
 

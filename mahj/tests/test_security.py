@@ -477,17 +477,18 @@ class TestAdminPageRoleIsolation:
     def test_scoring_visible_to_publisher(self, client_, tournament, publisher_group_user):
         assert b'Filter by table' in self._body(client_, publisher_group_user, 'scoring')
 
-    def test_scoring_grid_is_read_only_for_a_publisher(self, client_, tournament,
-                                                       publisher_group_user):
-        """Scoring is the publisher's landing page and they may watch it, but every
-        score mutation is scorer-only — so the cells must not invite an edit whose
-        save can only fail. The publish toggle they *do* own stays."""
+    def test_scoring_grid_is_editable_for_a_publisher(self, client_, tournament,
+                                                     publisher_group_user):
+        """Publisher implies scorer (helpers.has_role): whoever may lock a round's
+        scores may also correct them, so the publisher gets the scorer's page in
+        full — live cells, the score sheet — plus the publish toggle they own."""
         body = self._body(client_, publisher_group_user, 'scoring').decode()
-        for cell in re.findall(r'<input class="mp-input"[^>]*>', body):
-            assert 'readonly' in cell
-        assert 'read-only for your role' in body
-        # The score sheet behind it is scorer-gated too, so it isn't offered.
-        assert 'class="btn-sheet show_hands"' not in body
+        cells = re.findall(r'<input class="mp-input"[^>]*>', body)
+        assert cells, 'the fixture has seats to score'
+        for cell in cells:
+            assert 'readonly' not in cell
+        assert 'read-only for your role' not in body
+        assert 'class="btn-sheet show_hands"' in body
         assert 'class="publish-toggle' in body
 
     def test_scoring_grid_is_editable_for_a_scorer(self, client_, tournament,
@@ -500,13 +501,29 @@ class TestAdminPageRoleIsolation:
         assert 'read-only for your role' not in body
         assert 'class="btn-sheet show_hands"' in body
 
-    def test_a_publisher_cannot_save_a_score(self, client_, tournament,
-                                             publisher_group_user):
-        """The read-only cells are a courtesy; this is the guarantee behind them."""
+    def test_a_publisher_can_save_a_score(self, client_, tournament,
+                                          publisher_group_user):
+        """The editable cells are backed by the endpoint: the scorer gate on every
+        score mutation admits a publisher too."""
         from mahj.models import Seat
         seat = Seat.objects.filter(tenant=tournament['tenant'],
                                    round_nb=3, table_nb=1).first()
         client_.force_login(publisher_group_user)
+        resp = client_.post('/update_seats_bulk',
+                            data=json.dumps({'seats': [
+                                {'id': seat.id, 'version': seat.version, 'mp': 99, 'tp': 4}]}),
+                            content_type='application/json')
+        assert resp.status_code == 200
+        seat.refresh_from_db()
+        assert seat.minipoints == 99
+
+    def test_a_display_op_still_cannot_save_a_score(self, client_, tournament,
+                                                    display_op_user):
+        """The implication runs publisher → scorer only; other roles stay out."""
+        from mahj.models import Seat
+        seat = Seat.objects.filter(tenant=tournament['tenant'],
+                                   round_nb=3, table_nb=1).first()
+        client_.force_login(display_op_user)
         resp = client_.post('/update_seats_bulk',
                             data=json.dumps({'seats': [
                                 {'id': seat.id, 'version': seat.version, 'mp': 99, 'tp': 4}]}),
@@ -568,14 +585,15 @@ class TestAdminPageRoleIsolation:
         assert 'Test data' not in body
         assert 'data-testid="test-badge"' not in body
 
-    def test_the_publish_lock_script_cannot_unlock_a_non_scorer(
+    def test_the_publish_lock_script_carries_the_role(
             self, client_, tournament, publisher_group_user):
         """The grid repaints its cells whenever the publish state changes, and that
-        repaint sets `readonly` outright. Unless it also carries the role, it hands a
-        publisher an editable cell on every *unpublished* round the moment it runs —
-        which the rendered markup alone doesn't show."""
+        repaint sets `readonly` outright, so it must carry the role flag — otherwise
+        a read-only viewer would get an editable cell on every *unpublished* round
+        the moment it runs. For a publisher the flag is true (publisher implies
+        scorer); the guard itself stays in the script."""
         body = self._body(client_, publisher_group_user, 'scoring').decode()
-        assert 'var userIsScorer = false;' in body
+        assert 'var userIsScorer = true;' in body
         assert 'prop("readonly", isPub || !userIsScorer)' in body
 
     # --- import_template: tenant admin only -----------------------------------

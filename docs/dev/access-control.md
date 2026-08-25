@@ -16,7 +16,10 @@ decorators in `mahj/views/helpers.py` carry this:
   get_tenant(request))`, memoized on the request (like `get_tenant` /
   `get_variables`). Superusers get a synthetic all-true result and need no row.
 - `has_role(request, *roles)` — superuser OR `is_tenant_admin` OR any of the named
-  tier-3 roles, for the request's tenant.
+  tier-3 roles, for the request's tenant. `is_publisher` also satisfies `'scorer'`:
+  the publisher outranks the scorer (sees every unpublished score, locks and
+  reopens rounds), so score edits are theirs too. The implication is applied here,
+  not stored on the row.
 
 Decorators (use these on every view; do not re-derive the check inline):
 
