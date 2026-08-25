@@ -94,9 +94,8 @@ From then on each tenant admin manages their own tenant's users. Open
 and **Import from template**. The **Setup checklist** tracks setup; the Run
 **Dashboard** tracks live progress.
 
-For a non-fresh install, the `0010_seed_memberships` migration best-effort maps
-the old global roles onto memberships when exactly one tenant exists; with
-several tenants it can't guess, so grant access manually with
+Accounts that predate memberships (old global `is_staff`/group roles) get no
+access automatically; grant it with
 `manage.py assign_membership <user> <subdomain> --roles=tenant_admin,scorer,…`.
 
 **Standalone build** ([`STANDALONE.md`](STANDALONE.md)): single-tenant and single-operator —

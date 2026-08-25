@@ -463,39 +463,6 @@ class TestOnePublishTargetPerTenant:
         assert {t: PublishTarget.objects.get(tenant_id=t).pk for t in rows} == rows
 
 
-class TestSeedMembershipsMigration:
-    """Exercise the data-migration function directly (against the live models) so
-    the single-tenant mapping and multi-tenant no-op are covered without spinning
-    up a full historical migration state."""
-
-    @staticmethod
-    def _seed():
-        import importlib
-        from django.apps import apps
-        mod = importlib.import_module('mahj.migrations.0010_seed_memberships')
-        mod.seed_memberships(apps, None)
-
-    def test_single_tenant_maps_staff_and_groups(self, tenant):
-        staff = User.objects.create_user('legacy_staff', is_staff=True)
-        scorer = User.objects.create_user('legacy_scorer')
-        scorer.groups.add(Group.objects.create(name='Scorer'))
-        plain = User.objects.create_user('legacy_plain')
-        su = User.objects.create_superuser('legacy_su', '', 'pw')
-
-        self._seed()
-
-        assert Membership.objects.get(user=staff, tenant=tenant).is_tenant_admin
-        assert Membership.objects.get(user=scorer, tenant=tenant).is_scorer
-        assert not Membership.objects.filter(user=plain).exists()   # no old role -> no row
-        assert not Membership.objects.filter(user=su).exists()      # superuser bypasses
-
-    def test_multi_tenant_is_noop(self, tenant):
-        Tenant.objects.create(name='Second', subdomain='second')
-        User.objects.create_user('legacy_staff', is_staff=True)
-        self._seed()
-        assert Membership.objects.count() == 0      # can't attribute to one tenant
-
-
 # --------------------------------------------------------------------------
 # Tenancy carried into the storage and HTTP layers
 # --------------------------------------------------------------------------

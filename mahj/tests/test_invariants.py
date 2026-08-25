@@ -51,8 +51,8 @@ def test_no_access_decision_reads_the_staff_flag():
     for root in ('mahj', 'apps'):
         for path in sorted((REPO_ROOT / root).rglob('*.py')):
             rel = path.relative_to(REPO_ROOT)
-            # 0010_seed_memberships reads it to map retired global roles onto
-            # Memberships. That is history and must keep working as written.
+            # Migrations describe schema, not access decisions, and tests may
+            # set the flag on fixtures to prove it is ignored.
             if 'migrations' in rel.parts or 'tests' in rel.parts:
                 continue
             for n, line in enumerate(path.read_text().splitlines(), 1):
