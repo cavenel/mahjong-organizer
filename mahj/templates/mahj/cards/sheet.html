@@ -207,10 +207,13 @@ change.
 
   /* ── A7 landscape: half the height of an A6, so everything tightens ──
      The height budget, measured on the rendered card: compact header ~9mm,
-     column heads ~5mm, a day band ~3mm, the totals row ~7mm, and ~5mm per round
-     in 59mm of body — eight rounds reach the bottom, nine overflow. The
-     card-design page warns past that; do not shrink .write-cell further without
-     checking that a score is still writable by hand. */
+     column heads ~5mm, a day band ~3mm per day, the totals row ~7mm, and ~5mm per
+     round in 64mm of body. Measured: eight rounds reach the bottom and nine
+     overflow over one or two days, but a third day's band costs a round, so
+     8 rounds over 3 days overflows too. The card-design page warns above eight
+     regardless of days -- a three-day A7 is unlikely enough to leave to the
+     preview, which shows the rows running off the card. Do not shrink
+     .write-cell further without checking a score is still writable by hand. */
   .format-a7_landscape .head-band { padding: 0.9mm 2.5mm 0; }
   .format-a7_landscape .head-row { align-items: center; gap: 2mm; margin-top: 0; }
   .format-a7_landscape .head-row .logo { max-height: 7mm; flex-shrink: 0; }

@@ -183,12 +183,14 @@ look. Everything saves as you edit, and the preview beside the controls is the
 real print page, so what you see is what comes out of the printer.
 
 - **Card format** — **A6 portrait** (4 per A4 sheet) is the full-size card with a
-  tall header. **A7 landscape** (8 per sheet) is half that, with a compact
-  one-line header, for short tournaments; it fits up to eight rounds, and the page
-  warns you if your tournament has more. It prints the period, session count and
-  ruleset along the bottom edge, where the A6 card has them in its header. Either way, print **double-sided,
-  flipping on the long edge** — the back of each sheet is laid out for that, so
-  every card gets its own opponents on the back.
+  tall header. **A7 landscape** (8 per sheet) is half that, for short tournaments:
+  a compact one-line header, and the period, session count and ruleset along the
+  bottom edge where the A6 card carries them in its header. It holds up to eight
+  rounds — seven if they span three days, since each day adds a heading — and the
+  page warns you above eight. The preview is the real check either way: rows that
+  do not fit run off the bottom of the card there. Print **double-sided, flipping
+  on the long edge**; the back of each sheet is laid out for that, so every card
+  gets its own opponents on the back.
 - **Theme** — *classic* (colour bars and filled seat chips), *minimal* (ink on
   paper, no colour bars) or *bold* (a filled header band that reads across a
   room). Switching theme replaces the colours below; if you have edited the CSS
@@ -205,6 +207,10 @@ real print page, so what you see is what comes out of the printer.
 
 The tournament logo and the spectator URL printed on the cards come from
 **Tournament settings**, not this page.
+
+> ![Player card design](screenshots/07-card-design.png)<br>
+> 📸 **Screenshot — Player card design: the controls, and the live preview of the
+> card's front and back beside them.**
 
 ### Live updates
 

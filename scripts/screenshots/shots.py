@@ -241,6 +241,14 @@ def stage_admin(ctx):
     shoot(page.locator('#modal-iframe').locator('xpath=ancestor::div[contains(@class,"relative")][1]'),
           '05-print-modal.png')
 
+    # Player card design (07): the controls beside the live preview, which is the
+    # point of the page — the preview is an iframe on the real print page, so give
+    # it a moment to render before shooting.
+    page.goto(f'{BASE}/admin?page=card_design')
+    page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(2000)
+    shoot(page.locator('#admin-maincol main'), '07-card-design.png')
+
     # User management (behind the password re-check)
     page.goto(f'{BASE}/admin?page=users')
     page.wait_for_load_state('networkidle')
@@ -406,6 +414,7 @@ def stage_post():
     print('== post-crops ==')
     for name, keep in (('20-display-page.png', 2300),
                        ('26-ceremony-console.png', 1500),
+                       ('07-card-design.png', 2500),
                        ('04-sidebar-scorer.png', 560)):
         p = OUT / name
         im = Image.open(p)
