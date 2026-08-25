@@ -11,11 +11,14 @@ to competitors, and how a hand encodes draws and self-draws.
   rounds, round timer, logo, …). One row per tenant. Exposed to templates as
   `tournament`.
 - **Player** — a human competitor: name, federation id (`EMA_ID`), country,
-  email, team. One row per person; the single editable record for a competitor.
+  team. One row per person; the single editable record for a competitor. No
+  contact details are stored.
 - **Seat** — one competitor's place at a table in one round.
 - **Hand** — one hand played at a table in a round.
 - **ScoreSheet** — score-entry state for one (round, table).
 - **PublishedRound** — marks a round's results as published.
+- **PublishTarget** — the tenant's SFTP publish destination (host, path,
+  encrypted credentials, spectator URL). Excluded from tenant dumps.
 - **Schedule / Screen / ScreenMode / CeremonyState** — display/scheduling support.
 - **Membership** — one user's access to one tenant (see *Access control* below).
 
