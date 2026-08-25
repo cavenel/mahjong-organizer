@@ -27,7 +27,7 @@ test tenant, never a live one. Importing the second file replaces the first.
 
 ## Scoring them
 
-On the `test` tenant the score grid shows a fixtures toolbar. **All rounds** fills
+On a test tournament (Tournament settings → **This is a test tournament**) the score grid shows a fixtures toolbar. **All rounds** fills
 everything (leaving the last round's final two tables blank on purpose, to exercise the
 incomplete-round path) and publishes what it can. **This round only** fills the open tab
 and publishes nothing, for stepping a tournament forward a round at a time.

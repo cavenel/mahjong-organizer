@@ -329,7 +329,10 @@ class TournamentSettings(TenantAwareModel):
     # Team tournament? The single source of truth for whether team standings,
     # columns and printouts appear (was inferred from "any player has a team").
     has_teams    = models.BooleanField(default=False)
-    zoom         = models.FloatField(default=1.0,null=False)
+    # Test tournament: unlocks the destructive rehearsal tools (random-fill /
+    # clear-all on Scoring, random players in the editor). Off for real events.
+    is_test      = models.BooleanField(default=False)
+    zoom       = models.FloatField(default=1.0,null=False)
     score_lines  = models.IntegerField(default=20,null=False)
     total_columns = models.IntegerField(default=3,null=False)  # columns in the "totals" standings layout
     rotation_time = models.IntegerField(default=10,null=False)  # seconds each page shows before the standings screen rotates

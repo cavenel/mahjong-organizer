@@ -8,8 +8,8 @@ to competitors, and how a hand encodes draws and self-draws.
 - **Tenant** — one tournament instance (subdomain). Every other row is scoped to
   a tenant.
 - **TournamentSettings** — per-tenant configuration (title, rules, number of
-  rounds, round timer, logo, …). One row per tenant. Exposed to templates as
-  `tournament`.
+  rounds, round timer, logo, the `is_test` rehearsal flag, …). One row per
+  tenant. Exposed to templates as `tournament`.
 - **Player** — a human competitor: name, federation id (`EMA_ID`), country,
   team. One row per person; the single editable record for a competitor. No
   contact details are stored.

@@ -72,6 +72,15 @@
         </label>
         <p class="text-xs text-gray-400 mt-1">Show team standings, columns and printouts.</p>
       </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Rehearsal</label>
+        <label class="inline-flex items-center gap-2 mt-1.5 cursor-pointer">
+          <input id="tournament-is_test" type="checkbox" {% if tournament.is_test %}checked{% endif %}
+                 class="tournament-input w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
+          <span class="text-sm text-gray-700">This is a test tournament</span>
+        </label>
+        <p class="text-xs text-gray-400 mt-1">Enables the random-fill / clear-all tools on Scoring and random players in the editor. Leave off for a real event.</p>
+      </div>
     </div>
   </div>
 

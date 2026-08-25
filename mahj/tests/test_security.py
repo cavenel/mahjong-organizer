@@ -541,16 +541,32 @@ class TestAdminPageRoleIsolation:
         assert 'Filter by table' in live_tenant_scoring
         assert 'function send_ajax(' in live_tenant_scoring, 'score entry still wired'
 
-    def test_the_fixtures_are_still_there_on_the_test_tenant(self, tournament,
-                                                            staff_user):
+    def test_the_fixtures_are_there_on_a_test_tournament(self, tournament,
+                                                        staff_user):
         """They exist to be used — the gate must not disable them where they belong.
-        The `tournament` fixture's tenant has subdomain 'test'."""
+        The gate is the `is_test` flag in Tournament settings, not the subdomain."""
+        tournament['settings'].is_test = True
+        tournament['settings'].save(update_fields=['is_test'])
         c = Client()
         c.defaults['HTTP_HOST'] = HOST
         c.force_login(staff_user)
         body = c.get('/admin?page=scoring').content.decode()
         assert 'function clear_score(' in body
         assert 'Test data' in body, 'and the toolbar that calls them'
+        assert 'data-testid="test-badge"' in body, 'and the shell badge that flags the mode'
+
+    def test_a_tenant_named_test_gets_nothing_without_the_flag(self, tournament,
+                                                              staff_user):
+        """The `tournament` fixture's tenant has subdomain 'test' — that alone
+        used to unlock the fixtures. Only the settings flag does now."""
+        assert tournament['settings'].is_test is False
+        c = Client()
+        c.defaults['HTTP_HOST'] = HOST
+        c.force_login(staff_user)
+        body = c.get('/admin?page=scoring').content.decode()
+        assert 'function clear_score(' not in body
+        assert 'Test data' not in body
+        assert 'data-testid="test-badge"' not in body
 
     def test_the_publish_lock_script_cannot_unlock_a_non_scorer(
             self, client_, tournament, publisher_group_user):

@@ -880,36 +880,45 @@ the standalone venue-laptop build — is documented in
 (Roles combine: a user holding several roles has the union of these. The
 platform operator can do all of this on every tournament.)
 
-## 22. Rehearsing on the test tenant
+## 22. Rehearsing on a test tournament
 
-The **test tenant** is a throwaway tournament for rehearsing the whole system —
+A **test tournament** is a throwaway tournament for rehearsing the whole system —
 training scorers, checking how the leaderboard/screens look with data, and
-practising the prize-giving ceremony — **without touching a real event**. It
-lives at:
+practising the prize-giving ceremony — **without touching a real event**. Any
+tenant (including a standalone install) becomes one by ticking **This is a test
+tournament** on **Tournament settings**; on a multi-tenant host the convention
+is a dedicated tenant such as:
 
 ```
 https://test.<your-domain>/
 ```
 
-Its subdomain is literally `test`. The only functional difference from a real
-tenant is a **fake-data toolbar** on the Scoring page that can fill or clear
-scores with random-but-valid results. Everything else (screens, ceremony,
-publishing, printing) behaves exactly like production, so it's a faithful
-rehearsal.
+While the box is ticked a small amber **TEST** badge sits next to the site name
+in the admin sidebar, on every page, so a flag left on by mistake is obvious.
+The only functional differences from a real tournament are a **fake-data
+toolbar** on the Scoring page that can fill or clear scores with
+random-but-valid results, and an **Add random players** button on Edit players.
+Everything else (screens, ceremony, publishing, printing) behaves exactly like
+production, so it's a faithful rehearsal.
 
 ### Seed players & schedule first
 
 The fake-data buttons fill **scores** for the players and tables that already
 exist — they do **not** create players. So first set up a tournament structure,
-exactly like a real event: sign in as an **admin** and either **Add player** on
+exactly like a real event: sign in as an **admin** and either build a roster on
 Edit players and generate a **Seating**, or run **Import from template** (see
-[§17](#17-setting-up-the-tournament)). Importing or re-generating the seating
-wipes any previous scores on the tenant — which is exactly what you want here.
+[§17](#17-setting-up-the-tournament)). On a test tournament, Edit players gains a
+**🧪 Add 4 random players** button next to **+ Add player**: each click appends
+four made-up competitors with names, a fake EMA number (always starting `99`, so
+it can never be mistaken for a real one), a country and — if *Team tournament*
+is on — a team, four to a team. They are not drawn in; use the normal draw flow.
+Importing or re-generating the seating wipes any previous scores on the tenant —
+which is exactly what you want here.
 
 ### The fake-data toolbar 🧪
 
-On the test tenant, the **Scoring** page shows an extra dashed amber toolbar at
-the top (it is rendered **only** when the subdomain is `test`):
+On a test tournament, the **Scoring** page shows an extra dashed amber toolbar
+at the top (it is rendered **only** while the settings box is ticked):
 
 > ![Test toolbar](screenshots/41-test-toolbar.png)<br>
 > 📸 **Screenshot — the "🧪 Test data" toolbar above the round tabs.**
@@ -933,7 +942,7 @@ scores**.
 
 ### Rehearsing each part of the system
 
-Once the test tenant has data you can exercise the full operator workflow:
+Once the test tournament has data you can exercise the full operator workflow:
 
 1. **Leaderboard / public site** — open `https://test.<your-domain>/` to see
    standings, seating and stats render with the fake data.
@@ -954,13 +963,13 @@ players/seating; re-running **Import from template** resets the whole tenant.
 
 ### Notes & caveats
 
-- The toolbar is gated purely on the **subdomain being `test`** — it never
-  appears on a real tenant, so there's no risk of accidentally generating junk
-  on a live event.
+- The toolbar and the random-players button are gated on the **This is a test
+  tournament** setting, and the server refuses random players when it is off.
+  Untick it before a real event — the sidebar **TEST** badge is your reminder.
 - Random fills produce **valid** tables (each table's Minipoints sum to zero)
   so the leaderboard maths and the score-sheet cross-checks behave like the
   real thing.
-- You still need the appropriate **role** for each action on the test tenant —
+- You still need the appropriate **role** for each action on a test tournament —
   which also makes it a good place to confirm a new user's roles before the
   real event.
 

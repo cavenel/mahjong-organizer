@@ -83,6 +83,12 @@
     <button type="button" @click="addPlayer()" :disabled="adding"
             class="px-3 py-1.5 text-sm font-medium rounded-lg border-2 border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap disabled:opacity-50"
             data-testid="add-player">+ Add player</button>
+    {% if is_test %}
+    <button type="button" @click="addRandomPlayers()" :disabled="adding"
+            class="ml-2 px-3 py-1.5 text-sm font-medium rounded-lg border-2 border-dashed border-amber-400 text-amber-600 hover:bg-amber-50 transition-colors whitespace-nowrap disabled:opacity-50"
+            title="Test tournament only: add made-up competitors with names, EMA ids, countries and teams"
+            data-testid="add-random-players">🧪 Add 4 random players</button>
+    {% endif %}
   </div>
 </div>
 
@@ -106,7 +112,10 @@
       placeholderCount() {
         return this.rows.filter(function (r) { return /^Player \d+$/.test(r.full_name || ''); }).length;
       },
-      addPlayer() {
+      addPlayer() { this._add({ count: 1 }); },
+      // Test tournaments only (the button is hidden and the endpoint refuses otherwise).
+      addRandomPlayers() { this._add({ count: 4, random: true }); },
+      _add(payload) {
         var self = this;
         this.adding = true;
         $.ajax({
@@ -114,11 +123,11 @@
           url: '/player_editor_add',
           contentType: 'application/json',
           headers: { 'X-CSRFToken': '{{ csrf_token }}' },
-          data: JSON.stringify({ count: 1 }),
+          data: JSON.stringify(payload),
           success: function (resp) {
             var added = (resp && resp.players) || [];
             added.forEach(function (r) { r._status = 'idle'; r._error = ''; self.rows.push(r); });
-            if (added.length) {
+            if (added.length && !payload.random) {
               // The new row is a placeholder: put the cursor on its name.
               setTimeout(function () {
                 var el = document.querySelector('[data-first-name-for="' + added[0].id + '"]');

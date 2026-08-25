@@ -95,8 +95,9 @@
 {% with last_round=tournament.nb_rounds %}
 <div x-data="{ activeRound: {{ active_round }} }">
 
-  {% if subdomain == "test" and user_is_scorer %}
-  <!-- Test-only fixtures toolbar (only rendered on the "test" tenant). Generates
+  {% if tournament.is_test and user_is_scorer %}
+  <!-- Test-only fixtures toolbar (only rendered when Tournament settings marks
+       this a test tournament). Generates
        random but valid data so the leaderboard / ceremony / display views have
        something to show.
 
@@ -641,13 +642,12 @@
     }
   })();
 
-  {% if subdomain == "test" and user_is_scorer %}
-  // Dev/test fixtures, behind the same gate as the toolbar that calls them. The
-  // toolbar was gated and this block was not, so random_fill_score, clear_score and
-  // friends were plain globals on the live Scoring page of every tenant — and
-  // `clear_score(true)` is one console line from erasing a tournament. No privilege
-  // escalation (they only call endpoints a scorer already holds), but ~140 lines of
-  // test scaffolding had no business in production either.
+  {% if tournament.is_test and user_is_scorer %}
+  // Rehearsal fixtures, behind the same gate (TournamentSettings.is_test) as the
+  // toolbar that calls them. The gate wraps the function definitions too, not just
+  // the buttons: `clear_score(true)` is one console line from erasing a tournament,
+  // so on a real event these must not exist as globals at all. No privilege
+  // escalation (they only call endpoints a scorer already holds).
   //
   // By default they act on the visible round only (handy from the console); pass
   // allRounds=true (the toolbar buttons do) to fill every round at once. When filling

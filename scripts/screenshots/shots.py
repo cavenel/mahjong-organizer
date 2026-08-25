@@ -94,9 +94,11 @@ def stage_bootstrap():
                    check=True, cwd=REPO, env=ENV)
     orm('''
 from django.contrib.auth.models import User
-from mahj.models import Tenant, Membership
+from mahj.models import Tenant, Membership, TournamentSettings
 tenant, _ = Tenant.objects.get_or_create(subdomain="test",
                                          defaults={"name": "Rehearsal tournament"})
+# The Scoring "Test data" toolbar (shot 41) only renders on a test tournament.
+TournamentSettings.objects.update_or_create(tenant=tenant, defaults={"is_test": True})
 for name, roles in (("anna.admin", {"is_tenant_admin": True}),
                     ("sam.scorer", {"is_scorer": True}),
                     ("pia.publisher", {"is_publisher": True}),

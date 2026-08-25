@@ -31,8 +31,17 @@ def _post(client, url, body):
     return client.post(url, data=json.dumps(body), content_type='application/json')
 
 
-def _add(client, count):
-    return _post(client, '/player_editor_add', {'count': count})
+def _add(client, count, **extra):
+    return _post(client, '/player_editor_add', {'count': count, **extra})
+
+
+def _make_test_tournament(tenant, **fields):
+    settings, _ = TournamentSettings.objects.get_or_create(tenant=tenant)
+    settings.is_test = True
+    for k, v in fields.items():
+        setattr(settings, k, v)
+    settings.save()
+    return settings
 
 
 def _names(tenant):
@@ -223,3 +232,81 @@ def test_editor_page_renders_add_controls_with_empty_roster(admin_client_, ed_te
     assert 'data-testid="add-player"' in html
     assert 'player_editor_add' in html
     assert 'player_editor_delete' in html
+
+
+# --- random players (test tournaments only) --------------------------------------
+
+def test_random_add_refused_unless_test_tournament(admin_client_, ed_tenant):
+    resp = _add(admin_client_, 2, random=True)
+    assert resp.status_code == 403
+    assert 'test tournament' in resp.json()['error']
+    assert Player.objects.filter(tenant=ed_tenant).count() == 0
+    # The plain add is unaffected.
+    assert _add(admin_client_, 1).status_code == 200
+
+
+def test_random_add_creates_plausible_competitors(admin_client_, ed_tenant):
+    _make_test_tournament(ed_tenant)
+    resp = _add(admin_client_, 8, random=True)
+    assert resp.status_code == 200
+    rows = resp.json()['players']
+    assert len(rows) == 8
+    assert set(rows[0]) == {
+        'id', 'draw_number', 'full_name', 'first_name', 'last_name', 'EMA_ID', 'country', 'team'}
+    names = [r['full_name'] for r in rows]
+    assert len(set(names)) == 8, 'names are unique'
+    assert not any(n.startswith('Player ') for n in names), 'not placeholders'
+    for r in rows:
+        assert r['first_name'] and r['last_name']
+        assert r['full_name'] == f"{r['first_name']} {r['last_name']}"
+        assert r['EMA_ID'].startswith('99') and len(r['EMA_ID']) == 8, 'fake EMA id, never a real one'
+        assert r['country']
+        assert r['team'] == '', 'no teams unless the tournament has teams'
+        assert r['draw_number'] is None, 'drawn in via the normal draw flow'
+    # Short names are disambiguated across the roster like the importer does.
+    shorts = list(Player.objects.filter(tenant=ed_tenant).values_list('short_name', flat=True))
+    assert all(shorts)
+    assert len(set(shorts)) == 8
+
+
+def test_random_add_fills_teams_of_four_when_tournament_has_teams(admin_client_, ed_tenant):
+    _make_test_tournament(ed_tenant, has_teams=True)
+    rows = _add(admin_client_, 8, random=True).json()['players']
+    teams = [r['team'] for r in rows]
+    assert teams == ['Team A'] * 4 + ['Team B'] * 4
+    # A second batch continues lettering from the roster size.
+    more = _add(admin_client_, 4, random=True).json()['players']
+    assert {r['team'] for r in more} == {'Team C'}
+
+
+def test_random_add_keeps_names_unique_against_the_existing_roster(admin_client_, ed_tenant):
+    _make_test_tournament(ed_tenant)
+    _add(admin_client_, 60, random=True)
+    _add(admin_client_, 60, random=True)
+    names = _names(ed_tenant)
+    assert len(names) == 120 == len(set(names))
+
+
+def test_random_add_respects_the_roster_cap(admin_client_, ed_tenant):
+    _make_test_tournament(ed_tenant)
+    assert _add(admin_client_, 200, random=True).status_code == 200
+    assert _add(admin_client_, 1, random=True).status_code == 400
+
+
+def test_editor_shows_random_button_only_on_test_tournaments(admin_client_, ed_tenant):
+    body = admin_client_.get('/admin?page=player_editor').content.decode()
+    assert 'data-testid="add-player"' in body
+    assert 'data-testid="add-random-players"' not in body
+    _make_test_tournament(ed_tenant)
+    body = admin_client_.get('/admin?page=player_editor').content.decode()
+    assert 'data-testid="add-random-players"' in body
+
+
+def test_settings_page_toggles_the_test_flag(admin_client_, ed_tenant):
+    resp = admin_client_.post('/admin?page=settings&action=set_tournament&tournament-is_test=true')
+    assert resp.status_code in (200, 302)
+    assert TournamentSettings.objects.get(tenant=ed_tenant).is_test is True
+    assert 'data-testid="test-badge"' in admin_client_.get('/admin?page=settings').content.decode()
+    admin_client_.post('/admin?page=settings&action=set_tournament&tournament-is_test=false')
+    assert TournamentSettings.objects.get(tenant=ed_tenant).is_test is False
+    assert 'data-testid="test-badge"' not in admin_client_.get('/admin?page=settings').content.decode()

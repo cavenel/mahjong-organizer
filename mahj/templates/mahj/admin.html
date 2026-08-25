@@ -49,6 +49,8 @@
     <a href="/admin" class="brand flex items-center gap-2.5 px-4 h-14 border-b border-gray-100 shrink-0 overflow-hidden">
       <img src="{{ site_logo_url }}" class="h-7 w-7 object-contain shrink-0" alt="logo">
       <span class="font-bold text-gray-800 truncate rail-hide">{{ base_domain }}</span>
+      {% if is_test %}<span data-testid="test-badge" title="Test tournament (Tournament settings)"
+            class="ml-auto shrink-0 text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 rail-hide">Test</span>{% endif %}
     </a>
 
     <nav class="flex-1 overflow-y-auto py-3 text-sm">

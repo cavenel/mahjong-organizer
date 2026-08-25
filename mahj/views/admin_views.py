@@ -1,6 +1,7 @@
 import hashlib
 import io
 import logging
+import random
 import re
 import time
 import traceback
@@ -118,7 +119,7 @@ DISPLAY_SETTINGS_FIELDS = frozenset({
     "rotation_time", "score_lines", "total_columns", "welcome", "zoom",
 })
 TOURNAMENT_SETTINGS_FIELDS = frozenset({
-    "city", "countrycourt", "fullname", "has_teams", "home_country",
+    "city", "countrycourt", "fullname", "has_teams", "home_country", "is_test",
     "nb_rounds", "period", "rules", "title", "total_time",
 })
 
@@ -1268,12 +1269,26 @@ def player_editor_add(request):
     template. Each placeholder is a mononym (first_name = full_name = short_name),
     not yet drawn in; the organizer renames them in the editor. Numbering
     continues from the current roster size (16 players -> "Player 17"), skipping a
-    number only if a competitor already carries that exact name."""
+    number only if a competitor already carries that exact name.
+
+    With ``random: true`` in the body the new rows are instead fully made-up
+    competitors (name, fake EMA id, country, team when the tournament has teams)
+    for rehearsing on a test tournament — refused unless
+    ``TournamentSettings.is_test`` is on, so hiding the button is not the only guard."""
     if request.method != 'POST':
         return method_not_allowed()
 
     tenant = get_tenant(request)
-    count = int_param(json_body(request), 'count')
+    body = json_body(request)
+    tournament = get_tournament(request)
+    randomize = bool(body.get('random'))
+    if randomize and not tournament.is_test:
+        return JsonResponse(
+            {'ok': False,
+             'error': 'Random players are only available on a test tournament '
+                      '(Tournament settings → "This is a test tournament").'},
+            status=403)
+    count = int_param(body, 'count')
     if not 1 <= count <= _MAX_PLAYERS:
         return JsonResponse(
             {'ok': False, 'error': f'Add between 1 and {_MAX_PLAYERS} players at a time.'},
@@ -1288,18 +1303,87 @@ def player_editor_add(request):
             status=400)
 
     taken = set(Player.objects.filter(tenant=tenant).values_list('full_name', flat=True))
-    new_players = []
-    k = existing + 1
-    while len(new_players) < count:
-        name = f'Player {k}'
-        if name not in taken:
-            new_players.append(Player(
-                tenant=tenant, full_name=name, first_name=name, last_name='',
-                short_name=name, draw_number=None))
-        k += 1
-    Player.objects.bulk_create(new_players)
+    if randomize:
+        new_players = _random_players(tenant, count, existing, taken,
+                                      with_teams=tournament.has_teams)
+        Player.objects.bulk_create(new_players)
+        # Real names may share a first name, so re-disambiguate short names across
+        # the whole roster (same as the importer and the name editor do).
+        roster = list(Player.objects.filter(tenant=tenant).order_by('id'))
+        _assign_short_names(roster)
+        Player.objects.bulk_update(roster, ['short_name'])
+        new_ids = {p.id for p in new_players}
+        new_players = [p for p in roster if p.id in new_ids]
+    else:
+        new_players = []
+        k = existing + 1
+        while len(new_players) < count:
+            name = f'Player {k}'
+            if name not in taken:
+                new_players.append(Player(
+                    tenant=tenant, full_name=name, first_name=name, last_name='',
+                    short_name=name, draw_number=None))
+            k += 1
+        Player.objects.bulk_create(new_players)
     invalidate_leaderboard(tenant.subdomain)
     return JsonResponse({'ok': True, 'players': [_player_row(p) for p in new_players]})
+
+
+# Name pools for random rehearsal players: deliberately mixed origins so the
+# roster looks like an international event, and short so the standings columns
+# don't overflow.
+_TEST_FIRST_NAMES = (
+    'Anna', 'Bo', 'Chen', 'Dara', 'Emil', 'Fatima', 'Greta', 'Hiro', 'Ines', 'Jonas',
+    'Kaito', 'Lena', 'Mateo', 'Nadia', 'Oskar', 'Priya', 'Quang', 'Rosa', 'Sven', 'Tomas',
+    'Ulla', 'Viktor', 'Wei', 'Xenia', 'Yuki', 'Zara', 'Aiko', 'Bruno', 'Camille', 'Dmitri',
+)
+_TEST_LAST_NAMES = (
+    'Andersson', 'Bauer', 'Costa', 'Dubois', 'Eriksson', 'Fischer', 'Garcia', 'Hansen',
+    'Ito', 'Jansen', 'Kowalski', 'Lindqvist', 'Moreau', 'Nakamura', 'Olsen', 'Petrov',
+    'Quist', 'Rossi', 'Sato', 'Tanaka', 'Ueda', 'Vogel', 'Wang', 'Xu', 'Yamamoto', 'Zhang',
+    'Berg', 'Novak', 'Silva', 'Meyer',
+)
+_TEST_COUNTRIES = (
+    'Sweden', 'France', 'Japan', 'Germany', 'Netherlands', 'Denmark', 'Italy',
+    'Poland', 'Austria', 'China',
+)
+
+
+def _random_players(tenant, count, existing, taken, with_teams):
+    """Build ``count`` unsaved Player rows with made-up but plausible data.
+    Names are unique within the tenant (falls back to a numeric suffix once the
+    pools are exhausted — 30×30 combinations comfortably cover _MAX_PLAYERS, but a
+    roster can already hold arbitrary names). EMA ids start with ``99`` so they can
+    never collide with a real federation number. Teams cycle Team A, B, C… over the
+    whole roster so a fresh test tournament ends up with evenly sized teams."""
+    rng = random.Random()
+    used_ema = set(Player.objects.filter(tenant=tenant).values_list('EMA_ID', flat=True))
+    taken = set(taken)
+    players = []
+    for i in range(count):
+        for attempt in range(50):
+            first = rng.choice(_TEST_FIRST_NAMES)
+            last = rng.choice(_TEST_LAST_NAMES)
+            if attempt >= 25:
+                last = f'{last} {attempt}'
+            full = f'{first} {last}'
+            if full not in taken:
+                break
+        taken.add(full)
+        while True:
+            ema = f'99{rng.randrange(10**6):06d}'
+            if ema not in used_ema:
+                break
+        used_ema.add(ema)
+        team = ''
+        if with_teams:
+            # 4 players per team, lettered from the roster position.
+            team = f'Team {chr(ord("A") + ((existing + i) // 4) % 26)}'
+        players.append(Player(
+            tenant=tenant, full_name=full, first_name=first, last_name=last,
+            short_name=first, EMA_ID=ema, country=rng.choice(_TEST_COUNTRIES),
+            team=team, draw_number=None))
+    return players
 
 
 @tenant_admin_required
@@ -1919,7 +2003,9 @@ def _page_player_editor(request, tenant, error=None):
     template2 = loader.get_template('mahj/admin_player_editor.html')
     return template2.render(
         {"player_rows": player_rows,
-         "valid_draw_numbers": valid_draw_numbers}, request)
+         "valid_draw_numbers": valid_draw_numbers,
+         # Shows the "Add random players" button; the endpoint re-checks the flag.
+         "is_test": get_tournament(request).is_test}, request)
 
 
 
@@ -2115,7 +2201,6 @@ def _page_scoring(request, tenant, error=None):
         # That is exactly when the scorer is reconciling before the ceremony.
         "active_round": min(nb_rounds + 1, max(1, tournament.nb_rounds)),
         "published_rounds": published_rounds,
-        "subdomain": tenant.subdomain if tenant else '',
         "validated_keys": validated_keys,
         "filled_keys": filled_keys,
         # Only publishers (and tenant admins) may publish/unpublish — the
@@ -2266,13 +2351,17 @@ def options(request, error=None):
             return page_content
 
     from ..publish.sftp_upload import is_configured as _static_publish_configured
+    tournament = get_tournament(request)
     context = {
         "username": request.user.username,
         "page": page,
         "page_content": page_content,
         # user_is_scorer / user_is_display_op / user_is_publisher / is_tenant_admin
         # come from the role_flags context processor (tenant-scoped).
-        "uses_teams": get_tournament(request).has_teams,
+        "uses_teams": tournament.has_teams,
+        # Sidebar "Test" badge, so a rehearsal flag left on for a real event is
+        # visible on every admin page.
+        "is_test": tournament.is_test,
         # Standalone is single-tenant (pinned via LOCAL_TENANT), so the superuser
         # tenant-management page is meaningless there — hide it.
         "standalone": settings.STANDALONE,
