@@ -135,5 +135,12 @@ services:
       replicas: 4
 
 volumes:
+  # External so that `docker compose down -v` (and any compose-level cleanup)
+  # cannot delete the database: Docker only removes volumes this file owns.
+  # Created once by hand: `docker volume create mahj_postgres_data`
+  # (docs/hosting/deployment.md -> First run).
   postgres_data:
+    external: true
+    name: mahj_postgres_data
+  # Cache + scan queue only; losing it is harmless, so compose may own it.
   redis_data:

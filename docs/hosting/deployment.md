@@ -19,13 +19,19 @@ every environment variable.
 on nginx, TLS and the production commands. Always deploy with both files:
 
 ```bash
+docker volume create mahj_postgres_data          # once, before the first up
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
+
+The database lives in `mahj_postgres_data`, declared **external** in the compose
+file so that no compose command can delete it (see *Backups & restore*). It must
+exist before the first `up`; without it Compose stops with "external volume not
+found" rather than silently creating a throwaway one.
 
 Services: **web** (gunicorn/ASGI), **nginx** (TLS termination + static),
 **db** (PostgreSQL), **pgbouncer**, **redis** (cache), **redis_bus** (Channels +
 scan queue) and **scan_worker**. Named volumes persist
-`postgres_data`, `letsencrypt`, `static_files` and the redis data.
+`mahj_postgres_data`, `letsencrypt`, `static_files` and the redis data.
 
 nginx renders its vhost from `nginx/mahjong.conf.template` at start, substituting
 `${BASE_DOMAIN}` into `server_name` and the cert paths
@@ -110,11 +116,11 @@ docker image prune                                # drop untagged images from ol
 Worth running every month or so, or whenever the disk gets tight. The `until` filter
 keeps the recent cache so the next deploy is still fast.
 
-**Never `docker volume prune`, and never `docker compose down -v`.** `postgres_data`
-is a plain named volume holding every tenant's database; both commands delete it,
-and nothing in this stack backs it up. `down -v` is the flag people reach for when
-a stack misbehaves — use `docker compose down` (no `-v`) and the backup/restore
-paths below instead.
+**Never `docker volume prune`** (nor `docker system prune --volumes`). The
+database volume `mahj_postgres_data` is declared *external*, so `docker compose
+down -v` leaves it alone — but `volume prune` deletes any volume no running
+container uses, and nothing in this stack backs the database up. Stop the stack,
+prune, and every tenant is gone. Use the backup/restore paths below instead.
 
 ## Backups & restore
 
@@ -142,7 +148,7 @@ the tenant's publish target over SFTP, next to the static site.
 
 Because a dump is per tenant, restoring one never touches another tournament on
 the same server. The database itself needs no application-level backup path: take
-host-level snapshots of the `postgres_data` volume if you want whole-server
+host-level snapshots of the `mahj_postgres_data` volume if you want whole-server
 recovery.
 
 **If the server is unreachable mid-tournament**, run the standalone build on a
@@ -152,11 +158,13 @@ then dump from the laptop and restore that back onto the server afterwards.
 
 ### The server died — starting over from a dump
 
-When the database is gone (a lost volume, a `down -v`, a dead disk) and all you
-have is a dump per tenant:
+When the database is gone (a pruned volume, a dead disk) and all you have is a
+dump per tenant:
 
-1. Bring the stack up on a fresh database (`docker compose -f … up -d`; migrations
-   apply on start) and create the platform superuser again — see *First run*.
+1. Bring the stack up on a fresh database (`docker volume create
+   mahj_postgres_data` if it no longer exists, then `docker compose -f … up -d`;
+   migrations apply on start) and create the platform superuser again — see
+   *First run*.
 2. **Recreate each tenant with its old subdomain** (*Administration → Tenants →
    Create*). The subdomain is what the advertised spectator URL, the QR codes and
    the projector addresses point at; a different one breaks all of them.
