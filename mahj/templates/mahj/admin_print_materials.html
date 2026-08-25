@@ -1,0 +1,69 @@
+{# Each card opens the printable page in the shell's preview modal (Close / Print). #}
+<div class="max-w-4xl space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">Print materials</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      The paper the room needs before play. Each opens a preview — <span class="font-medium">Print</span> sends it to
+      the browser's print dialog (choose “Save as PDF” to export).
+    </p>
+  </div>
+
+  {% if draw_done %}
+  <div class="rounded-xl border border-green-200 bg-green-50 p-3 text-sm text-green-800 flex items-center gap-2" data-testid="print-draw-status">
+    <span class="w-5 h-5 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0 text-xs">✓</span>
+    Draw complete — cards and positions will show every player's seats.
+  </div>
+  {% else %}
+  <div class="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800 flex items-center gap-2" data-testid="print-draw-status">
+    <span class="text-amber-500 shrink-0">⚠</span>
+    <span><span class="font-medium">{{ nb_drawn }}</span>/{{ nb_players }} players drawn in. Cards and positions depend on draw numbers —
+      <a href="admin?page=player_editor" class="font-medium underline hover:no-underline">finish the draw</a> before printing them.</span>
+  </div>
+  {% endif %}
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Player cards</h3>
+      <p class="text-xs text-gray-500 flex-1">One card per player: name, draw number and their table and seat for every round. Hand out at registration.</p>
+      <button type="button" onclick="showPrintModal('player_cards')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Table positions</h3>
+      <p class="text-xs text-gray-500 flex-1">One poster per table showing who sits where, round by round. Tape one to each table.</p>
+      <button type="button" onclick="showPrintModal('table_posters')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Player names</h3>
+      <p class="text-xs text-gray-500 flex-1">Alphabetical list of players with their draw numbers, for the registration desk.</p>
+      <button type="button" onclick="showPrintModal('player_names')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    {% if uses_teams %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Team names</h3>
+      <p class="text-xs text-gray-500 flex-1">The teams and their members.</p>
+      <button type="button" onclick="showPrintModal('team_names')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    {% endif %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Cross positions</h3>
+      <p class="text-xs text-gray-500 flex-1">A grid of every player's table and seat per round — the whole seating on one sheet.</p>
+      <button type="button" onclick="showPrintModal('cross_positions')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    {% if uses_teams %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Cross positions by team</h3>
+      <p class="text-xs text-gray-500 flex-1">The same grid, grouped by team, so captains can find their players.</p>
+      <button type="button" onclick="showPrintModal('cross_positions?per_team=1')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+    {% endif %}
+    <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-4 flex flex-col gap-2">
+      <h3 class="text-sm font-bold text-gray-800">Schedule</h3>
+      <p class="text-xs text-gray-500 flex-1">The timetable: rounds, breaks and the ceremony, as set on the Tournament settings page.</p>
+      <button type="button" onclick="showPrintModal('print_schedule')" class="self-start px-3 py-1.5 text-xs font-semibold text-white bg-sky-600 rounded-lg hover:bg-sky-700">Preview &amp; print</button>
+    </div>
+  </div>
+
+  <p class="text-xs text-gray-400">
+    Looking for the standings? <span class="font-medium">Print scores</span> is in the Run workspace, next to Scoring.
+  </p>
+</div>

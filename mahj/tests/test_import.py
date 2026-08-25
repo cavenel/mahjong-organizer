@@ -670,13 +670,13 @@ def test_cross_positions_before_draw_uses_placeholder(admin_client_, imp_tenant)
 
 
 def test_dashboard_reports_seating_status(admin_client_, imp_tenant):
-    """The dashboard's setup checklist shows whether a seating chart exists."""
+    """The Setup home checklist shows whether a seating chart exists."""
     # No import yet -> no seating.
-    resp = admin_client_.get('/admin?page=welcome')
+    resp = admin_client_.get('/admin?page=setup')
     assert 'No seating chart' in resp.content.decode()
     # After importing a chart -> ready.
     admin_client_.post('/admin_upload_from_template', {'myfile': _filled_workbook(16)})
-    resp = admin_client_.get('/admin?page=welcome')
+    resp = admin_client_.get('/admin?page=setup')
     assert 'Seating chart ready' in resp.content.decode()
 
 

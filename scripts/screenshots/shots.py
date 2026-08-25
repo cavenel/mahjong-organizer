@@ -213,18 +213,26 @@ def stage_admin(ctx):
     print('== admin shots ==')
     page = login(ctx, 'anna.admin')
 
-    # Dashboard content (00, bottom-trimmed in stage_post) and the whole shell —
-    # sidebar beside the dashboard (03): a viewport shot, so the admin sidebar
-    # reads in context instead of as a tall bare strip.
+    # Run dashboard content (00, bottom-trimmed in stage_post).
     page.goto(f'{BASE}/admin?page=welcome')
     page.wait_for_load_state('networkidle')
     page.wait_for_timeout(800)
     shoot(page.locator('#admin-maincol main'), '00-welcome-dashboard.png')
+
+    # Setup checklist (06) and the whole shell with the Setup sidebar beside it
+    # (03): a viewport shot, so the admin sidebar reads in context instead of as
+    # a tall bare strip.
+    page.goto(f'{BASE}/admin?page=setup')
+    page.wait_for_load_state('networkidle')
+    page.wait_for_timeout(800)
+    shoot(page.locator('#admin-maincol main'), '06-setup-checklist.png')
     shoot(page, '03-sidebar-staff.png')
 
-    # Print modal (player cards), scrolled to the cards — leave via goto
-    page.click('button:has-text("Print / Export")')
-    page.click('button:has-text("Player cards")')
+    # Print preview (player cards) from the Print materials page, scrolled to
+    # the cards — leave via goto
+    page.goto(f'{BASE}/admin?page=print_materials')
+    page.wait_for_load_state('networkidle')
+    page.click('div:has(> h3:text-is("Player cards")) >> button')
     page.wait_for_timeout(3000)
     frame = page.frame(name='modal-iframe')
     if frame:
@@ -398,7 +406,7 @@ def stage_post():
     print('== post-crops ==')
     for name, keep in (('20-display-page.png', 2300),
                        ('26-ceremony-console.png', 1500),
-                       ('04-sidebar-scorer.png', 470)):
+                       ('04-sidebar-scorer.png', 560)):
         p = OUT / name
         im = Image.open(p)
         w, h = im.size
@@ -407,8 +415,8 @@ def stage_post():
         print(f'  ✓ {name} -> {w}x{min(h, keep)}')
     # Page-content shots are taller than their content; trim rows matching the
     # page background (sampled bottom-left), leaving a small margin.
-    for name in ('00-welcome-dashboard.png', '10-scoring-page.png',
-                 '02-assign-role.png'):
+    for name in ('00-welcome-dashboard.png', '06-setup-checklist.png',
+                 '10-scoring-page.png', '02-assign-role.png'):
         p = OUT / name
         im = Image.open(p).convert('RGB')
         w, h = im.size

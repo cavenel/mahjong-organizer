@@ -221,7 +221,7 @@ def test_tournament_without_excel(admin_client_, ed_tenant):
     assert Player.objects.get(id=first.id).draw_number == 7
 
     # 5. The dashboard's setup checklist reflects it — no import ever happened.
-    dash = admin_client_.get('/admin?page=welcome').content.decode()
+    dash = admin_client_.get('/admin?page=setup').content.decode()
     assert '16</span> players listed' in dash
     assert 'Seating chart ready' in dash
     assert '1</span>/16 players drawn in' in dash
@@ -324,7 +324,7 @@ def test_no_mismatch_warning_when_chart_fits_the_list(admin_client_, ed_tenant):
     _add(admin_client_, 8)
     _chart(ed_tenant, 8)
     assert 'chart-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()
-    dash = admin_client_.get('/admin?page=welcome').content.decode()
+    dash = admin_client_.get('/admin?page=setup').content.decode()
     assert 'chart-mismatch' not in dash and 'Seating chart ready' in dash
 
 
@@ -336,7 +336,7 @@ def test_mismatch_warning_when_players_were_added_after_the_chart(admin_client_,
     assert 'chart-mismatch' in seating
     assert 'seats <strong>8</strong> draw slots' in seating and '<strong>12</strong> players' in seating
     assert 'can never be drawn in' in seating
-    dash = admin_client_.get('/admin?page=welcome').content.decode()
+    dash = admin_client_.get('/admin?page=setup').content.decode()
     assert 'chart-mismatch' in dash
     assert 'Seating chart is for 8 players, but the list has 12' in dash
     assert 'Seating chart ready' not in dash
@@ -353,5 +353,5 @@ def test_mismatch_warning_when_a_player_was_removed(admin_client_, ed_tenant):
 
 def test_no_mismatch_warning_without_a_chart(admin_client_, ed_tenant):
     _add(admin_client_, 8)
-    assert 'chart-mismatch' not in admin_client_.get('/admin?page=welcome').content.decode()
+    assert 'chart-mismatch' not in admin_client_.get('/admin?page=setup').content.decode()
     assert 'chart-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()

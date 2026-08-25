@@ -53,92 +53,144 @@
             class="ml-auto shrink-0 text-[10px] font-semibold uppercase tracking-wider bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 rail-hide">Test</span>{% endif %}
     </a>
 
-    <nav class="flex-1 overflow-y-auto py-3 text-sm">
-
-      <!-- Dashboard — top-level link, all roles -->
-      <a href="admin?page=welcome" :title="railCollapsed ? 'Dashboard' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'welcome' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v5h-8zM13 12h8v9h-8zM3 15h8v6H3z"/></svg>
-        <span class="nav-label rail-hide">Dashboard</span>
+    {% comment %} Setup ⇄ Run. Only tenant admins hold Setup pages, so only they see the
+       switch; a scorer, publisher or display operator lives in Run. {% endcomment %}
+    {% if is_tenant_admin %}
+    <div data-testid="workspace-switcher" class="grid grid-cols-2 mx-2 mt-3 mb-1 rounded-lg border border-gray-200 bg-gray-50 p-0.5 text-xs font-semibold">
+      <a href="admin?page=setup" :title="railCollapsed ? 'Setup' : ''" data-testid="switch-setup"
+         class="flex items-center justify-center gap-1.5 rounded-md py-1.5 {% if area == 'setup' %}bg-sky-600 text-white shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <span class="rail-hide">Setup</span>
       </a>
+      <a href="admin?page=welcome" :title="railCollapsed ? 'Run' : ''" data-testid="switch-run"
+         class="flex items-center justify-center gap-1.5 rounded-md py-1.5 {% if area == 'run' %}bg-amber-500 text-white shadow-sm{% else %}text-gray-500 hover:text-gray-800{% endif %}">
+        <svg class="w-3.5 h-3.5 shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4l14 8-14 8z"/></svg>
+        <span class="rail-hide">Run</span>
+      </a>
+    </div>
+    {% endif %}
 
-      <!-- CONFIGURATION -->
+    {% comment %} Tailwind scans templates for literal class names; the active-item classes
+       arrive via `active_cls`, so list them here: bg-sky-50 text-sky-700 bg-amber-50 text-amber-700 {% endcomment %}
+    <nav class="flex-1 overflow-y-auto py-3 text-sm">
+      {% if area == 'setup' %}
+      {% comment %} ── SETUP: everything done before play. Tenant admins only (every Setup
+         page is gated _gate_tenant_admin), so the whole nav sits behind one test. {% endcomment %}
       {% if is_tenant_admin %}
-      <p data-testid="nav-group-configuration" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Configuration</p>
+      <a href="admin?page=setup" :title="railCollapsed ? 'Setup checklist' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'setup' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'setup' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        <span class="nav-label rail-hide">Setup checklist</span>
+      </a>
+      <p data-testid="nav-group-tournament" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Tournament</p>
       <a href="admin?page=settings" :title="railCollapsed ? 'Tournament settings' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'settings' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'settings' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'settings' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         <span class="nav-label rail-hide">Tournament settings</span>
       </a>
       <a href="admin?page=import_template" :title="railCollapsed ? 'Import from template' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'import_template' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'import_template' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'import_template' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
         <span class="nav-label rail-hide">Import from template</span>
       </a>
-      <a href="admin?page=seating" :title="railCollapsed ? 'Seating' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'seating' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
-        <span class="nav-label rail-hide">Seating</span>
-      </a>
-      {% endif %}
-
-      <!-- PLAYERS -->
-      {% if is_tenant_admin %}
-      <p data-testid="nav-group-players" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Players</p>
+      <p data-testid="nav-group-players" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Players &amp; seating</p>
       <a href="admin?page=player_editor" :title="railCollapsed ? 'Edit players' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'player_editor' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'player_editor' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'player_editor' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         <span class="nav-label rail-hide">Edit players</span>
       </a>
-      <a href="admin_player_draw" target="_blank" :title="railCollapsed ? 'Randomize players (live)' : ''"
+      <a href="admin?page=seating" :title="railCollapsed ? 'Seating' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'seating' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'seating' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 3v18"/></svg>
+        <span class="nav-label rail-hide">Seating</span>
+      </a>
+      <a target="_blank" href="admin_player_draw" :title="railCollapsed ? 'Randomize players (live)' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2"/><circle cx="16" cy="16" r="1.2"/><circle cx="16" cy="8" r="1.2"/><circle cx="8" cy="16" r="1.2"/></svg>
         <span class="nav-label rail-hide">Randomize players (live)</span>
         <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
       </a>
-      <a href="admin_team_draw" target="_blank" :title="railCollapsed ? 'Team draw (live)' : ''"
+      <a target="_blank" href="admin_team_draw" :title="railCollapsed ? 'Team draw (live)' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM3 21v-1a5 5 0 0 1 5-5h2a5 5 0 0 1 5 5v1M17 11l2 2 4-4"/></svg>
         <span class="nav-label rail-hide">Team draw (live)</span>
         <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
       </a>
+      <p data-testid="nav-group-print" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Print</p>
+      <a href="admin?page=print_materials" :title="railCollapsed ? 'Print materials' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'print_materials' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'print_materials' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
+        <span class="nav-label rail-hide">Print materials</span>
+      </a>
+      <p data-testid="nav-group-administration" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Administration</p>
+      <a href="admin?page=users" :title="railCollapsed ? 'User management' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'users' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'users' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M19 14v-1M19 20v-1M22 17h-1M16 17h-1"/><circle cx="19" cy="17" r="2"/></svg>
+        <span class="nav-label rail-hide">User management</span>
+      </a>
+      {% if is_superuser_active and not standalone %}
+      <a href="admin?page=tenants" :title="railCollapsed ? 'Tenants' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'tenants' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'tenants' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>
+        <span class="nav-label rail-hide">Tenants</span>
+      </a>
       {% endif %}
-
-      <!-- SCORING -->
+      <a href="admin?page=backup" :title="railCollapsed ? 'Backup &amp; restore' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'backup' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'backup' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        <span class="nav-label rail-hide">Backup &amp; restore</span>
+      </a>
+      <a href="admin?page=publish_target" :title="railCollapsed ? 'Publish target' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publish_target' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'publish_target' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a5 5 0 0 1 4.9-6h.7A6 6 0 1 1 16 20H8a4 4 0 0 1-4-4z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
+        <span class="nav-label rail-hide">Publish target</span>
+      </a>
+      {% endif %}
+      {% else %}
+      {% comment %} ── RUN: everything done during play. Each group shows for the roles that
+         work there; a tenant admin holds every role. {% endcomment %}
+      <a href="admin?page=welcome" :title="railCollapsed ? 'Dashboard' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'welcome' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'welcome' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 3h8v8H3zM13 3h8v5h-8zM13 12h8v9h-8zM3 15h8v6H3z"/></svg>
+        <span class="nav-label rail-hide">Dashboard</span>
+      </a>
       {% if is_tenant_admin or user_is_scorer or user_is_publisher %}
       <p data-testid="nav-group-scoring" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Scoring</p>
       <a href="admin?page=scoring" :title="railCollapsed ? 'Scoring' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'scoring' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'scoring' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'scoring' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 2h6a1 1 0 0 1 1 1v1h1a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h1V3a1 1 0 0 1 1-1zM9 12h6M9 16h4"/></svg>
         <span class="nav-label rail-hide">Scoring</span>
       </a>
       {% if is_tenant_admin or user_is_publisher %}
       <a href="admin?page=publisher_overview" :title="railCollapsed ? 'Publisher overview' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publisher_overview' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publisher_overview' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'publisher_overview' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
         <span class="nav-label rail-hide">Publisher overview</span>
       </a>
       {% endif %}
       {% endif %}
-
-      <!-- DISPLAYS -->
       {% if is_tenant_admin or user_is_display_op %}
       <p data-testid="nav-group-displays" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Displays</p>
       <a href="admin?page=display" :title="railCollapsed ? 'Display on screens' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'display' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'display' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'display' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
         <span class="nav-label rail-hide">Display on screens</span>
       </a>
       <a href="admin?page=ceremony" :title="railCollapsed ? 'Ceremony console' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'ceremony' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'ceremony' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'ceremony' %} data-active{% endif %}>
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0zM7 4H4v2a3 3 0 0 0 3 3M17 4h3v2a3 3 0 0 1-3 3"/></svg>
         <span class="nav-label rail-hide">Ceremony console</span>
       </a>
       {% endif %}
-
-      <!-- RESULTS -->
-      {% if is_tenant_admin %}
+      {% if is_tenant_admin or user_is_scorer or user_is_publisher %}
       <p data-testid="nav-group-results" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Results</p>
+      <button type="button" onclick="showPrintModal('print_scores')" data-testid="nav-print-scores"
+              :title="railCollapsed ? 'Print scores' : ''"
+              class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors w-[calc(100%-1rem)] text-left text-gray-700 hover:bg-gray-100">
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
+        <span class="nav-label rail-hide">Print scores</span>
+      </button>
+      {% if is_tenant_admin %}
       <a target="_blank" href="EMA_report.xlsx" :title="railCollapsed ? 'Generate EMA report' : ''"
          class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M9 13v5M12 11v7M15 15v3"/></svg>
@@ -146,40 +198,7 @@
         <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
       </a>
       {% endif %}
-
-      <!-- ADMINISTRATION -->
-      {% if is_tenant_admin %}
-      <p data-testid="nav-group-administration" class="rail-hide px-4 mt-5 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400">Administration</p>
-      <a href="admin?page=users" :title="railCollapsed ? 'User management' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'users' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 0 1 4-4h4M19 14v-1M19 20v-1M22 17h-1M16 17h-1"/><circle cx="19" cy="17" r="2"/></svg>
-        <span class="nav-label rail-hide">User management</span>
-      </a>
-      {% if user.is_superuser %}
-      {% if not standalone %}
-      <a href="admin?page=tenants" :title="railCollapsed ? 'Tenants' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'tenants' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4"/><path d="M9 9h.01M9 13h.01M9 17h.01"/></svg>
-        <span class="nav-label rail-hide">Tenants</span>
-      </a>
       {% endif %}
-      <a target="_blank" href="admin_db" :title="railCollapsed ? 'Database administration' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors text-gray-700 hover:bg-gray-100">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 6.5h.01M6 17.5h.01"/></svg>
-        <span class="nav-label rail-hide">Database administration</span>
-        <svg class="w-3.5 h-3.5 ml-auto text-gray-300 shrink-0 rail-hide" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6M15 3h6v6M10 14L21 3"/></svg>
-      </a>
-      {% endif %}
-      <a href="admin?page=backup" :title="railCollapsed ? 'Backup & restore' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'backup' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
-        <span class="nav-label rail-hide">Backup &amp; restore</span>
-      </a>
-      <a href="admin?page=publish_target" :title="railCollapsed ? 'Publish target' : ''"
-         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'publish_target' %}bg-amber-50 text-amber-700 font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}">
-        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a5 5 0 0 1 4.9-6h.7A6 6 0 1 1 16 20H8a4 4 0 0 1-4-4z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
-        <span class="nav-label rail-hide">Publish target</span>
-      </a>
       {% endif %}
     </nav>
 
@@ -196,6 +215,32 @@
         </a>
         <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR scorer cheat sheet</a>
         <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR head-scorer cheat sheet</a>
+        {% if real_is_tenant_admin %}
+        {% comment %}"View as": preview the console as a single-role account, to
+        check what a scorer / publisher / display operator will actually see.
+        Shown to the person really holding the session, so it survives the
+        preview itself (the is_tenant_admin flag is False while previewing).{% endcomment %}
+        <div class="border-t border-gray-100 my-1"></div>
+        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">View as</p>
+        <div data-testid="view-as-menu">
+          {% for role, label in view_as_roles %}
+          <form method="post" action="admin?view_as={{ role }}">
+            {% csrf_token %}
+            <button type="submit" class="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50 {% if viewing_as == role %}font-semibold text-amber-700{% endif %}">
+              <span class="w-4 text-center text-amber-600">{% if viewing_as == role %}●{% endif %}</span>{{ label }}
+            </button>
+          </form>
+          {% endfor %}
+          {% if viewing_as %}
+          <form method="post" action="admin?view_as=off">
+            {% csrf_token %}
+            <button type="submit" data-testid="view-as-off" class="w-full flex items-center gap-2 px-3 py-2 text-gray-700 hover:bg-gray-50">
+              <span class="w-4 text-center text-gray-400">↩</span>Back to admin view
+            </button>
+          </form>
+          {% endif %}
+        </div>
+        {% endif %}
         <div class="border-t border-gray-100 my-1"></div>
         <form method="post" action="admin?logout=1">
           {% csrf_token %}
@@ -212,7 +257,7 @@
           <p class="text-sm font-semibold text-gray-800 truncate">{{ username }}</p>
           <p class="text-[11px] font-semibold text-amber-600 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
-            {% if user.is_superuser %}Superuser{% elif is_tenant_admin %}Admin{% elif user_is_publisher %}Publisher{% elif user_is_scorer %}Scorer{% elif user_is_display_op %}Display operator{% endif %}
+            {% if viewing_as %}Viewing as {% if viewing_as == 'scorer' %}Scorer{% elif viewing_as == 'publisher' %}Publisher{% else %}Display operator{% endif %}{% elif is_superuser_active %}Superuser{% elif is_tenant_admin %}Admin{% elif user_is_publisher %}Publisher{% elif user_is_scorer %}Scorer{% elif user_is_display_op %}Display operator{% endif %}
           </p>
         </div>
         <svg class="w-4 h-4 text-gray-400 shrink-0 rail-hide" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
@@ -224,7 +269,7 @@
   <div id="admin-maincol" class="lg:pl-60 flex flex-col min-h-screen transition-[padding] duration-200">
 
     <!-- Topbar -->
-    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 h-14 flex items-center px-4 gap-2 sm:gap-3">
+    <header class="sticky top-0 z-20 bg-white border-b border-gray-200 border-t-2 {% if area == 'setup' %}border-t-sky-500{% else %}border-t-amber-500{% endif %} h-14 flex items-center px-4 gap-2 sm:gap-3">
       <!-- Mobile: open the off-canvas drawer -->
       <button type="button" class="lg:hidden p-2 -ml-2 text-gray-600 hover:text-gray-900 shrink-0"
               @click="sidebarOpen=true" title="Menu">
@@ -237,33 +282,29 @@
       </button>
       <h1 id="page-title" class="flex-1 min-w-0 font-semibold text-sm sm:text-base text-gray-800 tracking-tight truncate">Mahjong Tournament Organizer</h1>
 
-      {% if is_tenant_admin or user_is_scorer or user_is_publisher %}
-      <div class="relative shrink-0" @click.outside="printMenuOpen=false">
-        <button data-testid="print-menu" type="button" @click="printMenuOpen=!printMenuOpen"
-                class="flex items-center gap-2 px-2.5 sm:px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400">
-          <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
-          <span class="hidden sm:inline">Print / Export</span>
-          <svg class="w-3.5 h-3.5 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-        </button>
-        <div x-show="printMenuOpen" x-transition x-cloak
-             class="absolute right-0 mt-1 w-60 bg-white border border-gray-200 rounded-xl shadow-lg py-1 text-sm">
-          {% if is_tenant_admin %}
-          <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Prepare</p>
-          <button type="button" @click="showPrintModal('player_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Player names</button>
-          {% if uses_teams %}<button type="button" @click="showPrintModal('team_names'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Team names</button>{% endif %}
-          <button type="button" @click="showPrintModal('player_cards'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Player cards</button>
-          <button type="button" @click="showPrintModal('table_posters'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Table positions</button>
-          <button type="button" @click="showPrintModal('cross_positions'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Cross positions</button>
-          <button type="button" @click="showPrintModal('cross_positions?per_team=1'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Cross positions (by team)</button>
-          <button type="button" @click="showPrintModal('print_schedule'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Schedule</button>
-          <div class="border-t border-gray-100 my-1"></div>
-          <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Live</p>
-          {% endif %}
-          <button type="button" @click="showPrintModal('print_scores'); printMenuOpen=false" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-amber-50 hover:text-amber-700">Scores</button>
-        </div>
-      </div>
-      {% endif %}
     </header>
+
+    {% if viewing_as %}
+    <!-- Preview mode: the admin is seeing the console as a single-role account. -->
+    <div data-testid="view-as-banner" class="mx-4 mt-4 max-w-7xl lg:mx-auto w-auto rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm text-violet-900 flex items-center gap-3">
+      <span class="shrink-0">👁</span>
+      <div class="flex-1">Viewing the console as a
+        <span class="font-semibold">{% if viewing_as == 'scorer' %}Scorer{% elif viewing_as == 'publisher' %}Publisher{% else %}Display operator{% endif %}</span>
+        — this is what that account sees.</div>
+      <form method="post" action="admin?view_as=off" class="shrink-0">
+        {% csrf_token %}
+        <button type="submit" class="px-3 py-1 text-xs font-semibold text-violet-800 bg-white border border-violet-300 rounded-lg hover:bg-violet-100">Back to admin view</button>
+      </form>
+    </div>
+    {% endif %}
+    {% if setup_in_progress %}
+    <!-- Soft lock: play has started, so Setup edits now touch a live tournament. -->
+    <div data-testid="setup-in-progress" class="mx-4 mt-4 max-w-7xl lg:mx-auto w-auto rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 flex items-start gap-3">
+      <span class="text-amber-500 text-lg leading-none shrink-0 mt-0.5">⚠</span>
+      <div><span class="font-semibold">Tournament in progress</span> — changes here affect live play.
+        Scoring, publishing and the screens are in <a href="admin?page=welcome" class="font-semibold underline hover:no-underline">Run →</a></div>
+    </div>
+    {% endif %}
 
     <!-- Page content -->
     <main class="flex-1 px-4 py-6 max-w-7xl w-full mx-auto">
@@ -351,7 +392,6 @@
       return {
         sidebarOpen: false,      // mobile off-canvas drawer
         userMenuOpen: false,     // account menu in the sidebar foot
-        printMenuOpen: false,    // the print/export dropdown in the topbar
         // Desktop icon-rail collapse. Persisted so it survives the full-page
         // navigations; a pre-boot script applies body.rail before paint.
         railCollapsed: (function () { try { return localStorage.getItem('adminRail') === '1'; } catch (e) { return false; } })(),
@@ -454,15 +494,15 @@
           } catch(e) {}
           this.detailsModal.open = false; this.detailsModal.src = '';
         },
-        closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; this.printMenuOpen = false; },
+        closeModals() { this.closePrintModal(); this.closeDetailsModal(); this.userMenuOpen = false; },
       };
     }
 
     // Reflect the active sidebar item in the topbar title. The active item is
-    // already server-rendered (amber wash from the `page` var), so reading it
+    // already server-rendered (data-active from the `page` var), so reading it
     // here avoids keeping a second slug→label map in sync.
     (function () {
-      var active = document.querySelector('#admin-sidebar .nav-item.bg-amber-50 .nav-label');
+      var active = document.querySelector('#admin-sidebar .nav-item[data-active] .nav-label');
       var title = document.getElementById('page-title');
       if (active && title) title.textContent = active.textContent.trim();
     })();

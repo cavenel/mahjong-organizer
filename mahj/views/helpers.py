@@ -138,13 +138,38 @@ class _SuperuserMembership:
     is_tenant_admin = is_scorer = is_display_op = is_publisher = True
 
 
+# Session key for "View as": a tenant admin previewing the console as one of the
+# single-role accounts they hand out. Holds one of _TENANT_ROLES, or is absent.
+VIEW_AS_SESSION_KEY = 'view_as_role'
+
+
+class _ViewAsMembership:
+    """Synthetic single-role membership an admin wears while previewing the
+    console as a scorer / publisher / display operator. Never admin: the point is
+    to see exactly what that account sees — nav, pages, 403s and all."""
+    is_tenant_admin = False
+
+    def __init__(self, role):
+        self.role = role
+        self.is_scorer = role == 'scorer'
+        self.is_display_op = role == 'display_op'
+        self.is_publisher = role == 'publisher'
+
+
 def current_membership(request):
     """The request user's Membership for the current subdomain's tenant, or None.
 
     Memoized on ``request._membership`` (like get_tenant/get_tournament) so the
     decorators, view bodies and context processor share one lookup. Anonymous
     users and users with no row for this tenant get None with no query for the
-    anonymous case; superusers get a synthetic all-true membership (they bypass)."""
+    anonymous case; superusers get a synthetic all-true membership (they bypass).
+
+    "View as": when the session asks for a single role *and the real membership
+    is admin-tier*, the admin's membership is swapped for a synthetic one holding
+    only that role, so every check downstream sees the preview. The real row is
+    kept on ``request._real_membership`` for the few places that must know who
+    is actually here (the View-as menu itself). The swap keys on the real
+    membership, so a session key planted by a non-admin changes nothing."""
     if hasattr(request, '_membership'):
         return request._membership
     user = getattr(request, 'user', None)
@@ -156,8 +181,35 @@ def current_membership(request):
             tenant = get_tenant(request)
             if tenant is not None:
                 membership = Membership.objects.filter(user=user, tenant=tenant).first()
+    request._real_membership = membership
+    session = getattr(request, 'session', None)
+    view_as = session.get(VIEW_AS_SESSION_KEY) if session is not None else None
+    if view_as in _TENANT_ROLES and membership is not None and membership.is_tenant_admin:
+        membership = _ViewAsMembership(view_as)
     request._membership = membership
     return membership
+
+
+def viewing_as(request):
+    """The role an admin is currently previewing as, or None."""
+    m = current_membership(request)
+    return m.role if isinstance(m, _ViewAsMembership) else None
+
+
+def real_is_tenant_admin(request):
+    """Admin over the current tenant *ignoring* any View-as preview — who is
+    actually holding the session. Everything else should use is_tenant_admin."""
+    current_membership(request)
+    m = request._real_membership
+    return bool(m and m.is_tenant_admin)
+
+
+def acting_superuser(request):
+    """Platform superuser, unless previewing as a role — a superuser viewing as a
+    scorer should not keep the superuser-only entries and pages."""
+    user = getattr(request, 'user', None)
+    return bool(user is not None and user.is_authenticated and user.is_superuser
+                and viewing_as(request) is None)
 
 
 def is_tenant_admin(request):

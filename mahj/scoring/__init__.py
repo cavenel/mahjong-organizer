@@ -28,6 +28,7 @@ from .visibility import (
     final_withheld_now,
     public_round_max,
     publish_state,
+    tournament_in_progress,
 )
 from .standings import (
     _assign_ranks,

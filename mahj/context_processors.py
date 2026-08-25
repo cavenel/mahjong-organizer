@@ -5,8 +5,7 @@ from django.templatetags.static import static
 from django.urls import reverse
 
 from .views.helpers import (
-    can_access_admin, get_tenant, get_tournament, has_role, is_tenant_admin,
-    public_site_host, public_site_url,
+    acting_superuser, can_access_admin, get_tenant, get_tournament, has_role, is_tenant_admin, public_site_host, public_site_url, real_is_tenant_admin, viewing_as,
 )
 
 logger = logging.getLogger(__name__)
@@ -58,8 +57,12 @@ def role_flags(request):
     admin shell's nav/menus gate on tenant membership rather than the global
     Django ``is_staff`` flag. ``is_tenant_admin`` is the tier-2 "full admin over
     this tenant" token; the per-role flags already fold admin/superuser in (via
-    has_role). ``is_superuser`` (platform ops) stays the Django flag, and
-    templates keep using ``user.is_superuser``.
+    has_role). ``is_superuser_active`` is the platform-operator flag for
+    templates: the Django flag, off while the operator previews as a role.
+
+    ``viewing_as`` / ``real_is_tenant_admin`` serve the View-as menu: the role an
+    admin is previewing as (None normally) and whether the person actually
+    holding the session is an admin, whatever the preview says.
     """
     try:
         return {
@@ -68,11 +71,15 @@ def role_flags(request):
             "user_is_display_op": has_role(request, 'display_op'),
             "user_is_publisher": has_role(request, 'publisher'),
             "user_can_access_admin": can_access_admin(request),
+            "is_superuser_active": acting_superuser(request),
+            "viewing_as": viewing_as(request),
+            "real_is_tenant_admin": real_is_tenant_admin(request),
         }
     except Exception:
         logger.exception("role_flags context processor failed; rendering the page role-less")
         return {
             "is_tenant_admin": False, "user_is_scorer": False,
             "user_is_display_op": False, "user_is_publisher": False,
-            "user_can_access_admin": False,
+            "user_can_access_admin": False, "is_superuser_active": False,
+            "viewing_as": None, "real_is_tenant_admin": False,
         }

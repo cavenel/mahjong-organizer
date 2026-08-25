@@ -67,7 +67,8 @@ class TestRoleFlags:
         assert out == {
             'is_tenant_admin': False, 'user_is_scorer': False,
             'user_is_display_op': False, 'user_is_publisher': False,
-            'user_can_access_admin': False,
+            'user_can_access_admin': False, 'is_superuser_active': False,
+            'viewing_as': None, 'real_is_tenant_admin': False,
         }
 
     def test_a_scorer_gets_exactly_the_scorer_flag(self, tournament):
@@ -82,7 +83,11 @@ class TestRoleFlags:
         section of the console."""
         u = role_user('cp_admin', tournament['tenant'], admin=True)
         out = cp.role_flags(_request(user=u))
-        assert all(out.values())
+        for flag in ('is_tenant_admin', 'user_is_scorer', 'user_is_display_op',
+                     'user_is_publisher', 'user_can_access_admin', 'real_is_tenant_admin'):
+            assert out[flag], flag
+        # A tenant admin is not the platform operator, and isn't previewing.
+        assert not out['is_superuser_active'] and out['viewing_as'] is None
 
     def test_a_role_on_another_tenant_grants_nothing_here(self, tournament, tenant_b):
         u = role_user('cp_other', tenant_b, admin=True)

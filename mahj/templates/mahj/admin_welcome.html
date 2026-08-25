@@ -1,26 +1,4 @@
 {% load static %}
-{% if error %}
-<div x-data="{ open: true }" x-show="open" x-cloak
-     class="fixed inset-0 z-50 flex items-center justify-center p-4">
-  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="open=false"></div>
-  <div class="relative z-10 bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
-    <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
-      <h2 class="text-sm font-semibold text-red-600">Error</h2>
-      <button @click="open=false" class="text-gray-400 hover:text-gray-700 w-8 h-8 rounded-lg hover:bg-gray-100 text-2xl leading-none">&times;</button>
-    </div>
-    <div class="px-5 py-4 text-sm text-gray-700 overflow-y-auto">
-      {{ error|safe }}
-      <p class="mt-3 text-xs text-gray-500">
-        Correct the .xlsx document, or contact your tournament administrator.
-      </p>
-    </div>
-    <div class="flex justify-end px-5 py-3 border-t border-gray-200 shrink-0">
-      <button @click="open=false"
-              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
-    </div>
-  </div>
-</div>
-{% endif %}
 
 <div class="max-w-3xl space-y-6">
   <div>
@@ -46,60 +24,6 @@
       Per-round times won't line up until they match —
       <a href="admin?page=settings" class="font-medium underline hover:no-underline">fix the schedule</a>.
     </div>
-  </div>
-  {% endif %}
-
-  <!-- Setup checklist — tournament setup is the organizer's job (import, draw,
-       screens), so only show it to tenant admins. A scorer/publisher/display op
-       has no access to the pages it links to. ------------------------------->
-  {% if is_tenant_admin %}
-  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5">
-    <h3 class="text-sm font-bold text-gray-800 mb-4">Setup</h3>
-    <ul class="space-y-3 text-sm">
-      <li class="flex items-center gap-3">
-        {% if nb_players %}
-          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
-          <span class="text-gray-700"><span class="font-medium">{{ nb_players }}</span> player{{ nb_players|pluralize }} listed</span>
-        {% else %}
-          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
-          <span class="text-gray-500">No players yet — <a href="admin?page=player_editor" class="text-amber-600 hover:underline">add players</a> or <a href="admin?page=import_template" class="text-amber-600 hover:underline">import a player list</a></span>
-        {% endif %}
-      </li>
-      <li class="flex items-center gap-3">
-        {% if chart_mismatch %}
-          <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold">!</span>
-          <span class="text-rose-700" data-testid="chart-mismatch">
-            <span class="font-bold">Seating chart is for {{ chart_players }} player{{ chart_players|pluralize }}, but the list has {{ nb_players }}</span>
-            — <a href="admin?page=seating" class="text-amber-600 hover:underline">regenerate the seating</a>
-            or <a href="admin?page=player_editor" class="text-amber-600 hover:underline">fix the player list</a>
-          </span>
-        {% elif has_seats %}
-          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
-          <span class="text-gray-700">Seating chart ready</span>
-        {% else %}
-          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
-          <span class="text-gray-500">No seating chart — <a href="admin?page=seating" class="text-amber-600 hover:underline">generate seating</a> or import one</span>
-        {% endif %}
-      </li>
-      <li class="flex items-center gap-3">
-        {% if draw_done %}
-          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
-          <span class="text-gray-700">Draw complete — every player has a seat</span>
-        {% else %}
-          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
-          <span class="text-gray-500"><span class="font-medium">{{ nb_drawn }}</span>/{{ nb_players }} players drawn in — <a href="admin?page=player_editor" class="text-amber-600 hover:underline">run the draw</a></span>
-        {% endif %}
-      </li>
-      <li class="flex items-center gap-3">
-        {% if nb_screens %}
-          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
-          <span class="text-gray-700"><span class="font-medium">{{ nb_screens }}</span> display screen{{ nb_screens|pluralize }} configured</span>
-        {% else %}
-          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
-          <span class="text-gray-500">No display screens — <a href="admin?page=display" class="text-amber-600 hover:underline">add screens</a> (optional)</span>
-        {% endif %}
-      </li>
-    </ul>
   </div>
   {% endif %}
 

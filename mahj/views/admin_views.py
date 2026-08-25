@@ -24,9 +24,10 @@ from django.utils.html import escape
 from ..models import CeremonyState, Hand, Membership, Player, ScoreSheet, Seat, PublishedRound, Schedule, Screen, ScreenMode, Tenant
 from ..signals import broadcast_display, broadcast_publish_state, invalidate_leaderboard
 from .helpers import (
-    BASE_DIR, get_counter, get_tenant, get_tournament, has_role, int_param,
-    is_tenant_admin, json_body, method_not_allowed, set_counter,
-    tenant_admin_required, tenant_role_required,
+    BASE_DIR, VIEW_AS_SESSION_KEY, _TENANT_ROLES, acting_superuser, current_membership,
+    get_counter, get_tenant, get_tournament, has_role, int_param, is_tenant_admin, json_body,
+    method_not_allowed, real_is_tenant_admin, set_counter, tenant_admin_required,
+    tenant_role_required,
 )
 from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
@@ -1786,51 +1787,84 @@ def _save_schedule(request, tenant):
 # `?action=` mutations answer with a redirect, a JSON payload or a 405.
 
 
-def _page_welcome(request, tenant, error=None):
-    from ..publish.sftp_upload import is_configured as _static_publish_configured
-    from ..scoring import _last_complete_round, publish_state
-    tournament = get_tournament(request)
+def _setup_status(tenant, tournament):
+    """The setup checklist's facts, shared by the Setup home, the Print materials
+    page and the Run dashboard so they can never disagree about readiness."""
     nb_players = Player.objects.filter(tenant=tenant).count()
     nb_drawn = Player.objects.filter(tenant=tenant, draw_number__isnull=False).count()
-    nb_screens = Screen.objects.filter(tenant=tenant).count()
-    # _last_complete_round returns nb_rounds when it finds no incomplete seat —
-    # which also happens with no seats at all, a false "all complete". Guard on
-    # the seating chart actually existing.
+    # Whether a seating chart exists at all (imported or generated) — the player
+    # list can be drawn in only once there are seats to fill.
     has_seats = Seat.objects.filter(tenant=tenant).exists()
     # The chart's own size (distinct draw slots). Players are added/removed only
     # before play, so a chart of a different size than the list is a setup error
     # the checklist must shout about — the extra people can never be drawn in.
     chart_players = (Seat.objects.filter(tenant=tenant)
                      .values('draw_number').distinct().count()) if has_seats else 0
-    complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
-    last_published, _ = publish_state(tenant, tournament)
     # Warn when a schedule exists but its playing rounds don't line up with
     # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
     # mismatch leaves per-round times blank/misaligned. Only flag once a
     # schedule has been set up — a fresh, empty schedule isn't "wrong".
     schedule_total = Schedule.objects.filter(tenant=tenant).count()
     schedule_rounds = Schedule.objects.filter(tenant=tenant, is_round=True).count()
+    chart_mismatch = has_seats and chart_players != nb_players
+    # A player is "drawn in" once assigned a draw number; the player list is
+    # ready to play when every player holds one.
+    draw_done = nb_players > 0 and nb_drawn == nb_players
+    return {
+        "nb_players": nb_players,
+        "nb_drawn": nb_drawn,
+        "has_seats": has_seats,
+        "chart_players": chart_players,
+        "chart_mismatch": chart_mismatch,
+        "draw_done": draw_done,
+        "nb_screens": Screen.objects.filter(tenant=tenant).count(),
+        "schedule_rounds": schedule_rounds,
+        "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
+        # The three required steps done (screens are optional): the Setup home
+        # offers the way over to Run once this holds.
+        "setup_complete": nb_players > 0 and has_seats and not chart_mismatch and draw_done,
+    }
+
+
+def _page_setup_home(request, tenant, error=None):
+    """Setup workspace home: the readiness checklist. Also where a failed template
+    import reports its error, since importing is a setup action."""
+    tournament = get_tournament(request)
+    context = {"error": error, "tournament": tournament}
+    context.update(_setup_status(tenant, tournament))
+    return loader.get_template('mahj/admin_setup_home.html').render(context, request)
+
+
+def _page_print_materials(request, tenant, error=None):
+    tournament = get_tournament(request)
+    status = _setup_status(tenant, tournament)
+    return loader.get_template('mahj/admin_print_materials.html').render(
+        {"tournament": tournament, "uses_teams": tournament.has_teams,
+         "draw_done": status["draw_done"],
+         "nb_drawn": status["nb_drawn"], "nb_players": status["nb_players"]},
+        request,
+    )
+
+
+def _page_welcome(request, tenant, error=None):
+    """Run workspace home: live progress — rounds scored, publish state, the
+    round timer — and the manual publish-to-web trigger."""
+    from ..publish.sftp_upload import is_configured as _static_publish_configured
+    from ..scoring import _last_complete_round, publish_state
+    tournament = get_tournament(request)
+    # _last_complete_round returns nb_rounds when it finds no incomplete seat —
+    # which also happens with no seats at all, a false "all complete". Guard on
+    # the seating chart actually existing.
+    has_seats = Seat.objects.filter(tenant=tenant).exists()
+    complete_round = _last_complete_round(tenant, tournament) if has_seats else 0
+    last_published, _ = publish_state(tenant, tournament)
     template2 = loader.get_template('mahj/admin_welcome.html')
     return template2.render(
         {
-            "error": error,
             "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),
             "tournament": tournament,
-            "nb_players": nb_players,
-            # Whether a seating chart exists at all (imported or generated) —
-            # the player list can be drawn in only once there are seats to fill.
-            "has_seats": has_seats,
-            "chart_players": chart_players,
-            "chart_mismatch": has_seats and chart_players != nb_players,
-            # A player is "drawn in" once assigned a draw number; the player list is
-            # ready to play when every player holds one.
-            "draw_done": nb_players > 0 and nb_drawn == nb_players,
-            "nb_drawn": nb_drawn,
-            "nb_screens": nb_screens,
             "complete_round": complete_round,
             "last_published": last_published,
-            "schedule_rounds": schedule_rounds,
-            "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
             # Server-authoritative round timer: >0 and in the future means a
             # round is counting down / running (the dashboard shows it live).
             "counter": get_counter(tenant),
@@ -2286,55 +2320,74 @@ def _gate_publisher(request):
 
 
 def _gate_tenant_management(request):
-    """Superuser, and meaningless in the single-tenant standalone build (the tenant
-    is pinned via LOCAL_TENANT), so it's hidden there rather than left broken."""
-    return request.user.is_superuser and not settings.STANDALONE
+    """Superuser (not while previewing as a role), and meaningless in the
+    single-tenant standalone build (the tenant is pinned via LOCAL_TENANT), so
+    it's hidden there rather than left broken."""
+    return acting_superuser(request) and not settings.STANDALONE
 
 
 # `reauth` marks a page a borrowed or unattended session must re-confirm a password
 # to reach: these three hold credentials or can wipe the database, so a valid session
 # cookie alone isn't enough. `reauth_next` is where the confirm panel returns to —
 # None for the user console, which is where it lands by default anyway.
-_AdminPage = namedtuple('_AdminPage', 'gate render reauth reauth_next',
-                        defaults=(False, None))
+#
+# `area` is the workspace the page belongs to. The console is split in two: **Setup**
+# (everything done before play — settings, players, seating, printing, accounts)
+# and **Run** (everything done during it — scoring, publishing, screens, ceremony).
+# The shell renders one sidebar per area; tenant admins switch between them, while
+# scorers, publishers and display operators only ever hold Run pages. The area is
+# presentation only — access is decided by `gate` alone.
+_AdminPage = namedtuple('_AdminPage', 'gate render reauth reauth_next area',
+                        defaults=(False, None, 'run'))
 
 ADMIN_PAGES = {
+    # Run
     "welcome":            _AdminPage(_gate_shell, _page_welcome),
-    "display":            _AdminPage(_gate_display_op, _page_display),
-    "settings":           _AdminPage(_gate_tenant_admin, _page_settings),
-    "player_editor":      _AdminPage(_gate_tenant_admin, _page_player_editor),
-    "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target),
-    "import_template":    _AdminPage(_gate_tenant_admin, _page_import_template),
-    "backup":             _AdminPage(_gate_tenant_admin, _page_backup,
-                                     reauth=True, reauth_next='backup'),
-    "seating":            _AdminPage(_gate_tenant_admin, _page_seating),
     "scoring":            _AdminPage(_gate_scoring, _page_scoring),
-    "ceremony":           _AdminPage(_gate_display_op, _page_ceremony),
     "publisher_overview": _AdminPage(_gate_publisher, _page_publisher_overview),
-    "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True),
+    "display":            _AdminPage(_gate_display_op, _page_display),
+    "ceremony":           _AdminPage(_gate_display_op, _page_ceremony),
+    # Setup
+    "setup":              _AdminPage(_gate_tenant_admin, _page_setup_home, area='setup'),
+    "settings":           _AdminPage(_gate_tenant_admin, _page_settings, area='setup'),
+    "import_template":    _AdminPage(_gate_tenant_admin, _page_import_template, area='setup'),
+    "player_editor":      _AdminPage(_gate_tenant_admin, _page_player_editor, area='setup'),
+    "seating":            _AdminPage(_gate_tenant_admin, _page_seating, area='setup'),
+    "print_materials":    _AdminPage(_gate_tenant_admin, _page_print_materials, area='setup'),
+    "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True, area='setup'),
     "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
-                                     reauth=True, reauth_next='tenants'),
+                                     reauth=True, reauth_next='tenants', area='setup'),
+    "backup":             _AdminPage(_gate_tenant_admin, _page_backup,
+                                     reauth=True, reauth_next='backup', area='setup'),
+    "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target, area='setup'),
 }
 
 
-def _landing_page(request):
+def _landing_page(request, tenant, tournament):
     """Which page a request with no `?page=` lands on.
 
-    Tenant admins get the full dashboard. A single-role account gets the page it
-    actually works from, rather than a summary of things it can't reach. Publishers
-    manage publishing from the scoring page.
+    Tenant admins land in Setup (the checklist) until play has started, then on
+    the Run dashboard. A single-role account gets the page it actually works from,
+    rather than a summary of things it can't reach. Publishers manage publishing
+    from the scoring page.
 
     The order matters for an account holding more than one role: display_op is
     checked before publisher, so someone doing both lands on the screen controls —
-    they're standing at the projectors.
+    they're standing at the projectors. Ranked on the roles actually *granted*
+    (the membership flags), not has_role: publisher implies scorer there, which
+    would pull that display-op-plus-publisher onto the scoring page.
     """
     if is_tenant_admin(request):
+        from ..scoring import tournament_in_progress
+        return "welcome" if tournament_in_progress(tenant, tournament) else "setup"
+    m = current_membership(request)
+    if m is None:
         return "welcome"
-    if has_role(request, 'scorer'):
+    if m.is_scorer:
         return "scoring"
-    if has_role(request, 'display_op'):
+    if m.is_display_op:
         return "display"
-    if has_role(request, 'publisher'):
+    if m.is_publisher:
         return "scoring"
     return "welcome"
 
@@ -2350,8 +2403,25 @@ def options(request, error=None):
             return HttpResponseNotAllowed(['POST'])
         logout(request)
         return HttpResponseRedirect('admin')
+    if 'view_as' in request.GET:
+        # "View as": an admin previews the console as one of the single-role
+        # accounts they hand out (see helpers.current_membership). A state change,
+        # so POST only. Keyed on the *real* membership: anyone else is bounced with
+        # nothing written, and 'off' always clears.
+        if request.method != 'POST':
+            return HttpResponseNotAllowed(['POST'])
+        role = request.GET['view_as']
+        if role in _TENANT_ROLES and real_is_tenant_admin(request):
+            request.session[VIEW_AS_SESSION_KEY] = role
+        elif role == 'off':
+            request.session.pop(VIEW_AS_SESSION_KEY, None)
+        return HttpResponseRedirect('admin')
 
-    page = request.GET.get('page') or _landing_page(request)
+    from ..scoring import tournament_in_progress
+    tournament = get_tournament(request)
+    # A failed template import (called with `error`) reports on the Setup home,
+    # where the import belongs — whatever the admin's landing page would be.
+    page = request.GET.get('page') or ('setup' if error else _landing_page(request, tenant, tournament))
     spec = ADMIN_PAGES.get(page)
     if spec is None or not spec.gate(request):
         # "None" is what the shell renders as an empty panel. An unknown page and a
@@ -2368,11 +2438,25 @@ def options(request, error=None):
             return page_content
 
     from ..publish.sftp_upload import is_configured as _static_publish_configured
-    tournament = get_tournament(request)
+    # Which sidebar to draw. Only tenant admins can hold a Setup page (every Setup
+    # gate is at least _gate_tenant_admin), so a forbidden or unknown page falls
+    # back to Run — the workspace every console account has.
+    area = spec.area if spec is not None and spec.gate(request) else 'run'
     context = {
         "username": request.user.username,
         "page": page,
         "page_content": page_content,
+        "area": area,
+        # The View-as menu's choices (helpers._TENANT_ROLES, labelled).
+        "view_as_roles": (('scorer', 'Scorer'), ('publisher', 'Publisher'),
+                          ('display_op', 'Display operator')),
+        # Active-item wash for the sidebar: sky in Setup, amber in Run (the
+        # literal class names are listed in admin.html for Tailwind's scanner).
+        "active_cls": 'bg-sky-50 text-sky-700' if area == 'setup' else 'bg-amber-50 text-amber-700',
+        # The Setup workspace warns once play has started: edits there now affect
+        # a live tournament. Only computed for Setup pages (one query set saved on
+        # every scoring-page load).
+        "setup_in_progress": area == 'setup' and tournament_in_progress(tenant, tournament),
         # user_is_scorer / user_is_display_op / user_is_publisher / is_tenant_admin
         # come from the role_flags context processor (tenant-scoped).
         "uses_teams": tournament.has_teams,

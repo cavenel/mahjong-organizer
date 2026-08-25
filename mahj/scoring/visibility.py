@@ -30,6 +30,24 @@ def _last_complete_round(tenant, tournament):
     return (first_incomplete['round_nb'] - 1) if first_incomplete else tournament.nb_rounds
 
 
+def tournament_in_progress(tenant, tournament):
+    """Whether play has started: a round has been scored, a round has been
+    published, or the round timer has ever been started. Derived on the fly —
+    there is no lifecycle flag to fall out of sync. The console uses it to warn
+    when someone edits the tournament's setup while it is being played.
+
+    Guarded on the seating chart existing, because _last_complete_round reports
+    "all complete" for a tournament with no seats at all.
+    """
+    if not Seat.objects.filter(tenant=tenant).exists():
+        return False
+    if (tournament.counter or -1) > 0:
+        return True
+    if PublishedRound.objects.filter(tenant=tenant).exists():
+        return True
+    return _last_complete_round(tenant, tournament) > 0
+
+
 def _final_round_withheld(tenant, nb_rounds):
     """Publish state of the last round, read from its PublishedRound row:
       None  → last round not published at all

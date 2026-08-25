@@ -1,0 +1,121 @@
+{% if error %}
+<div x-data="{ open: true }" x-show="open" x-cloak
+     class="fixed inset-0 z-50 flex items-center justify-center p-4">
+  <div class="absolute inset-0 bg-black/50 backdrop-blur-sm" @click="open=false"></div>
+  <div class="relative z-10 bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[80vh] flex flex-col">
+    <div class="flex items-center justify-between px-5 py-3 border-b border-gray-200 shrink-0">
+      <h2 class="text-sm font-semibold text-red-600">Error</h2>
+      <button @click="open=false" class="text-gray-400 hover:text-gray-700 w-8 h-8 rounded-lg hover:bg-gray-100 text-2xl leading-none">&times;</button>
+    </div>
+    <div class="px-5 py-4 text-sm text-gray-700 overflow-y-auto">
+      {{ error|safe }}
+      <p class="mt-3 text-xs text-gray-500">
+        Correct the .xlsx document, or contact your tournament administrator.
+      </p>
+    </div>
+    <div class="flex justify-end px-5 py-3 border-t border-gray-200 shrink-0">
+      <button @click="open=false"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Close</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="max-w-3xl space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">{{ tournament.title|default:"Setup" }}</h2>
+    <p class="text-sm text-gray-500 mt-1">{{ tournament.fullname }}{% if tournament.city %} · {{ tournament.city }}{% endif %}{% if tournament.period %} · {{ tournament.period }}{% endif %}</p>
+    <div class="flex flex-wrap gap-2 mt-2">
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-sky-50 text-sky-700 border border-sky-200">
+        {% if tournament.rules == 'Riichi' %}Riichi{% else %}MCR{% endif %}
+      </span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium {% if tournament.has_teams %}bg-sky-50 text-sky-700 border border-sky-200{% else %}bg-gray-100 text-gray-500 border border-gray-200{% endif %}">
+        {% if tournament.has_teams %}Team tournament{% else %}Individual{% endif %}
+      </span>
+      <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+        {{ tournament.nb_rounds }} round{{ tournament.nb_rounds|pluralize }}
+      </span>
+    </div>
+  </div>
+
+  {% if schedule_round_mismatch %}
+  <!-- Schedule ≠ tournament round count: per-round times won't line up. --------->
+  <div class="rounded-xl border border-amber-300 bg-amber-50 shadow-sm p-4 flex items-start gap-3">
+    <span class="text-amber-500 text-lg leading-none shrink-0 mt-0.5">⚠</span>
+    <div class="text-sm text-amber-800">
+      The schedule marks <strong>{{ schedule_rounds }}</strong> playing round{{ schedule_rounds|pluralize }},
+      but the tournament is set to <strong>{{ tournament.nb_rounds }}</strong>.
+      Per-round times won't line up until they match —
+      <a href="admin?page=settings" class="font-medium underline hover:no-underline">fix the schedule</a>.
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Setup checklist: the three things a tournament needs before play (players,
+       a seating chart, the draw), plus the optional screens and the printing. -->
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5" data-testid="setup-checklist">
+    <h3 class="text-sm font-bold text-gray-800 mb-4">Setup checklist</h3>
+    <ul class="space-y-3 text-sm">
+      <li class="flex items-center gap-3">
+        {% if nb_players %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700"><span class="font-medium">{{ nb_players }}</span> player{{ nb_players|pluralize }} listed</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No players yet — <a href="admin?page=player_editor" class="text-sky-700 hover:underline">add players</a> or <a href="admin?page=import_template" class="text-sky-700 hover:underline">import a player list</a></span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        {% if chart_mismatch %}
+          <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold">!</span>
+          <span class="text-rose-700" data-testid="chart-mismatch">
+            <span class="font-bold">Seating chart is for {{ chart_players }} player{{ chart_players|pluralize }}, but the list has {{ nb_players }}</span>
+            — <a href="admin?page=seating" class="text-sky-700 hover:underline">regenerate the seating</a>
+            or <a href="admin?page=player_editor" class="text-sky-700 hover:underline">fix the player list</a>
+          </span>
+        {% elif has_seats %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700">Seating chart ready</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No seating chart — <a href="admin?page=seating" class="text-sky-700 hover:underline">generate seating</a> or import one</span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        {% if draw_done %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700">Draw complete — every player has a seat</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500"><span class="font-medium">{{ nb_drawn }}</span>/{{ nb_players }} players drawn in — <a href="admin?page=player_editor" class="text-sky-700 hover:underline">run the draw</a></span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        {% if nb_screens %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700"><span class="font-medium">{{ nb_screens }}</span> display screen{{ nb_screens|pluralize }} configured</span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500">No display screens — <a href="admin?page=display" class="text-sky-700 hover:underline">add screens</a> (optional)</span>
+        {% endif %}
+      </li>
+      <li class="flex items-center gap-3">
+        <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center shrink-0">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M6 14h12v7H6z"/></svg>
+        </span>
+        <span class="text-gray-500"><a href="admin?page=print_materials" class="text-sky-700 hover:underline font-medium">Print materials</a> — player cards, table posters, name lists, schedule</span>
+      </li>
+    </ul>
+  </div>
+
+  {% if setup_complete %}
+  <div class="rounded-xl border border-green-200 bg-green-50 shadow-sm p-5 flex items-center justify-between gap-4" data-testid="setup-complete">
+    <div class="text-sm text-gray-700"><span class="font-bold text-green-700">Everything's ready.</span> Scoring, publishing and the screens are in <span class="font-medium">Run</span>.</div>
+    <a href="admin?page=welcome" class="shrink-0 px-4 py-2 text-sm font-semibold text-white bg-green-600 rounded-lg hover:bg-green-700">Go to Run →</a>
+  </div>
+  {% endif %}
+
+  <p class="text-xs text-gray-400 italic">
+    Note that this application is not in any way related to the European Mahjong Association.
+  </p>
+</div>

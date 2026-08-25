@@ -11,7 +11,7 @@ organized in **parts, one per role**: read the part (or parts) matching what you
 do, plus Part I, which everyone needs.
 
 > ![Admin dashboard](screenshots/00-welcome-dashboard.png)<br>
-> 📸 **Screenshot — dashboard:** the landing page after logging in as an admin.
+> 📸 **Screenshot — Run dashboard:** live progress once the tournament is under way.
 
 ## Find your part
 
@@ -49,7 +49,7 @@ granted from the console's own [User management](#16-user-management) page.
 | Role | What they do |
 |---|---|
 | **Scorer** | Enter & edit scores, fill/validate score sheets, use the scan tool |
-| **Publisher** | Publish / unpublish rounds to the public leaderboard |
+| **Publisher** | Everything a scorer does, **plus** publish / unpublish rounds to the public leaderboard |
 | **Display operator** | Manage screens, the round timer, display settings, and the ceremony console |
 | **Admin** | All of the above, **plus** setup (settings, import, seating, players, printing), user management, web publishing, and the post-event EMA export |
 
@@ -105,64 +105,73 @@ cheat sheets.
 ## 2. Getting around the console
 
 The console is a single shell with a **left sidebar** (pages) and a **top bar**
-(page title + *Print / Export* + avatar menu). On mobile the sidebar collapses
-behind the ☰ button; on desktop it can be collapsed to an icon rail.
+(page title + avatar menu). On mobile the sidebar collapses behind the ☰ button;
+on desktop it can be collapsed to an icon rail.
+
+The console is split into **two workspaces**, because a tournament has two very
+different phases:
+
+- **Setup** — everything you do *before* play: settings, players, seating, the
+  draw, printing, accounts. Sky-blue accent.
+- **Run** — everything you do *during* play: scoring, publishing, the screens,
+  the ceremony, the exports. Amber accent.
+
+Tournament admins switch between them with the **Setup / Run** toggle at the top
+of the sidebar. Scorers, publishers and display operators only have Run — the
+toggle isn't shown to them. Once a round has been scored or published (or the
+round timer has been started), every Setup page carries a **"Tournament in
+progress"** banner: nothing is blocked, but edits there now affect a live event.
 
 The sidebar only shows the pages **your roles can use**:
 
 ```
-┌─ Dashboard                       (everyone)
+SETUP (admin)                        RUN
+┌─ Setup checklist                   ┌─ Dashboard                    (everyone)
+│                                    │
+│  TOURNAMENT                        │  SCORING           (admin, scorer, publisher)
+│  ├─ Tournament settings            │  ├─ Scoring
+│  └─ Import from template           │  └─ Publisher overview      (admin, publisher)
+│                                    │
+│  PLAYERS & SEATING                 │  DISPLAYS          (admin, display operator)
+│  ├─ Edit players                   │  ├─ Display on screens
+│  ├─ Seating                        │  └─ Ceremony console
+│  ├─ Randomize players (live) ↗     │
+│  └─ Team draw (live) ↗             │  RESULTS
+│                                    │  ├─ Print scores   (admin, scorer, publisher)
+│  PRINT                             │  └─ Generate EMA report ↗            (admin)
+│  └─ Print materials                └─
 │
-│  CONFIGURATION                   (admin)
-│  ├─ Tournament settings
-│  ├─ Import from template
-│  └─ Seating
-│
-│  PLAYERS                         (admin)
-│  ├─ Edit players
-│  ├─ Randomize players (live) ↗
-│  └─ Team draw (live) ↗
-│
-│  SCORING                         (admin, scorer, publisher)
-│  ├─ Scoring
-│  └─ Publisher overview           (admin, publisher)
-│
-│  DISPLAYS                        (admin, display operator)
-│  ├─ Display on screens
-│  └─ Ceremony console
-│
-│  RESULTS                         (admin)
-│  └─ Generate EMA report ↗
-│
-│  ADMINISTRATION                  (admin)
+│  ADMINISTRATION
 │  ├─ User management
 │  ├─ Backup & restore
 │  └─ Publish target
 └─
 ```
 
-(Platform operators see two more entries under *Administration* —
+(Platform operators see one more entry under *Administration* — **Tenants** —
 see [Part VI](#part-vi-platform-operator).)
 
 > ![Sidebar staff](screenshots/03-sidebar-staff.png)<br>
-> 📸 **Screenshot — sidebar as seen by an admin (all sections).**
+> 📸 **Screenshot — the Setup sidebar as seen by an admin.**
 >
 > ![Sidebar scorer](screenshots/04-sidebar-scorer.png)<br>
-> 📸 **Screenshot — sidebar as seen by a scorer (Scoring only).**
+> 📸 **Screenshot — sidebar as seen by a scorer (Run only).**
 
-### The Print / Export menu
+### Printing
 
-The top bar's **Print / Export** menu (admins, scorers and publishers) opens
-printable pages in an in-app modal with **Close** and **Print** buttons —
+Printable pages open in an in-app preview with **Close** and **Print** buttons —
 *Print* sends it to the browser's print dialog (use "Save as PDF" to export).
 
-- **Prepare** *(admins)*: player names, team names *(team events)*, player
-  cards, table positions, cross positions, cross positions by team, and the
-  schedule — the paper the room needs before play.
-- **Live**: the current **scores**, for posting paper standings between rounds.
+- **Setup → Print materials** *(admins)*: one card per printout — player names,
+  team names *(team events)*, player cards, table positions, cross positions
+  (also by team), and the schedule — the paper the room needs before play. The
+  page tells you whether the draw is complete, since cards and positions depend
+  on draw numbers.
+- **Run → Results → Print scores** *(admins, scorers, publishers)*: the current
+  standings, for posting paper results between rounds.
 
 > ![Print modal](screenshots/05-print-modal.png)<br>
-> 📸 **Screenshot — a print preview modal (e.g. player cards).**
+> 📸 **Screenshot — a print preview (e.g. player cards).**
 
 ### Live updates
 
@@ -416,8 +425,8 @@ the top of each round's pane is a **publish bar**:
 - Hints appear contextually: *"unpublish to edit scores"* when a round is
   locked, and a special note on the **last round** (below).
 
-> A publisher account that is *not* also a scorer can toggle publishing but
-> cannot edit score cells.
+> A publisher can also edit scores: whoever may lock a round's numbers may
+> correct them too, so there is no need to grant Scorer alongside Publisher.
 
 ## 9. Publishing and unpublishing
 
@@ -689,20 +698,26 @@ console itself can be reloaded too; it resumes where you left off.
 *Setting up the tournament and its crew, and closing the event out. An admin
 also holds every role above.*
 
-## 14. The Dashboard
+## 14. The two home pages
 
-The **Dashboard** is the admin's landing page and tracks the event end to end:
+Each workspace has a home page.
 
-- a **Setup checklist** — players imported, seating chart in place, draw
-  complete, screens configured — with links to the page that completes each
-  step;
-- **Rounds** progress (scored / published) and the **round timer**, live;
-- the **public website** links and, when web publishing is configured, its
-  state.
+**Setup checklist** (Setup home, and the admin's landing page until play starts)
+tracks readiness: players listed, seating chart in place (and sized for the
+list), draw complete, screens configured (optional), with a link to the page that
+completes each step and to **Print materials**. When the required steps are all
+done it offers **Go to Run →**. A failed template import also reports here.
+
+> ![Setup checklist](screenshots/06-setup-checklist.png)<br>
+> 📸 **Screenshot — the Setup checklist.**
+
+**Dashboard** (Run home, and the landing page once a round has been scored or
+published) shows **Rounds** progress (scored / published), the **round timer**
+live, and — when web publishing is configured — the **Publish to web** button.
 
 ## 15. Tournament settings
 
-**Configuration → Tournament settings** holds the event's identity and format:
+**Setup → Tournament settings** holds the event's identity and format:
 
 - **Identity** — title (short, for screens and browser tabs), full tournament
   name (report headers and printouts), city, period, and the optional **home
@@ -725,13 +740,14 @@ The **Dashboard** is the admin's landing page and tracks the event end to end:
 
 ## 16. User management
 
-**Administration → User management** is where the crew gets its accounts. The
+**Setup → Administration → User management** is where the crew gets its accounts. The
 page re-asks for your password before opening (so a borrowed or unattended
 session can't reach it), and shows only **this tournament's** users.
 
 - **Add a user** — username plus their roles. Roles are the checkboxes on each
   row and can be changed at any time: **Admin**, **Scorer**, **Display
-  operator**, **Publisher** (see [Roles at a glance](#roles-at-a-glance)).
+  operator**, **Publisher** (see [Roles at a glance](#roles-at-a-glance)). A
+  publisher can also score — no need to tick both.
 - **Login links** — generate a **passwordless login link** for a user and hand
   it out (a link is valid for a limited number of days and can be invalidated —
   *Invalidate login links* revokes all of a user's outstanding links). Ideal
@@ -743,12 +759,19 @@ session can't reach it), and shows only **this tournament's** users.
   their credentials are then managed by the platform operator (adding an
   existing account to a new tournament is a platform-operator action).
 
+**Checking what a role sees.** The avatar menu (bottom of the sidebar) has a
+**View as** section for admins: pick *Scorer*, *Publisher* or *Display operator*
+and the whole console — sidebar, pages, permissions — becomes what that account
+gets, with a banner on every page and **Back to admin view** to return. Handy
+before handing out accounts, and for following this guide's role parts.
+
 > ![Assign role](screenshots/02-assign-role.png)<br>
 > 📸 **Screenshot — assigning roles.**
 
 ## 17. Setting up the tournament
 
-The **Configuration** and **Players** sections build the event before play.
+The **Setup** workspace builds the event before play — work down the **Setup
+checklist** and it tells you what is still missing.
 There are two ways to get the player list in; everything after that is the same.
 
 **A. Entirely in the console (no Excel):**
@@ -793,16 +816,16 @@ There are two ways to get the player list in; everything after that is the same.
 4. **Randomize players (live)** / **Team draw (live)** — full-screen draw pages
    to run the draw *as a show* in front of the players; each opens in its own
    tab.
-5. **Print / Export → Prepare** — the paper for the room: player names, team
-   names, player cards, table positions, cross positions (also by team), and
-   the schedule. See [§2](#2-getting-around-the-console).
+5. **Print materials** — the paper for the room: player names, team names,
+   player cards, table positions, cross positions (also by team), and the
+   schedule. See [Printing](#printing).
 
 > ![Import](screenshots/40-import-template.png)<br>
 > 📸 **Screenshot — Import from template page.**
 
 ## 18. Publishing the site to the web
 
-**Administration → Publish target** configures **static web publishing**: on
+**Setup → Administration → Publish target** configures **static web publishing**: on
 every round publish, the public site is rendered to static files and uploaded
 (SFTP) to a plain web host — useful when spectators should follow on a separate
 public website. Configure host, port, user, remote path and a password *or*
@@ -819,7 +842,7 @@ including a withheld final round the public site is still hiding.
 
 ## 19. Backing up and restoring a tournament
 
-**Administration → Backup & restore** deals in **dump files**: one file holding
+**Setup → Administration → Backup & restore** deals in **dump files**: one file holding
 the entire tournament — settings, the player list, the seating, every entered
 score, which rounds are published, the schedule, the screens and the round
 timer.
@@ -853,12 +876,15 @@ it.
 # Part VI: Platform operator
 
 *The superuser who runs the server — not part of the tournament crew. Their
-sidebar shows two extra entries under Administration:*
+Setup sidebar shows one extra entry under Administration:*
 
 - **Tenants** — create and manage tournaments (each lives on its own
   subdomain), and jump into any tenant's user management.
-- **Database administration** — the raw Django admin (`/admin_db/`), for
-  low-level data access.
+
+The raw Django admin (`/admin_db/`, superuser only) is deliberately **not
+linked** from the console: everything a tournament needs is editable from the
+pages above, and the raw admin lists every tournament's data unscoped. It is a
+rescue tool — type the URL when you need it.
 
 Setting up the server itself — Docker, DNS/TLS, environment variables, backups,
 the standalone venue-laptop build — is documented in
@@ -980,11 +1006,12 @@ players/seating; re-running **Import from template** resets the whole tenant.
 
 | Task | Where | Role |
 |---|---|---|
-| Create users / roles / login links | Administration → **User management** | Admin |
-| Set title, rules, rounds, schedule, logo | Configuration → **Tournament settings** | Admin |
-| Set up the tournament | **Edit players** → Add player, then **Seating** → generate (or **Import from template**) | Admin |
-| Add / remove / correct a player, assign draw numbers | Players → **Edit players** | Admin |
-| Print player cards / positions / schedule | **Print / Export → Prepare** | Admin |
+| Create users / roles / login links | Setup → Administration → **User management** | Admin |
+| Set title, rules, rounds, schedule, logo | Setup → **Tournament settings** | Admin |
+| Set up the tournament | Setup → **Edit players** → Add player, then **Seating** → generate (or **Import from template**) | Admin |
+| Add / remove / correct a player, assign draw numbers | Setup → **Edit players** | Admin |
+| Print player cards / positions / schedule | Setup → **Print materials** | Admin |
+| Print the current standings | Run → Results → **Print scores** | Scorer |
 | Enter table MP | Scoring page → seat inputs (auto-saves) | Scorer |
 | Enter all 16 hands *(MCR)* | Scoring row → **Score sheet** | Scorer |
 | Confirm a table *(MCR)* | Score sheet → **Valid** checkbox | Scorer |
@@ -999,7 +1026,7 @@ players/seating; re-running **Import from template** resets the whole tenant.
 | Start the round (with gong) | Timer control → **Start timer** | Display op |
 | Run the awards | **Ceremony console** | Display op |
 | Make final results public | Ceremony console → **Publish to everyone & end** | Display op |
-| Publish the site to a web host | Administration → **Publish target** | Admin |
-| Back up / restore the tournament | Administration → **Backup & restore** | Admin |
-| Generate the ranking export | Results → **Generate EMA report** | Admin |
+| Publish the site to a web host | Setup → Administration → **Publish target** | Admin |
+| Back up / restore the tournament | Setup → Administration → **Backup & restore** | Admin |
+| Generate the ranking export | Run → Results → **Generate EMA report** | Admin |
 | Rehearse with fake data | `test.<your-domain>` → Scoring → **Fill all rounds** | any (see §22) |

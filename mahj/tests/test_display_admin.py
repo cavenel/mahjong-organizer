@@ -536,17 +536,17 @@ def test_save_schedule_forbidden_for_non_staff(client_, display_op, tournament):
     assert Schedule.objects.filter(tenant=tenant).count() == before
 
 
-def test_dashboard_warns_on_schedule_round_mismatch(client_, staff, tournament):
+def test_setup_home_warns_on_schedule_round_mismatch(client_, staff, tournament):
     """Fixture: nb_rounds=3 with three round-rows → no warning; bump nb_rounds → warn."""
     tenant = tournament['tenant']
     client_.force_login(staff)
-    html = client_.get('/admin').content.decode()
+    html = client_.get('/admin?page=setup').content.decode()
     assert "Per-round times won't line up" not in html
 
     v = TournamentSettings.objects.get(tenant=tenant)
     v.nb_rounds = 5
     v.save()
-    html = client_.get('/admin').content.decode()
+    html = client_.get('/admin?page=setup').content.decode()
     assert "Per-round times won't line up" in html
 
 
@@ -710,21 +710,29 @@ def test_player_editor_save_requires_staff(client_, display_op, tournament):
     assert resp.status_code in (302, 403)
 
 
-# ── Dashboard (admin?page=welcome) ───────────────────────────────────────────
-# The landing page: a setup checklist + round/timer progress, shown to every
-# admin role.
+# ── Setup home (admin?page=setup) and Run dashboard (admin?page=welcome) ─────
+# The console's two homes: the setup checklist for the admin, and the live
+# round/timer progress for every console role.
 
-def test_dashboard_shows_setup_and_progress(client_, staff, tournament):
+def test_setup_home_shows_the_checklist(client_, staff, tournament):
     client_.force_login(staff)
-    html = client_.get('/admin?page=welcome').content.decode()
-    assert 'Setup' in html
+    html = client_.get('/admin?page=setup').content.decode()
+    assert 'Setup checklist' in html
     # 16 players seeded, all with draw numbers → player list + draw ticks (the count
     # sits in its own <span>, so match the surrounding text, not the whole line).
     assert 'players listed' in html
     assert '>16<' in html
     assert 'Draw complete' in html
-    # The live round-timer card is present.
+    # Players + chart + draw all done → the way over to Run is offered.
+    assert 'data-testid="setup-complete"' in html
+
+
+def test_run_dashboard_shows_progress(client_, staff, tournament):
+    client_.force_login(staff)
+    html = client_.get('/admin?page=welcome').content.decode()
+    # The live round-timer card is present; the checklist is not (it lives in Setup).
     assert 'dashCounter' in html
+    assert 'Setup checklist' not in html
 
 
 def test_dashboard_empty_tenant_does_not_claim_all_rounds(client_, staff, tenant):
@@ -735,10 +743,13 @@ def test_dashboard_empty_tenant_does_not_claim_all_rounds(client_, staff, tenant
     resp = client_.get('/admin?page=welcome')
     assert resp.status_code == 200
     html = resp.content.decode()
-    assert 'No players yet' in html
     # complete_round rendered as "0 / 7", never "7 / 7".
     assert '/ 7' in html
     assert '>7 <' not in html
+    # And the Setup home tells the admin what is missing.
+    html = client_.get('/admin?page=setup').content.decode()
+    assert 'No players yet' in html
+    assert 'data-testid="setup-complete"' not in html
 
 
 # --------------------------------------------------------------------------

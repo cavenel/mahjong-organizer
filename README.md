@@ -97,9 +97,9 @@ docker compose exec web python manage.py createsuperuser
 ```
 
 Now open `https://<tenant>.<BASE_DOMAIN>/admin`. Give the event a name under
-**Configuration → Tournament settings**. Add the players under **Players → Edit
+**Setup → Tournament settings**. Add the players under **Setup → Edit
 players** (or load them with **Import from template**), then generate a seating
-under **Configuration → Seating**. The **Dashboard** shows what is still missing,
+under **Setup → Seating**. The **Setup checklist** shows what is still missing,
 and the progress of the tournament.
 
 📖 [**docs/hosting/deployment.md**](docs/hosting/deployment.md): DNS, TLS, first

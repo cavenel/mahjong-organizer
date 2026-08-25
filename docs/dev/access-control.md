@@ -67,6 +67,14 @@ access (public / 403). That 403-for-the-wrong-tenant is the isolation, not a bug
   `tenant_admin_and_reauthed` in `user_admin.py`) on top of the role gate, so a
   stale or borrowed session can't drive them directly.
 
+- **Workspaces are presentation, not access.** The console sidebar is split into
+  *Setup* and *Run* (`_AdminPage.area` in `admin_views.py`), and the Setup
+  workspace shows an in-progress banner once play has begun
+  (`scoring.tournament_in_progress`). Neither decides access: every page is
+  still admitted by its `gate` alone, and a Setup page requested by a non-admin
+  renders the same empty panel as an unknown page — with the Run sidebar around
+  it, so the shell never lists pages the account can't open.
+
 ## Operational notes
 
 - **Sesame links are global auth but membership-gated.** A magic link mints a
