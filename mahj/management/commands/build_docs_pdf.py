@@ -66,13 +66,14 @@ blockquote {
   margin: .8em 0; padding: .1em .9em; color: #444;
   border-left: 4px solid #c9c9c9; background: #fafafa; break-inside: avoid;
 }
-/* Screenshots are captured at device_scale_factor=2, so declare them as 192dpi
-   images: a small UI shot then prints at its natural physical size instead of
-   being blown up to the full text column. Wide shots still hit max-width and
-   scale down. max-height caps a figure at ~1/3 of the A4 page height (29.7cm) so
-   a tall screenshot can't dominate a page; height: auto keeps the aspect ratio. */
-img { image-resolution: 192dpi;
-      max-width: 100%; max-height: 9.5cm; height: auto;
+/* Screenshots are captured at device_scale_factor=2; declaring them at 240dpi
+   prints each one at a sober physical size instead of blowing a small UI shot up
+   to the full text column. Wide shots still hit max-width and scale down.
+   max-height only keeps a figure inside one page (26.1cm of content box, minus
+   room for its caption) — capping it tighter than that is what makes a tall
+   screenshot illegible, since the width shrinks with it. */
+img { image-resolution: 240dpi;
+      max-width: 100%; max-height: 22cm; height: auto;
       border: 1px solid #e0e0e0; border-radius: 4px; }
 table { border-collapse: collapse; width: 100%; margin: .8em 0; break-inside: avoid; }
 th, td { border: 1px solid #d0d0d0; padding: .35em .55em; text-align: left;
