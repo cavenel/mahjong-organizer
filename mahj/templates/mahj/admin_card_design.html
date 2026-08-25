@@ -136,6 +136,20 @@ theme in card_themes.py needs no change here.
           <span x-text="css.length"></span> / {{ card_css_max }}
         </p>
 
+        <p class="text-xs font-medium text-gray-600 mt-3 mb-1">Examples</p>
+        <p class="text-xs text-gray-400 mb-1.5">
+          Click one to append it to the CSS above, then edit the numbers and watch the preview.
+        </p>
+        <div class="space-y-1.5">
+          <template x-for="ex in examples" :key="ex.label">
+            <button type="button" @click="addSnippet(ex.code)"
+                    class="w-full text-left rounded-lg border border-gray-200 px-2.5 py-1.5 hover:bg-amber-50 hover:border-amber-300">
+              <span class="block text-xs text-gray-600" x-text="ex.label"></span>
+              <span class="block text-[11px] font-mono text-gray-500 whitespace-pre mt-0.5" x-text="ex.code"></span>
+            </button>
+          </template>
+        </div>
+
         <p class="text-xs font-medium text-gray-600 mt-3 mb-1">Classes you can target</p>
         <div class="text-xs text-gray-500 space-y-0.5 font-mono">
           <div><span class="text-gray-700">.card</span> — one whole card</div>
@@ -191,6 +205,24 @@ theme in card_themes.py needs no change here.
       themeDefaults: {},
       variables: [],
       previewScale: 1,
+
+      // Starting points for the CSS editor: each one targets a class the list
+      // below names, and is a size or a colour an organiser plausibly wants to
+      // change. Appended verbatim, so what they read is what they get.
+      examples: [
+        { label: 'Everything on the front, a tenth bigger',
+          code: '.card-main {\n  zoom: 1.1;\n}' },
+        { label: 'A bigger player name',
+          code: '.player-name {\n  font-size: 22pt;\n}' },
+        { label: 'Taller boxes to write scores in',
+          code: '.write-cell {\n  height: 7mm;\n}' },
+        { label: 'A thicker bar along the top',
+          code: '.accent-bar {\n  height: 2.5mm;\n}' },
+        { label: 'Tint the player\u2019s own row on the back',
+          code: '.opp-cell.me {\n  background: #F4F1EA;\n}' },
+        { label: 'Drop the web address at the card\u2019s foot',
+          code: '.footer-url {\n  display: none;\n}' },
+      ],
 
       init() {
         this.css = JSON.parse(document.getElementById('card-css-initial').textContent);
@@ -248,6 +280,14 @@ theme in card_themes.py needs no change here.
         this.$nextTick(() => this.$refs[ref].dispatchEvent(new Event('change')));
       },
       pushCss() { this.save('cssField'); },
+
+      // Examples land at the end of the stylesheet, which is where they need to
+      // be to win over the theme's rules. Not parseVariables(): a snippet is a
+      // rule, never a `--variable` line, so the pickers above are unaffected.
+      addSnippet(code) {
+        this.css = this.css.replace(/\s*$/, '') + '\n\n' + code + '\n';
+        this.pushCss();
+      },
       setFormat(key) {
         if (key === this.format) return;
         this.format = key;
