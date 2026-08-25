@@ -258,6 +258,10 @@ def player_cards(request):
         "card_format": tournament.card_format,
         "sheet_margin": SHEET_MARGIN_MM,
         "theme": tournament.card_theme,
+        # Table points exist only under MCR (see scoring._common), so a Riichi
+        # card drops that pair of columns entirely rather than printing boxes
+        # nobody fills -- and the minipoint boxes get the width back.
+        "show_table_points": tournament.rules == 'MCR',
         "card_css": effective_card_css(tournament),
         "tournament": tournament,
     }, request))

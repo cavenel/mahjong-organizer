@@ -336,6 +336,33 @@ def test_card_cells_never_wrap_and_boxes_take_the_slack(staff_client, tournament
     assert '3mm 18.5mm 11.5mm 1fr 1fr 1fr 1fr' in body
 
 
+def test_riichi_cards_drop_the_table_points_columns(staff_client, riichi_tournament):
+    """Table points exist only under MCR. A Riichi card used to print the same
+    seven-column grid, so half its writing area was a "Table Pts" pair nobody
+    fills and the minipoint boxes were squeezed into a quarter of the width.
+    """
+    body = staff_client.get('/player_cards').content.decode()
+    # The class the five-column track list hangs off, on the page's own body tag.
+    assert 'no-table-points' in body.split('<body')[1].split('>')[0]
+    # Five tracks, not seven, and one writing box per remaining head.
+    assert '3mm 18.5mm 11.5mm 1fr 1fr;' in body
+    per_card = body.split('class="card"')[1]
+    assert 'Table Pts' not in per_card
+    assert 'Mini Pts' in per_card
+    assert per_card.count('class="col-label c">Round') == 1
+    assert per_card.count('class="col-label c">Total') == 1
+    assert per_card.count('class="write-cell total"') == 1
+
+
+def test_mcr_cards_keep_both_score_columns(staff_client, tournament):
+    """The MCR card is unchanged: Table Pts and Mini Pts, each Round and Total."""
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'no-table-points' not in body.split('<body')[1].split('>')[0]
+    per_card = body.split('class="card"')[1]
+    assert 'Table Pts' in per_card and 'Mini Pts' in per_card
+    assert per_card.count('class="write-cell total"') == 2
+
+
 def test_each_format_supplies_its_own_header_and_footer(staff_client, tournament):
     """A compact card needs its own header and footer, not scaled copies: the A7
     prints the period/sessions/ruleset line at its foot because its one-band

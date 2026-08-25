@@ -2,6 +2,10 @@
 Front of one card: the header, then a row per round with empty boxes the player
 writes their table points and minipoints into, and a total row.
 
+Only MCR keeps table points (scoring._common); under any other ruleset the two
+Table Pts columns are dropped and the minipoint boxes take their width, so a
+Riichi card has no column its players must leave blank.
+
 `card` is a plain dict from print_views._card_rounds (name, draw_number, flag,
 has_player, rounds[]), and `rotate` says whether this slot prints upside-down so
 a cut sheet reads the same way up. An empty slot (a part-filled last sheet)
@@ -18,13 +22,15 @@ prints a blank card, keeping the grid's shape.
       <div></div>
       <div class="col-label">Time</div>
       <div class="col-label c seat">Tbl · Seat</div>
-      <div class="col-label c wide">Table Pts</div>
+      {% if show_table_points %}<div class="col-label c wide">Table Pts</div>{% endif %}
       <div class="col-label c wide">Mini Pts</div>
     </div>
     <div class="grid-row head-rule">
       <div></div><div></div><div></div>
+      {% if show_table_points %}
       <div class="col-label c">Round</div>
       <div class="col-label c">Total</div>
+      {% endif %}
       <div class="col-label c">Round</div>
       <div class="col-label c">Total</div>
     </div>
@@ -40,8 +46,8 @@ prints a blank card, keeping the grid's shape.
           <span class="tbl">{{ r.table }}</span>
           <span class="wind {{ r.wind }}">{{ r.wind }}</span>
         </div>
-        <div class="write-cell"></div>
-        <div class="write-cell"></div>
+        {% if show_table_points %}<div class="write-cell"></div>
+        <div class="write-cell"></div>{% endif %}
         <div class="write-cell"></div>
         <div class="write-cell"></div>
       </div>
@@ -50,8 +56,9 @@ prints a blank card, keeping the grid's shape.
     <div class="grid-row total-rule">
       <div></div>
       <div class="total-label">Total</div>
-      <div></div><div></div>
-      <div class="write-cell total"></div>
+      <div></div>
+      {% if show_table_points %}<div></div>
+      <div class="write-cell total"></div>{% endif %}
       <div></div>
       <div class="write-cell total"></div>
     </div>

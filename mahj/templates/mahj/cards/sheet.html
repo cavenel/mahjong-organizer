@@ -125,6 +125,12 @@ change.
     align-items: center;
     column-gap: 0.8mm;
   }
+  /* Riichi (any non-MCR ruleset) prints no Table Pts pair -- front.html emits
+     five cells per row instead of seven, so the track list loses two columns and
+     the two minipoint boxes share the width they had. */
+  .no-table-points .grid-row {
+    grid-template-columns: 3mm 18.5mm 11.5mm 1fr 1fr;
+  }
   .col-label { font-family: var(--font-mono); font-size: 4.8pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); }
   .col-label.c { text-align: center; }
   /* "Tbl · Seat" is the widest head over the narrowest column, so it wraps to two
@@ -348,7 +354,7 @@ change.
    is what makes that safe, and every stored value has passed it. {% endcomment %}
 <style id="card-css">{{ card_css|safe }}</style>
 </head>
-<body class="format-{{ card_format }} theme-{{ theme }}{% if preview %} preview{% endif %}">
+<body class="format-{{ card_format }} theme-{{ theme }}{% if not show_table_points %} no-table-points{% endif %}{% if preview %} preview{% endif %}">
 
 {% for sheet in sheets %}
   {# ═══ FRONT face ═══ #}
