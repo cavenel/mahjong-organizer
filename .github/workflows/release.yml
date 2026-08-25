@@ -59,9 +59,9 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
@@ -109,7 +109,7 @@ jobs:
             tar czf "../mahj-admin-${{ matrix.target }}.tar.gz" mahj-admin
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: mahj-admin-${{ matrix.target }}
           path: mahj-admin-${{ matrix.target }}.*
@@ -121,7 +121,7 @@ jobs:
     permissions:
       contents: write        # attaches the archives to the draft release
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           path: artifacts
           merge-multiple: true
