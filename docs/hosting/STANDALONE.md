@@ -87,8 +87,9 @@ A tournament dump is portable between installs, so this build doubles as the
 fallback when the server is unreachable mid-event:
 
 1. Get the latest dump for the tournament — from the server's publish target
-   (the `mahj-backups/` folder beside the remote site directory, or wherever its
-   **Backup directory** points), or from a copy downloaded earlier on
+   (the `mahj-backups/` folder in the SFTP user's **login directory** — not under
+   the site directory — or wherever its **Backup directory** points), or from a
+   copy downloaded earlier on
    *Administration → Backup & restore*.
 2. In this app, create/select the tournament's tenant (`LOCAL_TENANT`), open
    **Backup & restore**, upload the dump and retype the subdomain.

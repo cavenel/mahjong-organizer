@@ -110,8 +110,11 @@ docker image prune                                # drop untagged images from ol
 Worth running every month or so, or whenever the disk gets tight. The `until` filter
 keeps the recent cache so the next deploy is still fast.
 
-**Never `docker volume prune`.** `postgres_data` is a named volume, and pruning takes
-the database with it. Use the backup/restore paths below instead.
+**Never `docker volume prune`, and never `docker compose down -v`.** `postgres_data`
+is a plain named volume holding every tenant's database; both commands delete it,
+and nothing in this stack backs it up. `down -v` is the flag people reach for when
+a stack misbehaves — use `docker compose down` (no `-v`) and the backup/restore
+paths below instead.
 
 ## Backups & restore
 
@@ -129,8 +132,9 @@ the tenant's publish target over SFTP, next to the static site.
   set **Backup directory** on *Administration → Publish target*. The newest 20 per
   tenant are kept.
 - **On demand**: *Administration → Backup & restore* downloads a dump any time.
-  Tenants with no publish target configured have only this, so download one after
-  each round.
+  **A tenant with no publish target and no downloaded dump has no backup at
+  all** — nothing else in the stack copies its data anywhere. For such a tenant,
+  download a dump after each round.
 - **To restore**: the same page — upload a dump and retype the subdomain. It
   replaces that tenant's whole tournament and leaves user accounts and the publish
   target alone. A dump restores into *any* tenant on *any* install running the
@@ -145,3 +149,23 @@ recovery.
 venue laptop and restore the latest dump into it — see
 [STANDALONE.md](STANDALONE.md). Publish from the laptop for the rest of the event,
 then dump from the laptop and restore that back onto the server afterwards.
+
+### The server died — starting over from a dump
+
+When the database is gone (a lost volume, a `down -v`, a dead disk) and all you
+have is a dump per tenant:
+
+1. Bring the stack up on a fresh database (`docker compose -f … up -d`; migrations
+   apply on start) and create the platform superuser again — see *First run*.
+2. **Recreate each tenant with its old subdomain** (*Administration → Tenants →
+   Create*). The subdomain is what the advertised spectator URL, the QR codes and
+   the projector addresses point at; a different one breaks all of them.
+3. On `https://<tenant>.<BASE_DOMAIN>/admin`, open *Administration → Backup &
+   restore*, upload the tenant's latest dump and retype the subdomain. Fetch the
+   dump from the tenant's SFTP publish target (`mahj-backups/` in the SFTP login
+   directory, or its **Backup directory**) or from a copy downloaded earlier.
+4. **Re-add what a dump does not carry**: the tenant's user accounts and
+   memberships (*Administration → User management*) and the publish target with
+   its credentials (*Administration → Publish target*). Both are deliberately
+   excluded from dumps.
+5. Publish once from the restored tenant so the static site matches.
