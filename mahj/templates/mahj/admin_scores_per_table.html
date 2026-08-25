@@ -105,27 +105,39 @@
        round's final two tables blank to exercise the incomplete-round /
        partial-publish path, then publishes what it can. "This round only" fills the
        open tab and publishes nothing — for walking a tournament forward one round at
-       a time and watching the progress badges, publish gates and displays react. -->
+       a time and watching the progress badges, publish gates and displays react.
+
+       The score-sheet buttons are MCR-only: a score sheet is the per-hand grid,
+       which only MCR has (Riichi enters a per-seat total), so under Riichi there
+       is nothing for them to fill or clear. -->
   <div class="flex flex-wrap items-center gap-2 px-3 py-2 mb-3 rounded-lg border border-dashed border-amber-400 bg-amber-50 text-sm">
     <span class="font-semibold text-amber-700">🧪 Test data</span>
     <button type="button" onclick="random_fill_score(true)"
             class="btn-sheet">Fill all rounds — scores</button>
+    {% if tournament.rules == "MCR" %}
     <button type="button" onclick="random_fill_score_sheets(true)"
             class="btn-sheet">Fill all rounds — score sheets</button>
+    {% endif %}
     <button type="button" onclick="clear_score(true)"
             class="btn-sheet">Clear all rounds — scores</button>
+    {% if tournament.rules == "MCR" %}
     <button type="button" onclick="clear_score_sheets(true)"
             class="btn-sheet">Clear all rounds — score sheets</button>
+    {% endif %}
     <span class="w-px self-stretch bg-amber-300"></span>
     <span class="font-semibold text-amber-700">This round only</span>
     <button type="button" onclick="random_fill_score(false)"
             class="btn-sheet">Fill — scores</button>
+    {% if tournament.rules == "MCR" %}
     <button type="button" onclick="random_fill_score_sheets(false)"
             class="btn-sheet">Fill — score sheets</button>
+    {% endif %}
     <button type="button" onclick="clear_score(false)"
             class="btn-sheet">Clear — scores</button>
+    {% if tournament.rules == "MCR" %}
     <button type="button" onclick="clear_score_sheets(false)"
             class="btn-sheet">Clear — score sheets</button>
+    {% endif %}
     <span class="text-xs italic text-amber-600">
       all-rounds leaves some last-round scores empty on purpose, and publishes what it can;
       this-round fills the open tab only and publishes nothing
