@@ -112,6 +112,14 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build we
 
 Migrations run on the new container's start; no manual `migrate` step.
 
+**If a migration fails on update**, the `web` container exits before gunicorn
+starts and nginx answers 502. Read the error with `docker compose -f … logs web`.
+The site is still on the old code until the new container is healthy, so the
+quickest recovery is to go back: `git checkout <previous commit>` and re-run the
+`up -d --build web` line above; the tenants' data is untouched (a failed
+migration is rolled back on PostgreSQL). Fix forward from a checkout, not on the
+server.
+
 ### Reclaiming build-cache disk
 
 Every `--build` leaves layers in the builder cache, and they are never reclaimed on

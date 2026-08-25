@@ -41,7 +41,7 @@ your event, like `mytournament.mahj.ovh`.
 |--|-------------------|---------------|
 | **Best for** | one tournament, run from a laptop | many tournaments, on a real server |
 | **You need** | a laptop | a server, a domain name, TLS |
-| **What runs** | one program, one file on disk | 8 containers: web, nginx, Postgres, PgBouncer, 2× Redis, scan worker, certbot |
+| **What runs** | one program, one file on disk | 10 containers: web, nginx, Postgres, PgBouncer, 2× Redis, 4× scan worker, plus certbot on demand |
 | **Tournaments** | one per install | many, one per subdomain |
 | **Spectators see** | the website you publish over SFTP | the server itself, or SFTP |
 | **Read score sheets by photo** | no, enter scores by hand | yes |
@@ -82,6 +82,11 @@ git clone <this-repo> mahj && cd mahj
 cp .env.example .env
 # In .env, set DJANGO_SECRET_KEY, BASE_DOMAIN and DB_PASSWORD.
 # See docs/hosting/configuration.md.
+
+# Once: the database and TLS-certificate volumes. They are declared external so
+# that no `docker compose down -v` can ever delete them.
+docker volume create mahj_postgres_data
+docker volume create mahj_letsencrypt
 
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 # The database is updated automatically when the containers start.
