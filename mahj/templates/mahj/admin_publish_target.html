@@ -2,8 +2,8 @@
   <div>
     <h2 class="text-2xl font-bold text-gray-800">Publish target</h2>
     <p class="text-sm text-gray-500 mt-1">
-      Where this tenant's public spectator site is uploaded on each round publish.
-      Leave it disabled to not publish this tenant.
+      Where this tournament's public spectator site is uploaded on each round publish.
+      Leave it disabled to publish nothing.
     </p>
   </div>
 
@@ -22,7 +22,7 @@
     <label class="inline-flex items-center gap-2 cursor-pointer">
       <input id="pt-enabled" type="checkbox" {% if target.enabled %}checked{% endif %}
              class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
-      <span class="text-sm font-medium text-gray-700">Publish this tenant to the web</span>
+      <span class="text-sm font-medium text-gray-700">Publish this tournament to the web</span>
     </label>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">

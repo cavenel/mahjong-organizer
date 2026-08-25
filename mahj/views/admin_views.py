@@ -1888,7 +1888,7 @@ def admin_reset(request):
         return method_not_allowed()
     tenant = get_tenant(request)
     if tenant is None:
-        return HttpResponseBadRequest("No tenant")
+        return HttpResponseBadRequest("No tournament")
     # The model list lives in tenant_dump (shared with dump/restore). Deleting
     # the settings row resets identity/branding/format, logo and the round timer
     # to defaults; get_tournament recreates a fresh one on next read.
@@ -1920,7 +1920,7 @@ def publish_web(request):
     if not is_configured(subdomain):
         return JsonResponse(
             {'status': 'error',
-             'error': 'Static publish is not configured for this tenant '
+             'error': 'Static publish is not configured for this tournament '
                       '(add a publish target first).'},
             status=400)
     from ..publish.trigger import fire_static_export
@@ -1951,7 +1951,7 @@ def publish_target_save(request):
         return method_not_allowed()
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'No tenant.'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'No tournament.'}, status=400)
     from ..models import PublishTarget
     from ..publish import secrets as publish_secrets
     target, _ = PublishTarget.objects.get_or_create(tenant=tenant)

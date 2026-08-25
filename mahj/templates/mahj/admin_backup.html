@@ -99,7 +99,7 @@
         body += '\n\nThe dump holds ' + meta.players + ' competitors, made ' +
                 (meta.created || 'at an unknown time') + '.';
         if (meta.subdomain && meta.subdomain !== subdomain) {
-          body += '\n⚠ It was made for another tenant ("' + meta.subdomain +
+          body += '\n⚠ It was made for another tournament ("' + meta.subdomain +
                   '") — restoring it here is normal only when moving a tournament between installs.';
         }
       }

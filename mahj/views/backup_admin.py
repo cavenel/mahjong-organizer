@@ -27,7 +27,7 @@ def tenant_dump_download(request):
     """Download this tenant's whole tournament as a .json.gz dump."""
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'No tenant.'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'No tournament.'}, status=400)
     data = dump_tenant(tenant)
     response = HttpResponse(data, content_type='application/gzip')
     response['Content-Disposition'] = (
@@ -47,13 +47,13 @@ def tenant_restore(request):
         return JsonResponse({'status': 'method_not_allowed'}, status=405)
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'No tenant.'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'No tournament.'}, status=400)
     # Retype-the-subdomain confirmation, the same habit as tenant deletion: the
     # modal collects it, the server enforces it.
     if (request.POST.get('confirm') or '').strip() != tenant.subdomain:
         return JsonResponse(
             {'status': 'error',
-             'error': "Confirmation text does not match this tenant's subdomain."},
+             'error': "Confirmation text does not match this tournament's subdomain."},
             status=400)
     upload = request.FILES.get('dumpfile')
     if upload is None:

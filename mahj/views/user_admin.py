@@ -201,7 +201,7 @@ def _target_in_tenant(request, data):
     membership here is reported as 'not found' rather than 'forbidden'."""
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'no tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'no tournament'}, status=400)
     try:
         user = User.objects.get(pk=data.get('user_id'))
     except (User.DoesNotExist, ValueError, TypeError):
@@ -241,7 +241,7 @@ def user_create(request):
     data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'no tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'no tournament'}, status=400)
 
     username = (data.get('username') or '').strip()
     if not username:
@@ -295,7 +295,7 @@ def user_add_existing(request):
     data = json_body(request)
     tenant = get_tenant(request)
     if tenant is None:
-        return JsonResponse({'status': 'error', 'error': 'no tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'no tournament'}, status=400)
 
     username = (data.get('username') or '').strip()
     if not username:
@@ -338,7 +338,7 @@ def user_update_roles(request):
     # superuser is exempt — they're the recovery path and can re-seed an admin.
     if (membership.is_tenant_admin and not is_admin
             and not request.user.is_superuser and _tenant_admin_count(tenant) <= 1):
-        return JsonResponse({'status': 'error', 'error': 'cannot remove the last admin of this tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'cannot remove the last admin of this tournament'}, status=400)
 
     _set_membership(user, tenant, data.get('roles', []), is_admin)
     return JsonResponse({'status': 'ok'})
@@ -418,7 +418,7 @@ def user_revoke_links(request):
             and _tenant_admin_count(tenant) <= 1):
         return JsonResponse(
             {'status': 'error',
-             'error': "cannot clear the credentials of this tenant's last admin"},
+             'error': "cannot clear the credentials of this tournament's last admin"},
             status=400)
 
     # Rotating the password hash invalidates every existing sesame token for this
@@ -445,14 +445,14 @@ def user_delete(request):
         return JsonResponse({'status': 'error', 'error': 'you cannot delete your own account'}, status=400)
     if not request.user.is_superuser and not _memberships_contained(user, tenant):
         return JsonResponse(
-            {'status': 'error', 'error': 'shared account — remove from this tenant instead'},
+            {'status': 'error', 'error': 'shared account — remove from this tournament instead'},
             status=403)
     # Last-admin guard: a tenant can't delete its own last admin; a superuser can
     # (they can always re-seed one).
     # Redundant in practice — see _tenant_admin_count for why this cannot fire.
     if (membership.is_tenant_admin and not request.user.is_superuser
             and _tenant_admin_count(tenant) <= 1):
-        return JsonResponse({'status': 'error', 'error': 'cannot delete the last admin of this tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'cannot delete the last admin of this tournament'}, status=400)
 
     user.delete()
     return JsonResponse({'status': 'ok'})
@@ -476,7 +476,7 @@ def user_remove_from_tenant(request):
     # Redundant in practice — see _tenant_admin_count for why this cannot fire.
     if (membership.is_tenant_admin and not request.user.is_superuser
             and _tenant_admin_count(tenant) <= 1):
-        return JsonResponse({'status': 'error', 'error': 'cannot remove the last admin of this tenant'}, status=400)
+        return JsonResponse({'status': 'error', 'error': 'cannot remove the last admin of this tournament'}, status=400)
 
     membership.delete()
     return JsonResponse({'status': 'ok'})
