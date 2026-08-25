@@ -73,6 +73,13 @@
             — <a href="admin?page=seating" class="text-sky-700 hover:underline">regenerate the seating</a>
             or <a href="admin?page=player_editor" class="text-sky-700 hover:underline">fix the player list</a>
           </span>
+        {% elif chart_round_mismatch %}
+          <span class="w-6 h-6 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center shrink-0 font-bold">!</span>
+          <span class="text-rose-700" data-testid="chart-round-mismatch">
+            <span class="font-bold">Seating chart is for {{ chart_rounds }} round{{ chart_rounds|pluralize }}, but the tournament has {{ tournament.nb_rounds }}</span>
+            — <a href="admin?page=seating" class="text-sky-700 hover:underline">regenerate the seating</a>
+            or <a href="admin?page=settings" class="text-sky-700 hover:underline">fix the round count</a>
+          </span>
         {% elif has_seats %}
           <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
           <span class="text-gray-700">Seating chart ready</span>

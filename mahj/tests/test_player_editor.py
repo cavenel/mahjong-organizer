@@ -314,10 +314,15 @@ def test_settings_page_toggles_the_test_flag(admin_client_, ed_tenant):
 
 # --- chart size vs roster size ----------------------------------------------------
 
-def _chart(tenant, n):
+def _chart(tenant, n, rounds=None):
+    """A chart seating `n` draw slots over every round the tournament is set to
+    play (its depth is checked too, so a one-round stub would read as a round
+    mismatch rather than a fitting chart)."""
+    if rounds is None:
+        rounds = TournamentSettings.objects.get(tenant=tenant).nb_rounds
     Seat.objects.bulk_create([
-        Seat(tenant=tenant, draw_number=d, round_nb=1, table_nb=(d - 1) // 4 + 1, wind=(d - 1) % 4 + 1)
-        for d in range(1, n + 1)])
+        Seat(tenant=tenant, draw_number=d, round_nb=r, table_nb=(d - 1) // 4 + 1, wind=(d - 1) % 4 + 1)
+        for r in range(1, rounds + 1) for d in range(1, n + 1)])
 
 
 def test_no_mismatch_warning_when_chart_fits_the_list(admin_client_, ed_tenant):
@@ -355,3 +360,22 @@ def test_no_mismatch_warning_without_a_chart(admin_client_, ed_tenant):
     _add(admin_client_, 8)
     assert 'chart-mismatch' not in admin_client_.get('/admin?page=setup').content.decode()
     assert 'chart-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()
+
+
+def test_round_mismatch_warning_when_the_round_count_changed(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    _chart(ed_tenant, 8)
+    TournamentSettings.objects.filter(tenant=ed_tenant).update(nb_rounds=9)
+    seating = admin_client_.get('/admin?page=seating').content.decode()
+    assert 'chart-round-mismatch' in seating
+    assert 'seats <strong>7</strong> rounds' in seating and '<strong>9</strong> rounds' in seating
+    dash = admin_client_.get('/admin?page=setup').content.decode()
+    assert 'chart-round-mismatch' in dash
+    assert 'Seating chart is for 7 rounds, but the tournament has 9' in dash
+    assert 'Seating chart ready' not in dash
+
+
+def test_no_round_mismatch_warning_without_a_chart(admin_client_, ed_tenant):
+    _add(admin_client_, 8)
+    assert 'chart-round-mismatch' not in admin_client_.get('/admin?page=setup').content.decode()
+    assert 'chart-round-mismatch' not in admin_client_.get('/admin?page=seating').content.decode()

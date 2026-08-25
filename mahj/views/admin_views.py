@@ -1800,6 +1800,11 @@ def _setup_status(tenant, tournament):
     # the checklist must shout about — the extra people can never be drawn in.
     chart_players = (Seat.objects.filter(tenant=tenant)
                      .values('draw_number').distinct().count()) if has_seats else 0
+    # Same story for the chart's round count: nb_rounds can be changed after the
+    # chart is built, and a chart of the wrong depth either leaves the last rounds
+    # unseated or seats rounds that will never be played.
+    chart_rounds = (Seat.objects.filter(tenant=tenant)
+                    .values('round_nb').distinct().count()) if has_seats else 0
     # Warn when a schedule exists but its playing rounds don't line up with
     # nb_rounds: the Nth round-row maps to round N (scoring.player_rounds), so a
     # mismatch leaves per-round times blank/misaligned. Only flag once a
@@ -1807,6 +1812,7 @@ def _setup_status(tenant, tournament):
     schedule_total = Schedule.objects.filter(tenant=tenant).count()
     schedule_rounds = Schedule.objects.filter(tenant=tenant, is_round=True).count()
     chart_mismatch = has_seats and chart_players != nb_players
+    chart_round_mismatch = has_seats and chart_rounds != (tournament.nb_rounds or 0)
     # A player is "drawn in" once assigned a draw number; the player list is
     # ready to play when every player holds one.
     draw_done = nb_players > 0 and nb_drawn == nb_players
@@ -1816,13 +1822,16 @@ def _setup_status(tenant, tournament):
         "has_seats": has_seats,
         "chart_players": chart_players,
         "chart_mismatch": chart_mismatch,
+        "chart_rounds": chart_rounds,
+        "chart_round_mismatch": chart_round_mismatch,
         "draw_done": draw_done,
         "nb_screens": Screen.objects.filter(tenant=tenant).count(),
         "schedule_rounds": schedule_rounds,
         "schedule_round_mismatch": schedule_total > 0 and schedule_rounds != tournament.nb_rounds,
         # The three required steps done (screens are optional): the Setup home
         # offers the way over to Run once this holds.
-        "setup_complete": nb_players > 0 and has_seats and not chart_mismatch and draw_done,
+        "setup_complete": (nb_players > 0 and has_seats and not chart_mismatch
+                           and not chart_round_mismatch and draw_done),
     }
 
 
@@ -2184,7 +2193,7 @@ def _page_seating(request, tenant, error=None):
     current = current_headline = None
     # Draw slots the chart seats — its "number of players". Kept beside the roster
     # size so the page can flag a chart built for a different field.
-    n_chart = 0
+    n_chart = r_chart = 0
     if seats:
         n_chart = len({s[3] for s in seats})
         r_chart = len({s[0] for s in seats})
@@ -2215,6 +2224,8 @@ def _page_seating(request, tenant, error=None):
         'has_seats': bool(seats),
         'chart_players': n_chart,
         'chart_mismatch': bool(seats) and n_chart != nb_players,
+        'chart_rounds': r_chart,
+        'chart_round_mismatch': bool(seats) and r_chart != nb_rounds,
         'existing_scores': seating_scores,
         'current': current,
         'current_headline': current_headline,
