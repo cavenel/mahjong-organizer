@@ -43,7 +43,15 @@ A wildcard cert requires a **DNS-01** challenge, so certbot needs your DNS
 provider's plugin. The compose file ships a `certbot` service (profile `certbot`)
 configured for one provider as an example — **swap the image and `--dns-*`
 flags/credentials for your provider** (`certbot/dns-cloudflare`,
-`certbot/dns-route53`, …). Issue once:
+`certbot/dns-route53`, …).
+
+The example is OVH, and the service bind-mounts `./certbot/ovh.ini` for its API
+keys. Create that file before the first run — `cp certbot/ovh.ini.example
+certbot/ovh.ini`, fill in the keys, `chmod 600 certbot/ovh.ini` (it is
+gitignored). Without it Docker mounts an empty *directory* at that path and
+certbot fails with a confusing credentials error. For another provider, change
+the volume line in `docker-compose.prod.yml` to that plugin's credentials file
+as well as the image and flags. Issue once:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \

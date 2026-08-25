@@ -1,0 +1,11 @@
+# OVH API credentials for certbot's DNS-01 challenge (certbot/dns-ovh image).
+# Copy to certbot/ovh.ini, fill in, then: chmod 600 certbot/ovh.ini
+# Create the keys at https://eu.api.ovh.com/createApp/ (or your OVH region),
+# granting GET/PUT/POST/DELETE on /domain/zone/<BASE_DOMAIN>/*.
+# Another DNS provider: swap the certbot image and this file — see the certbot
+# service in docker-compose.prod.yml.
+
+dns_ovh_endpoint           = ovh-eu
+dns_ovh_application_key    = <application key>
+dns_ovh_application_secret = <application secret>
+dns_ovh_consumer_key       = <consumer key>
