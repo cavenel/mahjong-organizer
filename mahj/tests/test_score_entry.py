@@ -555,6 +555,48 @@ class TestBulkPayloadIntegrity:
         assert resp.status_code == 400
 
 
+class TestBlankMinipointsClearsTablepoints:
+    """TP is computed from all four MPs, so a row saved with a blank MP must not
+    keep TPs computed from the numbers that are gone — not on the seat that was
+    blanked, and not on its three neighbours either. Without this the grid (which
+    sends the row's TP inputs as they stand) parked a stale TP on the server, and
+    an MP-less seat with a TP still read as a played MCR round."""
+
+    def _row(self, tournament):
+        return list(Seat.objects.filter(
+            tenant=tournament['tenant'], round_nb=3, table_nb=1).order_by('wind'))
+
+    def _save(self, client, seats, mps, tps):
+        return client.post(
+            '/update_seats_bulk',
+            data=json.dumps({'seats': [
+                {'id': s.id, 'mp': mp, 'tp': tp, 'version': s.version}
+                for s, mp, tp in zip(seats, mps, tps)
+            ]}),
+            content_type='application/json',
+        )
+
+    def test_one_blank_mp_blanks_every_tp_in_the_row(self, authed_client, tournament):
+        seats = self._row(tournament)
+        assert self._save(authed_client, seats, [40, 20, -10, -50], [4, 2, 1, 0]).status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+        assert [s.tablepoints for s in seats] == [4, 2, 1, 0]
+        # Scorer blanks one MP; the grid still sends the old TPs alongside.
+        assert self._save(authed_client, seats, [40, '', -10, -50], [4, 2, 1, 0]).status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+        assert [s.minipoints for s in seats] == [40, None, -10, -50]
+        assert [s.tablepoints for s in seats] == [None, None, None, None]
+
+    def test_full_row_keeps_its_tps(self, authed_client, tournament):
+        seats = self._row(tournament)
+        assert self._save(authed_client, seats, [40, 20, -10, -50], [4, 2, 1, 0]).status_code == 200
+        for s in seats:
+            s.refresh_from_db()
+        assert [s.tablepoints for s in seats] == [4, 2, 1, 0]
+
+
 class TestSeatOptimisticLock:
     """The score grid's whole-row save carries each seat's version, mirroring the
     Hand convention. A save built from numbers another scorer has since replaced

@@ -531,6 +531,15 @@ def update_seats_bulk(request):
         if not to_update:
             return HttpResponse("")
 
+        # Table points are a function of all four minipoints, so once any cell in
+        # the row is blank every TP in it is stale. Drop them here as well as in
+        # the grid: a leftover TP on an MP-less seat would count as a played MCR
+        # round (scoring/_common.py ranks on tablepoints) and mislead whoever
+        # reopens the row later.
+        if any(seat.minipoints is None for seat in to_update):
+            for seat in to_update:
+                seat.tablepoints = None
+
         # One payload is one table row. The publish lock is per round and the
         # echoed row is per (round, table), so a payload mixing seats from several
         # tables could otherwise slip an edit into a published round behind an

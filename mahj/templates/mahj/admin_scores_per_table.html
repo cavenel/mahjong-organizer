@@ -552,6 +552,10 @@
       setRowBg(row, _scoreState(vals), vals);
       setPip(row, "pending");
     } else {
+      // Table points are derived from all four minipoints, so with one cell
+      // blank none of them mean anything — clear them rather than leave (and
+      // save) values computed from numbers that are gone.
+      row.find("input[name='tablepoints']").val("");
       setRowBg(row, "");
       setPip(row, "");
     }
