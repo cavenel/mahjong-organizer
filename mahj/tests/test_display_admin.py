@@ -720,7 +720,7 @@ def test_dashboard_shows_setup_and_progress(client_, staff, tournament):
     assert 'Setup' in html
     # 16 players seeded, all with draw numbers → player list + draw ticks (the count
     # sits in its own <span>, so match the surrounding text, not the whole line).
-    assert 'players imported' in html
+    assert 'players listed' in html
     assert '>16<' in html
     assert 'Draw complete' in html
     # The live round-timer card is present.

@@ -52,8 +52,8 @@ multiple events without being a superuser).
 ## Seating draw: Player ↔ Seat
 
 The seating chart ("who meets whom") is fixed by the **draw** and comes from the
-imported schedule. It is keyed by a **draw number**, independent of which person
-is drawn into it. A `Seat` carries:
+imported template or the in-app generator. It is keyed by a **draw number**,
+independent of which person is drawn into it. A `Seat` carries:
 
 - `round_nb, table_nb, wind` — where/when the seat is (wind: 1=East … 4=North),
 - `draw_number` — the draw slot this seat belongs to (the structural key),

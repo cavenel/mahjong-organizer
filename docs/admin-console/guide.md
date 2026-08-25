@@ -748,7 +748,23 @@ session can't reach it), and shows only **this tournament's** users.
 
 ## 17. Setting up the tournament
 
-The **Configuration** and **Players** sections build the event before play:
+The **Configuration** and **Players** sections build the event before play.
+There are two ways to get the player list in; everything after that is the same.
+
+**A. Entirely in the console (no Excel):**
+
+1. **Tournament settings** — title, ruleset, teams toggle, **number of rounds**
+   and the schedule ([§15](#15-tournament-settings)).
+2. **Edit players** — click **Edit players** to unlock the table, then
+   **Add player** (below the table) once per competitor. Each new row arrives
+   named *Player n* (n = its position in the list) with the cursor on its name; type the real
+   name, country, EMA id and team over it — each change saves as you leave the
+   field. The **×** at the end of a row removes a player. **Done editing**
+   warns if the total isn't a multiple of 4 (seating needs full tables) or if
+   rows are still named *Player n*.
+3. **Seating → Generate** (below).
+
+**B. From the Excel template:**
 
 1. **Import from template** — download the blank Excel template (or **export
    the current tournament** in the same format to back it up / edit offline),
@@ -759,13 +775,18 @@ The **Configuration** and **Players** sections build the event before play:
    - A wrong or old-format file (missing sheets, unreadable rounds count, a
      player count that isn't a multiple of 4, duplicate draw numbers…) is
      **rejected with the tournament untouched**.
+
+**Then, either way:**
+
 2. **Seating** — inspect the current seating chart's quality (how well
    opponents are spread), or **generate a seating in the app** instead of
    importing one: preview a chart, compare quality measures, then apply.
    Applying a new seating clears any entered scores.
-3. **Edit players** — correct names, EMA ids, countries and teams in place, and
-   assign **draw numbers** (which seat-slot each player occupies) once seats
-   exist.
+3. **Edit players** — add or remove players, correct names, EMA ids, countries
+   and teams in place, and assign **draw numbers** (which seat-slot each player
+   occupies) once seats exist. Removing a player who already holds a draw
+   number frees that slot; the seat shows as *Player #n* until someone else is
+   drawn into it.
 4. **Randomize players (live)** / **Team draw (live)** — full-screen draw pages
    to run the draw *as a show* in front of the players; each opens in its own
    tab.
@@ -880,9 +901,10 @@ rehearsal.
 
 The fake-data buttons fill **scores** for the players and tables that already
 exist — they do **not** create players. So first set up a tournament structure,
-exactly like a real event: sign in as an **admin** and run **Import from
-template** (see [§17](#17-setting-up-the-tournament)). Importing wipes any
-previous scores on the tenant — which is exactly what you want here.
+exactly like a real event: sign in as an **admin** and either **Add player** on
+Edit players and generate a **Seating**, or run **Import from template** (see
+[§17](#17-setting-up-the-tournament)). Importing or re-generating the seating
+wipes any previous scores on the tenant — which is exactly what you want here.
 
 ### The fake-data toolbar 🧪
 
@@ -948,8 +970,8 @@ players/seating; re-running **Import from template** resets the whole tenant.
 |---|---|---|
 | Create users / roles / login links | Administration → **User management** | Admin |
 | Set title, rules, rounds, schedule, logo | Configuration → **Tournament settings** | Admin |
-| Set up the tournament | **Import from template** (or **Seating** → generate) | Admin |
-| Correct a player / assign draw numbers | Players → **Edit players** | Admin |
+| Set up the tournament | **Edit players** → Add player, then **Seating** → generate (or **Import from template**) | Admin |
+| Add / remove / correct a player, assign draw numbers | Players → **Edit players** | Admin |
 | Print player cards / positions / schedule | **Print / Export → Prepare** | Admin |
 | Enter table MP | Scoring page → seat inputs (auto-saves) | Scorer |
 | Enter all 16 hands *(MCR)* | Scoring row → **Score sheet** | Scorer |

@@ -45,6 +45,8 @@ from .admin_views import (
     admin_player_draw,
     admin_player_draw_assign,
     player_editor_save,
+    player_editor_add,
+    player_editor_delete,
     update_logo,
 )
 from .user_admin import (

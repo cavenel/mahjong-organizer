@@ -5,13 +5,13 @@
     <div>
       <h2 class="text-2xl font-bold text-gray-800">Edit players</h2>
       <p class="text-sm text-gray-500 mt-1">
-        Fix names, countries, EMA ids, teams and draw numbers. The table is locked
-        until you click <span class="font-medium text-gray-600">Edit players</span> —
+        Add or remove players and fix names, countries, EMA ids, teams and draw numbers.
+        The table is locked until you click <span class="font-medium text-gray-600">Edit players</span> —
         click a column heading to sort at any time. While unlocked, every change saves
         on its own; changing a draw number reassigns that seat, so it asks first.
       </p>
     </div>
-    <button type="button" @click="toggleEdit()" x-show="rows.length"
+    <button type="button" @click="toggleEdit()"
             class="px-4 py-2 text-sm font-medium rounded-lg shadow-sm whitespace-nowrap"
             :class="editing
               ? 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
@@ -26,7 +26,9 @@
 
   <template x-if="rows.length === 0">
     <div class="rounded-xl border border-dashed border-gray-300 bg-white p-8 text-center text-sm text-gray-500">
-      No players yet. Import a player list from a template first.
+      No players yet. Click <span class="font-medium text-gray-600">Edit players</span>, then
+      <span class="font-medium text-gray-600">Add player</span> to type the list in here — or
+      <a href="admin?page=import_template" class="text-amber-600 hover:underline">import a player list from a template</a>.
     </div>
   </template>
 
@@ -42,6 +44,7 @@
           <th @click="sort('EMA_ID')"     class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">EMA id <span class="text-amber-500" x-text="arrow('EMA_ID')"></span></th>
           <th @click="sort('team')"       class="px-3 py-2 text-left font-medium cursor-pointer select-none hover:text-gray-700">Team <span class="text-amber-500" x-text="arrow('team')"></span></th>
           <th class="px-2 py-2 w-8"><span class="sr-only">Status</span></th>
+          <th class="px-2 py-2 w-8"><span class="sr-only">Remove</span></th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100">
@@ -55,7 +58,7 @@
                      :class="lockClass()">
             </td>
             <td class="px-3 py-1 min-w-[10rem] text-gray-500" x-text="row.full_name"></td>
-            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
+            <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.first_name" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()" :data-first-name-for="row.id"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.last_name" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.country" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
             <td class="px-2 py-1"><input type="text" maxlength="70" x-model="row.EMA_ID" @change="saveMeta(row)" :readonly="!editing" :tabindex="editing ? 0 : -1" class="w-full min-w-[7rem] border rounded px-2 py-1 focus:outline-none" :class="lockClass()"></td>
@@ -65,10 +68,21 @@
               <span x-show="row._status === 'saved'" x-cloak class="text-green-600 text-sm">✓</span>
               <span x-show="row._status === 'error'" x-cloak class="text-rose-600 text-sm cursor-help font-bold" :title="row._error">!</span>
             </td>
+            <td class="px-2 py-1 w-8 text-center align-middle">
+              <button type="button" x-show="editing" x-cloak @click="removeRow(row)"
+                      class="text-gray-400 hover:text-rose-600 text-base leading-none px-1"
+                      :title="'Remove ' + (row.full_name || 'this player')" data-testid="remove-player">×</button>
+            </td>
           </tr>
         </template>
       </tbody>
     </table>
+  </div>
+
+  <div x-show="editing" x-cloak class="mt-3">
+    <button type="button" @click="addPlayer()" :disabled="adding"
+            class="px-3 py-1.5 text-sm font-medium rounded-lg border-2 border-amber-500 text-amber-600 hover:bg-amber-500 hover:text-white transition-colors whitespace-nowrap disabled:opacity-50"
+            data-testid="add-player">+ Add player</button>
   </div>
 </div>
 
@@ -80,6 +94,7 @@
       editing: false,
       sortKey: 'draw_number',
       sortDir: 'asc',
+      adding: false,
 
       init() {
         this.rows = JSON.parse(document.getElementById('player-rows-data').textContent);
@@ -87,8 +102,92 @@
         this.rows.forEach(function (r) { r._status = 'idle'; r._error = ''; });
       },
 
+      // --- roster size: add / remove rows ---------------------------------
+      placeholderCount() {
+        return this.rows.filter(function (r) { return /^Player \d+$/.test(r.full_name || ''); }).length;
+      },
+      addPlayer() {
+        var self = this;
+        this.adding = true;
+        $.ajax({
+          type: 'POST',
+          url: '/player_editor_add',
+          contentType: 'application/json',
+          headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+          data: JSON.stringify({ count: 1 }),
+          success: function (resp) {
+            var added = (resp && resp.players) || [];
+            added.forEach(function (r) { r._status = 'idle'; r._error = ''; self.rows.push(r); });
+            if (added.length) {
+              // The new row is a placeholder: put the cursor on its name.
+              setTimeout(function () {
+                var el = document.querySelector('[data-first-name-for="' + added[0].id + '"]');
+                if (el) { el.focus(); el.select(); }
+              }, 50);
+            }
+          },
+          error: function (xhr) {
+            var msg = '';
+            try { msg = (JSON.parse(xhr.responseText) || {}).error || ''; } catch (e) {}
+            if (!msg) msg = 'The server rejected the request (status ' + ((xhr && xhr.status) || '?') + ').';
+            window.alertAction({ title: 'Couldn’t add a player', body: msg });
+          },
+          complete: function () { self.adding = false; },
+        });
+      },
+      removeRow(row) {
+        if (!this.editing) return;
+        var self = this;
+        var who = row.full_name || 'this player';
+        var body = 'This removes ' + who + ' from the player list.';
+        if (row.draw_number != null) {
+          body += ' Draw slot #' + row.draw_number + ' becomes free again; any scores already ' +
+                  'recorded at that seat stay with the slot.';
+        }
+        window.confirmAction({
+          title: 'Remove player?',
+          body: body,
+          confirmLabel: 'Remove',
+          onConfirm: function () {
+            row._status = 'saving';
+            $.ajax({
+              type: 'POST',
+              url: '/player_editor_delete',
+              contentType: 'application/json',
+              headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+              data: JSON.stringify({ id: row.id }),
+              success: function () {
+                self.rows = self.rows.filter(function (r) { return r !== row; });
+              },
+              error: function (xhr) {
+                var msg = '';
+                try { msg = (JSON.parse(xhr.responseText) || {}).error || ''; } catch (e) {}
+                if (!msg) msg = 'The server rejected the removal (status ' + ((xhr && xhr.status) || '?') + ').';
+                self.showError(row, msg);
+              },
+            });
+          },
+        });
+      },
+
       // --- edit lock -------------------------------------------------------
       toggleEdit() {
+        if (this.editing) {
+          // Leaving edit mode: point out what the seating generator will refuse
+          // (a field that isn't full tables) and what still needs a real name.
+          var problems = [];
+          if (this.rows.length % 4 !== 0) {
+            problems.push(this.rows.length + ' players is not a multiple of 4 — the seating needs full tables.');
+          }
+          var placeholders = this.placeholderCount();
+          if (placeholders > 0) {
+            problems.push(placeholders + (placeholders === 1 ? ' player is' : ' players are') +
+                          ' still named “Player n”.');
+          }
+          if (problems.length) {
+            window.alertAction({ title: 'Player list needs attention', body: problems.join(' ') });
+          }
+        }
         this.editing = !this.editing;
       },
       lockClass() {

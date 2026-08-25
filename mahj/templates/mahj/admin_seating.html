@@ -38,7 +38,7 @@
     {% else %}
       <div class="flex items-center gap-2 text-sm text-gray-500">
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        No seating chart yet. Generate one below, or import a template.
+        No seating chart yet. Generate one below, or import one from a template.
       </div>
     {% endif %}
   </section>
@@ -49,8 +49,10 @@
 
     {% if not can_generate %}
       <p class="text-sm text-gray-500 italic">
-        Load a player list of at least 8 players (a multiple of 4) and set the number of
-        rounds in Tournament settings first.
+        A seating needs at least 8 players (a multiple of 4) and a number of rounds:
+        add players on <a href="admin?page=player_editor" class="text-amber-600 hover:underline not-italic">Edit players</a>
+        (or import a list) and set the rounds in
+        <a href="admin?page=settings" class="text-amber-600 hover:underline not-italic">Tournament settings</a> first.
         {% if nb_players %}<br>Currently {{ nb_players }} player{{ nb_players|pluralize }}, {{ nb_rounds }} round{{ nb_rounds|pluralize }}.{% endif %}
       </p>
     {% else %}

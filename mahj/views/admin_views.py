@@ -385,6 +385,33 @@ def _player_row_has_name(last_name_raw, first_name_raw):
 _OPTIONS_ROWS = 6
 
 
+def _assign_short_names(players):
+    """Set ``short_name`` on every Player in ``players`` (in memory, no DB write):
+    the first name alone, or first name + the shortest surname prefix that
+    separates competitors who share a first name ("Chris D.", growing to
+    "Chris Dere." if two share "Der"). Disambiguation is across the whole list, so
+    callers pass the tenant's full roster and persist with one bulk_update."""
+    by_first = defaultdict(list)
+    for player in players:
+        by_first[unidecode(player.first_name).lower()].append(player)
+    for group in by_first.values():
+        if len(group) == 1:
+            group[0].short_name = group[0].first_name
+            continue
+        for player in group:
+            if not player.last_name:
+                player.short_name = player.first_name
+                continue
+            n = 1
+            while n < len(player.last_name):
+                prefix = unidecode(player.last_name[:n]).lower()
+                if sum(unidecode(p.last_name[:n]).lower() == prefix
+                       for p in group) == 1:
+                    break
+                n += 1
+            player.short_name = f"{player.first_name} {player.last_name[:n]}."
+
+
 def _options_column(wb):
     """The Options sheet's value column, always ``_OPTIONS_ROWS`` long.
 
@@ -625,29 +652,8 @@ def admin_upload_from_template(request):
                 tournament.has_teams = any_team
                 tournament.save()
 
-                # Build the short display token: the first name alone, or first name +
-                # the shortest surname prefix that separates competitors who share a
-                # first name ("Chris D.", growing to "Chris Dere." if two share "Der").
                 # bulk_create skips Player.save(), so set short_name here in one bulk_update.
-                by_first = defaultdict(list)
-                for player in player_objs:
-                    by_first[unidecode(player.first_name).lower()].append(player)
-                for group in by_first.values():
-                    if len(group) == 1:
-                        group[0].short_name = group[0].first_name
-                        continue
-                    for player in group:
-                        if not player.last_name:
-                            player.short_name = player.first_name
-                            continue
-                        n = 1
-                        while n < len(player.last_name):
-                            prefix = unidecode(player.last_name[:n]).lower()
-                            if sum(unidecode(p.last_name[:n]).lower() == prefix
-                                   for p in group) == 1:
-                                break
-                            n += 1
-                        player.short_name = f"{player.first_name} {player.last_name[:n]}."
+                _assign_short_names(player_objs)
                 Player.objects.bulk_update(player_objs, ['short_name'])
 
                 Hand.objects.filter(tenant=tenant).delete()
@@ -930,8 +936,9 @@ def admin_team_draw(request):
 
     players = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
-    # id order is the original row order of the Excel "Players" sheet. The CSV
-    # export sorts on this so the drawn numbers line up with the template rows.
+    # id order is creation order: the row order of an imported "Players" sheet, or
+    # the order rows were added in the editor. The CSV export sorts on this so the
+    # drawn numbers line up with the template rows.
     order = {p.id: i for i, p in enumerate(sorted(players, key=lambda p: p.id), start=1)}
 
     teams_dict = {}
@@ -1064,7 +1071,7 @@ def admin_player_draw(request):
 
     all_players = list(Player.objects.filter(tenant=tenant).order_by('full_name'))
 
-    # id order is the original row order of the Excel "Players" sheet, so a CSV
+    # id order is creation order (imported sheet rows, or editor adds), so a CSV
     # export lines up with the template rows (matches the team-draw export).
     order = {p.id: i for i, p in enumerate(sorted(all_players, key=lambda p: p.id), start=1)}
 
@@ -1197,6 +1204,7 @@ def player_editor_save(request):
     by_id = {p.id: p for p in Player.objects.filter(tenant=tenant, id__in=ids)}
 
     to_update = []
+    names_changed = False
     for r, player_id in zip(rows, ids):
         player = by_id.get(player_id)
         if player is None:
@@ -1221,20 +1229,95 @@ def player_editor_save(request):
                     f"(maximum {max_length}).", status=400)
             setattr(player, field, value)
         # First/last are the edited fields; when either changed keep the canonical
-        # "First Last" display and the short token in sync (bulk_update bypasses the
-        # model's save()). short_name loses cross-field disambiguation on an edit —
-        # acceptable for the occasional typo fix; a re-import rebuilds it fully.
+        # "First Last" display in sync (bulk_update bypasses the model's save()).
         if 'first_name' in r or 'last_name' in r:
             player.full_name = f"{player.first_name} {player.last_name}".strip()
-            player.short_name = player.first_name
+            names_changed = True
         to_update.append(player)
 
     if to_update:
-        Player.objects.bulk_update(
-            to_update, _PLAYER_EDITABLE_FIELDS + ['full_name', 'short_name'])
+        Player.objects.bulk_update(to_update, _PLAYER_EDITABLE_FIELDS + ['full_name'])
+        if names_changed:
+            # Short names disambiguate across the whole roster ("Chris D." vs
+            # "Chris A."), so a name edit can change another competitor's token
+            # too: recompute for the tenant, the same way the importer builds them.
+            roster = list(Player.objects.filter(tenant=tenant))
+            _assign_short_names(roster)
+            Player.objects.bulk_update(roster, ['short_name'])
         # Names, countries and teams are all rendered into the cached standings.
         invalidate_leaderboard(tenant.subdomain)
     return HttpResponse('OK')
+
+
+# Field-size ceiling of the in-app seating generator; also caps one add request.
+_MAX_PLAYERS = 200
+
+
+def _player_row(p):
+    """One Player as the editor page's row dict (``_page_player_editor`` and
+    ``player_editor_add`` must agree on this shape)."""
+    return {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
+            'first_name': p.first_name, 'last_name': p.last_name,
+            'EMA_ID': p.EMA_ID, 'country': p.country, 'team': p.team}
+
+
+@tenant_admin_required
+def player_editor_add(request):
+    """Append ``count`` placeholder competitors ("Player 1", "Player 2", …) to the
+    player list, for building a tournament in the app instead of importing a
+    template. Each placeholder is a mononym (first_name = full_name = short_name),
+    not yet drawn in; the organizer renames them in the editor. Numbering
+    continues from the current roster size (16 players -> "Player 17"), skipping a
+    number only if a competitor already carries that exact name."""
+    if request.method != 'POST':
+        return method_not_allowed()
+
+    tenant = get_tenant(request)
+    count = int_param(json_body(request), 'count')
+    if not 1 <= count <= _MAX_PLAYERS:
+        return JsonResponse(
+            {'ok': False, 'error': f'Add between 1 and {_MAX_PLAYERS} players at a time.'},
+            status=400)
+
+    existing = Player.objects.filter(tenant=tenant).count()
+    if existing + count > _MAX_PLAYERS:
+        return JsonResponse(
+            {'ok': False,
+             'error': f'A tournament holds at most {_MAX_PLAYERS} players '
+                      f'({existing} already listed).'},
+            status=400)
+
+    taken = set(Player.objects.filter(tenant=tenant).values_list('full_name', flat=True))
+    new_players = []
+    k = existing + 1
+    while len(new_players) < count:
+        name = f'Player {k}'
+        if name not in taken:
+            new_players.append(Player(
+                tenant=tenant, full_name=name, first_name=name, last_name='',
+                short_name=name, draw_number=None))
+        k += 1
+    Player.objects.bulk_create(new_players)
+    invalidate_leaderboard(tenant.subdomain)
+    return JsonResponse({'ok': True, 'players': [_player_row(p) for p in new_players]})
+
+
+@tenant_admin_required
+def player_editor_delete(request):
+    """Remove one competitor from the player list. Seats are keyed by draw number,
+    not by a FK to the Player, so deleting a drawn-in competitor simply frees the
+    slot: the seat shows as "Player #n" again and any score recorded there stays
+    with the slot."""
+    if request.method != 'POST':
+        return method_not_allowed()
+
+    tenant = get_tenant(request)
+    player_id = int_param(json_body(request), 'id')
+    deleted, _ = Player.objects.filter(tenant=tenant, id=player_id).delete()
+    if not deleted:
+        return JsonResponse({'ok': False, 'error': 'Unknown competitor'}, status=404)
+    invalidate_leaderboard(tenant.subdomain)
+    return JsonResponse({'ok': True})
 
 
 # Public (display screens are public, like /scan and counter_start): serve the
@@ -1828,12 +1911,7 @@ def _page_settings(request, tenant, error=None):
 def _page_player_editor(request, tenant, error=None):
     players = Player.objects.filter(tenant=tenant).order_by(
         F('draw_number').asc(nulls_last=True), 'full_name')
-    player_rows = [
-        {'id': p.id, 'draw_number': p.draw_number, 'full_name': p.full_name,
-         'first_name': p.first_name, 'last_name': p.last_name,
-         'EMA_ID': p.EMA_ID, 'country': p.country, 'team': p.team}
-        for p in players
-    ]
+    player_rows = [_player_row(p) for p in players]
     # The seating-chart slots a draw number may be assigned to (the editor
     # rejects anything else before it reaches admin_player_draw_assign).
     valid_draw_numbers = sorted(set(
