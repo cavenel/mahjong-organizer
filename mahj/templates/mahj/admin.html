@@ -216,12 +216,15 @@
         <a target="_blank" href="/static/docs/MCR_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR scorer cheat sheet</a>
         <a target="_blank" href="/static/docs/MCR_head_scorer_cheat_sheet.pdf" class="flex items-center gap-2 px-3 py-2 pl-9 text-gray-500 hover:bg-gray-50">MCR head-scorer cheat sheet</a>
         {% if real_is_tenant_admin %}
-        {% comment %}"View as": preview the console as a single-role account, to
+        {% comment %}"Preview as": see the console as a single-role account, to
         check what a scorer / publisher / display operator will actually see.
         Shown to the person really holding the session, so it survives the
-        preview itself (the is_tenant_admin flag is False while previewing).{% endcomment %}
+        preview itself (the is_tenant_admin flag is False while previewing).
+        The caption matters: a preview is still the admin's login, one click from
+        full admin, so it must not become the way scorers get onto the floor.{% endcomment %}
         <div class="border-t border-gray-100 my-1"></div>
-        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">View as</p>
+        <p class="px-3 pt-1 pb-0.5 text-xs font-semibold uppercase tracking-wide text-gray-400">Preview as</p>
+        <p class="px-3 pb-1 text-xs text-gray-500 leading-snug">Check what a role sees. For the event itself, give each person their own account: <a href="admin?page=users" class="underline hover:text-amber-700">User management</a> → login link.</p>
         <div data-testid="view-as-menu">
           {% for role, label in view_as_roles %}
           <form method="post" action="admin?view_as={{ role }}">
@@ -288,9 +291,11 @@
     <!-- Preview mode: the admin is seeing the console as a single-role account. -->
     <div data-testid="view-as-banner" class="mx-4 mt-4 max-w-7xl lg:mx-auto w-auto rounded-xl border border-violet-300 bg-violet-50 px-4 py-2.5 text-sm text-violet-900 flex items-center gap-3">
       <span class="shrink-0">👁</span>
-      <div class="flex-1">Viewing the console as a
+      <div class="flex-1">Previewing the console as a
         <span class="font-semibold">{% if viewing_as == 'scorer' %}Scorer{% elif viewing_as == 'publisher' %}Publisher{% else %}Display operator{% endif %}</span>
-        — this is what that account sees.</div>
+        — this is still your admin login. To work during the tournament, use a real
+        {% if viewing_as == 'scorer' %}Scorer{% elif viewing_as == 'publisher' %}Publisher{% else %}Display operator{% endif %}
+        account and its login link (<a href="admin?page=users" class="underline hover:text-violet-700">User management</a>).</div>
       <form method="post" action="admin?view_as=off" class="shrink-0">
         {% csrf_token %}
         <button type="submit" class="px-3 py-1 text-xs font-semibold text-violet-800 bg-white border border-violet-300 rounded-lg hover:bg-violet-100">Back to admin view</button>

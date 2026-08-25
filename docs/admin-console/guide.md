@@ -760,10 +760,15 @@ session can't reach it), and shows only **this tournament's** users.
   existing account to a new tournament is a platform-operator action).
 
 **Checking what a role sees.** The avatar menu (bottom of the sidebar) has a
-**View as** section for admins: pick *Scorer*, *Publisher* or *Display operator*
+**Preview as** section for admins: pick *Scorer*, *Publisher* or *Display operator*
 and the whole console — sidebar, pages, permissions — becomes what that account
 gets, with a banner on every page and **Back to admin view** to return. Handy
 before handing out accounts, and for following this guide's role parts.
+
+Preview is for checking, not for working: it is still your admin session, and
+**Back to admin view** is one click away for whoever holds the device. On the
+day, every scorer, publisher and display operator gets their own account from
+User management and signs in with its login link.
 
 > ![Assign role](screenshots/02-assign-role.png)<br>
 > 📸 **Screenshot — assigning roles.**
