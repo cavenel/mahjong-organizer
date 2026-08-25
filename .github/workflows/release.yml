@@ -44,7 +44,7 @@ jobs:
             tw_suffix: macos-arm64
             tw_sha256: a1d0c7985759accca0bf12e51ac1dcbf0f6cf2fffb62e6e0f62d091c477a10a3
             tw_bin: tailwindcss
-          - os: macos-13        # Intel
+          - os: macos-15-intel  # Intel
             target: macos-x64
             tw_suffix: macos-x64
             tw_sha256: 6cbdad74be776c087ffa5e9a057512c54898f9fe8828d3362212dfe32fc933a3
