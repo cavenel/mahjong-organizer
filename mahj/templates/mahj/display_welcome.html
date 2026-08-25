@@ -34,29 +34,7 @@
 
     <!-- Important info, pinned to the bottom -->
     <footer class="fixed inset-x-0 bottom-0 bg-slate-900/70 ring-1 ring-white/10 backdrop-blur-sm">
-        <div class="relative flex flex-wrap items-center justify-center gap-x-12 gap-y-2 px-14 py-6 text-2xl min-h-[7rem]"
-             style="zoom: {{ tournament.zoom|mul:1.2 }};">
-            {% if tournament.title %}
-                <span class="font-bold text-white">{{ tournament.title }}</span>
-            {% endif %}
-            {% if tournament.city %}
-                <span class="text-slate-300">{{ tournament.city }}</span>
-            {% endif %}
-            {% if tournament.period %}
-                <span class="text-slate-300">{{ tournament.period }}</span>
-            {% endif %}
-            {% if tournament.rules %}
-                <span class="text-amber-300 font-semibold">{{ tournament.rules }}</span>
-            {% endif %}
-
-            <!-- Tournament app URL + QR, pinned to the right edge -->
-            {% if subdomain %}
-                <div class="absolute right-6 top-1/2 -translate-y-1/2 flex items-center gap-3">
-                    <span class="text-slate-300 text-lg leading-tight text-right">Tournament app:<br>{{ public_site_host }}</span>
-                    {% if qr_svg %}<span class="inline-block bg-white p-1 leading-none rounded">{{ qr_svg|safe }}</span>{% endif %}
-                </div>
-            {% endif %}
-        </div>
+        {% include "mahj/_display_footer_bar.html" %}
     </footer>
 {% endblock %}
 
