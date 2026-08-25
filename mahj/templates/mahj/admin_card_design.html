@@ -151,6 +151,11 @@ theme in card_themes.py needs no change here.
         </div>
 
         <p class="text-xs font-medium text-gray-600 mt-3 mb-1">Classes you can target</p>
+        <p class="text-xs text-gray-400 mb-1.5">
+          A rule here beats the theme and the card format it is on, so
+          <span class="font-mono text-gray-600">.write-cell</span> on its own is enough — no
+          need to write a longer selector to make one stick.
+        </p>
         <div class="text-xs text-gray-500 space-y-0.5 font-mono">
           <div><span class="text-gray-700">.card</span> — one whole card</div>
           <div><span class="text-gray-700">.card-head</span> / <span class="text-gray-700">.card-main</span> — header band, body</div>
@@ -209,6 +214,9 @@ theme in card_themes.py needs no change here.
       // Starting points for the CSS editor: each one targets a class the list
       // below names, and is a size or a colour an organiser plausibly wants to
       // change. Appended verbatim, so what they read is what they get.
+      // One bare class each: the card stylesheet is wrapped in `@layer card`
+      // (cards/sheet.html) and this CSS is unlayered, so a single class here
+      // outranks the format and theme rules there however specific they are.
       examples: [
         { label: 'Everything on the front, a tenth bigger',
           code: '.card-main {\n  zoom: 1.1;\n}' },

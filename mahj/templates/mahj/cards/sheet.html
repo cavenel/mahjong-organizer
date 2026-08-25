@@ -25,6 +25,16 @@ change.
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,400;1,9..144,500&family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Everything in this element is one cascade layer, and the organiser's CSS below
+   is in none — an unlayered rule beats every layered one whatever its
+   specificity. That is what lets a card_css rule read `.footer-url { … }` and
+   still win over the `.format-a7_landscape .footer-url` and `.theme-bold …`
+   rules here, which carry two and three classes. Without the layer an organiser
+   would have to out-specify each of them by hand, differently per format and
+   theme. The rules keep their own indentation inside the block: the wrapper is
+   deliberately two lines, so the layer reads as an envelope rather than as a
+   reformat of the whole stylesheet. */
+@layer card {
   /* ── Shades derived from the two accent colours, so a palette is two picks ── */
   :root {
     --accent-2-soft: color-mix(in srgb, var(--accent-2), white 15%);
@@ -329,8 +339,11 @@ change.
   .theme-bold .name-rule { background: var(--accent-2); height: 0.5mm; }
   .theme-bold .wind.E { background: var(--accent-2); }
   .theme-bold .write-cell.total { border-color: var(--accent); }
+}  /* @layer card */
 </style>
-{% comment %} The organiser's own CSS, last so it overrides the base and the theme.
+{% comment %} The organiser's own CSS. Unlayered — see the @layer note above — so a
+   plain `.write-cell { … }` outranks the base, the format and the theme rules
+   without needing to match their specificity.
    Rendered with |safe (escaping would break `>` selectors); models.validate_card_css
    is what makes that safe, and every stored value has passed it. {% endcomment %}
 <style id="card-css">{{ card_css|safe }}</style>
