@@ -196,3 +196,24 @@ def test_no_test_reads_a_path_relative_to_the_working_directory():
     assert not offenders, (
         'these read a project path relative to the working directory; anchor them '
         'to conftest.REPO_ROOT:\n  ' + '\n  '.join(offenders))
+
+
+def test_no_template_comment_spans_two_lines():
+    """`{# ... #}` must open and close on one line.
+
+    Django's short comment syntax is matched without DOTALL, so a `{#` whose `#}`
+    is on a later line is not a comment at all — the whole thing renders as
+    visible text on the page. It has shipped that way twice; use
+    `{% comment %}...{% endcomment %}` for anything longer than a line.
+    """
+    offenders = []
+    for path in sorted((REPO_ROOT / 'mahj' / 'templates').rglob('*.html')):
+        for n, line in enumerate(path.read_text().splitlines(), 1):
+            # An opener with no closer after it on the same line.
+            for m in re.finditer(r'\{#', line):
+                if '#}' not in line[m.end():]:
+                    rel = path.relative_to(REPO_ROOT)
+                    offenders.append(f'{rel}:{n}: {line.strip()[:90]}')
+    assert not offenders, (
+        'these {# #} comments do not close on their own line, so they render as '
+        'visible text; use {% comment %} instead:\n  ' + '\n  '.join(offenders))
