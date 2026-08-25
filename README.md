@@ -78,7 +78,7 @@ Use this for a permanent installation with several tournaments. Each tournament
 gets its own subdomain.
 
 ```bash
-git clone <this-repo> mahj && cd mahj
+git clone https://github.com/cavenel/mahjong-organizer.git mahj && cd mahj
 cp .env.example .env
 # In .env, set DJANGO_SECRET_KEY, BASE_DOMAIN and DB_PASSWORD.
 # See docs/hosting/configuration.md.
