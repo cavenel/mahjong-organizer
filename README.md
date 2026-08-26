@@ -185,6 +185,12 @@ something being absent.
 `manage.py` uses `apps.settings.dev` by default. That needs a local Postgres and
 Redis. The standalone settings need neither.
 
+## Use of AI
+
+This code base was originally written without AI. Claude Code was used later
+to rework the styling of the app and to make the code more secure and more
+robust.
+
 ## License
 
 [MIT](LICENSE) © 2018-2026 Christophe Avenel.
