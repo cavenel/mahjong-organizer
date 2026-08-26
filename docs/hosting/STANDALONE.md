@@ -152,7 +152,7 @@ python manage.py collectstatic --noinput --settings apps.settings.standalone
 pyinstaller --noconfirm standalone/mahj.spec
 ```
 
-The app lands in `dist/mahj-admin/`. The regenerated `tailwind.min.css` is a build
+The app lands in `dist/mahj-organizer/`. The regenerated `tailwind.min.css` is a build
 artifact — no need to commit it. The scan/OCR stack (OpenCV, the LLM client) and
 the Postgres/Redis backends are deliberately excluded to keep the binary small —
 the standalone settings never load them.

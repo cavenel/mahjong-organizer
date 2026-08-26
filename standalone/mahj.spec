@@ -5,7 +5,7 @@
 #     python manage.py collectstatic --noinput --settings apps.settings.standalone
 #     pyinstaller standalone/mahj.spec
 #
-# Produces dist/mahj-admin/ (a one-folder app; the launcher is mahj-admin[.exe]).
+# Produces dist/mahj-organizer/ (a one-folder app; the launcher is mahj-organizer[.exe]).
 # Django loads templates, static files, migrations and app configs dynamically,
 # and apps.asgi is referenced by string, so none of that is traced from run.py —
 # it's bundled as data and forced in via hiddenimports below. The scan/OCR stack
@@ -120,9 +120,9 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='mahj-admin',
+    name='mahj-organizer',
     console=True,          # the console window is how the operator stops the app
     disable_windowed_traceback=False,
 )
 
-coll = COLLECT(exe, a.binaries, a.datas, name='mahj-admin')
+coll = COLLECT(exe, a.binaries, a.datas, name='mahj-organizer')

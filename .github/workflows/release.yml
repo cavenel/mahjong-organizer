@@ -104,15 +104,15 @@ jobs:
         run: |
           cd dist
           if [ "${{ runner.os }}" = "Windows" ]; then
-            7z a "../mahj-admin-${{ matrix.target }}.zip" mahj-admin
+            7z a "../mahj-organizer-${{ matrix.target }}.zip" mahj-organizer
           else
-            tar czf "../mahj-admin-${{ matrix.target }}.tar.gz" mahj-admin
+            tar czf "../mahj-organizer-${{ matrix.target }}.tar.gz" mahj-organizer
           fi
 
       - uses: actions/upload-artifact@v5
         with:
-          name: mahj-admin-${{ matrix.target }}
-          path: mahj-admin-${{ matrix.target }}.*
+          name: mahj-organizer-${{ matrix.target }}
+          path: mahj-organizer-${{ matrix.target }}.*
 
   release:
     needs: build
