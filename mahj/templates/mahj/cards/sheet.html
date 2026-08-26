@@ -19,7 +19,14 @@ change.
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Player Cards — {{ tournament.title }}</title>
-<link rel="stylesheet" href="{% static 'css/tailwind.min.css' %}">
+{% comment %}
+Tailwind is deliberately NOT loaded here. No card template uses a utility class
+-- every class on this page is defined in the stylesheet below -- and its
+preflight is unlayered, so `*,::before,::after { border: 0 solid }` outranked
+every layered rule this page has, whatever its specificity. That silently erased
+the border on the score boxes, leaving white boxes on white paper. The handful of
+preflight resets the geometry did rely on are reproduced under "Reset" below.
+{% endcomment %}
 <link rel="stylesheet" href="{% static 'images/flags.css' %}">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,6 +42,16 @@ change.
    deliberately two lines, so the layer reads as an envelope rather than as a
    reformat of the whole stylesheet. */
 @layer card {
+  /* ── Reset ──
+     What this page used to get from Tailwind's preflight, which it no longer
+     loads (see the note in the head). Only these four mattered: border-box, or a
+     write box grows by its own border and the A7 height budget stops adding up;
+     a zero body margin, or the sheet no longer starts at the paper's corner; and
+     the two img rules, so a tall logo cannot push the header open. */
+  *, *::before, *::after { box-sizing: border-box; }
+  body { margin: 0; }
+  img { display: block; max-width: 100%; }
+
   /* ── Shades derived from the two accent colours, so a palette is two picks ── */
   :root {
     --accent-2-soft: color-mix(in srgb, var(--accent-2), white 15%);

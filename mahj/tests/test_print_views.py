@@ -336,6 +336,26 @@ def test_card_cells_never_wrap_and_boxes_take_the_slack(staff_client, tournament
     assert '3mm 18.5mm 11.5mm 1fr 1fr 1fr 1fr' in body
 
 
+def test_cards_load_no_unlayered_stylesheet_over_their_own(staff_client, tournament):
+    """The card stylesheet lives in `@layer card`, and an unlayered rule beats
+    every layered one whatever its specificity. This page used to link Tailwind
+    (it uses no utility class), whose preflight `*,::before,::after { border: 0
+    solid }` therefore outranked `.write-cell`'s border: every score box printed
+    as white-on-white, invisible. Nothing may load a blanket reset over the layer
+    again -- and the four preflight rules the geometry did rely on are the page's
+    own now.
+    """
+    body = staff_client.get('/player_cards').content.decode()
+    assert 'tailwind' not in body
+    assert '*, *::before, *::after { box-sizing: border-box; }' in body
+    assert 'body { margin: 0; }' in body
+    assert 'img { display: block; max-width: 100%; }' in body
+    # The box border is what the preflight erased. It stays a plain layered
+    # declaration -- winning it back with !important would have beaten the
+    # organiser's own card_css too, which is the one thing the layer exists for.
+    assert 'border: 0.25mm solid var(--write-border);' in body
+
+
 def test_riichi_cards_drop_the_table_points_columns(staff_client, riichi_tournament):
     """Table points exist only under MCR. A Riichi card used to print the same
     seven-column grid, so half its writing area was a "Table Pts" pair nobody
