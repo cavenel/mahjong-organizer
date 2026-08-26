@@ -65,5 +65,6 @@ native libraries).
   parallel *Fill all rounds — score sheets* can trip sqlite's write lock on a
   slow disk; the script detects that and finishes the validation marks via ORM.
 - The server must be **restarted after `collectstatic`** (the WhiteNoise index
-  again).
+  again) — and after editing a template: these profiles run with `DEBUG=False`,
+  so Django's cached template loader keeps serving the version it started with.
 - `.local/` (the throwaway database) is gitignored.
