@@ -22,3 +22,5 @@ libxkbcommon = "*"
 nss = "*"
 nspr = "*"
 libgbm = "*"
+# demo.py stitches the recorded scenes into the mp4/gif with ffmpeg.
+ffmpeg = "*"
