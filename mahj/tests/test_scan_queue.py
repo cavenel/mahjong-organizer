@@ -173,12 +173,24 @@ class TestImageStaging:
 # heavy OpenCV/LLM work is stubbed — this is about the loop, not the OCR.
 # ---------------------------------------------------------------------------
 
+# The worker resolves a Template per job; these tests never touch OpenCV, so any
+# stand-in object will do.
+_FAKE_TEMPLATE = object()
+
+
 class TestWorkerLoop:
 
     @pytest.fixture
     def worker(self, monkeypatch):
         from mahj.management.commands import scan_worker as mod
-        monkeypatch.setattr(mod.scanview, '_ensure_initialized', lambda: None)
+        monkeypatch.setattr(mod.scanview, 'resolve_template', lambda setup: _FAKE_TEMPLATE)
+        # A fully configured tenant, without a database: what the loop does with a
+        # job is the subject here, not how the setup is looked up (test_scan_key).
+        monkeypatch.setattr(mod.scan_key, 'resolve_setup',
+                            lambda sd: mod.scan_key.ScanSetup(
+                                key='sk-ant-test', template=b'sheet', etag='e',
+                                bbox=(0, 0, 10, 10)))
+        monkeypatch.setattr(mod.scan_key, 'stamp_error', lambda sd, msg: None)
         cmd = mod.Command()
         return cmd, mod
 
@@ -229,7 +241,9 @@ class TestWorkerLoop:
         cmd._process({'job_id': 'bad', 'round_nb': 1, 'table_nb': 1,
                       'subdomain': 'test'})
         assert written['bad']['status'] == 'error'
-        assert 'garbled' in written['bad']['error']
+        # The exception text itself must NOT be in there: this result travels back
+        # to an anonymous poller through scan_status.
+        assert 'garbled' not in written['bad']['error']
         # And the job facts still ride along, so the client's poll is answerable.
         assert written['bad']['subdomain'] == 'test'
 
@@ -250,7 +264,7 @@ class TestWorkerLoop:
         monkeypatch.setattr(mod.scan_queue, 'JOBS_DIR', tmp_path)
         monkeypatch.setattr(mod.scanview, '_read_image', lambda p: object())
         monkeypatch.setattr(mod.scanview, 'run_scan',
-                            lambda img: {'status': 'done', 'scores': []})
+                            lambda img, key, tpl=None: {'status': 'done', 'scores': []})
         monkeypatch.setattr(mod.scan_queue, 'set_result_with_retry',
                             lambda jid, res: False)
         cmd._process({'job_id': 'lost', 'subdomain': 'test'})

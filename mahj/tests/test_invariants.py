@@ -217,3 +217,44 @@ def test_no_template_comment_spans_two_lines():
     assert not offenders, (
         'these {# #} comments do not close on their own line, so they render as '
         'visible text; use {% comment %} instead:\n  ' + '\n  '.join(offenders))
+
+
+def test_no_html_comment_is_left_open():
+    """Every `<!--` must be closed by a literal `-->`.
+
+    An unclosed one swallows the rest of the file: the browser shows everything
+    before it and nothing after, while the markup is still right there in the
+    source. That is what makes it nasty — grepping the response finds the text
+    and looks like proof the page works, so it survives a smoke test.
+
+    The way in is a decorative section rule. `<!-- --- Section ------->` closes
+    fine because ASCII hyphens end in `-->`; the same rule drawn with box-drawing
+    characters ends in `\u2500->`, which closes nothing. Keep the rules ASCII.
+    """
+    offenders = []
+    for path in sorted((REPO_ROOT / 'mahj' / 'templates').rglob('*.html')):
+        text = path.read_text()
+        pos = 0
+        while True:
+            start = text.find('<!--', pos)
+            if start == -1:
+                break
+            end = text.find('-->', start + 4)
+            line = text.count('\n', 0, start) + 1
+            rel = path.relative_to(REPO_ROOT)
+            if end == -1:
+                offenders.append(f'{rel}:{line}: {text[start:start + 60].strip()}… '
+                                 f'(never closed)')
+                break
+            # A second opener *inside* a comment means the first one didn't close
+            # where it looked like it did, and everything up to here is invisible.
+            # Counting opens against closes would miss this: the next section's
+            # own `-->` closes the runaway and the totals still balance.
+            if '<!--' in text[start + 4:end]:
+                offenders.append(f'{rel}:{line}: {text[start:start + 60].strip()}… '
+                                 f'(swallows the markup up to line '
+                                 f'{text.count(chr(10), 0, end) + 1})')
+            pos = end + 3
+    assert not offenders, (
+        'these HTML comments are never closed, so every element after them is '
+        'invisible in the browser:\n  ' + '\n  '.join(offenders))

@@ -97,11 +97,25 @@ def stage_bootstrap():
                    check=True, cwd=REPO, env=ENV)
     orm('''
 from django.contrib.auth.models import User
-from mahj.models import Tenant, Membership, TournamentSettings
+from mahj import scan_key
+from mahj.models import Tenant, Membership, ScanConfig, TournamentSettings
 tenant, _ = Tenant.objects.get_or_create(subdomain="test",
                                          defaults={"name": "Rehearsal tournament"})
 # The Scoring "Test data" toolbar (shot 41) only renders on a test tournament.
 TournamentSettings.objects.update_or_create(tenant=tenant, defaults={"is_test": True})
+# Scanning is per-tenant and needs BOTH a key and a sheet: without them the score
+# sheet renders no QR (shot 14) and /scan renders the "not switched on" banner
+# instead of the scan UI (shot 15). No photo is ever submitted here, so any key
+# will do; the sheet is the example one shipped in static/.
+from pathlib import Path as _Path
+from mahj.views.scan import EXAMPLE_SHEET_BBOX, EXAMPLE_SHEET_PATH
+_sheet = _Path(EXAMPLE_SHEET_PATH).read_bytes()
+ScanConfig.objects.update_or_create(
+    tenant=tenant,
+    defaults={"api_key_enc": scan_key.encrypt("sk-ant-screenshots"), "key_tail": "hots",
+              "template_img": _sheet, "template_etag": "screenshots",
+              "bbox_x1": EXAMPLE_SHEET_BBOX[0], "bbox_y1": EXAMPLE_SHEET_BBOX[1],
+              "bbox_x2": EXAMPLE_SHEET_BBOX[2], "bbox_y2": EXAMPLE_SHEET_BBOX[3]})
 for name, roles in (("anna.admin", {"is_tenant_admin": True}),
                     ("sam.scorer", {"is_scorer": True}),
                     ("pia.publisher", {"is_publisher": True}),

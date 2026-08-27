@@ -32,6 +32,7 @@ from .helpers import (
     method_not_allowed, real_is_tenant_admin, set_counter, tenant_admin_required,
     tenant_role_required,
 )
+from .scan_admin import _page_scanning
 from .user_admin import TENANT_ROLES, reauth_ok, tenant_admin_and_reauthed
 
 logger = logging.getLogger(__name__)
@@ -1892,9 +1893,11 @@ def admin_reset(request):
     # The model list lives in tenant_dump (shared with dump/restore). Deleting
     # the settings row resets identity/branding/format, logo and the round timer
     # to defaults; get_tournament recreates a fresh one on next read.
+    # include_secrets also drops the publish target and the scanning config — this
+    # is the "start over" button, so the credentials go with the tournament.
     from ..tenant_dump import wipe_tenant
     with transaction.atomic():
-        wipe_tenant(tenant, include_publish_target=True)
+        wipe_tenant(tenant, include_secrets=True)
     # Wake public displays and scorer pages: nothing is published anymore, the
     # screen set is gone, and the leaderboard/settings caches are stale.
     invalidate_leaderboard(tenant.subdomain)
@@ -2276,12 +2279,39 @@ def _setup_status(tenant, tournament):
     }
 
 
+def _optional_features(tenant):
+    """State of the two features a tournament can run entirely without.
+
+    Kept out of `_setup_status` on purpose: that dict is about *readiness to
+    play*, and it is shared with the Print materials page and the Run dashboard,
+    neither of which should pay for these queries. Nothing here blocks a
+    tournament, so nothing here belongs in the readiness figure.
+    """
+    from ..models import ScanConfig
+    from ..publish.sftp_upload import is_configured as _publish_configured
+
+    subdomain = tenant.subdomain if tenant else ''
+    cfg = ScanConfig.objects.filter(tenant=tenant).order_by('id').first()
+    has_key = bool(cfg and cfg.api_key_enc)
+    has_sheet = bool(cfg and cfg.has_template)
+    return {
+        "publish_configured": _publish_configured(subdomain),
+        "scan_enabled": settings.SCAN_ENABLED,
+        "scan_has_key": has_key,
+        "scan_has_sheet": has_sheet,
+        # Both halves, which is what scan_key.is_configured answers. Spelled out
+        # here so the page can name the half that is missing.
+        "scan_configured": has_key and has_sheet,
+    }
+
+
 def _page_setup_home(request, tenant, error=None):
     """Setup workspace home: the readiness checklist. Also where a failed template
     import reports its error, since importing is a setup action."""
     tournament = get_tournament(request)
     context = {"error": error, "tournament": tournament}
     context.update(_setup_status(tenant, tournament))
+    context.update(_optional_features(tenant))
     return loader.get_template('mahj/admin_setup_home.html').render(context, request)
 
 
@@ -2811,6 +2841,13 @@ def _gate_publisher(request):
     return has_role(request, 'publisher')
 
 
+def _gate_scanning(request):
+    """Tenant admins, and only where scanning exists at all. The standalone build
+    has no OCR stack and no queue (SCAN_ENABLED=False), so the page is hidden
+    there rather than left to 404 from the sidebar."""
+    return is_tenant_admin(request) and settings.SCAN_ENABLED
+
+
 def _gate_tenant_management(request):
     """Superuser (not while previewing as a role), and meaningless in the
     single-tenant standalone build (the tenant is pinned via LOCAL_TENANT), so
@@ -2853,6 +2890,11 @@ ADMIN_PAGES = {
     "backup":             _AdminPage(_gate_tenant_admin, _page_backup,
                                      reauth=True, reauth_next='backup', area='setup'),
     "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target, area='setup'),
+    # reauth because the page holds a paid credential, like `users` and `backup`.
+    # (`publish_target` above holds SFTP credentials and is not reauthed — an
+    # inconsistency worth resolving there, not worth copying here.)
+    "scanning":           _AdminPage(_gate_scanning, _page_scanning,
+                                     reauth=True, reauth_next='scanning', area='setup'),
 }
 
 
@@ -2959,6 +3001,8 @@ def options(request, error=None):
         # Standalone is single-tenant (pinned via LOCAL_TENANT), so the superuser
         # tenant-management page is meaningless there — hide it.
         "standalone": settings.STANDALONE,
+        # Hides the Scanning nav item where there is no scanning stack at all.
+        "scan_enabled": settings.SCAN_ENABLED,
         # Drives the shell-wide publish progress toast (polls publish_status) — only
         # when web publishing is configured, so idle installs don't poll.
         "static_publish_enabled": _static_publish_configured(tenant.subdomain if tenant else ''),

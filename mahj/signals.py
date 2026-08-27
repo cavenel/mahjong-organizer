@@ -12,7 +12,8 @@ from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
 
-from .models import Tenant, TournamentSettings
+from . import scan_key
+from .models import ScanConfig, Tenant, TournamentSettings
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +131,17 @@ def on_tournament_change(sender, instance, **kwargs):
 @receiver([post_save, post_delete], sender=Tenant)
 def on_tenant_change(sender, instance, **kwargs):
     cache.delete(f'tenant:{instance.subdomain}')
+    # A renamed tenant must not carry a stale "this one may scan" grant. Same known
+    # limitation as the line above: it busts the new subdomain, not the old one.
+    scan_key.forget(instance.subdomain)
+
+
+@receiver([post_save, post_delete], sender=ScanConfig)
+def on_scan_config_change(sender, instance, **kwargs):
+    """Entering, replacing or clearing a key takes effect on the next request,
+    not up to TTL seconds later. Clearing especially: a tenant that revoked its
+    key expects the scan page to stop accepting photos immediately."""
+    scan_key.forget(instance.tenant.subdomain if instance.tenant_id else '')
 
 
 def connect_signals():

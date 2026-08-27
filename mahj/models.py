@@ -477,6 +477,64 @@ class PublishTarget(TenantAwareModel):
         return f'{self.username}@{self.host}:{self.path}'
 
 
+class ScanConfig(TenantAwareModel):
+    """Per-tenant score-sheet scanning setup: the API key, and the paper sheet.
+
+    Both halves are per tenant because both used to be per *install*: the OCR key
+    was one env var (so every tenant's scans billed to the operator) and the
+    alignment template was one committed image (so only the operator's own sheet
+    could ever be read). Neither falls back — a tournament with no key, or no
+    sheet, does not scan. A guessed sheet would fail every photo silently and
+    permanently, with an error that reads as bad photography.
+
+    ``api_key_enc`` holds Fernet ciphertext (see ``mahj.secrets``), never
+    plaintext, and is never rendered back to the client — the editor is
+    write-only, and ``key_tail`` exists so support can identify a key without it.
+    ``last_error`` is stamped by the worker and shown on the admin page: it is the
+    only way an organiser learns that a key was revoked, or that photos are
+    failing to align, without standing next to the scanner.
+
+    ``template_img`` is a flat image of the tenant's blank score sheet and
+    ``bbox_*`` the score-column crop within it, in that image's pixel
+    coordinates. ``template_etag`` is the md5 of the bytes and doubles as the
+    cache key for the ORB descriptors built from it (see ``views.scan``).
+    """
+    api_key_enc   = models.BinaryField(null=True, blank=True, default=None, editable=False)
+    key_tail      = models.CharField(default="", max_length=8, blank=True)
+    last_error    = models.CharField(default="", max_length=200, blank=True)
+    last_error_at = models.DateTimeField(null=True, blank=True, default=None)
+
+    template_img   = models.BinaryField(null=True, blank=True, default=None)
+    template_etag  = models.CharField(default="", max_length=32, blank=True)
+    bbox_x1        = models.PositiveIntegerField(default=0)
+    bbox_y1        = models.PositiveIntegerField(default=0)
+    bbox_x2        = models.PositiveIntegerField(default=0)
+    bbox_y2        = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        # One row per tenant, like TournamentSettings and PublishTarget — the editor
+        # reads it with get_or_create and resolution reads it with .first().
+        constraints = [
+            models.UniqueConstraint(fields=['tenant'],
+                                    name='unique_scan_config_per_tenant'),
+        ]
+
+    def __str__(self):
+        return f'scan config for {self.tenant.subdomain}'
+
+    @property
+    def bbox(self):
+        """The crop box as _warp_crop wants it, or None if no usable one is set."""
+        if self.bbox_x2 <= self.bbox_x1 or self.bbox_y2 <= self.bbox_y1:
+            return None
+        return (self.bbox_x1, self.bbox_y1, self.bbox_x2, self.bbox_y2)
+
+    @property
+    def has_template(self):
+        """A template is only usable with a crop box: half a setup reads nothing."""
+        return bool(self.template_img) and self.bbox is not None
+
+
 class PublishedRound(TenantAwareModel):
     round_nb = models.IntegerField()
     # A published round is normally visible to everyone. ``withheld`` marks the

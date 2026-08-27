@@ -391,6 +391,64 @@ numbers need a human check.
 Tables hand in **paper** A4 score sheets. Instead of typing all 16 hands, the
 sheet can be photographed and read by OCR.
 
+### Scanning is optional
+
+You do not have to set this up. Scorers can enter every score sheet by hand, and
+that is what the app does by default. Scanning only saves typing. Nothing else in
+the app depends on it.
+
+### Setting it up first (tenant admin) ⚙️
+
+Scanning is **off until you set it up**. It needs two things: an API key and a
+picture of your score sheet. Both are under **Setup → Scanning**. Set them up
+the day before the event, not at the venue.
+
+1. **An API key.** Reading photos is a paid service, billed to your own account.
+   Create a key on your
+   [Anthropic API keys page](https://platform.claude.com/settings/keys) and paste
+   it in. One photo costs about a cent, so a 16-table, 9-round tournament is
+   roughly $2. Press **Test key**. That check is free and tells you straight away
+   whether the key works.
+   - Use a separate key for this, with a spend limit set in the Anthropic
+     console. The scan page needs no login, so anyone with the link can spend the
+     key. A separate key can be deleted after the event.
+   - A new API account starts on the lowest rate limit. A busy end of round is a
+     bad time to find that out, so test before the event.
+   - Until both the key and the sheet are set, the QR code is hidden on score
+     sheets and `/scan` asks players to enter scores by hand.
+2. **Your score sheet.** Every photo is matched against a picture of your blank
+   sheet. Upload a flat scan of the sheet your tables use, then drag a box around
+   the score columns. There is no default sheet. If the app guessed one, every
+   photo would fail to match and players would be asked to take the photo again.
+   - **What the box must contain:** all 16 hands, in three columns. Your sheet
+     can be laid out differently from the example, but the columns have to mean
+     this:
+     - **Value**: the points for the hand. If nobody won the hand, leave it
+       blank, or put a `0` in the Winner column.
+     - **Winner**: the winner's seat at the table, 1 to 4. Not a name, not a wind
+       letter, and not the player number from the draw.
+     - **Discarder**: who discarded, also as a seat 1 to 4. On a self-draw, leave
+       it blank, or repeat the winner's number. Both are read as a self-draw, so
+       use whichever your tables already use.
+     - Anything the reader cannot make out is left as an empty cell for a scorer
+       to fill in. One unreadable digit does not stop the rest of the sheet.
+   - If you do not have a sheet, the page links to an example you can print.
+   - **Leave a small margin** around the score columns. Handwriting often goes
+     outside the ruled cells, and the matching is a few pixels off, so a tight
+     box can cut the edge of a digit.
+3. **Test it.** Photograph a filled-in sheet the way a player would, then:
+   - **Test alignment** shows you the exact strip the reader sees. It is free,
+     because no sheet is read. Use it until the box is right.
+   - **Test scan** does a real read, billed to your key, about a cent. This is
+     the only check that tests everything. The strip can look correct and still
+     be read wrong if your columns do not match. Do this once before the event.
+
+   Neither of them writes to a score sheet.
+
+If scans start failing during the event, come back to this page. The last
+problem is shown at the top: a rejected key, a rate limit, or photos that do not
+match the sheet.
+
 **Getting to the scan page:**
 
 - **Easiest:** a table's **Score sheet** shows a **QR code** ("Scan to fill on
@@ -417,8 +475,9 @@ result, and a scan can never touch a table that already has data.
      table; correct it on the score sheet instead (or clear the sheet there to
      re-scan).
 2. Tap **Take photo** and shoot the **whole sheet**, flat and well-lit.
-3. The photo is aligned to the template and read by OCR (this runs on the
-   server; the page polls until it's done — usually a few seconds).
+3. The photo is matched to this tournament's score sheet and read by OCR. This
+   runs on the server, and the page waits until it is done, usually a few
+   seconds.
 4. On success you get a green result card with **Open score sheet** — tap it to
    review the filled-in hands. Scanned data is saved **but left _not_
    validated**, and low-confidence cells are tinted pink so a scorer can verify
@@ -430,6 +489,9 @@ result, and a scan can never touch a table that already has data.
 >   the pink cells, and ticks **Valid**.
 > - The page handles being offline / a lapsed session gracefully and tells you
 >   what to do (reconnect, or reload & sign in again).
+> - "Could not match this photo to the score sheet" usually means a bad photo.
+>   If *every* photo says it, check the score sheet setup instead. See the setup
+>   section above.
 
 ## 7. What scorers cannot do
 

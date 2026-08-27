@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+from collections import OrderedDict
 
 # Heavy, optional dependencies (anthropic, cv2, numpy, Pillow) are imported lazily
 # inside the functions that need them. This keeps the URLconf importable — and the
@@ -16,11 +17,19 @@ from django.db.models import F
 from django.http import Http404, JsonResponse
 from django.shortcuts import render
 
+from .. import scan_key
 from ..models import Hand, ScoreSheet, Seat
 from ..signals import broadcast_scorer_filled, broadcast_scorer_validation
-from .helpers import BASE_DIR, get_tenant, has_role, json_body
+from .helpers import BASE_DIR, get_tenant, has_role, is_tenant_admin, json_body
 from .score_entry import _parse_hand, _prune_to_played_hands
 from ..scoring import WIND_LETTERS, _attach_players
+
+
+# Shown to anyone who opens /scan for a tournament with no API key of its own.
+# Says what to do instead, and who can change it, without naming a provider or a
+# credential to an anonymous reader.
+SCAN_OFF_MESSAGE = ("Photo scanning is not switched on for this tournament. Enter the "
+                    "scores by hand, or ask the organisers to switch it on.")
 
 
 def _require_scan_enabled():
@@ -29,37 +38,114 @@ def _require_scan_enabled():
     if not getattr(settings, 'SCAN_ENABLED', True):
         raise Http404
 
-# ---- Configure these ------------------------------------------------------
-TEMPLATE_PATH      = BASE_DIR / "static" / "template.jpg"
-BBOX_SCORES        = (61, 161, 241, 991) # (x1, y1, x2, y2) in template coords
+# ---- Sheet matching --------------------------------------------------------
+# There is no built-in sheet: a tournament scans against the sheet it uploaded,
+# or it does not scan. `static/template.jpg` is still shipped, but only as an
+# example an organiser can print if they have no sheet of their own — it is
+# offered as a download, never used as a silent fallback. A wrong template fails
+# every photo with a message that blames the photographer, so "which sheet is
+# this?" must always have an answer somebody chose on purpose.
+EXAMPLE_SHEET_PATH = BASE_DIR / "static" / "template.jpg"
+# The example sheet's own crop box, offered as the canvas's starting rectangle.
+EXAMPLE_SHEET_BBOX = (61, 161, 241, 991)
 MAX_FEATURES       = 5000
 GOOD_MATCH_PERCENT = 0.15
 MIN_MATCHES        = 12
 # ---------------------------------------------------------------------------
 
-# Lazy-initialized on first request so a missing template.png doesn't crash startup.
-_orb = None
-_tpl_kp = None
-_tpl_des = None
-_tpl_h = None
-_tpl_w = None
+
+class Template:
+    """A sheet to align photos against: its ORB keypoints, size and crop box.
+
+    Building one costs an ORB pass over a full-page image, so they are cached by
+    the *content* hash of the image (see _template_for) rather than rebuilt per
+    job — and rather than kept in module globals, which is what confined the
+    whole install to one sheet.
+    """
+    __slots__ = ('etag', 'kp', 'des', 'h', 'w', 'bbox')
+
+    def __init__(self, etag, kp, des, h, w, bbox):
+        self.etag, self.kp, self.des = etag, kp, des
+        self.h, self.w, self.bbox = h, w, bbox
+
+
+# etag -> Template, most-recently-used last. Bounded because the four scan_worker
+# replicas are long-lived processes: one entry per tenant that ever scanned would
+# be a slow leak against the ~0.5 GB each is budgeted in docker-compose. Four is
+# generous for a host serving one venue at a time; the image dominates the entry,
+# not the ~160 KB of descriptors.
+_TPL_CACHE = OrderedDict()
+_TPL_CACHE_MAX = 4
+
+# Shared by every alignment; stateless with crossCheck=False.
 _matcher = None
 
 
-def _ensure_initialized():
+def _orb():
+    import cv2
+    return cv2.ORB_create(MAX_FEATURES)
+
+
+def _build_template(etag, image_bgr, bbox):
     import cv2
 
-    global _orb, _tpl_kp, _tpl_des, _tpl_h, _tpl_w, _matcher
-    if _orb is not None:
-        return
-    template = cv2.imread(str(TEMPLATE_PATH))
-    if template is None:
-        raise RuntimeError(f"Template not found at {TEMPLATE_PATH}")
-    tpl_gray = cv2.cvtColor(template, cv2.COLOR_BGR2GRAY)
-    _tpl_h, _tpl_w = tpl_gray.shape
-    _orb = cv2.ORB_create(MAX_FEATURES)
-    _tpl_kp, _tpl_des = _orb.detectAndCompute(tpl_gray, None)
-    _matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+    global _matcher
+    gray = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2GRAY)
+    h, w = gray.shape
+    kp, des = _orb().detectAndCompute(gray, None)
+    if des is None or len(kp) < MIN_MATCHES:
+        raise ValueError("that sheet image has too little detail to match against")
+    if _matcher is None:
+        _matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+    return Template(etag, kp, des, h, w, bbox)
+
+
+def _cache_template(tpl):
+    _TPL_CACHE[tpl.etag] = tpl
+    _TPL_CACHE.move_to_end(tpl.etag)
+    while len(_TPL_CACHE) > _TPL_CACHE_MAX:
+        _TPL_CACHE.popitem(last=False)
+    return tpl
+
+
+# Decoding is split out from ORB construction so each can be exercised on its own —
+# and so the cache's own logic is testable on a host without OpenCV.
+def _decode_template(raw):
+    import cv2
+    import numpy as np
+    return cv2.imdecode(np.frombuffer(raw, np.uint8), cv2.IMREAD_COLOR)
+
+
+def _template_for(etag, image_bytes, bbox):
+    """The Template for one tenant's uploaded sheet, built on first use.
+
+    Keyed by content hash, not by subdomain: two tenants handing in the same
+    federation sheet share one entry, and a tenant that re-uploads a corrected
+    sheet gets a new one. A subdomain key would need explicit invalidation on
+    every save; a content key cannot go stale.
+    """
+    tpl = _TPL_CACHE.get(etag)
+    if tpl is not None and tpl.bbox == bbox:
+        _TPL_CACHE.move_to_end(etag)
+        return tpl
+    image = _decode_template(image_bytes)
+    if image is None:
+        raise ValueError("the stored sheet image could not be decoded")
+    return _cache_template(_build_template(etag, image, bbox))
+
+
+def resolve_template(setup):
+    """The Template this tenant's photos align against, or None if it has none.
+
+    No fallback. A sheet that isn't the one the tables actually hand in fails
+    every photo, silently and permanently, with an error that reads like bad
+    photography — so a tournament with no sheet of its own does not scan at all,
+    exactly as a tournament with no API key does not scan at all. Both are things
+    an organiser must choose; neither is something the app can guess.
+    """
+    if setup is None or not setup.template:
+        return None
+    return _template_for(setup.etag, setup.template, setup.bbox)
 
 
 def _read_image(file_storage):
@@ -72,8 +158,8 @@ def _read_image(file_storage):
     return cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
 
 
-def _align_to_template(image_bgr):
-    """Return the homography mapping photo pixels to template coordinates, or None."""
+def _align_to_template(image_bgr, tpl):
+    """Return the homography mapping photo pixels to `tpl` coordinates, or None."""
     import cv2
     import numpy as np
 
@@ -82,18 +168,18 @@ def _align_to_template(image_bgr):
     work = cv2.resize(image_bgr, (int(w * scale), int(h * scale))) if scale != 1.0 else image_bgr
     gray = cv2.cvtColor(work, cv2.COLOR_BGR2GRAY)
 
-    kp, des = _orb.detectAndCompute(gray, None)
+    kp, des = _orb().detectAndCompute(gray, None)
     if des is None or len(des) < MIN_MATCHES:
         return None
 
-    matches = sorted(_matcher.match(des, _tpl_des), key=lambda m: m.distance)
+    matches = sorted(_matcher.match(des, tpl.des), key=lambda m: m.distance)
     good = matches[: max(int(len(matches) * GOOD_MATCH_PERCENT), MIN_MATCHES)]
     if len(good) < MIN_MATCHES:
         return None
 
     # Scale src points back to original-image coordinates so we warp at full res
     src = np.float32([kp[m.queryIdx].pt for m in good]).reshape(-1, 1, 2) / scale
-    dst = np.float32([_tpl_kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+    dst = np.float32([tpl.kp[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
     H, _ = cv2.findHomography(src, dst, cv2.RANSAC, 5.0)
     return H
@@ -223,8 +309,32 @@ def scan_page(request, round_nb=None, table_nb=None):
     # written anywhere: scan_prefill rejects it for having no round/table. Anonymous
     # endpoint, paid per call, no tournament behind it. The standalone build is
     # unaffected: LOCAL_TENANT pins its tenant.
-    if get_tenant(request) is None:
+    tenant = get_tenant(request)
+    if tenant is None:
         raise Http404('no tournament on this host')
+
+    # The money gate, and deliberately the FIRST thing after the tenant check: a
+    # tournament that cannot scan should not have an 8 MB body read into memory,
+    # an image staged on the shared volume, or a job queued. Everything below —
+    # the size limit, the rate limiter, the image sniff, the seating check — is
+    # about which *accepted* photos are worth paying for; this is about whether
+    # there is anyone to pay at all. One cached lookup.
+    #
+    # 503, not 404: the endpoint exists and the state is fixable. Not 403: there
+    # is nothing wrong with the caller.
+    if not scan_key.is_configured(tenant.subdomain):
+        if request.method == "POST":
+            return JsonResponse({"ok": False, "error": SCAN_OFF_MESSAGE}, status=503)
+        # A GET still renders. Someone following a QR from a printed score sheet
+        # deserves a sentence they can act on, not a blank 404.
+        return render(request, "mahj/scan.html", {
+            "round_nb": round_nb,
+            "table_nb": table_nb,
+            "can_open_sheet": has_role(request, 'scorer'),
+            "scanning_off": True,
+            "scanning_off_admin": is_tenant_admin(request),
+        })
+
     if request.method == "POST":
         # Stage the image and hand OCR off to a scan_worker via the queue, then
         # return immediately. The heavy OpenCV + LLM work never runs on a request
@@ -250,7 +360,6 @@ def scan_page(request, round_nb=None, table_nb=None):
             return JsonResponse(
                 {"ok": False, "error": "That file isn't a readable image. Take the photo again."},
                 status=400)
-        tenant = get_tenant(request)
         # Last check before the image is staged and a vision call is queued: a photo
         # of a table that isn't in the chart has nowhere to land. `/scan` with no
         # coordinates is a real route (the operator picks the table afterwards), so
@@ -375,68 +484,202 @@ logger = logging.getLogger(__name__)
 
 
 def _first_text(message):
-    """Return the first text block's text — don't assume block 0 is text."""
+    """Return the first text block's text — don't assume block 0 is text.
+
+    A response with no text block at all is a real thing, not a paranoid guard:
+    a model that spends its whole output budget before answering returns thinking
+    blocks and nothing else.
+    """
     for block in message.content:
         if getattr(block, 'type', None) == 'text':
             return block.text
     raise ValueError("OCR response contained no text block")
 
 
-def run_scan(image_bgr):
-    """Align a score-sheet photo to the template and OCR the score columns.
+# One name for the model, used by both the OCR call and the admin's "Test key"
+# button — they must never drift, or a key tests green and fails at the venue.
+OCR_MODEL = "claude-sonnet-5"
 
-    Worker-side logic with no request/response coupling: returns a result dict
-    ready to store for polling — {'status': 'done', 'scores': [...]} or
-    {'status': 'error', 'error': msg}. Runs in the scan_worker process.
+# Reading printed digits out of a crop is transcription, not reasoning, and this
+# model thinks by default — which is a real defect here, not a preference:
+#   - thinking tokens share max_tokens with the answer, so the JSON came back
+#     truncated mid-string, or the whole budget went to thinking and no text block
+#     was emitted at all. Both surfaced as "could not read the sheet", per photo,
+#     unpredictably, because adaptive thinking varies with the image.
+#   - they bill at output rates, on a bill the *tenant* pays.
+#   - they make every job slower, and four workers share one FIFO queue, so a
+#     round-end burst backs up behind them.
+# Disabled explicitly. Do not "just raise max_tokens" instead: that pays for
+# reasoning nobody asked for on every scan of the event.
+OCR_THINKING = {"type": "disabled"}
+
+# Sixteen rows of five short fields is ~800 tokens. The headroom is for a model
+# that decides to be chatty around the JSON, not for thinking (see above) — and
+# it is checked rather than trusted: see the stop_reason guard in run_scan.
+OCR_MAX_TOKENS = 4096
+
+# What an anonymous client is allowed to be told. Nothing here may name Anthropic,
+# an env var, a key, or carry raw SDK text: the scan page is public, and with
+# bring-your-own-key that text can now reference a tenant's own organisation.
+ERR_MISCONFIGURED = ("Scanning is not set up correctly for this tournament. The "
+                     "organisers need to check the API key.")
+ERR_RATE_LIMITED = "Too many scans at once. Wait a minute and take the photo again."
+ERR_UPSTREAM = "The reader is busy or unreachable. Try again in a moment."
+ERR_UNREADABLE = "Could not read the sheet. Re-take the photo."
+ERR_NO_KEY = "Photo scanning is not available right now. Enter the scores by hand."
+ERR_NO_TEMPLATE = ERR_NO_KEY
+
+# Alignment failed. Which is *usually* a bad photo — but it can equally be the wrong
+# sheet uploaded, so the old wording ("try a clearer, less tilted shot") blamed the
+# photographer for what may be a configuration mistake nobody at the venue can see.
+ERR_ALIGN = ("Could not match this photo to the score sheet. Photograph the whole "
+             "sheet, flat and in good light. If it keeps failing, ask the organisers "
+             "to check the score sheet setup.")
+
+
+def align_and_crop(image_bgr, tpl):
+    """Align a photo to `tpl` and return the base64 JPEG of its score columns.
+
+    Returns (b64, None) or (None, error_dict). Shared by the OCR path and the
+    admin's alignment preview, so what an organiser checks before the event is
+    the same computation the venue's scans run through.
     """
-    _ensure_initialized()
-    H = _align_to_template(image_bgr)
+    H = _align_to_template(image_bgr, tpl)
     if H is None:
-        return {'status': 'error',
-                'error': 'Could not align with template. Try a clearer, less tilted shot.'}
-
-    scores_crop = _warp_crop(image_bgr, H, BBOX_SCORES)
-    scores_b64 = _encode_jpeg(scores_crop)
+        return None, {'status': 'error', 'kind': 'align', 'error': ERR_ALIGN}
+    crop = _warp_crop(image_bgr, H, tpl.bbox)
+    b64 = _encode_jpeg(crop)
+    if b64 is None:
+        return None, {'status': 'error', 'kind': 'crop', 'error': ERR_UNREADABLE}
 
     # Only dump crops for offline inspection in DEBUG — never in production.
     if settings.DEBUG:
         import cv2
         debug_dir = BASE_DIR / "captures" / "debug_crops"
         os.makedirs(debug_dir, exist_ok=True)
-        cv2.imwrite(str(debug_dir / "aligned.jpg"), cv2.warpPerspective(image_bgr, H, (_tpl_w, _tpl_h)))
-        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), scores_crop)
+        cv2.imwrite(str(debug_dir / "aligned.jpg"),
+                    cv2.warpPerspective(image_bgr, H, (tpl.w, tpl.h)))
+        cv2.imwrite(str(debug_dir / "crop_scores.jpg"), crop)
+    return b64, None
 
-    api_key = os.environ.get('ANTHROPIC_API_KEY', '')
+
+def _ocr_error(exc):
+    """Map an SDK exception to what the client is told, and what we do about it.
+
+    Returns (result_dict, forget_the_key). The client never sees the exception:
+    `str(e)` used to go straight back through scan_status to an anonymous poller.
+    """
+    import anthropic
+
+    if isinstance(exc, (anthropic.AuthenticationError, anthropic.PermissionDeniedError)):
+        return {'status': 'error', 'kind': 'auth', 'error': ERR_MISCONFIGURED}, True
+    if isinstance(exc, anthropic.RateLimitError):
+        # Named cause, because this is the likeliest support ticket the whole
+        # feature generates: a brand-new Anthropic org starts on the lowest rate
+        # tier, and the first round-end burst 429s. The fix is on their account.
+        return {'status': 'error', 'kind': 'rate', 'error': ERR_RATE_LIMITED}, False
+    if isinstance(exc, anthropic.NotFoundError):
+        logger.error("OCR model %r was not found for this key", OCR_MODEL)
+        return {'status': 'error', 'kind': 'model',
+                'error': "Scanning is not set up correctly for this tournament."}, False
+    if isinstance(exc, (anthropic.APIConnectionError, anthropic.APITimeoutError)):
+        return {'status': 'error', 'kind': 'upstream', 'error': ERR_UPSTREAM}, False
+    if isinstance(exc, anthropic.APIStatusError) and getattr(exc, 'status_code', 0) >= 500:
+        return {'status': 'error', 'kind': 'upstream', 'error': ERR_UPSTREAM}, False
+    return {'status': 'error', 'kind': 'unknown', 'error': ERR_UNREADABLE}, False
+
+
+def run_scan(image_bgr, api_key, template):
+    """Align a score-sheet photo to its template and OCR the score columns.
+
+    Worker-side logic with no request/response coupling: no DB, no tenant object,
+    no environment — the caller resolves the tenant's key and sheet and passes
+    them in. Returns a result dict ready to store for polling:
+    {'status': 'done', 'scores': [...]} or {'status': 'error', 'error': msg}.
+
+    `api_key` and `template` are both required, and neither has a fallback: a
+    tournament scans with its own key against its own sheet, or it does not scan.
+    There is no fallback to ANTHROPIC_API_KEY, and adding
+    one back — or constructing anthropic.Anthropic() without api_key=, which
+    silently picks up the ambient credential — would restore the exact defect
+    this whole feature exists to remove: every tenant's scans on the host's bill.
+    """
     if not api_key:
-        return {'status': 'error', 'error': 'ANTHROPIC_API_KEY not configured'}
+        return {'status': 'error', 'kind': 'nokey', 'error': ERR_NO_KEY}
+    if template is None:
+        # The enqueue/dequeue race, same as a cleared key: the request path
+        # already refuses a tournament with no sheet.
+        return {'status': 'error', 'kind': 'notemplate', 'error': ERR_NO_TEMPLATE}
+
+    scores_b64, err = align_and_crop(image_bgr, template)
+    if err is not None:
+        return err
 
     try:
         import anthropic
         # Bounded timeout so one slow API call can't pin the single-job worker.
         client = anthropic.Anthropic(api_key=api_key, timeout=30.0, max_retries=1)
         message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2048,
+            model=OCR_MODEL,
+            max_tokens=OCR_MAX_TOKENS,
+            thinking=OCR_THINKING,
             messages=[{
                 "role": "user",
                 "content": [
                     {"type": "text", "text": "Image: the score columns (Value, Winner, Discarder for hands 1-16)."},
                     {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": scores_b64}},
+                    # No cache_control breakpoint here, deliberately: the prompt is
+                    # ~460 tokens, under the ~1024-token minimum cacheable prefix, so
+                    # a breakpoint is silently ignored — nothing is written to cache
+                    # and there is nothing to bill at the 1.25x write rate either.
+                    # It would buy zero, not a discount.
                     {"type": "text", "text": OCR_PROMPT},
                 ],
             }],
             output_config={"format": {"type": "json_schema", "schema": OCR_SCHEMA}},
         )
+        # Check this *before* parsing. A truncated answer is not malformed JSON in
+        # any interesting sense — it is a budget problem with a completely
+        # different fix, and letting it fall through to the JSONDecodeError branch
+        # told the operator to re-take a photo that was never the problem.
+        if getattr(message, 'stop_reason', None) == 'max_tokens':
+            logger.error("OCR hit max_tokens (%d) — the answer was truncated",
+                         OCR_MAX_TOKENS)
+            return {'status': 'error', 'kind': 'truncated', 'error': ERR_UNREADABLE}
         raw = _first_text(message)
         data = json.loads(raw)
     except json.JSONDecodeError:
         logger.exception("Claude returned non-JSON")
-        return {'status': 'error', 'error': 'OCR returned invalid data. Re-take the photo.'}
+        return {'status': 'error', 'kind': 'json',
+                'error': 'OCR returned invalid data. Re-take the photo.'}
     except Exception as e:
         logger.exception("Claude API call failed")
-        return {'status': 'error', 'error': str(e)}
+        try:
+            result, _ = _ocr_error(e)
+        except ImportError:
+            result = {'status': 'error', 'kind': 'unknown', 'error': ERR_UNREADABLE}
+        return result
 
     return {'status': 'done', 'scores': data.get("Scores", [])}
+
+
+def run_preview(image_bgr, template):
+    """Align a photo and hand back the crop, without buying an OCR call.
+
+    This is what the Scanning admin page's "Test alignment" button runs. It goes
+    through the queue like a real scan — same staging, same worker, same
+    align_and_crop — precisely so that a green preview means the venue's scans
+    will align too. It must never reach the API: that is asserted in the tests,
+    because "the free button quietly became a billed one" is the regression this
+    design invites.
+    """
+    if template is None:
+        return {'status': 'error', 'kind': 'notemplate',
+                'error': 'Upload a picture of your blank score sheet first.'}
+    b64, err = align_and_crop(image_bgr, template)
+    if err is not None:
+        return err
+    return {'status': 'done', 'preview': f'data:image/jpeg;base64,{b64}'}
 
 
 def scan_seats(request):

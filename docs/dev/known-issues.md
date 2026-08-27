@@ -73,7 +73,44 @@ trade, and what would have to change to revisit it.
   corrupt standings during it. Cosmetic, guarded, and touching team identity
   for it risks more than it fixes.
 
+- **The anonymous scan page spends the tenant's own money, with a rate limit
+  that fails open.** `/scan` needs no login by design — players photograph their
+  own table — and `_upload_allowed` returns True when the cache is unusable, so
+  a Redis blip removes the 6-per-minute-per-device brake. Since scanning became
+  bring-your-own-key that spend lands on the tournament, not the operator. Kept
+  because failing *closed* would stop scanning at the venue for a reason that
+  has nothing to do with the venue, which is the worse failure at the moment it
+  matters. Bring-your-own-key moves the abuse ceiling; it does not remove it.
+  To revisit: a DB-backed monthly cap on `ScanConfig`, which is a real ceiling
+  precisely because it does not depend on the cache.
+
+- **One FIFO scan queue across every tenant, drained by four workers.** A tenant
+  whose API key is rate-limited holds a worker for up to ~60s per job, and those
+  jobs sit in the same list as everyone else's, so one tournament's account
+  problem can delay another's scans. Harmless when every tenant shared one
+  high-tier host key; a real coupling now that keys are per tenant. Kept because
+  the fix (per-tenant queues, `scan:queue:{subdomain}`, round-robin workers) is
+  real work for a failure mode nobody has hit yet. Do **not** "fix" it by raising
+  `max_retries` — that makes the blocking worse, and the retried call is still
+  billed.
+
 ## Invariants worth preserving (verified correct — do not "fix")
+
+- **Scanning has exactly one predicate, and it is `resolve_key`.**
+  `scan_key.is_configured` is literally `bool(resolve_key(...))` with a cached
+  boolean. It is deliberately *not* an `EXISTS` query, even though that would be
+  cheaper: a row whose ciphertext no longer decrypts exists but cannot scan, and
+  the two answers diverging means a photo accepted, a spinner shown, and a
+  failure after the money was spent.
+- **Neither half of the scanning setup falls back.** No key, no scanning — an
+  ambient key spends somebody else's money, and any `anthropic.Anthropic()`
+  without an explicit `api_key=` silently reintroduces exactly that (the SDK
+  finds the host's credential), which is why a test parses the source for it.
+  No sheet, no scanning either, for a different reason: a sheet nobody chose
+  fails *every* photo, permanently, with an error that reads as bad photography
+  — the worst kind of failure, because nothing logs and nobody at the venue can
+  tell configuration from lighting. `static/template.jpg` is still shipped, but
+  as an example organisers can print and upload, never as a silent default.
 
 - **Penalty is display-only for ranking.** Standings rank on raw minipoints and
   never add `penalty`; the entered minipoints is already the after-penalty score.

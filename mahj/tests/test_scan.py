@@ -33,6 +33,24 @@ def scorer(tournament):
 
 
 @pytest.fixture
+def scannable(tournament):
+    """A tournament that is allowed to scan: it has a key *and* a sheet.
+
+    Deliberately a *separate* fixture from `tournament` rather than folded into
+    it: "this tournament is set up to scan" is a real precondition, and every
+    test that needs it should say so. The tests that leave it out are the ones
+    proving an unconfigured tournament cannot spend anything.
+    """
+    from mahj import scan_key as sk
+    from mahj.models import ScanConfig
+    return ScanConfig.objects.create(
+        tenant=tournament['tenant'],
+        api_key_enc=sk.encrypt('sk-ant-test-key-9fA2'), key_tail='9fA2',
+        template_img=b'a stand-in for the sheet image', template_etag='sheet-etag',
+        bbox_x1=1, bbox_y1=2, bbox_x2=30, bbox_y2=40)
+
+
+@pytest.fixture
 def finished_job(monkeypatch):
     """Stage an OCR job result the way a real scan leaves one.
 
@@ -137,7 +155,7 @@ class TestScanNeedsATenant:
         assert watched_queue['staged'] == [], 'no image may be staged'
         assert watched_queue['enqueued'] == [], 'and no OCR call may be bought'
 
-    def test_a_real_tenant_still_scans(self, tournament, watched_queue):
+    def test_a_real_tenant_still_scans(self, tournament, scannable, watched_queue):
         """No regression on the path that matters."""
         resp = self._post('test.example.com', '/scan_3_1')
         assert resp.status_code == 200
@@ -430,7 +448,7 @@ class TestScanConfidence:
 
 
 class TestScanPrefillPage:
-    def test_prefill_route_renders_with_values(self, client_, tournament, scorer):
+    def test_prefill_route_renders_with_values(self, client_, tournament, scannable, scorer):
         client_.force_login(scorer)
         resp = client_.get('/scan_2_3')
         assert resp.status_code == 200
@@ -441,7 +459,7 @@ class TestScanPrefillPage:
         # A scorer can open the score sheet inline.
         assert "canOpenSheet = true" in html
 
-    def test_anonymous_page_cannot_open_sheet(self, client_, tournament):
+    def test_anonymous_page_cannot_open_sheet(self, client_, tournament, scannable):
         html = client_.get('/scan').content.decode()
         # Not signed in as a scorer → pointed to the admin console instead.
         assert "canOpenSheet = false" in html
@@ -466,7 +484,7 @@ class TestScanEnqueue:
     """POST /scan stages the image + enqueues a job and returns instantly;
     the heavy OCR runs in the scan_worker, not on the request worker."""
 
-    def test_scan_enqueues_and_returns_job_id(self, client_, tournament, scorer, monkeypatch):
+    def test_scan_enqueues_and_returns_job_id(self, client_, tournament, scannable, scorer, monkeypatch):
         client_.force_login(scorer)
         captured = {}
 
@@ -491,14 +509,14 @@ class TestScanEnqueue:
         assert captured['job']['job_id'] == 'job-abc'
         assert captured['job']['round_nb'] == 2 and captured['job']['table_nb'] == 3
 
-    def test_scan_without_image_is_400(self, client_, tournament, scorer):
+    def test_scan_without_image_is_400(self, client_, tournament, scannable, scorer):
         client_.force_login(scorer)
         resp = client_.post('/scan', {})
         assert resp.status_code == 400
         assert resp.json()['ok'] is False
 
-    def test_scan_of_an_unseated_table_is_404(self, client_, tournament, scorer,
-                                              monkeypatch):
+    def test_scan_of_an_unseated_table_is_404(self, client_, tournament, scannable,
+                                              scorer, monkeypatch):
         """A hand-typed /scan_99_99 must not stage the photo: the fixture's chart
         stops at round 3 table 4, so those coordinates are nobody's table, and OCR
         on them costs a vision call for a result that can never be written."""
@@ -575,12 +593,27 @@ class TestScanStatus:
 
 
 class TestScoreSheetQr:
-    def test_score_sheet_renders_qr(self, client_, tournament, scorer):
+    """The QR is the main way anyone reaches the scan page, so it must appear
+    exactly when this tournament can actually scan — and vanish when it can't,
+    rather than printing a link to a page that says "not switched on"."""
+
+    # The page is full of other SVGs (icons), so `'<svg' in html` passes whether
+    # or not the QR rendered. Assert on the QR's own caption instead.
+    QR_MARKER = 'Scan to fill'
+
+    def test_score_sheet_renders_qr(self, client_, tournament, scannable, scorer):
         client_.force_login(scorer)
         resp = client_.get('/scores_per_hand_1_1')
         assert resp.status_code == 200
         html = resp.content.decode()
+        assert self.QR_MARKER in html
         assert '<svg' in html  # QR code rendered inline
+
+    def test_no_qr_without_a_key(self, client_, tournament, scorer):
+        """No key, no scanning — so no QR on the printed sheet."""
+        client_.force_login(scorer)
+        html = client_.get('/scores_per_hand_1_1').content.decode()
+        assert self.QR_MARKER not in html
 
 
 class TestUploadMetering:
@@ -605,14 +638,14 @@ class TestUploadMetering:
         return calls
 
     def test_an_oversized_photo_is_refused_before_staging(self, client_, tournament,
-                                                          staged):
+                                                          scannable, staged):
         from mahj.views.scan import MAX_UPLOAD_BYTES
         resp = self._upload(client_, content=b'x' * (MAX_UPLOAD_BYTES + 1))
         assert resp.status_code == 413
         assert staged['staged'] == [], 'an oversized upload must not be staged'
         assert staged['enqueued'] == [], 'and must not buy an OCR call'
 
-    def test_a_normal_photo_is_staged_with_its_table(self, client_, tournament, staged):
+    def test_a_normal_photo_is_staged_with_its_table(self, client_, tournament, scannable, staged):
         resp = self._upload(client_)
         assert resp.status_code == 200
         assert resp.json()['job_id'] == 'jid'
@@ -622,7 +655,7 @@ class TestUploadMetering:
         assert job['round_nb'] == 3 and job['table_nb'] == 1
         assert job['subdomain'] == 'test'
 
-    def test_a_non_image_is_refused(self, client_, tournament, staged, monkeypatch):
+    def test_a_non_image_is_refused(self, client_, tournament, scannable, staged, monkeypatch):
         monkeypatch.setattr('mahj.views.scan._looks_like_an_image', lambda raw: False)
         resp = self._upload(client_, content=b'this is not a photo')
         assert resp.status_code == 400
@@ -646,7 +679,7 @@ class TestUploadMetering:
         finally:
             builtins.__import__ = real_import
 
-    def test_a_burst_from_one_device_is_throttled(self, client_, tournament, staged,
+    def test_a_burst_from_one_device_is_throttled(self, client_, tournament, scannable, staged,
                                                   settings):
         """One phone (or one script) must not be able to run up the OCR bill."""
         from mahj.views.scan import UPLOAD_MAX_PER_WINDOW
@@ -660,7 +693,7 @@ class TestUploadMetering:
         assert codes[:UPLOAD_MAX_PER_WINDOW] == [200] * UPLOAD_MAX_PER_WINDOW
         assert codes[UPLOAD_MAX_PER_WINDOW:] == [429, 429]
 
-    def test_throttling_fails_open_without_a_usable_cache(self, client_, tournament,
+    def test_throttling_fails_open_without_a_usable_cache(self, client_, tournament, scannable,
                                                           staged):
         """The suite's DummyCache can't count. Scanning at the venue must not stop
         because the cache backend won't support it."""

@@ -115,6 +115,61 @@
     </ul>
   </div>
 
+  {% comment %}
+    Optional features. Separate from the checklist above on purpose: a tournament
+    runs perfectly well with neither of these, so listing them as unticked steps
+    would read as work still to do. They are here because the opposite problem is
+    real too: an organiser who set one up weeks ago has no other place to see
+    whether it is still configured.
+  {% endcomment %}
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5" data-testid="optional-features">
+    <h3 class="text-sm font-bold text-gray-800">Optional</h3>
+    <p class="text-xs text-gray-500 mt-1 mb-4">
+      The tournament runs without these. Set them up only if you want them.
+    </p>
+    <ul class="space-y-3 text-sm">
+      <li class="flex items-center gap-3">
+        {% if publish_configured %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700" data-testid="publish-configured">
+            <a href="admin?page=publish_target" class="text-sky-700 hover:underline font-medium">Publish target</a>
+            set up. Results are uploaded to your web host on each publish.
+          </span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500" data-testid="publish-not-configured">
+            <a href="admin?page=publish_target" class="text-sky-700 hover:underline font-medium">Publish target</a>
+            not set up. Results stay on this server.
+          </span>
+        {% endif %}
+      </li>
+      {% if scan_enabled %}
+      <li class="flex items-center gap-3">
+        {% if scan_configured %}
+          <span class="w-6 h-6 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">✓</span>
+          <span class="text-gray-700" data-testid="scanning-configured">
+            <a href="admin?page=scanning" class="text-sky-700 hover:underline font-medium">Sheet scanning</a>
+            set up. Players can photograph a score sheet instead of a scorer typing it.
+          </span>
+        {% elif scan_has_key or scan_has_sheet %}
+          <span class="w-6 h-6 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center shrink-0 font-bold">!</span>
+          <span class="text-amber-800" data-testid="scanning-partial">
+            <a href="admin?page=scanning" class="text-sky-700 hover:underline font-medium">Sheet scanning</a>
+            not set up.
+            {% if scan_has_key %}The score sheet is missing.{% else %}The API key is missing.{% endif %}
+          </span>
+        {% else %}
+          <span class="w-6 h-6 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center shrink-0">○</span>
+          <span class="text-gray-500" data-testid="scanning-not-configured">
+            <a href="admin?page=scanning" class="text-sky-700 hover:underline font-medium">Sheet scanning</a>
+            not set up. Scorers enter score sheets by hand.
+          </span>
+        {% endif %}
+      </li>
+      {% endif %}
+    </ul>
+  </div>
+
   {% if setup_complete %}
   <div class="rounded-xl border border-green-200 bg-green-50 shadow-sm p-5 flex items-center justify-between gap-4" data-testid="setup-complete">
     <div class="text-sm text-gray-700"><span class="font-bold text-green-700">Everything's ready.</span> Scoring, publishing and the screens are in <span class="font-medium">Run</span>.</div>

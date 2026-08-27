@@ -769,7 +769,8 @@ class TestAdminPageTable:
                   'ceremony': 'page', 'publisher_overview': 'page',
                   'setup': 'page', 'print_materials': 'page',
                   'card_design': 'page',
-                  'users': 'reauth', 'backup': 'reauth', 'tenants': 'empty'},
+                  'users': 'reauth', 'backup': 'reauth', 'scanning': 'reauth',
+                  'tenants': 'empty'},
         'superuser': {'welcome': 'page', 'display': 'page', 'settings': 'page',
                       'player_editor': 'page', 'publish_target': 'page',
                       'import_template': 'page', 'seating': 'page',
@@ -777,7 +778,8 @@ class TestAdminPageTable:
                       'publisher_overview': 'page', 'users': 'reauth',
                       'setup': 'page', 'print_materials': 'page',
                       'card_design': 'page',
-                      'backup': 'reauth', 'tenants': 'reauth'},
+                      'backup': 'reauth', 'scanning': 'reauth',
+                      'tenants': 'reauth'},
     }
 
     def _account(self, role, tenant):

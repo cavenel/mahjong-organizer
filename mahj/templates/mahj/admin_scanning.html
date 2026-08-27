@@ -1,0 +1,518 @@
+{% load static %}
+<div class="max-w-3xl space-y-6">
+  <div>
+    <h2 class="text-2xl font-bold text-gray-800">Scanning</h2>
+    <p class="text-sm text-gray-500 mt-1">
+      Photo scanning reads a paper score sheet into the app. You need to set up two
+      things: an API key to pay for the reading, and a picture of your score sheet.
+      Scanning stays off until both are set.
+    </p>
+  </div>
+
+  <div class="rounded-xl border-2 border-sky-300 bg-sky-50 p-4 flex items-start gap-3">
+    <svg class="w-6 h-6 shrink-0 text-sky-600 mt-0.5" fill="none" stroke="currentColor"
+         stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9"/><path d="M12 16v-5M12 8h.01"/>
+    </svg>
+    <div>
+      <p class="text-sm font-bold text-sky-900">Scanning is optional.</p>
+      <p class="text-sm text-sky-900 mt-1">
+        You do not have to set this up. Scorers can enter every score sheet by hand,
+        which is what the app does by default. Scanning only saves typing: a player
+        photographs the paper sheet, and a scorer checks the result. Nothing else in
+        the app depends on it.
+      </p>
+    </div>
+  </div>
+
+  {% if last_error %}
+  <div class="rounded-xl border border-amber-300 bg-amber-50 p-4">
+    <p class="text-sm font-semibold text-amber-900">Last scanning problem</p>
+    <p class="text-sm text-amber-900 mt-1">{{ last_error }}</p>
+    {% if last_error_at %}<p class="text-xs text-amber-700 mt-1">{{ last_error_at }}</p>{% endif %}
+  </div>
+  {% endif %}
+
+  <!-- 1. The key ------------------------------------------------------------>
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700">API key</h3>
+      <p class="text-xs text-gray-500 mt-1">
+        Scanning uses the Anthropic API. It is billed to your own account. Reading one
+        photo costs about a cent. A 16-table, 9-round tournament is roughly 150 photos.
+        Create a key on your
+        <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noopener"
+           class="text-amber-600 underline hover:no-underline">Anthropic API keys page</a>.
+      </p>
+    </div>
+
+    <div class="rounded-lg bg-amber-50 border border-amber-200 p-3">
+      <p class="text-xs text-amber-900 font-semibold mb-1">Before you paste a key</p>
+      <ul class="text-xs text-amber-900 space-y-1 list-disc list-inside">
+        <li>Anyone with the link to the scan page can spend this key. The app allows
+            6 photos a minute per device. That slows a burst down, it does not cap
+            the total.</li>
+        <li>Use a separate key for this, and set a spend limit on it in the Anthropic
+            console. You can then delete the key after the event.</li>
+      </ul>
+    </div>
+
+    <div>
+      <label for="sc-key" class="block text-xs font-medium text-gray-600 mb-1">API key</label>
+      <input id="sc-key" type="password" autocomplete="off" placeholder="sk-ant-…"
+             class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
+      {% if has_key %}
+        {% if key_readable %}
+        <p class="text-xs text-gray-500 mt-1">
+          A key is saved. It ends <code class="text-xs">…{{ key_tail }}</code>.
+          Leave this field blank to keep it.
+        </p>
+        {% else %}
+        <p class="text-xs text-red-600 mt-1">
+          The saved key can no longer be read, because the server's secret key was
+          changed. Enter the key again.
+        </p>
+        {% endif %}
+      {% else %}
+        <p class="text-xs text-gray-500 mt-1">
+          No key yet, so scanning is off. The QR code is hidden on score sheets, and
+          the scan page asks players to enter scores by hand.
+        </p>
+      {% endif %}
+    </div>
+
+    {% if has_key %}
+    <label class="inline-flex items-center gap-2 cursor-pointer">
+      <input id="sc-clear-key" type="checkbox" class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
+      <span class="text-xs text-gray-600">Remove the saved key. This turns scanning off.</span>
+    </label>
+    {% endif %}
+
+    <div class="flex items-center gap-3">
+      <button id="sc-save-key" type="button"
+              class="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700">Save key</button>
+      <button id="sc-test-key" type="button"
+              class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Test key</button>
+      <span id="sc-key-status" class="text-sm"></span>
+    </div>
+    <p class="text-xs text-gray-400">Testing a key is free. It checks that the key works, without reading a sheet.</p>
+  </div>
+
+  <!-- 2. The sheet ---------------------------------------------------------->
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700">Score sheet</h3>
+      <p class="text-xs text-gray-500 mt-1">
+        Every photo is matched against a picture of your blank score sheet. Upload the
+        sheet your tables use.
+        {% if not has_template %}
+          <strong>No sheet uploaded yet, so scanning is off.</strong> There is no
+          default sheet. If the app guessed one, every photo would fail to match, and
+          players would be asked to take the photo again.
+        {% endif %}
+      </p>
+      <p class="text-xs text-gray-400 mt-1">
+        If you do not have a sheet, print
+        <a href="{% static 'template.jpg' %}" class="underline hover:no-underline">this
+        example</a> and upload a flat scan of it.
+      </p>
+    </div>
+
+    {% comment %}
+      What the reader expects to find inside the box. This is the part that can't
+      be discovered by trying: the crop can be perfect and the read still nonsense,
+      because the columns are interpreted by meaning, not by position on paper.
+    {% endcomment %}
+    <div class="rounded-lg bg-gray-50 border border-gray-200 p-3">
+      <p class="text-xs font-semibold text-gray-700 mb-2">
+        What the box has to contain
+      </p>
+      <p class="text-xs text-gray-600 mb-2">
+        <strong>All 16 hands</strong>, in three columns. Your sheet can be laid out
+        differently from the example, but the columns have to mean this:
+      </p>
+      <dl class="text-xs text-gray-600 space-y-1.5">
+        <div class="flex gap-2">
+          <dt class="font-semibold text-gray-700 w-20 shrink-0">Value</dt>
+          <dd>The points for the hand. If nobody won the hand, leave it blank, or
+              put a <strong>0</strong> in the Winner column.</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold text-gray-700 w-20 shrink-0">Winner</dt>
+          <dd>The winner's <strong>seat at the table, 1 to 4</strong>. Not a name,
+              not a wind letter, and not the player number from the draw.</dd>
+        </div>
+        <div class="flex gap-2">
+          <dt class="font-semibold text-gray-700 w-20 shrink-0">Discarder</dt>
+          <dd>Who discarded, also as a <strong>seat 1 to 4</strong>. On a self-draw,
+              leave it <strong>blank</strong>, or repeat the winner's number. Both are
+              read as a self-draw, so use whichever your tables already use.</dd>
+        </div>
+      </dl>
+      <p class="text-xs text-gray-500 mt-2">
+        Anything the reader cannot make out is left as an empty cell for a scorer to
+        fill in. One unreadable digit does not stop the rest of the sheet.
+      </p>
+    </div>
+
+    <div>
+      <label for="sc-template" class="block text-xs font-medium text-gray-600 mb-1">
+        Picture of a blank sheet
+      </label>
+      <input id="sc-template" type="file" accept="image/*"
+             class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+      <p class="text-xs text-gray-400 mt-1">A flat scan or a straight-on photo of an <em>empty</em> sheet. Up to 4 MB.</p>
+    </div>
+
+    <div id="sc-canvas-wrap" class="{% if not has_template %}hidden{% endif %}">
+      <p class="text-xs font-medium text-gray-600 mb-1">
+        Drag a box around the <strong>score columns</strong> (Value, Winner, Discarder
+        for all 16 hands). Only that part of the sheet is read. Leave a
+        <strong>small margin</strong> around the columns. Handwriting often goes
+        outside the ruled cells, and the matching is a few pixels off, so a tight box
+        can cut the edge of a digit.
+      </p>
+      <div class="relative inline-block border border-gray-200 rounded-lg overflow-hidden">
+        <canvas id="sc-canvas" class="max-w-full block cursor-crosshair"></canvas>
+      </div>
+      <p class="text-xs text-gray-500 mt-1">Box: <span id="sc-bbox-text" class="font-mono">-</span></p>
+    </div>
+
+    {% if has_template %}
+    <label class="inline-flex items-center gap-2 cursor-pointer">
+      <input id="sc-clear-template" type="checkbox" class="w-4 h-4 rounded border-gray-300 text-amber-500 focus:ring-amber-300">
+      <span class="text-xs text-gray-600">Remove the stored sheet (turns scanning off)</span>
+    </label>
+    {% endif %}
+
+    <div class="flex items-center gap-3">
+      <button id="sc-save-template" type="button"
+              class="px-4 py-2 text-sm font-semibold text-white bg-amber-600 rounded-lg hover:bg-amber-700">Save sheet</button>
+      <span id="sc-template-status" class="text-sm"></span>
+    </div>
+  </div>
+
+  <!-- 3. Proving it works --------------------------------------------------->
+  <div class="rounded-xl border border-gray-200 bg-white shadow-sm p-5 space-y-4">
+    <div>
+      <h3 class="text-sm font-semibold text-gray-700">Rehearse a scan</h3>
+      <p class="text-xs text-gray-500 mt-1">
+        Upload your sheet above first. Then photograph a <em>filled-in</em> sheet the
+        way a player would. Nothing here writes to a score sheet.
+      </p>
+      <ul class="text-xs text-gray-500 mt-2 space-y-1 list-disc list-inside">
+        <li><strong>Test alignment</strong> shows you the exact strip the reader
+            sees. It is free, because no sheet is read. Use it until the box is
+            right.</li>
+        <li><strong>Test scan</strong> does a real read, billed to your key, about a
+            cent. This is the only check that tests everything. The strip can look
+            correct and still be read wrong if your columns do not match. Do this
+            once before the event.</li>
+      </ul>
+    </div>
+    <input id="sc-photo" type="file" accept="image/*"
+           class="block w-full text-sm text-gray-600 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200">
+    <div class="flex items-center gap-3 flex-wrap">
+      <button id="sc-run-preview" type="button"
+              class="px-4 py-2 text-sm font-semibold text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">Test alignment</button>
+      <button id="sc-run-scan" type="button"
+              class="px-4 py-2 text-sm font-semibold text-white bg-gray-700 rounded-lg hover:bg-gray-800 disabled:opacity-40"
+              {% if not has_key %}disabled title="Save an API key first"{% endif %}>Test scan</button>
+      <span id="sc-preview-status" class="text-sm"></span>
+    </div>
+    <div id="sc-preview-wrap" class="hidden">
+      <p class="text-xs text-gray-500 mb-1">What the reader sees:</p>
+      <img id="sc-preview" alt="Aligned score columns" class="max-h-96 border border-gray-200 rounded-lg bg-white">
+    </div>
+    <div id="sc-scores-wrap" class="hidden">
+      <p class="text-xs text-gray-500 mb-1">
+        What it read. Check these against the sheet in your hand:
+      </p>
+      <div class="overflow-x-auto">
+        <table class="text-sm border border-gray-200 rounded-lg">
+          <thead class="bg-gray-50 text-xs text-gray-600">
+            <tr><th class="px-3 py-1 text-left">Hand</th><th class="px-3 py-1 text-left">Value</th>
+                <th class="px-3 py-1 text-left">Winner</th><th class="px-3 py-1 text-left">Discarder</th>
+                <th class="px-3 py-1 text-left">Confidence</th></tr>
+          </thead>
+          <tbody id="sc-scores"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // The crop box lives in the sheet image's own pixel coordinates — the same space
+  // the aligner warps photos into — while the canvas may be displayed smaller, so
+  // every drag is scaled back up before it is sent or shown.
+  var SC_BBOX = {{ bbox|safe|default:"[]" }};
+  var SC_EXAMPLE_BBOX = {{ example_bbox|safe }};
+  var scImage = null, scScale = 1, scDragging = false, scStart = null;
+
+  // The password re-confirmation lasts 10 minutes, and setting scanning up takes
+  // longer than that: upload a sheet, drag a box, test the alignment, fetch a key
+  // from another tab. Losing all of it to a 403 on Save is the wrong answer, so a
+  // lapsed confirmation re-prompts in place and then retries the very same
+  // request. Only the key endpoints can hit this — the sheet ones are not
+  // reauth-gated, precisely so a slow, careful setup can't be thrown away.
+  function scAjax(opts, sel) {
+    return $.ajax(opts).catch(function (xhr) {
+      if (!(xhr && xhr.status === 403 &&
+            xhr.responseJSON && xhr.responseJSON.status === 'reauth_required')) {
+        throw xhr;
+      }
+      return new Promise(function (resolve, reject) {
+        window.confirmAction({
+          title: 'Confirm your password',
+          body: "It's been a while since you signed in. Confirm your password to "
+                + 'save this. Nothing you have entered is lost.',
+          prompt: 'Password', secret: true, danger: false, confirmLabel: 'Confirm',
+          onConfirm: function (password) {
+            $.ajax({
+              type: 'POST', url: '/user_reauth', contentType: 'application/json',
+              headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+              data: JSON.stringify({ password: password })
+            }).then(function () {
+              // Same request, second attempt — this is the whole point.
+              $.ajax(opts).then(resolve, reject);
+            }, function (xhr2) {
+              var msg = (xhr2 && xhr2.responseJSON && xhr2.responseJSON.error)
+                        || 'That password was not accepted.';
+              scStatus(sel, msg, false);
+              reject(xhr2);
+            });
+          },
+          onCancel: function () {
+            scStatus(sel, 'Not saved. Your password confirmation had expired.', false);
+            reject({ handled: true });
+          }
+        });
+      });
+    });
+  }
+
+  function scStatus(sel, msg, ok) {
+    $(sel).text(msg).attr('class', 'text-sm ' + (ok ? 'text-emerald-600' : 'text-red-600'));
+  }
+
+  function scDrawCanvas() {
+    var canvas = document.getElementById('sc-canvas');
+    if (!canvas || !scImage) return;
+    var maxW = 640;
+    scScale = Math.min(1, maxW / scImage.naturalWidth);
+    canvas.width = Math.round(scImage.naturalWidth * scScale);
+    canvas.height = Math.round(scImage.naturalHeight * scScale);
+    var ctx = canvas.getContext('2d');
+    ctx.drawImage(scImage, 0, 0, canvas.width, canvas.height);
+    if (SC_BBOX.length === 4) {
+      ctx.strokeStyle = '#d97706';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(SC_BBOX[0] * scScale, SC_BBOX[1] * scScale,
+                     (SC_BBOX[2] - SC_BBOX[0]) * scScale, (SC_BBOX[3] - SC_BBOX[1]) * scScale);
+      $("#sc-bbox-text").text(SC_BBOX.join(', '));
+    } else {
+      $("#sc-bbox-text").text('-');
+    }
+  }
+
+  function scLoadImage(src) {
+    scImage = new Image();
+    scImage.onload = function() {
+      $("#sc-canvas-wrap").removeClass('hidden');
+      if (SC_BBOX.length !== 4) {
+        // Start from the example sheet's box, scaled to this image: a sheet that
+        // is merely a rescaled variant then needs almost no adjustment.
+        var f = scImage.naturalWidth / 843;
+        SC_BBOX = SC_EXAMPLE_BBOX.map(function(v) { return Math.round(v * f); });
+      }
+      scDrawCanvas();
+    };
+    scImage.src = src;
+  }
+
+  {% if has_template %}
+  scLoadImage('/scan_template_image?v={{ template_etag }}');
+  {% endif %}
+
+  $("#sc-template").on('change', function(e) {
+    var file = e.target.files && e.target.files[0];
+    if (!file) return;
+    SC_BBOX = [];               // a new sheet invalidates the old box
+    scLoadImage(URL.createObjectURL(file));
+  });
+
+  function scCanvasPoint(ev) {
+    var rect = ev.target.getBoundingClientRect();
+    return {
+      x: Math.round((ev.clientX - rect.left) / scScale),
+      y: Math.round((ev.clientY - rect.top) / scScale)
+    };
+  }
+
+  $(document).on('mousedown', '#sc-canvas', function(ev) {
+    scDragging = true;
+    scStart = scCanvasPoint(ev);
+  });
+  $(document).on('mousemove', '#sc-canvas', function(ev) {
+    if (!scDragging) return;
+    var p = scCanvasPoint(ev);
+    SC_BBOX = [Math.min(scStart.x, p.x), Math.min(scStart.y, p.y),
+               Math.max(scStart.x, p.x), Math.max(scStart.y, p.y)];
+    scDrawCanvas();
+  });
+  $(document).on('mouseup', function() { scDragging = false; });
+
+  $("#sc-save-key").on('click', function() {
+    scAjax({
+      type: "POST", url: "/scan_key_save",
+      data: {
+        'csrfmiddlewaretoken': '{{ csrf_token }}',
+        api_key: $("#sc-key").val(),
+        clear_key: $("#sc-clear-key").is(':checked') ? '1' : '0'
+      }
+    }, '#sc-key-status').then(function(r) {
+      if (r.warning) { scStatus('#sc-key-status', r.warning, false); }
+      else { location.reload(); }
+    }, function(xhr) {
+      if (xhr && xhr.handled) return;
+      var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The server rejected the change.';
+      scStatus('#sc-key-status', msg, false);
+    });
+  });
+
+  $("#sc-test-key").on('click', function() {
+    scStatus('#sc-key-status', 'Checking…', true);
+    scAjax({
+      type: "POST", url: "/scan_key_test",
+      data: { 'csrfmiddlewaretoken': '{{ csrf_token }}', api_key: $("#sc-key").val() }
+    }, '#sc-key-status').then(function(r) {
+      scStatus('#sc-key-status', r.message || 'Key accepted.', true);
+    }, function(xhr) {
+      if (xhr && xhr.handled) return;
+      var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The key could not be checked.';
+      scStatus('#sc-key-status', msg, false);
+    });
+  });
+
+  $("#sc-save-template").on('click', function() {
+    var form = new FormData();
+    form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    if ($("#sc-clear-template").is(':checked')) {
+      form.append('clear_template', '1');
+    } else {
+      var file = document.getElementById('sc-template').files[0];
+      if (file) form.append('template', file);
+      if (SC_BBOX.length !== 4) {
+        scStatus('#sc-template-status', 'Drag a box around the score columns first.', false);
+        return;
+      }
+      form.append('bbox_x1', SC_BBOX[0]); form.append('bbox_y1', SC_BBOX[1]);
+      form.append('bbox_x2', SC_BBOX[2]); form.append('bbox_y2', SC_BBOX[3]);
+    }
+    $.ajax({
+      type: "POST", url: "/scan_template_save", data: form,
+      processData: false, contentType: false,
+      success: function() { location.reload(); },
+      error: function(xhr) {
+        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The sheet could not be saved.';
+        scStatus('#sc-template-status', msg, false);
+      }
+    });
+  });
+
+  // Low-confidence rows are tinted the same way the score sheet tints them, so
+  // what the organiser sees here matches what a scorer will see later.
+  var SC_TINT = { certain: '', likely: 'bg-pink-50', unsure: 'bg-pink-100', guess: 'bg-pink-200' };
+
+  function scRenderScores(scores) {
+    var body = document.getElementById('sc-scores');
+    body.textContent = '';
+    (scores || []).forEach(function (row) {
+      var tr = document.createElement('tr');
+      tr.className = 'border-t border-gray-100 ' + (SC_TINT[row.Confidence] || '');
+      ['Hand', 'Value', 'Winner', 'Discarder', 'Confidence'].forEach(function (k) {
+        var td = document.createElement('td');
+        td.className = 'px-3 py-1';
+        // textContent, never innerHTML: this is model output rendered into the
+        // admin console.
+        td.textContent = (row[k] === null || row[k] === undefined) ? '-' : row[k];
+        tr.appendChild(td);
+      });
+      body.appendChild(tr);
+    });
+    $("#sc-scores-wrap").toggleClass('hidden', !(scores || []).length);
+  }
+
+  function scPollPreview(jobId, tries) {
+    $.ajax({
+      type: "GET", url: "/scan_template_preview_status?job_id=" + encodeURIComponent(jobId),
+      success: function(r) {
+        if (r.status === 'pending') {
+          if (tries <= 0) { scStatus('#sc-preview-status', 'The test timed out. Try again.', false); return; }
+          setTimeout(function() { scPollPreview(jobId, tries - 1); }, 1000);
+          return;
+        }
+        if (r.status === 'ok') {
+          if (r.preview) {
+            $("#sc-preview").attr('src', r.preview);
+            $("#sc-preview-wrap").removeClass('hidden');
+          }
+          if (r.scores && r.scores.length) {
+            scRenderScores(r.scores);
+            scStatus('#sc-preview-status',
+                     'Read ' + r.scores.length + ' hands. Check them against the sheet.', true);
+          } else if (r.preview) {
+            scStatus('#sc-preview-status', 'Aligned against your sheet.', true);
+          } else {
+            scStatus('#sc-preview-status',
+                     'The sheet was read, but no hands came back. Check the crop box.', false);
+          }
+          return;
+        }
+        scStatus('#sc-preview-status', r.error || 'The photo could not be aligned.', false);
+      },
+      error: function(xhr) {
+        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The photo could not be aligned.';
+        scStatus('#sc-preview-status', msg, false);
+      }
+    });
+  }
+
+  function scRehearse(full) {
+    var file = document.getElementById('sc-photo').files[0];
+    if (!file) { scStatus('#sc-preview-status', 'Choose a photo of a filled sheet first.', false); return; }
+    var form = new FormData();
+    form.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+    form.append('photo', file);
+    if (full) form.append('full', '1');
+    scStatus('#sc-preview-status', full ? 'Reading…' : 'Aligning…', true);
+    $("#sc-preview-wrap").addClass('hidden');
+    $("#sc-scores-wrap").addClass('hidden');
+    $.ajax({
+      type: "POST", url: "/scan_template_preview", data: form,
+      processData: false, contentType: false,
+      success: function(r) { scPollPreview(r.job_id, 60); },
+      error: function(xhr) {
+        var msg = (xhr && xhr.responseJSON && xhr.responseJSON.error) || 'The test could not be started.';
+        scStatus('#sc-preview-status', msg, false);
+      }
+    });
+  }
+
+  $("#sc-run-preview").on('click', function() { scRehearse(false); });
+
+  $("#sc-run-scan").on('click', function() {
+    // Explicit confirmation, because this one spends the tournament's money.
+    // Cheap money — but a button that quietly bills on every click is the kind
+    // that gets clicked absent-mindedly.
+    window.confirmAction({
+      title: 'Run a real scan?',
+      body: 'This reads the photo with the API and bills your key, about a cent. '
+            + 'It is the same read as any scan during the event. Nothing is written '
+            + 'to a score sheet.',
+      confirmLabel: 'Read it', danger: false,
+      onConfirm: function () { scRehearse(true); }
+    });
+  });
+</script>

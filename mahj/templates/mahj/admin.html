@@ -150,6 +150,13 @@
         <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 14a5 5 0 0 1 4.9-6h.7A6 6 0 1 1 16 20H8a4 4 0 0 1-4-4z"/><path d="M12 12v6M9 15l3-3 3 3"/></svg>
         <span class="nav-label rail-hide">Publish target</span>
       </a>
+      {% if scan_enabled %}
+      <a href="admin?page=scanning" :title="railCollapsed ? 'Scanning' : ''"
+         class="nav-item flex items-center gap-3 mx-2 px-3 py-2 rounded-lg transition-colors {% if page == 'scanning' %}{{ active_cls }} font-medium{% else %}text-gray-700 hover:bg-gray-100{% endif %}"{% if page == 'scanning' %} data-active{% endif %}>
+        <svg class="w-5 h-5 shrink-0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h2M17 3h2a2 2 0 0 1 2 2v2M21 17v2a2 2 0 0 1-2 2h-2M7 21H5a2 2 0 0 1-2-2v-2"/><path d="M7 12h10"/></svg>
+        <span class="nav-label rail-hide">Scanning</span>
+      </a>
+      {% endif %}
       {% endif %}
       {% else %}
       {% comment %} ── RUN: everything done during play. Each group shows for the roles that
@@ -375,7 +382,8 @@
           <p class="mt-2 text-sm text-gray-600 whitespace-pre-line" x-text="confirmModal.body"></p>
           <!-- Typed confirmation, when the caller asks for one: Confirm stays
                disabled until the text matches exactly. -->
-          <input x-show="confirmModal.prompt && !confirmModal.hideCancel" type="text"
+          <input x-show="confirmModal.prompt && !confirmModal.hideCancel"
+                 :type="confirmModal.secret ? 'password' : 'text'"
                  x-model="confirmModal.typed"
                  @keydown.enter="!confirmBlocked() && runConfirm()"
                  :placeholder="confirmModal.prompt" autocomplete="off" spellcheck="false"
@@ -440,6 +448,10 @@
             danger: opts.danger !== false,
             hideCancel: false,
             prompt: opts.prompt || '',
+            // A secret prompt (password re-confirmation) masks the input and is
+            // satisfied by anything non-empty — there is nothing to retype it
+            // against, unlike the typed-confirmation case below.
+            secret: !!opts.secret,
             typed: '',
             _onConfirm: opts.onConfirm || null,
             _onCancel: opts.onCancel || null,
@@ -453,7 +465,7 @@
             title: opts.title || 'Something went wrong',
             body: opts.body || '',
             confirmLabel: opts.confirmLabel || 'OK',
-            prompt: '', typed: '',        // never a typed confirmation
+            prompt: '', typed: '', secret: false,   // never a typed confirmation
             cancelLabel: 'Cancel',
             danger: opts.danger !== false,
             hideCancel: true,
@@ -484,6 +496,7 @@
         confirmBlocked() {
           var m = this.confirmModal;
           if (m.hideCancel) return false;
+          if (m.secret) return !m.typed;
           return !!m.prompt && m.typed !== m.prompt;
         },
         runConfirm() {

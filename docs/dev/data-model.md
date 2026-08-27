@@ -19,6 +19,9 @@ to competitors, and how a hand encodes draws and self-draws.
 - **PublishedRound** — marks a round's results as published.
 - **PublishTarget** — the tenant's SFTP publish destination (host, path,
   encrypted credentials, spectator URL). Excluded from tenant dumps.
+- **ScanConfig** — the tenant's score-sheet scanning setup: its encrypted OCR API
+  key, and the picture of its blank sheet plus the score-column crop box that
+  photos are aligned against. Excluded from tenant dumps.
 - **Schedule / Screen / ScreenMode / CeremonyState** — display/scheduling support.
 - **Membership** — one user's access to one tenant (see *Access control* below).
 
@@ -132,8 +135,15 @@ key to another** — seating references players by `draw_number` *value*, not by
 transaction; `Schedule` order is preserved because fresh ids ascend in dump
 order, and its ordering is semantic.
 
-Two things are deliberately **outside** a dump: `PublishTarget` (deployment
-config, whose secrets are Fernet ciphertext under one install's `SECRET_KEY`) and
-`Membership`/`User` (global accounts). So a dump carries no secrets and can be
-restored into any tenant on any install at the same migration — which is what a
-dump stamps and checks.
+Three things are deliberately **outside** a dump: `PublishTarget` (deployment
+config, whose secrets are Fernet ciphertext under one install's `SECRET_KEY`),
+`ScanConfig` (same reasoning for the API key it holds) and `Membership`/`User`
+(global accounts). So a dump carries no secrets and can be restored into any
+tenant on any install at the same migration — which is what a dump stamps and
+checks.
+
+`ScanConfig` is the awkward one: its *other* half — the sheet image and crop box
+— is genuinely tournament data and would restore usefully onto a fresh install.
+It stays out because it shares a row with the ciphertext, and splitting the model
+to dump half of it costs more than it buys. If that ever changes, the template
+moves into a model of its own rather than into the dump list.

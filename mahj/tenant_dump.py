@@ -15,6 +15,12 @@ Deliberately NOT in a dump:
     Fernet ciphertext under this install's SECRET_KEY (undecryptable anywhere
     else), and a restore must not clobber the target tenant's working publish
     setup. A dump therefore contains no secrets.
+  - ScanConfig: same reasoning for the API key it holds. Its other half — the
+    sheet template and crop box — is arguably tournament data and would restore
+    usefully onto a fresh install, but it shares a row with the ciphertext and
+    splitting the model to dump half of it costs more than it buys. If that
+    changes, the template moves out into its own model rather than into this
+    list.
   - Membership / users: accounts are global; a dump is restored into a tenant
     the operator already administers.
 
@@ -32,8 +38,8 @@ from django.db.models import BinaryField, DateTimeField
 from django.utils.dateparse import parse_datetime
 
 from .models import (
-    CeremonyState, Hand, Player, PublishTarget, PublishedRound, Schedule,
-    ScoreSheet, Screen, ScreenMode, Seat, TournamentSettings,
+    CeremonyState, Hand, Player, PublishTarget, PublishedRound, ScanConfig,
+    Schedule, ScoreSheet, Screen, ScreenMode, Seat, TournamentSettings,
 )
 
 # Bumped when the file layout itself changes (not on schema changes — those are
@@ -60,17 +66,24 @@ class TenantDumpError(Exception):
     them verbatim; any other exception is an unexpected error."""
 
 
-def wipe_tenant(tenant, include_publish_target=False):
+def wipe_tenant(tenant, include_secrets=False):
     """Delete every tournament row for `tenant`, inside the caller's transaction.
 
-    With `include_publish_target` the publish config goes too — that is the
-    full reset-page wipe. A dump restore leaves it out: the target tenant keeps
-    its own working publish setup.
+    With `include_secrets` the tenant's stored credentials — the publish target
+    and the scanning config — go too; that is the full reset-page wipe. A dump
+    restore leaves them out: the target tenant keeps its own working publish
+    setup and its own paid API key.
+
+    The secret deletes are their own step rather than a branch inside the loop.
+    Piggybacked on one model's iteration they fired exactly once only because
+    that model happens to appear once in TENANT_MODELS — an accident of loop
+    position, and one more secret would have doubled down on it.
     """
     for model in TENANT_MODELS:
-        if model is TournamentSettings and include_publish_target:
-            PublishTarget.objects.filter(tenant=tenant).delete()
         model.objects.filter(tenant=tenant).delete()
+    if include_secrets:
+        PublishTarget.objects.filter(tenant=tenant).delete()
+        ScanConfig.objects.filter(tenant=tenant).delete()
 
 
 def schema_version():

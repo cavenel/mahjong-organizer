@@ -7,6 +7,7 @@ from django.http import Http404, HttpResponse, JsonResponse
 from django.template import loader
 from django.urls import reverse
 
+from .. import scan_key
 from ..models import Hand, ScoreSheet, Seat, PublishedRound
 from ..scoring import WIND_LETTERS, _attach_players
 from ..signals import (
@@ -154,9 +155,16 @@ def _sheet_has_content(tenant, round_nb, table_nb):
 
 def _scan_qr_svg(request, round_nb, table_nb):
     """Inline SVG QR linking to the pre-filled scan page. Empty string if scan is
-    disabled (standalone build) or the pure-Python `segno` dependency isn't
-    installed on this host — the template hides the QR when this is empty."""
+    disabled (standalone build), this tournament has no scanning key of its own,
+    or the pure-Python `segno` dependency isn't installed on this host — the
+    template hides the QR when this is empty.
+
+    Hiding it for a keyless tenant is the point: a QR printed onto every score
+    sheet that leads to a page saying "not switched on" is worse than no QR."""
     if not getattr(settings, 'SCAN_ENABLED', True):
+        return ''
+    tenant = get_tenant(request)
+    if tenant is None or not scan_key.is_configured(tenant.subdomain):
         return ''
     try:
         import segno

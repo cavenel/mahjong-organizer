@@ -9,6 +9,12 @@ workers, so a burst of parallel scans can never starve score entry or displays.
 Image bytes are staged on the shared `captures/scan_jobs/` volume (not in Redis)
 so the OCR payload doesn't bloat the Redis instance that also holds the cache,
 sessions, and channel layer.
+
+A job with `preview: True` is the Scanning admin page's alignment test: the
+worker aligns and crops it exactly as it would a real scan, but makes no API
+call, so an organiser can prove their sheet template works before the venue.
+It rides this queue rather than running inline so it exercises the same path a
+real scan takes — and so OpenCV stays off the request workers.
 """
 import json
 import time

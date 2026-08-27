@@ -86,6 +86,16 @@ urlpatterns = [
     path('scan_seats', views.scan_seats, name='scan_seats'),
     path('scan_prefill', views.scan_prefill, name='scan_prefill'),
 
+    # Scanning setup (tenant admin): the API key, and this tenant's sheet template.
+    path('scan_key_save', views.scan_key_save, name='scan_key_save'),
+    path('scan_key_test', views.scan_key_test, name='scan_key_test'),
+    path('scan_template_save', views.scan_template_save, name='scan_template_save'),
+    path('scan_template_image', views.scan_template_image, name='scan_template_image'),
+    path('scan_template_preview', views.scan_template_preview,
+         name='scan_template_preview'),
+    path('scan_template_preview_status', views.scan_template_preview_status,
+         name='scan_template_preview_status'),
+
     # Print / export
     path('EMA_report.xlsx', views.admin_print_EMA),
     path('print_scores', views.print_scores, name='print_scores'),

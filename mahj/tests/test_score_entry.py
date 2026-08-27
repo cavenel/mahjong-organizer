@@ -999,3 +999,16 @@ class TestDrawFromEitherColumn:
             'points': 0, 'win_by': None, 'win_from': None}
         # And an explicit zero from the OCR still reads as a draw via the Win column.
         assert _parse_hand(None, 0, None) == {'points': 0, 'win_by': 0, 'win_from': None}
+
+    def test_both_self_draw_conventions_read_the_same(self):
+        """The Scanning page tells organisers their tables may leave the discarder
+        blank *or* repeat the winner's own seat on a self-draw, and that either is
+        read the same. That promise is made to people who then print sheets and
+        train scorers around it, so pin it rather than leave it to a reading of
+        the parser."""
+        from mahj.views.score_entry import _parse_hand
+        blank = _parse_hand(64, 2, None)
+        repeated = _parse_hand(64, 2, 2)
+        assert blank == repeated == {'points': 64, 'win_by': 2, 'win_from': None}
+        # A discard win is still a discard win.
+        assert _parse_hand(64, 2, 3)['win_from'] == 3
