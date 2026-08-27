@@ -8,40 +8,19 @@ is required.
 Rotating ``DJANGO_SECRET_KEY`` therefore invalidates every stored publish
 secret: ``decrypt`` raises ``InvalidToken``, which ``resolve_config`` catches by
 treating the target as not configured — re-enter the credentials in the admin
-after a rotation. ``cryptography`` is already
-a dependency (paramiko pulls it in), so nothing new is added.
+after a rotation. The same rotation also invalidates every tenant's stored
+scanning API key (see ``mahj.scan_key``).
+
+The crypto itself lives in ``mahj.secrets``, shared with scanning.
 """
-import base64
+from ..secrets import make_codec
 
-from cryptography.fernet import Fernet
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from django.conf import settings
-
-
-def _fernet():
-    # Derive a stable 32-byte key from the Django secret. HKDF (not the raw
-    # secret) so the Fernet key doesn't leak the secret and stays 32 bytes
-    # regardless of the secret's length.
-    key = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=b'mahj-publish-target',
-        info=b'sftp-secret',
-    ).derive(settings.SECRET_KEY.encode('utf-8'))
-    return Fernet(base64.urlsafe_b64encode(key))
-
-
-def encrypt(text):
-    """Encrypt a secret string → token bytes. Empty/None → None (store nothing)."""
-    if not text:
-        return None
-    return _fernet().encrypt(text.encode('utf-8'))
-
-
-def decrypt(token):
-    """Decrypt token bytes (BinaryField, possibly a memoryview) → string.
-    None/empty → ''."""
-    if not token:
-        return ''
-    return _fernet().decrypt(bytes(token)).decode('utf-8')
+# These bytes are part of the stored format, not a naming choice: they derive the
+# key every existing password_enc / private_key_enc was encrypted under. Changing
+# them — including "tidying" the name now that the codec is shared — makes every
+# stored publish credential permanently unreadable. Leave them alone.
+encrypt, decrypt, decrypt_or_blank = make_codec(
+    salt=b'mahj-publish-target',
+    info=b'sftp-secret',
+    purpose='publish target',
+)

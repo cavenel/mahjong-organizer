@@ -29,3 +29,8 @@ segno==1.6.6
 
 # SFTP upload of the exported public static site (mahj/publish/sftp_upload.py).
 paramiko==3.5.1
+
+# Fernet encryption for the per-tenant secrets kept in the DB — the SFTP
+# credentials and each tournament's scanning API key (mahj/secrets.py). Pinned
+# directly rather than inherited from paramiko: two features now depend on it.
+cryptography==46.0.7
