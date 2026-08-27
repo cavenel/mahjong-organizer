@@ -51,16 +51,21 @@ def _display_redirect(open_panel=None):
     return f'{url}&open={open_panel}' if open_panel else url
 
 
-def _reauth_gate(request, next_page=None):
+def _reauth_gate(request, next_page=None, label=''):
     """The "confirm your password" panel shown in place of a sudo-gated page.
 
     A borrowed or unattended session must re-confirm before user management, tenant
-    management or the database restore is even displayed. A link-only admin has no
-    password to confirm, so the panel says so rather than offering a form they can't
-    use. `next_page` is where to return to afterwards; the user console is the
-    default landing page, so it passes none.
+    management, the database restore or the scanning credential is even displayed. A
+    link-only admin has no password to confirm, so the panel says so rather than
+    offering a form they can't use. `next_page` is where to return to afterwards;
+    the user console is the default landing page, so it passes none.
+
+    `label` names the page being gated, since one panel serves all of them —
+    without it the copy said "User management" whichever page the operator had
+    asked for.
     """
-    context = {"link_only": not request.user.has_usable_password()}
+    context = {"link_only": not request.user.has_usable_password(),
+               "reauth_label": label or 'This page'}
     if next_page:
         context["reauth_next"] = next_page
     return loader.get_template('mahj/admin_users_reauth.html').render(context, request)
@@ -2862,9 +2867,11 @@ def _gate_tenant_management(request):
 
 
 # `reauth` marks a page a borrowed or unattended session must re-confirm a password
-# to reach: these three hold credentials or can wipe the database, so a valid session
+# to reach: these hold credentials or can wipe the database, so a valid session
 # cookie alone isn't enough. `reauth_next` is where the confirm panel returns to —
-# None for the user console, which is where it lands by default anyway.
+# None for the user console, which is where it lands by default anyway, and
+# `reauth_label` is how the shared confirm panel names the page it is standing in
+# for.
 #
 # `area` is the workspace the page belongs to. The console is split in two: **Setup**
 # (everything done before play — settings, players, seating, printing, accounts)
@@ -2872,8 +2879,8 @@ def _gate_tenant_management(request):
 # The shell renders one sidebar per area; tenant admins switch between them, while
 # scorers, publishers and display operators only ever hold Run pages. The area is
 # presentation only — access is decided by `gate` alone.
-_AdminPage = namedtuple('_AdminPage', 'gate render reauth reauth_next area',
-                        defaults=(False, None, 'run'))
+_AdminPage = namedtuple('_AdminPage', 'gate render reauth reauth_next area reauth_label',
+                        defaults=(False, None, 'run', ''))
 
 ADMIN_PAGES = {
     # Run
@@ -2890,17 +2897,21 @@ ADMIN_PAGES = {
     "seating":            _AdminPage(_gate_tenant_admin, _page_seating, area='setup'),
     "print_materials":    _AdminPage(_gate_tenant_admin, _page_print_materials, area='setup'),
     "card_design":        _AdminPage(_gate_tenant_admin, _page_card_design, area='setup'),
-    "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True, area='setup'),
+    "users":              _AdminPage(_gate_tenant_admin, _page_users, reauth=True, area='setup',
+                                     reauth_label='User management'),
     "tenants":            _AdminPage(_gate_tenant_management, _page_tenants,
-                                     reauth=True, reauth_next='tenants', area='setup'),
+                                     reauth=True, reauth_next='tenants', area='setup',
+                                     reauth_label='Tenant management'),
     "backup":             _AdminPage(_gate_tenant_admin, _page_backup,
-                                     reauth=True, reauth_next='backup', area='setup'),
+                                     reauth=True, reauth_next='backup', area='setup',
+                                     reauth_label='Backup & restore'),
     "publish_target":     _AdminPage(_gate_tenant_admin, _page_publish_target, area='setup'),
     # reauth because the page holds a paid credential, like `users` and `backup`.
     # (`publish_target` above holds SFTP credentials and is not reauthed — an
     # inconsistency worth resolving there, not worth copying here.)
     "scanning":           _AdminPage(_gate_scanning, _page_scanning,
-                                     reauth=True, reauth_next='scanning', area='setup'),
+                                     reauth=True, reauth_next='scanning', area='setup',
+                                     reauth_label='Score-sheet scanning'),
 }
 
 
@@ -2970,7 +2981,7 @@ def options(request, error=None):
         # `?page=…` shouldn't map out what exists.
         page_content = "None"
     elif spec.reauth and not reauth_ok(request):
-        page_content = _reauth_gate(request, spec.reauth_next)
+        page_content = _reauth_gate(request, spec.reauth_next, spec.reauth_label)
     else:
         page_content = spec.render(request, tenant, error)
         if isinstance(page_content, HttpResponse):

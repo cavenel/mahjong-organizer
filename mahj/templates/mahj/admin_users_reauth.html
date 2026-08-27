@@ -3,10 +3,10 @@
 
 {% if link_only %}
   <div>
-    <h2 class="text-xl font-bold text-gray-800">User management unavailable</h2>
+    <h2 class="text-xl font-bold text-gray-800">{{ reauth_label }} unavailable</h2>
     <p class="text-sm text-gray-500 mt-1">
       Your account signs in with a login link and has no password to confirm.
-      User management requires a password, so it isn't available here — ask a
+      {{ reauth_label }} requires a password, so it isn't available here — ask a
       staff member with a password to make these changes.
     </p>
   </div>
@@ -14,7 +14,7 @@
   <div>
     <h2 class="text-xl font-bold text-gray-800">Confirm your password</h2>
     <p class="text-sm text-gray-500 mt-1">
-      User management is sensitive, so we ask for your password again before
+      {{ reauth_label }} is sensitive, so we ask for your password again before
       showing it — even though you're already logged in.
     </p>
   </div>

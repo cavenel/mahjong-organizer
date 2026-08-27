@@ -754,6 +754,8 @@ class TestAdminPageTable:
             assert callable(spec.render), f'{name} has no renderer'
             if spec.reauth_next:
                 assert spec.reauth, f'{name} names a reauth target but is not gated'
+            if spec.reauth:
+                assert spec.reauth_label, f'{name} is reauth-gated but unnamed'
 
     # What each account should get for each page: 'page' (it renders), 'empty'
     # (the shell's blank panel — the page either doesn't exist for them or isn't
@@ -781,6 +783,21 @@ class TestAdminPageTable:
                       'backup': 'reauth', 'scanning': 'reauth',
                       'tenants': 'reauth'},
     }
+
+    @pytest.mark.parametrize('page, label', [
+        ('users', 'User management'),
+        ('backup', 'Backup &amp; restore'),
+        ('scanning', 'Score-sheet scanning'),
+    ])
+    def test_the_confirm_panel_names_the_page_it_gates(self, tournament, page, label):
+        """One template serves every reauth-gated page, and it used to say "User
+        management is sensitive" whichever page the operator had actually asked
+        for."""
+        c = self._account('admin', tournament['tenant'])
+        content = c.get(f'/admin?page={page}').context['page_content']
+        assert f'{label} is sensitive' in content
+        if page != 'users':
+            assert 'User management' not in content
 
     def _account(self, role, tenant):
         user = User.objects.create_user(f'u_{role}', password='pw',
