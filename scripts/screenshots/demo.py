@@ -17,14 +17,14 @@ Scenes, in their natural order (each re-runnable on its own; the ones that need
 data assume the earlier ones have run at least once):
 
     reset       wipe the test tournament so the tour starts from a blank one
-    login       the login page, then the run dashboard
+    login       the login page, then the console it opens on
     setup       the setup checklist and the player import
-    print       the printable player cards
-    scoring     a score sheet filled hand by hand, then validated
+    print       the card designer and the printable player cards
+    scoring     table totals typed into the grid, then a couple of hands
     publish     publishing round 1, and the publisher's pre-flight overview
     fill        (not recorded) fill the remaining rounds via the test toolbar
     display     the display console: outputs, previews, round timer
-    screen_scores / screen_counter / screen_schedule
+    screen_counter / screen_scores
                 the projector screens themselves, full-bleed
     phone       the public app on a phone, portrait
     ceremony    the prize-giving console revealing the podium
@@ -37,6 +37,7 @@ See README.md in this directory for the environment and the server.
 """
 import json
 import os
+import time
 import shutil
 import subprocess
 import sys
@@ -52,12 +53,15 @@ OUT = REPO / 'docs/screenshots'
 DESKTOP = {'width': 1280, 'height': 720}
 PHONE = {'width': 390, 'height': 844}
 CANVAS = (1280, 720)
-# Every segment opens on a blank frame while the first page paints; drop it.
-TRIM = float(os.environ.get('DEMO_TRIM', '0.6'))
+# Every segment opens on a blank frame while the first page paints, and ends on
+# one as the context tears down; drop both, or the film flashes white between
+# scenes.
+TRIM = float(os.environ.get('DEMO_TRIM', '0.8'))
+TAIL = float(os.environ.get('DEMO_TAIL', '0.5'))
 # The tour is a fast overview, not a walk-through: every pacing pause goes
 # through beat(), so DEMO_PACE re-times the whole film at once. Waits for
 # something to actually load stay unscaled.
-PACE = float(os.environ.get('DEMO_PACE', '1.0'))
+PACE = float(os.environ.get('DEMO_PACE', '0.8'))
 LANG = 'en'
 
 # ---------------------------------------------------------------- overlay ----
@@ -86,6 +90,17 @@ OVERLAY_JS = r"""
   border:2px solid rgba(245,158,11,.95);background:rgba(245,158,11,.25);
   animation:__demo_pop .5s ease-out forwards}
 @keyframes __demo_pop{from{transform:scale(.4);opacity:1}to{transform:scale(3.4);opacity:0}}
+/* The amber "Test data" strip only exists on a test tournament: filming it
+   would advertise a fixture shortcut as a feature. It goes with the overlay's
+   own stylesheet, which lands as the document is parsed — hiding it from the
+   scene instead left it on screen for a second. */
+div.border-dashed.border-amber-400{display:none !important}
+/* On the phone scenes the pill is a postage stamp once the portrait frame is
+   scaled into the film: give the caption the full width and a size that reads. */
+@media (max-width: 500px) {
+  #__demo_cap{left:0;right:0;bottom:0;max-width:none;transform:none;
+    font-size:26px;line-height:1.25;padding:16px 14px;border-radius:0}
+}
 `;
   function build() {
     if (!document.body || document.getElementById('__demo_layer')) return;
@@ -113,10 +128,28 @@ OVERLAY_JS = r"""
     build();
     render(text);
   };
+  // Each frame draws its own cursor, and only the frame under the pointer gets
+  // mousemove — so the one left behind (the page beneath an open score sheet,
+  // say) would keep showing a second, frozen arrow. Whoever is moving puts the
+  // others away. Same origin throughout, so their documents are reachable.
+  const hideOtherCursors = () => {
+    try {
+      const top = window.top.document;
+      const docs = [top, ...[...top.querySelectorAll('iframe')].map(f => {
+        try { return f.contentDocument; } catch (err) { return null; }
+      })];
+      for (const doc of docs) {
+        if (!doc || doc === document) continue;
+        const other = doc.getElementById('__demo_cur');
+        if (other) other.classList.remove('on');
+      }
+    } catch (err) { /* cross-origin frame: nothing of ours in it anyway */ }
+  };
   const move = (e) => {
     build();
     const cur = document.getElementById('__demo_cur');
     if (!cur) return;
+    hideOtherCursors();
     cur.classList.add('on');
     cur.style.transform = `translate(${e.clientX}px, ${e.clientY}px)`;
   };
@@ -131,12 +164,44 @@ OVERLAY_JS = r"""
     layer.appendChild(r);
     setTimeout(() => r.remove(), 600);
   };
+  // A navigation ends whatever the caption was saying: without this the old
+  // line hangs over the next page (it is restored from sessionStorage) until
+  // the scene says something else.
+  window.addEventListener('pagehide', () => {
+    try { sessionStorage.removeItem(KEY); } catch (e) {}
+  });
   document.addEventListener('mousemove', move, true);
   document.addEventListener('mousedown', ring, true);
   if (document.readyState === 'loading')
     document.addEventListener('DOMContentLoaded', build);
   else
     build();
+})();
+"""
+
+# Holds a page blank until its scene has rearranged it. An init script can run
+# before documentElement exists, so the first attempt may find nothing to hide —
+# hence the repeats as the document appears. The scene calls __demoReveal().
+PREP_JS = """
+(() => {
+  // Top frame only: init scripts run in every frame, and hiding an iframe's own
+  // document is what left the ceremony's screen preview black — nothing ever
+  // revealed it, and an unrendered frame never paints.
+  if (window.top !== window) return;
+  window.__demoPrep = true;
+  const apply = () => {
+    if (!window.__demoPrep || !document.documentElement) return;
+    document.documentElement.style.setProperty('visibility', 'hidden', 'important');
+  };
+  window.__demoReveal = () => {
+    window.__demoPrep = false;
+    if (document.documentElement) {
+      document.documentElement.style.removeProperty('visibility');
+    }
+  };
+  apply();
+  document.addEventListener('readystatechange', apply);
+  document.addEventListener('DOMContentLoaded', apply);
 })();
 """
 
@@ -147,24 +212,22 @@ TEXT = {
                      "Connexion — un compte par rôle"),
     'console':      ("The console — the whole tournament from one place",
                      "La console — tout le tournoi au même endroit"),
-    'dashboard':    ("The run dashboard: everything at a glance",
-                     "Le tableau de bord : tout d'un coup d'œil"),
     'setup':        ("A checklist walks you through the setup",
                      "Une checklist guide la préparation"),
     'import':       ("Import the players from a spreadsheet",
                      "Importez les joueurs depuis un tableur"),
-    'imported':     ("Players, teams and seating are in",
-                     "Joueurs, équipes et placement sont chargés"),
+    'imported':     ("Players, teams and the seating chart are loaded",
+                     "Joueurs, équipes et grille de placement sont chargés"),
     'card_design':  ("Player cards: pick a format, restyle them",
                      "Cartons joueur : choisissez un format, restylez-les"),
     'print':        ("Print player cards, table posters, schedules",
                      "Imprimez cartons, affiches de table, plannings"),
     'scoring':      ("Scoring: one row per table, one tab per round",
                      "Saisie : une ligne par table, un onglet par tour"),
-    'sheet':        ("The score sheet computes as you type",
-                     "La feuille de score calcule à la volée"),
-    'validate':     ("Cross-checks turn green, then you validate",
-                     "Les contrôles passent au vert, puis on valide"),
+    'table_entry':  ("Type each table's totals straight into the grid",
+                     "Tapez les totaux de chaque table dans la grille"),
+    'sheet':        ("Then the detailed sheet records each hand, for the stats",
+                     "Puis la feuille détaillée enregistre chaque main, pour les stats"),
     'publish':      ("Publishing a round pushes it everywhere at once",
                      "Publier un tour l'envoie partout d'un coup"),
     'overview':     ("One page to check before you publish",
@@ -179,8 +242,6 @@ TEXT = {
                       "Vidéoprojecteur : classement en direct"),
     'screen_counter': ("Projector: the round countdown",
                        "Vidéoprojecteur : le compte à rebours"),
-    'screen_schedule': ("Projector: seating for the round",
-                        "Vidéoprojecteur : le placement du tour"),
     'phone':        ("Players follow along on their phone",
                      "Les joueurs suivent sur leur téléphone"),
     'phone_player': ("Every player's own results, hand by hand",
@@ -192,6 +253,20 @@ TEXT = {
     'podium':       ("…on the big screen, in front of the room",
                      "…sur grand écran, devant la salle"),
 }
+
+
+# Set while a scene records, so a scene that spends its first seconds getting
+# the page ready can say when it became worth watching; render() then cuts that
+# head off instead of shipping a blank hold.
+_scene_started_at = None
+_scene_ready_at = None
+
+
+def mark_ready():
+    """Call once a scene's page is presentable: everything before is trimmed."""
+    global _scene_ready_at
+    if _scene_started_at is not None:
+        _scene_ready_at = time.monotonic() - _scene_started_at
 
 
 def beat(page, ms):
@@ -244,7 +319,27 @@ def scroll(page, dy, steps=10):
         beat(page, 30)
 
 
-def goto(page, path, wait=600):
+def scroll_to(page, locator, margin=140, steps=12):
+    """Wheel to an element, in whichever direction it lies.
+
+    Guessing a pixel delta got the direction wrong more than once; this reads
+    where the element actually is and walks there.
+    """
+    try:
+        box = locator.bounding_box(timeout=5000)
+    except Exception:
+        return
+    if not box:
+        return
+    delta = box['y'] - margin
+    if abs(delta) < 20:
+        return
+    for _ in range(steps):
+        page.mouse.wheel(0, delta / steps)
+        beat(page, 30)
+
+
+def goto(page, path, wait=600, key=None):
     # Drop the caption before navigating: it is restored per page from
     # sessionStorage, so without this the previous line hangs over the new page
     # until the scene says something else.
@@ -254,7 +349,10 @@ def goto(page, path, wait=600):
         pass
     page.goto(f'{BASE}{path}')
     page.wait_for_load_state('networkidle')
-    beat(page, wait)
+    if key:
+        say(page, key, wait)
+    else:
+        beat(page, wait)
 
 
 # ------------------------------------------------------------- data setup ----
@@ -353,21 +451,37 @@ def wait_rows(page, expr, target, timeout=120000, compare='>='):
     return False
 
 
-def stage_fill(browser):
-    """Fill and publish every round through the test toolbar — off camera,
-    because it is a fixture shortcut, not something anyone does at a tournament.
+def stage_fill(browser, only=None, publish=False, drop_last=False):
+    """Fill rounds through the test toolbar — off camera, because it is a
+    fixture shortcut, not something anyone does at a tournament.
 
     Round by round rather than "Fill all rounds": that button deliberately leaves
     the last round's final two tables blank (it exists to exercise the
     incomplete-round path), and the tour wants a tournament that finished.
+
+    `only` limits it to those round numbers ('last' for the final one) and
+    `drop_last` holds the final round back, so the tour can stand at a real
+    moment of a tournament: round 1 in for the publish scene, the last round
+    still unplayed while the screens and the phone are filmed — publishing it
+    puts the standings behind "waiting for the ceremony", which is the whole
+    point of the ceremony but hides the leaderboard everywhere else.
+    `publish` then publishes what it filled.
     """
     ctx = browser.new_context(viewport=DESKTOP,
                               storage_state=str(state_path('anna.admin')))
     page = ctx.new_page()
     page.goto(f'{BASE}/admin?page=scoring')
     page.wait_for_selector('.table_row', state='attached')
-    rounds = page.locator('button[role=tab]').count() or 3
-    for rn in range(1, rounds + 1):
+    nb_rounds = page.locator('button[role=tab]').count() or 3
+    if only == 'last':
+        targets = [nb_rounds]
+    elif only:
+        targets = list(only)
+    else:
+        targets = list(range(1, nb_rounds + 1))
+    if drop_last:
+        targets = [rn for rn in targets if rn != nb_rounds]
+    for rn in targets:
         page.click(f'button[role=tab]:has-text("Round {rn}")')
         page.wait_for_timeout(500)
         unscored = (f'Seat.objects.filter(tenant=t, round_nb={rn}, '
@@ -377,11 +491,44 @@ def stage_fill(browser):
         # row stays blank, which keeps the round incomplete and unpublishable.
         # Clicking again only rewrites the rows, so just retry until it is whole.
         for attempt in range(4):
+            if attempt:
+                # Reload before retrying: the refused save may have been a stale
+                # row version as much as a lost lock, and only a fresh page can
+                # fix that.
+                page.reload()
+                page.wait_for_selector('.table_row', state='attached')
+                page.click(f'button[role=tab]:has-text("Round {rn}")')
+                page.wait_for_timeout(500)
             page.click('button:text-is("Fill — scores")')
             if wait_rows(page, unscored, 0, timeout=30000, compare='<='):
                 break
         else:
-            print(f'  ! round {rn} still has unscored seats')
+            # Write the stragglers directly rather than leave the round
+            # incomplete: an unpublishable round empties the screens, the phone
+            # and the ceremony that come after it.
+            print(f'  ! round {rn} still short — filling the rest via ORM')
+            orm(f'''
+import random
+from mahj.models import Tenant, Seat
+t = Tenant.objects.get(subdomain="test")
+tables = set(Seat.objects.filter(tenant=t, round_nb={rn}, tablepoints=None)
+             .values_list("table_nb", flat=True))
+for tn in sorted(tables):
+    seats = list(Seat.objects.filter(tenant=t, round_nb={rn}, table_nb=tn)
+                 .order_by("wind"))
+    mps = [random.randint(-100, 100) for _ in seats[:-1]]
+    mps.append(-sum(mps))
+    for rank, i in enumerate(sorted(range(len(seats)), key=lambda i: -mps[i])):
+        seats[i].minipoints = mps[i]
+        seats[i].tablepoints = [4.0, 2.0, 1.0, 0.0][rank]
+        seats[i].version += 1
+        seats[i].save(update_fields=["minipoints", "tablepoints", "version"])
+print("filled table(s)", sorted(tables))
+''')
+            page.reload()
+            page.wait_for_selector('.table_row', state='attached')
+            page.click(f'button[role=tab]:has-text("Round {rn}")')
+            page.wait_for_timeout(500)
         sheets = page.locator('button:text-is("Fill — score sheets")')
         if sheets.count():
             validated = ('ScoreSheet.objects.filter(tenant=t, '
@@ -402,17 +549,19 @@ for tn in sorted(set(Seat.objects.filter(tenant=t, round_nb={rn})
         tenant=t, round_nb={rn}, table_nb=tn, defaults={{"validated": True}})
 print("sheet validation completed via ORM")
 ''')
-    # Publish every round from its own tab: the toggles run through the app, so
-    # the leaderboard cache and the live screens are refreshed with them.
-    for rn in range(1, rounds + 1):
-        page.goto(f'{BASE}/admin?page=scoring')
-        page.wait_for_selector('.table_row', state='attached')
-        page.click(f'button[role=tab]:has-text("Round {rn}")')
-        page.wait_for_timeout(600)
-        toggle = page.locator(f'.tab-pane[data-round-nb="{rn}"] .publish-toggle').first
-        if toggle.count() and toggle.is_enabled() and not toggle.is_checked():
-            toggle.click()
-            page.wait_for_timeout(2500)
+    if publish:
+        # Through the toggles rather than the ORM: publishing runs the leaderboard
+        # cache bust and the live-screen broadcast with it.
+        for rn in targets:
+            page.goto(f'{BASE}/admin?page=scoring')
+            page.wait_for_selector('.table_row', state='attached')
+            page.click(f'button[role=tab]:has-text("Round {rn}")')
+            page.wait_for_timeout(600)
+            toggle = page.locator(
+                f'.tab-pane[data-round-nb="{rn}"] .publish-toggle').first
+            if toggle.count() and toggle.is_enabled() and not toggle.is_checked():
+                toggle.click()
+                page.wait_for_timeout(2500)
     ctx.close()
 
 
@@ -436,6 +585,32 @@ for draw, first, last in ((1, "Robert", "Nystrom"), (2, "Aoife", "O\'Brien")):
     p.save()
 print("names made presentable")
 ''')
+
+
+def reset_ceremony(browser):
+    """End a ceremony left running by an earlier pass, off camera.
+
+    The scene wants to open where a real prize-giving does — the screens waiting
+    for it to start. Doing this inside the scene does not work: ending one
+    broadcasts a screen change, and the console reloads a second later, which
+    undoes the layout the scene just set up.
+    """
+    ctx = browser.new_context(viewport=DESKTOP,
+                              storage_state=str(state_path('anna.admin')))
+    page = ctx.new_page()
+    page.goto(f'{BASE}/admin?page=ceremony')
+    page.wait_for_load_state('networkidle')
+    end = page.locator('button:has-text("End —")')
+    if end.count() and end.is_enabled():
+        end.click()
+        # With the final round published-but-withheld, ending asks first — that
+        # confirm is the whole point of the gate, so answer it rather than
+        # wondering why nothing happened.
+        confirm = page.locator('button:has-text("End anyway")')
+        if confirm.count():
+            confirm.click()
+        page.wait_for_timeout(2500)
+    ctx.close()
 
 
 def seed_screens():
@@ -467,7 +642,7 @@ def scene_login(page):
     say(page, 'login', 500)
     type_into(page, page.locator('#id_username'), 'anna.admin')
     type_into(page, page.locator('#id_password'), PW)
-    click(page, page.locator('button[type=submit]'), after=1400)
+    click(page, page.locator('button[type=submit]'), after=900)
     say(page, 'console', 1400)
     scroll(page, 500)
     beat(page, 500)
@@ -492,9 +667,10 @@ def scene_setup(page):
     page.wait_for_load_state('networkidle', timeout=180000)
     presentable_names()
     beat(page, 600)
-    say(page, 'imported', 1200)
 
-    goto(page, '/admin?page=player_editor', wait=900)
+    # Said on the player list rather than before the navigation: the caption
+    # clears itself on unload, so saying it twice made it blink.
+    goto(page, '/admin?page=player_editor', wait=2600, key='imported')
     scroll(page, 700)
     beat(page, 600)
 
@@ -507,7 +683,14 @@ def scene_print(page):
     say(page, 'card_design', 900)
     a7 = page.locator('button:has-text("A7 landscape")').first
     if a7.count():
-        click(page, a7, after=1800)
+        click(page, a7, after=1200)
+    # Themes restyle the live preview; end on bold, the most legible at card
+    # size. :has-text, not :text-is — the buttons carry the theme's own
+    # lowercase name and are only capitalised by CSS.
+    for theme in ('minimal', 'bold'):
+        button = page.locator(f'button:has-text("{theme}")').first
+        if button.count():
+            click(page, button, after=1100)
 
     goto(page, '/admin?page=print_materials')
     say(page, 'print', 800)
@@ -524,51 +707,56 @@ def scene_print(page):
 
 def scene_scoring(page):
     goto(page, '/admin?page=scoring', wait=800)
-    say(page, 'scoring', 1300)
+    say(page, 'scoring', 2800)
 
+    # The quick way first: the four table totals typed into the grid itself,
+    # tabbing from seat to seat the way a scorer taking a paper sheet would.
+    # (Table 2, so the per-hand sheet below still opens on an empty table 1.)
+    say(page, 'table_entry', 500)
+    cells = page.locator("#table_row_r1_t2 input[name='minipoints']")
+    cursor_to(page, cells.first)
+    cells.first.click()
+    for value in ('120', '-40', '-30', '-50'):
+        page.keyboard.type(value, delay=max(20, int(55 * PACE)))
+        page.keyboard.press('Tab')
+        beat(page, 200)
+    beat(page, 900)
+
+    # Said before the modal opens: it is not a navigation, so the previous line
+    # would otherwise sit over the sheet while its iframe loads.
+    say(page, 'sheet', 300)
     click(page, page.locator('#table_row_r1_t1 .show_hands'), after=300)
     page.wait_for_timeout(2500)          # the sheet is an iframe of its own
-    say(page, 'sheet', 700)
     sheet = page.frame_locator('#modalDetails-iframe')
-    # Three hands, entered the way a scorer would: value, winner, discarder
-    # (blank = self-draw), then Tab to let the sheet recompute.
-    for hand, points, by, frm in ((1, '18', '2', '4'), (2, '26', '3', ''),
-                                  (3, '12', '1', '3')):
-        type_into(page, sheet.locator(f'#pts_{hand}'), points, after=80)
-        type_into(page, sheet.locator(f'#by_{hand}'), by, after=80)
-        if frm:
-            type_into(page, sheet.locator(f'#from_{hand}'), frm, after=80)
+    # The sheet is the per-hand record kept on top of the table totals, not
+    # another way of entering them. Two hands are enough to show it: value,
+    # winner, discarder (blank = self-draw), tabbing between the cells.
+    cursor_to(page, sheet.locator('#pts_1'))
+    sheet.locator('#pts_1').click()
+    for cell in ('18', '2', '4', '26', '3', ''):
+        if cell:
+            page.keyboard.type(cell, delay=max(20, int(55 * PACE)))
         page.keyboard.press('Tab')
-        beat(page, 450)
-    say(page, 'validate', 700)
-    click(page, sheet.locator('#valid_17'), after=800)
-    # Only three hands were entered, so validating asks about the blank rows
-    # that follow — the sheet's own guard against a lost final draw.
-    proceed = page.locator('button:has-text("Record as not played")')
-    if proceed.count():
-        click(page, proceed, after=1000)
-    click(page, page.locator('div:has(> #modalDetails-iframe) button').last, after=900)
+        beat(page, 160)
+    beat(page, 900)
 
 
 def scene_publish(page):
-    """Recorded after the off-camera fill, because a round only publishes once
-    every table in it is in."""
+    """Recorded after the off-camera fill of round 1, because a round only
+    publishes once every table in it is in. Rounds 2 and 3 are still unplayed,
+    so their toggles sit greyed out beside it — which is what a tournament
+    looks like halfway through.
+    """
     goto(page, '/admin?page=scoring', wait=800)
-    say(page, 'publish', 700)
-    page.click('button[role=tab]:has-text("Round 1")')
-    beat(page, 400)
+    say(page, 'publish', 2200)
     toggle = page.locator('.tab-pane[data-round-nb="1"] .publish-toggle').first
-    if toggle.count() and toggle.is_enabled():
-        if toggle.is_checked():          # a re-run: unpublish first, then republish
-            click(page, toggle, after=1000)
-        click(page, toggle, after=1400)
+    if toggle.count() and toggle.is_enabled() and not toggle.is_checked():
+        click(page, toggle, after=1500)
+
     goto(page, '/admin?page=publisher_overview', wait=800)
     say(page, 'overview', 1400)
     scroll(page, 400)
     beat(page, 400)
-
-    goto(page, '/admin?page=welcome', wait=800)
-    say(page, 'dashboard', 1600)
 
 
 def scene_display(page):
@@ -586,14 +774,18 @@ def scene_display(page):
     select.select_option('scores:detailed')
     beat(page, 600)
 
+    # Back up to the previews toggle, which sits above the screen cards.
+    scroll_to(page, page.locator('#toggle-previews'))
     say(page, 'previews', 400)
     click(page, page.locator('#toggle-previews'), after=200)
-    page.wait_for_timeout(7000)          # each preview is a live screen loading
-    scroll(page, 400)
-    beat(page, 700)
+    # Scroll down onto them while they load rather than waiting them out.
+    scroll(page, 450, steps=14)
+    beat(page, 1500)
 
-    say(page, 'timer', 400)
+    # Carry on down to the timer rather than cutting to it.
     start = page.locator('button:has-text("Start timer")')
+    scroll_to(page, page.locator('h2:has-text("Timer control")'))
+    say(page, 'timer', 500)
     if start.count():
         page.once('dialog', lambda d: d.accept())
         click(page, start, after=600)
@@ -603,11 +795,14 @@ def scene_display(page):
         beat(page, 2500)
 
 
-def _screen(path, key, hold=3000):
+def _screen(path, key, hold=3000, load=2500):
     def run(page):
-        goto(page, path, wait=300)
-        page.wait_for_timeout(2500)      # screens fill themselves over the socket
-        say(page, key, hold)
+        goto(page, path, wait=200)
+        # The line goes up while the screen is still filling itself over the
+        # socket, rather than after — it is a label, not a reaction.
+        say(page, key, 200)
+        page.wait_for_timeout(load)
+        beat(page, hold)
     return run
 
 
@@ -640,15 +835,82 @@ def scene_phone(page):
         beat(page, 700)
 
 
+# The console cut down to what the scene is about: the teams podium panel with
+# one live screen beside it. Everything above — the title, the operator's
+# instructions, the intro-slide and publish buttons — is setup a viewer does not
+# need to watch, and the other panels are a second act.
+CEREMONY_LAYOUT_JS = """
+() => {
+  const sections = [...document.querySelectorAll('section')];
+  const head = s => ((s.querySelector('h3') || {}).textContent || '');
+  const teams = sections.find(s => head(s).startsWith('Teams —'));
+  const previews = document.getElementById('previews-container');
+  if (!teams || !previews) return false;
+  sections.filter(s => head(s).startsWith('Players —')
+                    || head(s).startsWith('Stat '))
+          .forEach(s => s.style.display = 'none');
+  const grid = teams.parentElement;
+  // Move the previews (their iframes have no src yet, so this costs nothing —
+  // showing them afterwards loads each one straight into its new home) and keep
+  // only the screen the ceremony plays on.
+  [...previews.children].slice(1).forEach(card => card.remove());
+  grid.appendChild(previews);
+  // The thumbnail is sized for a strip of three; here it has a column to
+  // itself, so scale the 1920x1080 frame up to fill it.
+  const card = previews.children[0];
+  const box = card && card.querySelector('div.bg-black');
+  const frame = card && card.querySelector('iframe.preview-iframe');
+  if (box && frame) {
+    const zoom = 0.26;
+    box.style.width = (1920 * zoom) + 'px';
+    box.style.height = (1080 * zoom) + 'px';
+    frame.style.transform = `scale(${zoom})`;
+  }
+  // Then everything above the podium panel goes: heading, blurb, the intro and
+  // publish buttons, the on-screens bar, the previews strip they came from. The
+  // panel and the screen are the whole scene.
+  for (let sib = grid.previousElementSibling; sib; sib = sib.previousElementSibling) {
+    sib.style.display = 'none';
+  }
+  // Not display: the toggle reads it to decide whether it is showing or
+  // hiding, and finding them already "shown" made its click hide them.
+  previews.style.alignSelf = 'start';
+  previews.style.width = 'fit-content';
+  return true;
+}
+"""
+
+
 def scene_ceremony(page):
-    goto(page, '/admin?page=ceremony', wait=1000)
-    say(page, 'ceremony', 1100)
-    reveal = page.locator('button:has-text("Reveal next")').first
-    for _ in range(4):
+    goto(page, '/admin?page=ceremony', wait=300)
+    # The panels are rendered by Alpine once the results have loaded; laying the
+    # page out before that finds nothing to move.
+    # 'attached', not 'visible': the page is deliberately hidden at this point,
+    # which makes every element invisible as far as Playwright is concerned.
+    page.wait_for_selector('h3:has-text("Teams —")', state='attached', timeout=30000)
+    page.evaluate(CEREMONY_LAYOUT_JS)
+    # Cut down: show it, and only then load the preview. An iframe created
+    # while the document is hidden is never rendered, and the screen paints its
+    # standings once, on the message that arrives in the meantime — so it came
+    # out black. (Nothing to worry about in a real hall: no one's console is
+    # visibility:hidden.)
+    page.evaluate("() => window.__demoReveal && window.__demoReveal()")
+    mark_ready()
+    page.evaluate("() => { const t = document.getElementById('toggle-previews');"
+                  "        if (t) t.click(); }")
+    say(page, 'ceremony', 600)
+    page.wait_for_timeout(5000)          # the preview is a real screen loading
+
+    teams = page.locator('section:has(h3:text-is("Teams — top 3 (prizes)"))')
+    start = teams.locator('button:text-is("Start")')
+    if start.count() and start.is_enabled():
+        click(page, start, after=1400)
+    reveal = teams.locator('button:has-text("Reveal next")')
+    for _ in range(3):
         if not (reveal.count() and reveal.is_enabled()):
             break
-        click(page, reveal, after=1300)
-    beat(page, 700)
+        click(page, reveal, after=1700)
+    beat(page, 900)
 
 
 SCENES = [
@@ -658,32 +920,41 @@ SCENES = [
     ('scoring', scene_scoring, DESKTOP, True),
     ('publish', scene_publish, DESKTOP, True),
     ('display', scene_display, DESKTOP, True),
+    ('screen_counter', _screen('/2', 'screen_counter', hold=3200, load=1500),
+     DESKTOP, False),
     ('screen_scores', _screen('/1', 'screen_scores'), DESKTOP, False),
-    ('screen_counter', _screen('/2', 'screen_counter'), DESKTOP, False),
-    ('screen_schedule', _screen('/3', 'screen_schedule'), DESKTOP, False),
     ('phone', scene_phone, PHONE, False),
-    ('ceremony', scene_ceremony, DESKTOP, True),
+    ('ceremony', scene_ceremony, DESKTOP, True, True),
     ('screen_podium', _screen('/1', 'podium', 6000), DESKTOP, False),
 ]
 SCENE_ORDER = {name: i for i, (name, *_rest) in enumerate(SCENES)}
 
 
-def run_fill(browser):
-    print('== fill (not recorded) ==')
+def run_fill(browser, only=None, publish=False, drop_last=False):
+    what = ('the last round' if only == 'last' else f'rounds {list(only)}' if only
+            else 'the middle rounds' if drop_last else 'the remaining rounds')
+    print(f'== fill {what} (not recorded) ==')
     try:
-        stage_fill(browser)
+        stage_fill(browser, only=only, publish=publish, drop_last=drop_last)
     except Exception:
         print('  ! fill stopped early — later scenes may be short of data:')
         traceback.print_exc(limit=3)
 
 
-def record(browser, name, fn, viewport, authed):
+def record(browser, name, fn, viewport, authed, prep=False):
     print(f'== scene {name} ==')
     ctx = browser.new_context(
         viewport=viewport, record_video_dir=str(RAW), record_video_size=viewport,
         storage_state=str(state_path('anna.admin')) if authed else None)
     ctx.add_init_script(OVERLAY_JS)
+    if prep:
+        # Blank from the first paint; the scene reveals the page once it has
+        # arranged it. documentElement exists at document start, so the class
+        # sticks where a <style> appended this early would be dropped.
+        ctx.add_init_script(PREP_JS)
     page = ctx.new_page()
+    global _scene_started_at, _scene_ready_at
+    _scene_started_at, _scene_ready_at = time.monotonic(), None
     try:
         fn(page)
     except Exception:
@@ -694,10 +965,32 @@ def record(browser, name, fn, viewport, authed):
     dest = RAW / f'{SCENE_ORDER[name]:02d}-{name}.webm'
     dest.unlink(missing_ok=True)
     shutil.move(video.path(), dest)
+    ready = dest.with_suffix('.ready')
+    ready.unlink(missing_ok=True)
+    if _scene_ready_at:
+        ready.write_text(f'{_scene_ready_at:.2f}')
     print(f'  ✓ {dest.name}')
 
 
 # ---------------------------------------------------------------- encoding ----
+
+def probe_duration(path):
+    """Seconds of video in a segment, so the tail can be trimmed by an amount
+    rather than to a timestamp."""
+    out = subprocess.run(
+        [ffprobe_bin(), '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=nw=1:nk=1', str(path)],
+        capture_output=True, text=True)
+    try:
+        return float(out.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+def ffprobe_bin():
+    pixi = HERE / '.pixi/envs/default/bin/ffprobe'
+    return str(pixi) if pixi.exists() else (shutil.which('ffprobe') or 'ffprobe')
+
 
 def ffmpeg_bin():
     pixi = HERE / '.pixi/envs/default/bin/ffmpeg'
@@ -722,8 +1015,17 @@ def stage_render(make_gif=True):
     w, h = CANVAS
     chains, labels = [], []
     for i, seg in enumerate(segments):
+        duration = probe_duration(seg)
+        head = TRIM
+        ready = seg.with_suffix('.ready')
+        if ready.exists():
+            # The scene said when its page became presentable; drop everything
+            # before that (less a moment, so the first line is not clipped).
+            head = max(TRIM, float(ready.read_text()))
+        end = max(head + 0.5, duration - TAIL) if duration else None
+        window = f'start={head:.2f}' + (f':end={end:.2f}' if end else '')
         chains.append(
-            f'[{i}:v]trim=start={TRIM},setpts=PTS-STARTPTS,fps=25,'
+            f'[{i}:v]trim={window},setpts=PTS-STARTPTS,fps=25,'
             f'scale={w}:{h}:force_original_aspect_ratio=decrease,'
             f'pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=0x0f172a,setsar=1[v{i}]')
         labels.append(f'[v{i}]')
@@ -746,12 +1048,15 @@ def stage_render(make_gif=True):
 
     if not make_gif:
         return
+    # A gif of a two-and-a-half minute tour is inevitably heavy — 6fps at 640px
+    # is about as far down as it goes while the captions stay readable. The mp4
+    # is the one to link; the gif is for places that will not play video.
     gif = OUT / f'demo{suffix}.gif'
     print(f'== render: {gif.name} ==')
     subprocess.run(
         [ff, '-y', '-loglevel', 'error', '-stats', '-i', str(mp4),
          '-filter_complex',
-         'fps=8,scale=720:-1:flags=lanczos,split[a][b];'
+         'fps=6,scale=640:-1:flags=lanczos,split[a][b];'
          '[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3',
          '-loop', '0', str(gif)], check=True)
     size = gif.stat().st_size / 1e6
@@ -783,9 +1088,8 @@ def main():
         # `fill` has to happen after `scoring` (it would otherwise overwrite the
         # sheet the scene fills by hand) and before anything showing standings.
         stages = ['bootstrap', 'reset', 'login', 'setup', 'print', 'scoring',
-                  'fill', 'publish', 'display', 'screen_scores', 'screen_counter',
-                  'screen_schedule', 'phone', 'ceremony', 'screen_podium',
-                  'render']
+                  'fill', 'publish', 'display', 'screen_counter', 'screen_scores',
+                  'phone', 'ceremony', 'screen_podium', 'render']
 
     RAW.mkdir(parents=True, exist_ok=True)
     if 'bootstrap' in stages:
@@ -801,13 +1105,29 @@ def main():
             stage_auth(browser)
             if 'reset' in stages:
                 stage_reset(browser)
-            for name, fn, viewport, authed in SCENES:
+            for name, fn, viewport, authed, *rest in SCENES:
                 if name in stages:
-                    record(browser, name, fn, viewport, authed)
+                    if name == 'ceremony':
+                        reset_ceremony(browser)
+                    record(browser, name, fn, viewport, authed,
+                           prep=bool(rest and rest[0]))
+                # Round 1 only, so the publish scene is recorded at a real
+                # moment of a tournament: one round in, the rest not yet played
+                # and their publish toggles still greyed out.
                 if name == 'scoring' and 'fill' in stages:
-                    run_fill(browser)
-            if 'fill' in stages and 'scoring' not in stages:
-                run_fill(browser)
+                    run_fill(browser, only=[1])
+                # Then every round but the last, so the screens and the phone
+                # are filmed on a tournament still being played.
+                if name == 'publish' and 'fill' in stages:
+                    run_fill(browser, publish=True, drop_last=True)
+                # The last round lands once they are in the can: publishing it
+                # completes the tournament, and the standings then hide behind
+                # "waiting for the ceremony" — which is what the ceremony
+                # scenes are there to reveal.
+                if name == 'phone' and 'fill' in stages:
+                    run_fill(browser, only='last', publish=True)
+            if 'fill' in stages and 'scoring' not in stages and 'publish' not in stages:
+                run_fill(browser, publish=True)
             browser.close()
     if 'render' in stages:
         stage_render(make_gif)

@@ -96,12 +96,24 @@ a synthetic cursor that follows the driven mouse.
 
 Useful to know:
 
-- `demo.py --help`-style stage list is in the module docstring; any scene name
-  can be replayed alone, followed by `render`. Replaying a single scene keeps
-  the other segments (a full run clears them first).
-- Scene order matters for the data: `scoring` fills one sheet by hand, then the
-  unrecorded `fill` stage fills the rest through the test toolbar, so the
-  standings, screens and ceremony have something to show.
-- `--no-gif` skips the (large) gif; `--lang fr` writes `demo-fr.mp4`.
+- The stage list is in the module docstring; any scene name can be replayed
+  alone, followed by `render`. Replaying a single scene keeps the other
+  segments (a full run clears them first).
+- Scene order carries the story of a tournament, and the unrecorded `fill`
+  stage is what moves it along: round 1 is filled after the `scoring` scene so
+  `publish` can be filmed with rounds 2 and 3 still empty; the middle rounds
+  follow, so the screens and the phone show a tournament being played; the last
+  round lands only after the `phone` scene, because publishing it puts the
+  standings behind *waiting for the ceremony* — which the ceremony scenes then
+  reveal.
+- `DEMO_PACE` re-times the whole film (default `0.8`); `DEMO_TRIM` is the blank
+  head dropped from each segment.
+- `--no-gif` skips the gif, which is inevitably heavy — link the mp4 where you
+  can. `--lang fr` writes `demo-fr.mp4` / `demo-fr.gif`.
 - Captions live in the `TEXT` dict at the top of the script, English and French
-  side by side.
+  side by side. A caption clears itself when the page unloads, so a scene must
+  say something again after navigating — `goto(page, path, key=...)` does that.
+- The throwaway DB is put in WAL mode by `bootstrap`: without it a polling
+  reader blocks the app's writers and the fill's saves 500 with *database is
+  locked*, leaving tables unscored. Restart the server after a first bootstrap
+  so it picks the mode up.
