@@ -53,6 +53,20 @@ You only need a laptop. No server, no Docker, no domain name.
 2. **Unpack it and start `mahj-organizer`** (`mahj-organizer.exe` on Windows). A black
    console window opens. Leave it open, because closing it stops the app. Your
    browser opens on `http://127.0.0.1:8000/options`.
+
+   On **macOS**, do this once before the first start, or the app will not open:
+   open Terminal (Applications > Utilities) and run
+
+   ```
+   xattr -dr com.apple.quarantine ~/Downloads/mahj-organizer
+   ```
+
+   with the path to the unpacked folder. See
+   [the macOS note](docs/hosting/STANDALONE.md#first-launch-on-macos) for why,
+   and what to do if macOS already offered to move a file to the Bin.
+
+   Keep the folder together — the program needs the files next to it. Move the
+   whole folder, never `mahj-organizer` on its own.
 3. **Log in as `admin`.** The password is random. You will find it in the console
    window, and in the file `first-login.txt` next to your data. Change it under
    **Setup > Administration > User management**.
