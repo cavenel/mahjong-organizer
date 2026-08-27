@@ -429,39 +429,32 @@ class TestDumpUpload:
         fields.update(kw)
         return PublishTarget.objects.create(tenant=tenant, **fields)
 
-    def test_the_default_dump_dir_is_login_relative(self, tournament):
-        """A dump under the web root is fetchable by anyone guessing the name, and
-        it holds every score including the withheld final round. The login
-        directory is not served."""
+    def test_the_dump_dir_is_a_backup_folder_of_the_published_site(self, tournament):
+        """Inside the served tree on purpose: that is what gives the dumps a URL
+        the operator can open from Backup & restore."""
         from mahj.publish import sftp_upload
         self._target(tournament['tenant'])
-        assert sftp_upload.resolve_config('test').dump_dir() == 'mahj-backups'
+        assert sftp_upload.resolve_config('test').dump_dir() == '/srv/site/backup'
 
-    @pytest.mark.parametrize('path', [
-        'public_html/2026',      # one tournament a year: the sibling would be
-                                 # public_html/mahj-backups, inside the docroot
-        '/home/u/public_html/spring',
-        'public_html',
-        '/srv/site',
-        '',
+    @pytest.mark.parametrize('path, expected', [
+        ('public_html/2026', 'public_html/2026/backup'),
+        ('/home/u/public_html/spring', '/home/u/public_html/spring/backup'),
+        ('public_html/', 'public_html/backup'),
+        ('', './backup'),
     ])
-    def test_no_default_dump_dir_is_derived_from_the_site_path(self, tournament, path):
-        """Whatever the target path, the default never lands under it — the config
-        never says where the docroot begins, so deriving a directory from `path`
-        cannot tell a docroot from a subfolder of one."""
+    def test_the_dump_dir_follows_the_site_path(self, tournament, path, expected):
         from mahj.publish import sftp_upload
         self._target(tournament['tenant'], path=path)
-        dump_dir = sftp_upload.resolve_config('test').dump_dir()
-        assert dump_dir == 'mahj-backups'
-        site = path.rstrip('/')
-        assert not (site and dump_dir.startswith(site + '/'))
+        assert sftp_upload.resolve_config('test').dump_dir() == expected
 
-    def test_backup_path_overrides_it(self, tournament):
-        """An operator who wants a specific directory — including one inside the
-        site, if they mean it — names it."""
-        from mahj.publish import sftp_upload
-        self._target(tournament['tenant'], backup_path='/var/backups/mahj/')
-        assert sftp_upload.resolve_config('test').dump_dir() == '/var/backups/mahj'
+    @pytest.mark.parametrize('public_url, expected', [
+        ('https://mahj.example/2026', 'https://mahj.example/2026/backup/'),
+        ('https://mahj.example/2026/', 'https://mahj.example/2026/backup/'),
+        ('', ''),   # no site URL configured → no link to offer
+    ])
+    def test_dump_url_hangs_off_the_spectator_url(self, public_url, expected):
+        from mahj.publish.sftp_upload import dump_url
+        assert dump_url(public_url) == expected
 
     def test_upload_dump_sends_the_file_and_prunes_old_ones(self, tournament, fake_sftp):
         from mahj.publish import sftp_upload
@@ -476,8 +469,11 @@ class TestDumpUpload:
 
         sftp_upload.upload_dump('test', b'payload', 'mahj_test_20260820T120000Z.json.gz')
 
-        assert fake_sftp.written['mahj-backups/mahj_test_20260820T120000Z.json.gz'] == b'payload'
-        assert 'mahj-backups' in fake_sftp.made_dirs
+        assert fake_sftp.written['/srv/site/backup/mahj_test_20260820T120000Z.json.gz'] == b'payload'
+        assert '/srv/site/backup' in fake_sftp.made_dirs
+        # Apache defaults to Options -Indexes, so the directory needs this to be
+        # browsable at all — the whole point of putting the dumps in the site.
+        assert fake_sftp.written['/srv/site/backup/.htaccess'] == b'Options +Indexes\n'
         # 25 old + 1 new = 26, keep 20 → the 6 oldest of this tenant's go.
         assert len(fake_sftp.removed) == 6
         assert all('mahj_test_2026_' not in p for p in fake_sftp.removed)

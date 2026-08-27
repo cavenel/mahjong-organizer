@@ -1966,7 +1966,6 @@ def publish_target_save(request):
     target.host = request.POST.get('host', '').strip()
     target.username = request.POST.get('username', '').strip()
     target.path = request.POST.get('path', '').strip()
-    target.backup_path = request.POST.get('backup_path', '').strip()
     target.host_key = request.POST.get('host_key', '').strip()
     port_raw = request.POST.get('port', '').strip() or '22'
     try:
@@ -2677,8 +2676,14 @@ def _page_backup(request, tenant, error=None):
     """Backup & restore: download this tournament as a dump file, or replace it
     with an uploaded one (endpoints in views/backup_admin). The restore confirm
     dialog names what it is about to erase, so pass the current size."""
-    from ..publish.sftp_upload import is_configured as _static_publish_configured
+    from ..publish.sftp_upload import KEEP_DUMPS, dump_url, resolve_config
     template2 = loader.get_template('mahj/admin_backup.html')
+    # When web publishing is configured, every publish also uploads a dump into a
+    # `backup` folder of the published site — the page says so and links to it.
+    # The link needs the site's public URL, which only the operator knows, so it
+    # is absent until they set one (see sftp_upload.dump_url).
+    cfg = resolve_config(tenant.subdomain if tenant else '')
+    tournament = get_tournament(request)
     return template2.render({
         'subdomain': tenant.subdomain if tenant else '',
         'existing_players': Player.objects.filter(tenant=tenant).count(),
@@ -2686,9 +2691,10 @@ def _page_backup(request, tenant, error=None):
             Seat.objects.filter(tenant=tenant, minipoints__isnull=False).exists()
             or Hand.objects.filter(tenant=tenant).exists()
         ),
-        # When web publishing is configured, every publish also uploads a dump
-        # (outside the served tree) — the page says so.
-        'publish_configured': _static_publish_configured(tenant.subdomain if tenant else ''),
+        'publish_configured': cfg is not None,
+        'dump_location': cfg.dump_location() if cfg else '',
+        'dump_url': dump_url(tournament.public_url) if cfg else '',
+        'keep_dumps': KEEP_DUMPS,
     }, request)
 
 

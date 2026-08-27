@@ -101,7 +101,7 @@ Two things worth knowing before an event:
 ## Backups
 
 Nothing to configure here. Backups are per-tenant tournament dumps written by the
-app itself and uploaded to the tenant's publish target on every publish; the
-target (including an optional separate **Backup directory**) is stored per tenant
-in the database, edited on *Administration → Publish target*. See
+app itself and uploaded to a `backup` folder of the published site on every
+publish; the target is stored per tenant in the database, edited on
+*Administration → Publish target*. See
 [deployment.md](deployment.md#backups--restore).

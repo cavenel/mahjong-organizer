@@ -45,20 +45,12 @@
         <label for="pt-path" class="block text-xs font-medium text-gray-600 mb-1">Remote directory</label>
         <input id="pt-path" type="text" placeholder="/var/www/mahj" value="{{ target.path }}" maxlength="1024"
                class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
-      </div>
-      <div class="md:col-span-2">
-        <label for="pt-backup-path" class="block text-xs font-medium text-gray-600 mb-1">
-          Backup directory <span class="text-gray-400 font-normal">(optional)</span>
-        </label>
-        <input id="pt-backup-path" type="text" placeholder="/var/backups/mahj" value="{{ target.backup_path }}" maxlength="1024"
-               class="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-amber-300">
         <p class="text-xs text-gray-400 mt-1">
-          Every publish also uploads a full tournament backup here, which
-          <a class="text-amber-600 hover:underline" href="admin?page=backup">Backup &amp; restore</a> can
-          restore. Empty = a <code class="text-xs">mahj-backups</code> folder in the SFTP
-          login directory, which is not served to the public. If you set a path here, keep it
-          outside the folder above: a backup contains every score, including a withheld
-          final round.
+          Relative to the SFTP login directory unless it starts with
+          <code class="text-xs">/</code>. Every publish also uploads a full tournament
+          backup into a <code class="text-xs">backup</code> folder here, which
+          <a class="text-amber-600 hover:underline" href="admin?page=backup">Backup &amp; restore</a>
+          links to and can restore.
         </p>
       </div>
     </div>
@@ -137,7 +129,6 @@
       port: $("#pt-port").val(),
       username: $("#pt-username").val(),
       path: $("#pt-path").val(),
-      backup_path: $("#pt-backup-path").val(),
       host_key: $("#pt-host-key").val(),
       password: $("#pt-password").val(),
       private_key: $("#pt-key").val(),

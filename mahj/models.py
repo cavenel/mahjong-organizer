@@ -451,12 +451,6 @@ class PublishTarget(TenantAwareModel):
     port            = models.IntegerField(default=22)
     username        = models.CharField(default="", max_length=255, blank=True)
     path            = models.CharField(default="", max_length=1024, blank=True)
-    # Where the per-publish tournament dump is uploaded (see tenant_dump). Blank
-    # → a "mahj-backups" directory in the SFTP login directory, never derived from
-    # `path`: a dump holds every score, including a withheld final round the public
-    # site is still hiding, so it must not be web-fetchable. See dump_dir() for why
-    # nothing under `path` is safe to assume.
-    backup_path     = models.CharField(default="", max_length=1024, blank=True)
     host_key        = models.TextField(default="", blank=True)
     password_enc    = models.BinaryField(null=True, blank=True, default=None, editable=False)
     private_key_enc = models.BinaryField(null=True, blank=True, default=None, editable=False)

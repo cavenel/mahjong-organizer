@@ -150,14 +150,15 @@ cron: every web publish uploads a full tournament dump — settings, players,
 seating, all scores, published rounds, schedule, screens, the round timer — to
 the tenant's publish target over SFTP, next to the static site.
 
-- **Where they land**: a `mahj-backups/` directory in the SFTP user's **login
-  directory** — never under the remote site path, so the dumps aren't
-  web-fetchable (a dump holds every score, including a withheld final round the
-  public site is still hiding). It is not derived from the site path at all: for a
-  target like `public_html/2026` there is no way to tell the docroot from a
-  subfolder of it, so anything derived could end up served. To put them elsewhere,
-  set **Backup directory** on *Administration → Publish target*. The newest 20 per
-  tenant are kept.
+- **Where they land**: a `backup/` directory under the target's remote site path,
+  alongside an `.htaccess` that lets Apache list it. That is inside the served
+  tree deliberately, so the dumps have a plain URL — *Backup & restore* links to
+  it and an organizer can fetch a backup in a browser instead of needing an SFTP
+  client. The cost is that anyone who finds the address can read a dump, which
+  holds every entered score, including rounds not yet published and the ceremony
+  state; dumps carry no credentials (the publish target and scanning config are
+  excluded). If that trade is wrong for your event, publish to a site that is
+  itself access-controlled. The newest 20 per tenant are kept.
 - **On demand**: *Administration → Backup & restore* downloads a dump any time.
   **A tenant with no publish target and no downloaded dump has no backup at
   all** — nothing else in the stack copies its data anywhere. For such a tenant,
@@ -191,8 +192,8 @@ dump per tenant:
    the projector addresses point at; a different one breaks all of them.
 3. On `https://<tenant>.<BASE_DOMAIN>/admin`, open *Administration → Backup &
    restore*, upload the tenant's latest dump and retype the subdomain. Fetch the
-   dump from the tenant's SFTP publish target (`mahj-backups/` in the SFTP login
-   directory, or its **Backup directory**) or from a copy downloaded earlier.
+   dump from the `backup/` folder of the tenant's published site (over https or
+   SFTP) or from a copy downloaded earlier.
 4. **Re-add what a dump does not carry**: the tenant's user accounts and
    memberships (*Administration → User management*) and the publish target with
    its credentials (*Administration → Publish target*). Both are deliberately

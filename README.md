@@ -115,7 +115,8 @@ spectators read the results on a normal website. The address is shown as a QR
 code on the screens in the room and on the printed player cards.
 
 It uploads again after every round you publish, or when you click **Publish to
-web**. It also puts a full backup of the tournament next to the website.
+web**. It also puts a full backup of the tournament in a `backup` folder of the
+website, which **Backup & restore** links to.
 
 You set this up per tournament under **Setup > Administration > Publish
 target**: host, user, folder, and a password or a private key. The app encrypts

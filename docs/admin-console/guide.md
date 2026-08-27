@@ -962,11 +962,13 @@ private key; **Test connection** verifies the setup. The same page sets the
 Leave the target disabled to not publish. Progress of an upload shows as a
 toast in the console shell.
 
-Each publish also uploads a **backup of the whole tournament** next to the site
-(see [§19](#19-backing-up-and-restoring-a-tournament)). The **Backup directory**
-field says where; leave it blank for a `mahj-backups` folder beside it.
-Prefer a directory *outside* the served site — a backup contains every score,
-including a withheld final round the public site is still hiding.
+Each publish also uploads a **backup of the whole tournament** into a `backup`
+folder of the published site (see
+[§19](#19-backing-up-and-restoring-a-tournament)). That folder is part of the
+site, so *Backup & restore* can link straight to it and you can download a
+backup in a browser. The trade: anyone who finds the address can read a backup,
+and a backup holds every entered score — including rounds you have not published
+yet and the ceremony's reveal state. It carries no passwords or API keys.
 
 ## 19. Backing up and restoring a tournament
 
@@ -977,8 +979,10 @@ timer.
 
 - **Download dump** saves one now. If web publishing is configured, one is also
   uploaded automatically on every publish, so a recent backup is already off-site
-  (the 20 most recent are kept). Without a publish target, downloading is the
-  only copy — do it after each round.
+  (the 20 most recent are kept). The page links to the `backup` folder on the
+  published site, where you can browse and download them; the link appears once
+  the **Spectator URL** is set on *Publish target*. Without a publish target,
+  downloading is the only copy — do it after each round.
 - **Restore from dump** replaces the current tournament with an uploaded file.
   It asks you to retype the subdomain first, and it cannot be undone. User
   accounts and the publish target are kept as they are.

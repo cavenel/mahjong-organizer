@@ -13,9 +13,13 @@
     <p class="text-sm text-gray-600">
       Download the current tournament as a dump file.
       {% if publish_configured %}
-      <span class="text-gray-500">A dump is also uploaded to your publish
-      target automatically on every web publish, so a recent one is already
-      off-site.</span>
+      <span class="text-gray-500">A dump is also uploaded automatically on every
+      web publish, so a recent one is already off-site &mdash; the newest
+      {{ keep_dumps }} are kept
+      {% if dump_url %}in <a href="{{ dump_url }}" target="_blank" rel="noopener"
+         class="text-amber-600 hover:underline break-all">{{ dump_url }}</a>{% else %}in
+      <code class="px-1 py-0.5 rounded bg-gray-200 text-gray-700 text-xs break-all">{{ dump_location }}</code>
+      (set a Spectator URL on the publisher page to get a link){% endif %}.</span>
       {% else %}
       <span class="text-gray-500">Web publishing is not configured, so dumps are
       not saved off-site automatically — download one after each round.</span>

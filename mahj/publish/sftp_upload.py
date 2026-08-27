@@ -28,12 +28,24 @@ VERSION_FILE = 'version.json'
 # dir, never uploaded.
 MANIFEST_FILE = '.upload_manifest.json'
 
-# Default directory for the tournament dumps uploaded on every publish, and how
-# many to keep. Placed BESIDE the served site, never inside it: a dump holds every
-# score, including a withheld final round the public site is still hiding, so a
-# guessable URL under the web root would leak the podium before the ceremony.
-DUMP_DIR_NAME = 'mahj-backups'
+# Subdirectory of the published site holding the tournament dumps uploaded on
+# every publish, and how many to keep.
+#
+# It sits INSIDE the served tree, so the dumps have a plain https URL the operator
+# can open (Backup & restore links to it) — a deliberate trade, chosen so the
+# off-site backups are one click away instead of needing an SFTP client. The cost
+# is that anyone who finds the URL can read a dump, which holds every entered
+# score — including rounds not yet published and the ceremony's reveal state —
+# ahead of the public site showing them. It carries no credentials: TENANT_MODELS
+# excludes the publish target and the scanning config.
+DUMP_SUBDIR = 'backup'
 KEEP_DUMPS = 20
+
+# Written into the dump directory on every dump upload so Apache serves an index
+# of it (hosts default to Options -Indexes, which would 403 the listing). Rewritten
+# each time rather than only on creation: it costs one tiny upload and heals a
+# directory whose .htaccess was removed.
+DUMP_HTACCESS = 'Options +Indexes\n'
 
 
 @dataclass
@@ -47,30 +59,36 @@ class PublishConfig:
     key_data: str = ''      # inline private key PEM
     host_key: str = ''      # a single known_hosts line to pin the host (optional)
     subdomain: str = ''     # so a learned host key can be written back to the row
-    backup_path: str = ''   # where dumps go; blank → the login dir (see dump_dir)
 
     def dump_dir(self):
-        """The remote directory tournament dumps are uploaded to.
+        """The remote directory tournament dumps are uploaded to: a ``backup``
+        subdirectory of the published site.
 
-        The operator's ``backup_path`` wins. Otherwise the login directory, which is
-        not served — and deliberately *not* anything derived from ``path``.
-
-        A sibling of the site directory would read as the tidier default, and is
-        safe only when ``path`` is the docroot itself (``/srv/site`` →
-        ``/srv/mahj-backups``). For a subfolder target — ``public_html/2026``, the
-        natural layout for one tournament a year — the sibling is
-        ``public_html/mahj-backups``, *inside* the served tree, so every publish
-        would leave a dump anyone can fetch by guessing the name. A dump holds every
-        score, including a final round the public site is still withholding for the
-        ceremony.
-
-        The config cannot distinguish those cases: it never says where the docroot
-        begins, and ``path`` is equally absolute in both. So the default does not
-        guess, and an operator wanting a particular directory names it.
+        Inside the served tree on purpose — that is what gives the dumps a URL
+        (see DUMP_SUBDIR for the trade this makes, and dump_url for the link).
         """
-        if self.backup_path:
-            return self.backup_path.rstrip('/')
-        return DUMP_DIR_NAME
+        return f"{(self.path or '.').rstrip('/')}/{DUMP_SUBDIR}"
+
+    def dump_location(self):
+        """Where the dumps land, as an operator would type it into an SFTP client."""
+        host = self.host if self.port == 22 else f'{self.host}:{self.port}'
+        who = f'{self.username}@' if self.username else ''
+        return f'{who}{host}:{self.dump_dir()}'
+
+
+def dump_url(public_url):
+    """The browsable URL of the dump directory, given the site's public URL.
+
+    ``public_url`` is the address the tenant's static site is served from
+    (TournamentSettings.public_url, edited beside the SFTP target), and the site
+    is what ``path`` holds — so the dumps, one directory below it, are simply
+    ``<public_url>/backup/``. Blank when the operator has not said where the site
+    is published: the SFTP config alone never reveals the site's URL.
+    """
+    public_url = (public_url or '').strip().rstrip('/')
+    if not public_url:
+        return ''
+    return f'{public_url}/{DUMP_SUBDIR}/'
 
 
 def resolve_config(subdomain):
@@ -111,7 +129,6 @@ def resolve_config(subdomain):
         key_data=key_data,
         host_key=target.host_key or '',
         subdomain=subdomain,
-        backup_path=(target.backup_path or '').strip(),
     )
 
 
@@ -337,6 +354,7 @@ def upload_dump(subdomain, data, filename):
         sftp = client.open_sftp()
         _ensure_remote_dir(sftp, remote_dir)
         sftp.putfo(io.BytesIO(data), f'{remote_dir}/{filename}')
+        sftp.putfo(io.BytesIO(DUMP_HTACCESS.encode()), f'{remote_dir}/.htaccess')
         _prune_dumps(sftp, remote_dir, subdomain)
         sftp.close()
     finally:
