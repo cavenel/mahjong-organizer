@@ -1,22 +1,30 @@
 # Deployment
 
-Production runs as a Docker Compose stack behind nginx with TLS. This guide
-covers a single-host deployment; see [configuration.md](configuration.md) for
-every environment variable.
+Production runs as a Docker Compose stack behind nginx with TLS, on a single
+host. [configuration.md](configuration.md) lists every environment variable.
 
 ## Prerequisites
 
 - A host with **Docker** and the **Docker Compose** plugin.
 - A **domain** you control, with:
-  - a **wildcard DNS** record `*.<BASE_DOMAIN>` (and `<BASE_DOMAIN>`) pointing at
-    the host — tenants are served at `<subdomain>.<BASE_DOMAIN>`;
+  - a **wildcard DNS** record `*.<BASE_DOMAIN>`, and `<BASE_DOMAIN>` itself,
+    pointing at the host. Tournaments are served at `<subdomain>.<BASE_DOMAIN>`.
   - a **wildcard TLS certificate** for `<BASE_DOMAIN>` and `*.<BASE_DOMAIN>`.
-- A filled-in `.env` (`cp .env.example .env`).
+
+## Get the code and the config
+
+```bash
+git clone https://github.com/cavenel/mahjong-organizer.git mahj && cd mahj
+cp .env.example .env
+```
+
+In `.env`, set `DJANGO_SECRET_KEY`, `BASE_DOMAIN` and `DB_PASSWORD`. See
+[configuration.md](configuration.md) for the rest.
 
 ## The stack
 
-`docker-compose.yml` defines the app services; `docker-compose.prod.yml` layers
-on nginx, TLS and the production commands. Always deploy with both files:
+`docker-compose.yml` defines the app services. `docker-compose.prod.yml` adds
+nginx, TLS and the production commands. Always deploy with both files:
 
 ```bash
 docker volume create mahj_postgres_data          # once, before the first up
@@ -25,17 +33,17 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
 ```
 
 The database lives in `mahj_postgres_data` and the TLS certificate in
-`mahj_letsencrypt`, both declared **external** in the compose files so that no
-compose command — in particular `docker compose down -v` — can delete them (see
-*Backups & restore*). They must exist before the first `up`; without them Compose
-stops with "external volume not found" rather than silently creating throwaway
-ones. The other named volumes (`static_files`, `certbot_www`, `nginx_cache`, the
-redis data) are rebuilt on start and may be deleted freely.
+`mahj_letsencrypt`. Both are declared **external** in the compose files, so no
+compose command can delete them, including `docker compose down -v`. Create them
+before the first `up`. Without them Compose stops with "external volume not
+found" instead of creating throwaway ones.
 
-Services: **web** (gunicorn/ASGI), **nginx** (TLS termination + static),
-**db** (PostgreSQL), **pgbouncer**, **redis** (cache), **redis_bus** (Channels +
-scan queue) and **scan_worker**. Named volumes persist
-`mahj_postgres_data`, `mahj_letsencrypt`, `static_files` and the redis data.
+The other named volumes (`static_files`, `certbot_www`, `nginx_cache` and the
+redis data) are rebuilt on start. You can delete those freely.
+
+The services are **web** (gunicorn on ASGI), **nginx** (TLS and static files),
+**db** (PostgreSQL), **pgbouncer**, **redis** (cache), **redis_bus** (Channels
+and the scan queue) and **scan_worker**.
 
 nginx renders its vhost from `nginx/mahjong.conf.template` at start, substituting
 `${BASE_DOMAIN}` into `server_name` and the cert paths
@@ -43,19 +51,25 @@ nginx renders its vhost from `nginx/mahjong.conf.template` at start, substitutin
 
 ## TLS certificate (wildcard, DNS-01)
 
-A wildcard cert requires a **DNS-01** challenge, so certbot needs your DNS
-provider's plugin. The compose file ships a `certbot` service (profile `certbot`)
-configured for one provider as an example — **swap the image and `--dns-*`
-flags/credentials for your provider** (`certbot/dns-cloudflare`,
-`certbot/dns-route53`, …).
+A wildcard certificate needs a **DNS-01** challenge, so certbot needs your DNS
+provider's plugin. The compose file ships a `certbot` service under the `certbot`
+profile, set up for OVH as an example. **Swap the image and the `--dns-*` flags
+and credentials for your own provider**, such as `certbot/dns-cloudflare` or
+`certbot/dns-route53`.
 
-The example is OVH, and the service bind-mounts `./certbot/ovh.ini` for its API
-keys. Create that file before the first run — `cp certbot/ovh.ini.example
-certbot/ovh.ini`, fill in the keys, `chmod 600 certbot/ovh.ini` (it is
-gitignored). Without it Docker mounts an empty *directory* at that path and
-certbot fails with a confusing credentials error. For another provider, change
-the volume line in `docker-compose.prod.yml` to that plugin's credentials file
-as well as the image and flags. Issue once:
+The example service bind-mounts `./certbot/ovh.ini` for its API keys. Create that
+file before the first run:
+
+```bash
+cp certbot/ovh.ini.example certbot/ovh.ini    # then fill in the keys
+chmod 600 certbot/ovh.ini                     # it is gitignored
+```
+
+Without the file, Docker mounts an empty directory at that path and certbot fails
+with a confusing credentials error. For another provider, also change the volume
+line in `docker-compose.prod.yml` to that plugin's credentials file.
+
+Issue the certificate once:
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.prod.yml \
@@ -65,42 +79,46 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml \
     --agree-tos -m you@example.org --non-interactive
 ```
 
-Renewal: `... --profile certbot run --rm certbot renew --quiet` (cron it).
+To renew, run the same command with `renew --quiet` in place of `certonly` and
+its flags. Put it in cron.
 
 ## First run
 
-Migrations apply automatically on container start. Then:
+Migrations apply automatically when the containers start.
+
+Create the platform superuser, who works across all tournaments:
 
 ```bash
-# 1. Create the platform superuser (cross-tenant operator)
 docker compose exec web python manage.py createsuperuser
 ```
 
-Access is **per-tenant** (see [`docs/dev/data-model.md`](../dev/data-model.md) →
-*Access control*). The
-superuser bypasses membership, so they can:
+Access is granted per tournament. The superuser bypasses that, so they can set up
+the first one. See [`docs/dev/access-control.md`](../dev/access-control.md).
 
-2. **Create a tenant** — log in at `https://<BASE_DOMAIN>/admin` → **Administration
-   → Tenants → Create** (name + subdomain). (The Django admin at `/admin_db/` also
-   works.)
-3. **Add that tenant's users** — from the Tenants list, click **Manage users →**
-   (or open `https://<tenant>.<BASE_DOMAIN>/admin` → **Administration → User
-   management**) and *Add a user*, ticking **Admin** for the tenant's first admin.
-   Roles (Admin / Scorer / Display operator / Publisher) are stored as per-tenant
-   `Membership` rows — there are no global Scorer/Display_op/Publisher groups.
+1. **Create a tournament.** Log in at `https://<BASE_DOMAIN>/admin`, then
+   **Administration → Tenants → Create**, with a name and a subdomain. The Django
+   admin at `/admin_db/` also works.
+2. **Add its users.** From the Tenants list, click **Manage users**. Or open
+   `https://<subdomain>.<BASE_DOMAIN>/admin` and go to **Administration → User
+   management**. Use *Add a user* and tick **Admin** for the first one.
 
-From then on each tenant admin manages their own tenant's users. Open
-`https://<tenant>.<BASE_DOMAIN>/admin`, then **Setup → Tournament settings**
-and **Excel import / export**. The **Setup checklist** tracks setup; the Run
-**Dashboard** tracks live progress.
+Roles are Admin, Scorer, Display operator and Publisher. They are stored as
+per-tournament `Membership` rows. There are no global role groups.
 
-Accounts that predate memberships (old global `is_staff`/group roles) get no
-access automatically; grant it with
-`manage.py assign_membership <user> <subdomain> --roles=tenant_admin,scorer,…`.
+From then on each tournament admin manages their own users. The tournament itself
+is set up under **Setup → Tournament settings** and **Excel import / export**.
+The **Setup checklist** shows what is still missing, and the Run **Dashboard**
+shows live progress.
 
-**Standalone build** ([`STANDALONE.md`](STANDALONE.md)): single-tenant and single-operator —
-it auto-creates a superuser on first launch, so it works out of the box with no
-membership setup.
+Accounts that predate memberships, with the old global `is_staff` and group
+roles, get no access automatically. Grant it with:
+
+```bash
+manage.py assign_membership <user> <subdomain> --roles=tenant_admin,scorer
+```
+
+The standalone build needs none of this. It serves one tournament and creates its
+superuser on first launch. See [`standalone.md`](standalone.md).
 
 ## Updating
 
@@ -109,22 +127,22 @@ git pull
 docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build web
 ```
 
-Migrations run on the new container's start; no manual `migrate` step.
+Migrations run when the new container starts. There is no manual `migrate` step.
 
-**If a migration fails on update**, the `web` container exits before gunicorn
-starts and nginx answers 502. Read the error with `docker compose -f … logs web`.
-The site is still on the old code until the new container is healthy, so the
-quickest recovery is to go back: `git checkout <previous commit>` and re-run the
-`up -d --build web` line above; the tenants' data is untouched (a failed
-migration is rolled back on PostgreSQL). Fix forward from a checkout, not on the
-server.
+**If a migration fails**, the `web` container exits before gunicorn starts and
+nginx answers 502. Read the error with `docker compose -f … logs web`. The site
+stays on the old code until the new container is healthy, so the quickest
+recovery is to go back: `git checkout <previous commit>` and re-run the
+`up -d --build web` line above. The tournaments' data is untouched, because
+PostgreSQL rolls a failed migration back. Fix the migration from a checkout, not
+on the server.
 
 ### Reclaiming build-cache disk
 
-Every `--build` leaves layers in the builder cache, and they are never reclaimed on
-their own. On a small VPS with `/var/lib/docker` on the root filesystem this is what
-fills the disk — after a few dozen deploys the cache was 68 GB, none of it in use, and
-`/` had 216 MB free. Docker's own disk accounting is the fastest way to see it:
+Every `--build` leaves layers in the builder cache, and nothing reclaims them.
+On a small VPS with `/var/lib/docker` on the root filesystem, this is what fills
+the disk. After a few dozen deploys the cache here was 68 GB, none of it in use,
+with 216 MB free on `/`.
 
 ```bash
 docker system df                                  # RECLAIMABLE is the number that matters
@@ -132,70 +150,78 @@ docker builder prune -af --filter until=168h      # drop cache older than a week
 docker image prune                                # drop untagged images from old builds
 ```
 
-Worth running every month or so, or whenever the disk gets tight. The `until` filter
-keeps the recent cache so the next deploy is still fast.
+Run this every month or so, or whenever the disk gets tight. The `until` filter
+keeps the recent cache, so the next deploy is still fast.
 
-**Never `docker volume prune`** (nor `docker system prune --volumes`). The
-database volume `mahj_postgres_data` and the certificate volume `mahj_letsencrypt`
-are declared *external*, so `docker compose down -v` leaves them alone — but
-`volume prune` deletes any volume no running container uses, and nothing in this
-stack backs the database up. Stop the stack, prune, and every tenant is gone. Use
-the backup/restore paths below instead. (A lost certificate volume is "only" an
-outage: nginx refuses to start until the cert is re-issued — see *TLS certificate*.)
+### Never run docker volume prune
 
-## Backups & restore
+This also means `docker system prune --volumes`.
 
-Backups are **per tournament**, not per server, and they need no host scripts or
-cron: every web publish uploads a full tournament dump — settings, players,
-seating, all scores, published rounds, schedule, screens, the round timer — to
-the tenant's publish target over SFTP, next to the static site.
+`docker compose down -v` leaves `mahj_postgres_data` and `mahj_letsencrypt`
+alone, because they are declared external. `volume prune` does not. It deletes
+any volume that no running container uses, and nothing in this stack copies the
+database anywhere. Stop the stack, prune, and every tournament is gone. Use the
+backup and restore paths below instead.
 
-- **Where they land**: a `backup/` directory under the target's remote site path,
-  alongside an `.htaccess` that lets Apache list it. That is inside the served
-  tree deliberately, so the dumps have a plain URL — *Backup & restore* links to
-  it and an organizer can fetch a backup in a browser instead of needing an SFTP
-  client. The cost is that anyone who finds the address can read a dump, which
-  holds every entered score, including rounds not yet published and the ceremony
-  state; dumps carry no credentials (the publish target and scanning config are
-  excluded). If that trade is wrong for your event, publish to a site that is
-  itself access-controlled. The newest 20 per tenant are kept.
-- **On demand**: *Administration → Backup & restore* downloads a dump any time.
-  **A tenant with no publish target and no downloaded dump has no backup at
-  all** — nothing else in the stack copies its data anywhere. For such a tenant,
-  download a dump after each round.
-- **To restore**: the same page — upload a dump and retype the subdomain. It
-  replaces that tenant's whole tournament and leaves user accounts and the publish
-  target alone. A dump restores into *any* tenant on *any* install running the
-  same app version, which is what makes the venue-laptop fallback below work.
+Losing the certificate volume is only an outage. nginx refuses to start until the
+certificate is issued again. See *TLS certificate*.
 
-Because a dump is per tenant, restoring one never touches another tournament on
-the same server. The database itself needs no application-level backup path: take
-host-level snapshots of the `mahj_postgres_data` volume if you want whole-server
-recovery.
+## Backups and restore
+
+Backups are per tournament, not per server, and they need no host scripts and no
+cron. Every web publish uploads a full tournament dump to that tournament's
+publish target over SFTP, next to the static site. A dump holds the settings,
+players, seating, all scores, published rounds, the schedule, the screens and the
+round timer.
+
+**Where they land.** In a `backup/` directory under the target's remote site
+path, next to an `.htaccess` that lets Apache list it. The newest 20 per
+tournament are kept.
+
+That directory is inside the served tree on purpose, so the dumps have a plain
+URL. *Backup & restore* links to it, and an organizer can fetch a backup in a
+browser without an SFTP client. The cost is that anyone who finds the address can
+read a dump, which holds every entered score, including rounds not yet published
+and the ceremony state. Dumps carry no credentials, because the publish target
+and the scanning config are excluded. If that trade is wrong for your event,
+publish to a site that is itself access-controlled.
+
+**On demand.** *Administration → Backup & restore* downloads a dump at any time.
+**A tournament with no publish target and no downloaded dump has no backup at
+all.** Nothing else in the stack copies its data anywhere. For such a tournament,
+download a dump after every round.
+
+**To restore.** On the same page, upload a dump and retype the subdomain. It
+replaces that tournament completely and leaves the user accounts and the publish
+target alone. A dump restores into any tournament on any install running the same
+app version, which is what makes the venue-laptop fallback work.
+
+Restoring one tournament never touches another on the same server. The database
+needs no backup path of its own. Take host-level snapshots of the
+`mahj_postgres_data` volume if you want whole-server recovery.
 
 **If the server is unreachable mid-tournament**, run the standalone build on a
-venue laptop and restore the latest dump into it — see
-[STANDALONE.md](STANDALONE.md). Publish from the laptop for the rest of the event,
-then dump from the laptop and restore that back onto the server afterwards.
+venue laptop and restore the latest dump into it. See
+[standalone.md](standalone.md).
 
-### The server died — starting over from a dump
+### Starting over from a dump after the server died
 
-When the database is gone (a pruned volume, a dead disk) and all you have is a
-dump per tenant:
+When the database is gone, from a pruned volume or a dead disk, and all you have
+is a dump per tournament:
 
-1. Bring the stack up on a fresh database (`docker volume create
-   mahj_postgres_data` if it no longer exists, then `docker compose -f … up -d`;
-   migrations apply on start) and create the platform superuser again — see
+1. Bring the stack up on a fresh database. Run `docker volume create
+   mahj_postgres_data` if it no longer exists, then `docker compose -f … up -d`.
+   Migrations apply on start. Create the platform superuser again, as in
    *First run*.
-2. **Recreate each tenant with its old subdomain** (*Administration → Tenants →
-   Create*). The subdomain is what the advertised spectator URL, the QR codes and
-   the projector addresses point at; a different one breaks all of them.
-3. On `https://<tenant>.<BASE_DOMAIN>/admin`, open *Administration → Backup &
-   restore*, upload the tenant's latest dump and retype the subdomain. Fetch the
-   dump from the `backup/` folder of the tenant's published site (over https or
-   SFTP) or from a copy downloaded earlier.
-4. **Re-add what a dump does not carry**: the tenant's user accounts and
-   memberships (*Administration → User management*) and the publish target with
-   its credentials (*Administration → Publish target*). Both are deliberately
-   excluded from dumps.
-5. Publish once from the restored tenant so the static site matches.
+2. **Recreate each tournament with its old subdomain**, under
+   *Administration → Tenants → Create*. The subdomain is what the advertised
+   spectator URL, the QR codes and the projector addresses point at. A different
+   one breaks all of them.
+3. On `https://<subdomain>.<BASE_DOMAIN>/admin`, open *Administration → Backup &
+   restore*, upload that tournament's latest dump and retype the subdomain. Fetch
+   the dump from the `backup/` folder of its published site, over https or SFTP,
+   or from a copy downloaded earlier.
+4. **Re-enter what a dump does not carry.** The user accounts and memberships
+   under *Administration → User management*, and the publish target with its
+   credentials under *Administration → Publish target*.
+5. Publish once from each restored tournament so the static site matches.

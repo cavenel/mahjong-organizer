@@ -1,16 +1,44 @@
 # Documentation
 
-One folder per audience. Start from the row that describes you.
+## Setting up and running a tournament
 
-| You are… | Start here |
-|----------|------------|
-| **Tournament crew** — scoring, publishing, screens, the ceremony | [admin-console/guide.md](admin-console/guide.md) — one guide with a part per role (Scorer, Publisher, Display operator, Admin), plus two printable [cheat sheets](admin-console/README.md) |
-| **Hosting an instance** — the server behind the tournament | [hosting/deployment.md](hosting/deployment.md) (Docker, DNS/TLS, first run), [hosting/configuration.md](hosting/configuration.md) (every environment variable), [hosting/STANDALONE.md](hosting/STANDALONE.md) (the venue-laptop failover build) |
-| **Working on the code** | [dev/data-model.md](dev/data-model.md), [dev/access-control.md](dev/access-control.md), [dev/known-issues.md](dev/known-issues.md) (accepted risks + invariants), [dev/clickthrough-fixtures/](dev/clickthrough-fixtures/) |
+[admin-console/guide.md](admin-console/guide.md) is the guide for the crew. It
+covers MCR and Riichi events.
 
-One thing that lives elsewhere on purpose:
+The crew also gets this guide as a PDF inside the app, from the avatar menu. It
+is built from the Markdown in [admin-console/](admin-console/), so edit the
+Markdown and never the PDF.
 
-- The crew guide doubles as the app's built-in help: the Docker build renders
-  `admin-console/*.md` to PDFs (`manage.py build_docs_pdf`) served at
-  `/static/docs/<name>.pdf` and linked from the admin console's user menu. Edit
-  the Markdown here — the PDFs are build artifacts, never edited directly.
+Two printable one-pagers for the scoring desk at an MCR event:
+[scorer](admin-console/mcr-scorer-cheat-sheet.md) (entering scores) and
+[head scorer](admin-console/mcr-head-scorer-cheat-sheet.md) (publishing, screens,
+ceremony).
+
+## Hosting the app
+
+[hosting/deployment.md](hosting/deployment.md) covers running the server with
+Docker: DNS, TLS, the first run, updates and backups.
+
+[hosting/configuration.md](hosting/configuration.md) lists every environment
+variable, and what is set per tournament in the admin instead.
+
+[hosting/standalone.md](hosting/standalone.md) covers the single binary for a
+venue laptop. No Docker, one sqlite file. It is also the fallback if the server
+goes down mid-event.
+
+## Working on the code
+
+[dev/development.md](dev/development.md) covers the settings modules, running the
+tests, and running the laptop app from source.
+
+[dev/data-model.md](dev/data-model.md) describes the entities, how the seating
+draw relates to competitors, and how a hand encodes draws and self-draws.
+
+[dev/access-control.md](dev/access-control.md) explains how views enforce
+per-tenant authorization.
+
+[dev/known-issues.md](dev/known-issues.md) lists the risks the codebase
+knowingly carries, and why each was accepted.
+
+[dev/clickthrough-fixtures/](dev/clickthrough-fixtures/) holds small MCR and
+Riichi tournaments to import when testing by hand.

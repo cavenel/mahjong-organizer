@@ -1,8 +1,8 @@
-# MCR scoring — one-page cheat sheet
+# MCR scoring cheat sheet
 
 ## A. Enter each table's MiniPoints
 
-1. **Filter** — press <kbd>/</kbd>, type the **table number** → shows just that table.
+1. **Filter.** Press <kbd>/</kbd>, then type the **table number** → shows just that table.
 2. **Check the 4 player names** are correct (East / South / West / North).
 3. Press <kbd>Tab</kbd> to jump into the first **MiniPoints (MP)** box.
 4. **Enter the 4 MP**, one per seat (Tab moves seat → seat).
@@ -41,17 +41,17 @@ When everything is correct, tick **Validate score sheet** → the hands lock in.
 
 > **🔴 THE SIGNED MP TOTAL IS ALWAYS THE TRUTH.**
 >
-> If the hand-by-hand score sheet does **not** add up to the total MP signed by the
-> players — because of a counting mistake by the player who took the score —
-> **do not change the total MP entered in the main scoring table (step A).** The
+> The hand-by-hand score sheet may not add up to the total MP signed by the
+> players, usually from a counting mistake by the player who took the score.
+> **Do not change the total MP entered in the main scoring table (step A).** The
 > signed MP total is final.
 >
 > 1. **Keep the MP total** exactly as the players agreed: this is the
 >    only figure that feeds the **leaderboard**.
 > 2. **Write a clear note in red on the paper score sheet** marking the discrepancy,
 >    so it is traceable later.
-> 3. Enter the score sheet correctly as it is; it is fine if it produces a different
->    total from the signed MP.
+> 3. Enter the score sheet correctly as it is. It is fine if it produces a
+>    different total from the signed MP.
 >
 > The full score sheet is used **only for statistics and player information**. It can
 > legitimately diverge from the MP total, which is the single source of truth for
@@ -64,7 +64,7 @@ When everything is correct, tick **Validate score sheet** → the hands lock in.
 | Step | Do | Check |
 |---|---|---|
 | **Filter** | <kbd>/</kbd> + table number | Right table shown |
-| **Names** | — | 4 players correct |
+| **Names** | (nothing to type) | 4 players correct |
 | **MP** | <kbd>Tab</kbd>, enter 4 values | **Sum** = `0` (or negative if penalties) |
 | **Save** | auto | **pip 🟢 green** before next table |
 | **Sheet** | OCR scan *or* **Score sheet** button | Value / Win / From per hand; red = check |
