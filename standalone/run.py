@@ -14,7 +14,7 @@ Durability is a quick_check on startup plus tournament dumps the operator
 downloads manually (Administration -> Backup & restore) — there is no automatic
 backup. Recovery = quit, delete the .sqlite file, relaunch (a fresh database is
 created), then restore a downloaded dump in the console
-(see docs/hosting/STANDALONE.md).
+(see docs/hosting/standalone.md).
 """
 import os
 import secrets
@@ -46,9 +46,6 @@ SETTINGS_MODULE = 'apps.settings.standalone'
 # on first run). DB_* / Redis vars from the Docker profile don't apply here.
 ENV_TEMPLATE = """\
 # Mahjong standalone configuration. Edit, then restart the app.
-
-# The tournament's tenant subdomain. Pins this laptop to one tenant.
-LOCAL_TENANT=
 
 # Venue wall-clock timezone (IANA name), for the projector clock.
 VENUE_TZ=Europe/Stockholm
@@ -118,7 +115,7 @@ def integrity_ok(path):
     The launcher refuses to serve a database that fails this, rather than
     starting on one that half-works and renders wrong standings. Recovery is to
     delete the file and restore a tournament dump into the fresh database the
-    next launch creates — see docs/hosting/STANDALONE.md.
+    next launch creates — see docs/hosting/standalone.md.
     """
     p = Path(path)
     if not p.exists():
@@ -135,7 +132,7 @@ def integrity_ok(path):
 
 
 def bootstrap(data_dir):
-    """First-run data: a Tenant (from LOCAL_TENANT) and an admin user.
+    """First-run data: the `local` Tenant and an admin user.
 
     The admin password is generated, never fixed. The server binds 0.0.0.0 so
     projectors and scorers' phones on the venue LAN can reach it, which means a

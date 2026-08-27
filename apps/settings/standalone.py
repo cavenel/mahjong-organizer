@@ -2,7 +2,7 @@
 
 Runs on a local sqlite file with an in-process cache and channel layer, so the
 whole thing can be frozen into a PyInstaller binary and launched on a venue
-laptop by a non-technical operator (see docs/hosting/STANDALONE.md and standalone/run.py).
+laptop by a non-technical operator (see docs/hosting/standalone.md and standalone/run.py).
 Everything the robust Docker stack needs Postgres / pgbouncer / Redis / nginx /
 workers for is either swapped for an in-process equivalent or dropped.
 """
@@ -70,9 +70,16 @@ STORAGES = {
 }
 
 # --- single tenant -----------------------------------------------------------
-# This build serves one tournament. Pin every request to it (honoured by
-# get_domain regardless of DEBUG, unlike the dev env-var path). Defaults to
-# 'local', which the launcher also creates on first run.
+# This build serves one tournament, so get_domain pins every request to this
+# subdomain instead of parsing the host. 'local' is the normal value and the
+# launcher creates that tenant on first run; the env var is an escape hatch for
+# the screenshot scripts, which need a named tenant. get_domain only honours it
+# when STANDALONE is set, so it cannot affect a server.
+#
+# Nothing user-facing depends on the value: the advertised spectator URL comes
+# from the per-tenant publish target, and the published site's paths and links
+# don't carry a subdomain. It does appear in dump filenames
+# (mahj_<subdomain>_<stamp>.json.gz).
 LOCAL_TENANT = os.environ.get('LOCAL_TENANT', '').strip() or 'local'
 
 # --- scan / OCR off ----------------------------------------------------------

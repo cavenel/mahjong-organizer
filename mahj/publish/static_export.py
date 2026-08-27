@@ -36,10 +36,10 @@ _SKIP_STATIC_DIRS = {'admin', 'docs', 'sounds'}
 def _make_request(subdomain, tenant):
     """An anonymous GET bound to `tenant`.
 
-    We attach `_tenant` directly so get_tenant() short-circuits — bypassing host
-    parsing and the DEBUG/LOCAL_TENANT logic, which don't apply to an offline
-    render. AnonymousUser → is_staff/is_authenticated are False, so the views take
-    the public (reveal-masked) path.
+    We attach `_tenant` directly so get_tenant() short-circuits, bypassing the
+    host parsing in get_domain, which doesn't apply to an offline render.
+    AnonymousUser → is_staff/is_authenticated are False, so the views take the
+    public (reveal-masked) path.
     """
     request = RequestFactory().get('/', HTTP_HOST=f'{subdomain}.{settings.BASE_DOMAIN}')
     request.user = AnonymousUser()

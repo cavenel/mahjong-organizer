@@ -326,12 +326,18 @@ def public_site_host(subdomain, public_url=''):
 
 
 def get_domain(request):
-    # The standalone build is reached at localhost, which carries no subdomain, so
-    # normal host parsing can't find a tenant. That build is single-tenant by
-    # construction and sets settings.LOCAL_TENANT, which pins every request to it.
-    forced = (getattr(settings, 'LOCAL_TENANT', '') or '').strip()
-    if forced:
-        return forced
+    # The standalone build is reached at localhost or a bare LAN IP, neither of
+    # which carries a subdomain, so host parsing can't find a tenant. That build
+    # is single-tenant by construction, so settings.LOCAL_TENANT pins every
+    # request to it.
+    #
+    # Gated on STANDALONE: this returns one fixed tenant for every request, which
+    # would collapse a multi-tenant instance onto it if the variable were ever set
+    # in a server's .env.
+    if getattr(settings, 'STANDALONE', False):
+        forced = (getattr(settings, 'LOCAL_TENANT', '') or '').strip()
+        if forced:
+            return forced
     host = request.get_host().split(':')[0]   # drop any :port
     base = settings.BASE_DOMAIN
     # The tenant is everything to the left of the base domain, so a single

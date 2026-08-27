@@ -8,8 +8,10 @@ import stat
 
 import pytest
 from django.contrib.auth.models import User
+from django.test import RequestFactory, override_settings
 
 from mahj.models import Tenant
+from mahj.views.helpers import get_domain
 from standalone.run import bootstrap
 
 
@@ -43,7 +45,13 @@ class TestFirstRunAdminPassword:
         assert User.objects.filter(is_superuser=True).count() == 1
         assert User.objects.get(username='admin').check_password(password)
 
-    def test_creates_the_local_tenant(self, db, tmp_path, monkeypatch):
+    def test_creates_the_local_tenant(self, db, tmp_path):
+        bootstrap(tmp_path)
+        assert Tenant.objects.filter(subdomain='local').exists()
+
+    def test_an_existing_env_var_still_names_the_tenant(self, db, tmp_path, monkeypatch):
+        """LOCAL_TENANT is no longer written into the .env template, but installs
+        that already set it, and the screenshot scripts, must keep working."""
         monkeypatch.setenv('LOCAL_TENANT', 'venue')
         bootstrap(tmp_path)
         assert Tenant.objects.filter(subdomain='venue').exists()
@@ -60,3 +68,30 @@ class TestFirstRunAdminPassword:
             assert User.objects.get(username='admin').check_password(password)
         finally:
             locked.chmod(0o700)
+
+
+class TestLocalTenantIsStandaloneOnly:
+    """get_domain returns one fixed tenant for every request when LOCAL_TENANT is
+    set, so a server that ever picked the variable up would serve one tournament
+    on every subdomain. The pin is gated on STANDALONE to make that impossible.
+    """
+
+    def _domain(self, host):
+        request = RequestFactory().get('/', HTTP_HOST=host)
+        return get_domain(request)
+
+    @override_settings(STANDALONE=True, LOCAL_TENANT='venue', BASE_DOMAIN='example.org')
+    def test_standalone_pins_every_host_to_the_one_tenant(self):
+        assert self._domain('127.0.0.1:8000') == 'venue'
+        assert self._domain('192.168.1.42:8000') == 'venue'
+        assert self._domain('other.example.org') == 'venue'
+
+    @override_settings(STANDALONE=False, LOCAL_TENANT='venue', BASE_DOMAIN='example.org')
+    def test_a_server_ignores_it_and_parses_the_host(self):
+        assert self._domain('a.example.org') == 'a'
+        assert self._domain('b.example.org') == 'b'
+        assert self._domain('example.org') == ''
+
+    @override_settings(STANDALONE=True, LOCAL_TENANT='', BASE_DOMAIN='example.org')
+    def test_standalone_without_a_value_falls_back_to_host_parsing(self):
+        assert self._domain('a.example.org') == 'a'
